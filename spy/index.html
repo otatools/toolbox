@@ -1,0 +1,1279 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>ポリスvsスパイ</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@400;700;900&display=block" rel="stylesheet">
+    <style>
+        :root {
+            --neon-blue: #00f3ff;
+            --neon-blue-glow: #00f3ff;
+            --neon-pink: #ff0055;
+            --neon-pink-glow: #ff0055;
+            --neon-danger: #ff2a2a;
+            --bg-dark: #050508;
+            --panel-bg: rgba(5, 10, 20, 0.8);
+            --grid-color: rgba(0, 243, 255, 0.1);
+        }
+        
+        body {
+            font-family: 'M PLUS Rounded 1c', sans-serif;
+            visibility: hidden;
+            background-color: var(--bg-dark);
+            
+            /* 背景レイヤー構成:
+               1. 走査線 (Scanlines) - 一番手前だがpointer-eventsなし
+               2. グリッド線
+               3. ラジアルグラデーション (Vignette)
+            */
+            background-image: 
+                /* 走査線: 背景の一部として描画 */
+                linear-gradient(rgba(0, 10, 20, 0.3) 50%, transparent 50%),
+                /* グリッド */
+                linear-gradient(var(--grid-color) 1px, transparent 1px),
+                linear-gradient(90deg, var(--grid-color) 1px, transparent 1px),
+                /* ベースの光 */
+                radial-gradient(circle at 50% 30%, rgba(0, 80, 150, 0.25) 0%, #020205 90%);
+            
+            background-size: 100% 4px, 60px 60px, 60px 60px, 100% 100%;
+            background-position: center top;
+            min-height: 100vh; min-height: 100dvh;
+            color: #f1f5f9; margin: 0;
+            display: flex; align-items: center; justify-content: center;
+            overflow-x: hidden; touch-action: manipulation;
+            transition: background-color 0.5s ease;
+        }
+
+        /* 背景グリッドのアニメーション */
+        @keyframes cyber-grid-move {
+            0% { background-position: 0 0, 0 0, 0 0, center top; }
+            100% { background-position: 0 0, 0 60px, 0 60px, center top; }
+        }
+        body { animation: cyber-grid-move 10s linear infinite; }
+
+        body.fonts-loaded { visibility: visible; }
+        
+        .danger-mode { 
+            animation: timer-alert-pulse 0.8s infinite alternate; 
+            background-color: #1a0000;
+            /* 危険モード時の背景調整 */
+            background-image: 
+                linear-gradient(rgba(50, 0, 0, 0.3) 50%, transparent 50%),
+                linear-gradient(rgba(255, 0, 0, 0.1) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(255, 0, 0, 0.1) 1px, transparent 1px),
+                radial-gradient(circle at 50% 30%, rgba(100, 0, 0, 0.3) 0%, #1a0000 90%);
+        }
+        
+        @keyframes timer-alert-pulse {
+            0% { box-shadow: inset 0 0 50px rgba(255, 0, 0, 0.3); }
+            100% { box-shadow: inset 0 0 200px rgba(255, 0, 0, 0.7); }
+        }
+
+        /* アプリ枠: モニター感を大幅に強化 */
+        .container-app {
+            /* ベースの背景色: 深いモニターブラック */
+            background-color: #050810;
+            
+            /* 強化版モニター背景レイヤー */
+            background-image: 
+                /* 1. CRTモニターのような四隅の暗がり（ビネット） */
+                radial-gradient(circle at center, transparent 60%, rgba(0,0,0,0.7) 100%),
+                /* 2. 走査線（スキャンライン）: RGBノイズを削除し、黒線をくっきり強調 */
+                repeating-linear-gradient(
+                    0deg,
+                    transparent,
+                    transparent 2px,
+                    rgba(0, 0, 0, 0.5) 2px, /* 黒さを強調 0.4 -> 0.5 */
+                    rgba(0, 0, 0, 0.5) 4px
+                );
+            
+            /* 背景サイズ指定 */
+            background-size: 100% 100%, 100% 4px;
+
+            backdrop-filter: blur(12px);
+            
+            /* 修正: borderプロパティだとclip-pathの影響で線が細く見えることがあるため削除 */
+            border: none;
+            
+            /* clip-path で四隅をカット */
+            clip-path: polygon(
+                25px 0, 100% 0, 
+                100% calc(100% - 25px), calc(100% - 25px) 100%, 
+                0 100%, 0 25px
+            );
+            
+            /* 修正: box-shadowのinsetを使って擬似的に枠線を描画（これなら確実に内側に描画される） */
+            box-shadow: 
+                inset 0 0 0 2px rgba(0, 243, 255, 0.8), /* ← これが新しい枠線 */
+                inset 0 0 30px rgba(0, 243, 255, 0.15),
+                0 0 20px rgba(0, 243, 255, 0.1);
+            
+            /* 外側の発光は filter で表現 */
+            filter: drop-shadow(0 0 10px rgba(0, 243, 255, 0.3));
+            
+            width: 96%; max-width: 1200px; height: 90vh;
+            display: flex; flex-direction: column; position: relative; overflow: hidden;
+            z-index: 10;
+            transition: all 0.5s ease;
+        }
+        
+        .danger-mode .container-app { 
+            background-color: #1a0505; /* 赤みがかった黒 */
+            
+            /* 修正: 危険モードも枠線をbox-shadowで上書き */
+            box-shadow: 
+                inset 0 0 0 2px var(--neon-danger), /* 赤い枠線 */
+                inset 0 0 50px rgba(255, 42, 42, 0.3);
+            
+            filter: drop-shadow(0 0 15px rgba(255, 42, 42, 0.6));
+
+            /* 危険モード用の赤い走査線背景 */
+            background-image: 
+                radial-gradient(circle at center, transparent 60%, rgba(50,0,0,0.8) 100%),
+                repeating-linear-gradient(
+                    0deg,
+                    transparent,
+                    transparent 2px,
+                    rgba(0, 0, 0, 0.6) 2px,
+                    rgba(0, 0, 0, 0.6) 4px
+                );
+        }
+        
+        .danger-mode #timer-display {
+            color: var(--neon-danger);
+            text-shadow: 0 0 20px var(--neon-danger), 0 0 40px var(--neon-danger);
+            transform: scale(1.1);
+        }
+
+        .danger-mode .timer-circle-progress {
+            stroke: var(--neon-danger);
+            filter: drop-shadow(0 0 15px var(--neon-danger));
+        }
+
+        @media (max-width: 640px) {
+            .container-app { height: 92dvh; width: 98%; clip-path: none; border-radius: 16px; border-width: 1px; }
+        }
+
+        /* ネオンタイトル強化 */
+        .neon-title { 
+            color: #fff;
+            font-weight: 900;
+            text-shadow: 
+                0 0 5px #fff,
+                0 0 10px #fff,
+                0 0 20px var(--neon-blue),
+                0 0 40px var(--neon-blue);
+        }
+        
+        .victory-police { 
+            color: #e0fbff; 
+            text-shadow: 
+                0 0 10px #fff,
+                0 0 20px #0072ff,
+                0 0 40px #00f3ff;
+        }
+        .victory-spy { 
+            color: #ffeefc; 
+            text-shadow: 
+                0 0 10px #fff,
+                0 0 20px #ff0055,
+                0 0 40px #ff0055;
+        }
+
+        .btn-main {
+            background: linear-gradient(135deg, rgba(0, 210, 255, 0.9) 0%, rgba(0, 114, 255, 0.9) 100%);
+            border: 1px solid rgba(255, 255, 255, 0.5);
+            /* ボタンの発光も強化 */
+            box-shadow: 0 0 20px rgba(0, 243, 255, 0.4);
+            border-radius: 12px;
+            transition: all 0.2s cubic-bezier(0.2, 0.8, 0.2, 1);
+            position: relative; overflow: hidden;
+            text-shadow: 0 0 5px rgba(0,0,0,0.5);
+        }
+        .btn-main::before {
+            content: ''; position: absolute; top: 0; left: -100%; width: 100%; height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.6), transparent);
+            transition: 0.5s;
+        }
+        .btn-main:hover {
+            box-shadow: 0 0 30px rgba(0, 243, 255, 0.7);
+            transform: translateY(-2px) scale(1.02);
+            border-color: #fff;
+        }
+        .btn-main:hover::before { left: 100%; }
+        .btn-main:active { transform: scale(0.96); opacity: 0.9; }
+        
+        .timer-circle-progress { 
+            fill: none; stroke: var(--neon-blue); stroke-width: 8; 
+            stroke-dasharray: 282.74; stroke-dashoffset: 0;
+            transition: none;
+            filter: drop-shadow(0 0 8px var(--neon-blue));
+            stroke-linecap: round;
+        }
+
+        .danger-mode #timer-display,
+        .danger-mode .timer-circle-progress {
+            transition: all 0.3s ease;
+        }
+        
+        .fade-in { animation: fadeIn 0.4s cubic-bezier(0.2, 0.8, 0.2, 1) forwards; }
+        @keyframes fadeIn { 
+            from { opacity: 0; transform: translateY(15px); filter: blur(5px); } 
+            to { opacity: 1; transform: translateY(0); filter: blur(0); } 
+        }
+
+        .input-name {
+            background: rgba(0, 15, 30, 0.6); 
+            border: 1px solid rgba(0, 243, 255, 0.3);
+            color: #fff; outline: none;
+            transition: all 0.3s;
+            box-shadow: inset 0 0 10px rgba(0,0,0,0.5);
+        }
+        .input-name:focus { 
+            border-color: var(--neon-blue); 
+            background: rgba(0, 243, 255, 0.15); 
+            box-shadow: 0 0 15px rgba(0, 243, 255, 0.3), inset 0 0 5px rgba(0, 243, 255, 0.2);
+            text-shadow: 0 0 5px var(--neon-blue);
+        }
+        
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+        /* 修正: 擬似要素ではなく、独立したクラスとしてカーソルを定義 */
+        .cursor-char {
+            display: inline-block;
+            color: var(--neon-blue);
+            animation: blink 0.6s infinite;
+            margin-left: 2px;
+            text-shadow: 0 0 8px currentColor;
+            vertical-align: baseline; /* 文字のベースラインに合わせる */
+        }
+        /* .typing-cursor::after は削除 */
+        
+        @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
+
+        /* Floating Action Button for Recall */
+        .fab-recall {
+            position: absolute; bottom: 20px; right: 20px;
+            width: 80px; height: 80px;
+            background: rgba(5, 15, 25, 0.8);
+            border: 2px solid var(--neon-blue);
+            box-shadow: 0 0 20px rgba(0, 243, 255, 0.2);
+            border-radius: 18px;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            cursor: pointer; transition: all 0.2s cubic-bezier(0.2, 0.8, 0.2, 1);
+            z-index: 50;
+            backdrop-filter: blur(8px);
+        }
+        .fab-recall:active { transform: scale(0.95); background: rgba(0, 243, 255, 0.2); }
+        .fab-recall:hover { 
+            box-shadow: 0 0 30px var(--neon-blue); 
+            border-color: #fff;
+            transform: translateY(-3px);
+            background: rgba(0, 243, 255, 0.1);
+        }
+
+        /* 汎用ボタンスタイル調整（サイバーカード） */
+        .cyber-card {
+            background: rgba(10, 20, 30, 0.6);
+            border: 1px solid rgba(0, 243, 255, 0.2);
+            box-shadow: 0 0 15px rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(10px);
+        }
+        
+        button { letter-spacing: 0.05em; }
+        
+        /* 強調テキストのネオン */
+        .text-glow {
+            text-shadow: 0 0 10px currentColor;
+        }
+    </style>
+</head>
+<body onload="init()">
+    <div id="app" class="container-app p-4 md:p-6">
+        <!-- 1. SETUP -->
+        <div id="setup-screen" class="flex-1 flex flex-col fade-in overflow-hidden">
+            <!-- タイトルの上の余白を増やしてネオンが切れないように修正 (mt-2 -> mt-8) -->
+            <div class="text-center mb-6 mt-8">
+                <h1 class="text-3xl md:text-5xl font-black neon-title italic mb-1">ポリス vs スパイ</h1>
+                <p class="text-pink-500 text-xs font-bold tracking-[0.2em]" style="text-shadow: 0 0 15px var(--neon-pink);">〜 紛れ込んだスパイを捜し出せ！ 〜</p>
+            </div>
+            <div class="space-y-4 flex-1 overflow-y-auto px-2 pb-4 no-scrollbar">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div class="cyber-card p-4 md:p-6 rounded-2xl text-center">
+                        <label class="text-xs font-black text-cyan-400 mb-2 block tracking-widest text-glow">参加人数</label>
+                        <div class="flex items-center justify-center gap-2 md:gap-4">
+                            <button onclick="changePlayers(-1)" class="w-12 h-12 bg-white/5 border border-white/10 rounded-xl text-2xl font-black text-cyan-300 hover:bg-cyan-500/20 hover:shadow-[0_0_15px_rgba(0,243,255,0.4)] transition-all">－</button>
+                            <div class="flex items-baseline justify-center w-28 md:w-32">
+                                <span class="w-8 md:w-10"></span>
+                                <span class="text-4xl md:text-6xl font-black text-white drop-shadow-[0_0_15px_rgba(0,243,255,0.6)]" id="player-count-display">3</span>
+                                <span class="w-8 md:w-10 text-left ml-1 text-lg md:text-2xl font-bold text-cyan-300 text-glow">人</span>
+                            </div>
+                            <button onclick="changePlayers(1)" class="w-12 h-12 bg-white/5 border border-white/10 rounded-xl text-2xl font-black text-cyan-300 hover:bg-cyan-500/20 hover:shadow-[0_0_15px_rgba(0,243,255,0.4)] transition-all">＋</button>
+                        </div>
+                    </div>
+                    <div class="cyber-card p-4 md:p-6 rounded-2xl text-center">
+                        <label class="text-xs font-black text-cyan-400 mb-2 block tracking-widest text-glow">制限時間</label>
+                        <div class="flex items-center justify-center gap-2 md:gap-4">
+                            <button onclick="changeTime(-1)" class="w-12 h-12 bg-white/5 border border-white/10 rounded-xl text-2xl font-black text-cyan-300 hover:bg-cyan-500/20 hover:shadow-[0_0_15px_rgba(0,243,255,0.4)] transition-all">－</button>
+                            <div class="flex items-baseline justify-center w-28 md:w-32">
+                                <span class="w-8 md:w-10"></span>
+                                <span class="text-4xl md:text-6xl font-black text-white drop-shadow-[0_0_15px_rgba(0,243,255,0.6)]" id="time-setting-display">3</span>
+                                <span class="w-8 md:w-10 text-left ml-1 text-lg md:text-2xl font-bold text-cyan-300 text-glow">分</span>
+                            </div>
+                            <button onclick="changeTime(1)" class="w-12 h-12 bg-white/5 border border-white/10 rounded-xl text-2xl font-black text-cyan-300 hover:bg-cyan-500/20 hover:shadow-[0_0_15px_rgba(0,243,255,0.4)] transition-all">＋</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="flex items-center justify-between cyber-card p-4 rounded-xl">
+                    <div class="flex items-center gap-2">
+                        <svg class="w-5 h-5 text-pink-500 drop-shadow-[0_0_8px_rgba(236,72,153,0.8)]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"></path></svg>
+                        <span class="text-xs font-bold text-white tracking-wider text-glow">1分前にアラートを鳴らす</span>
+                    </div>
+                    <button id="alert-sound-toggle" onclick="toggleAlertSound()" class="relative inline-flex h-6 w-12 items-center rounded-full transition-colors bg-pink-600 shadow-[0_0_15px_rgba(219,39,119,0.6)]">
+                        <span id="alert-sound-knob" class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform translate-x-7 shadow-sm"></span>
+                    </button>
+                </div>
+
+                <div>
+                    <label class="text-xs font-black text-cyan-400 mb-2 block ml-2 text-glow">プレイヤー名</label>
+                    <div id="name-inputs-container" class="grid grid-cols-1 sm:grid-cols-2 gap-2"></div>
+                </div>
+                <div class="bg-pink-500/10 p-3 rounded-xl border border-pink-500/30 shadow-[0_0_15px_rgba(255,0,85,0.1)]">
+                    <p class="text-xs text-center text-pink-400 font-bold mb-2 text-glow">難易度</p>
+                    <div class="grid grid-cols-3 gap-2">
+                        <button onclick="setDifficulty('easy')" id="btn-easy" class="py-3 rounded-lg text-xs font-black transition-all">かんたん</button>
+                        <button onclick="setDifficulty('normal')" id="btn-normal" class="py-3 rounded-lg text-xs font-black transition-all">ふつう</button>
+                        <button onclick="setDifficulty('hard')" id="btn-hard" class="py-3 rounded-lg text-xs font-black transition-all">むずかしい</button>
+                    </div>
+                </div>
+            </div>
+            <div class="flex justify-center mt-4">
+                <button onclick="startGame()" class="w-full md:w-2/3 btn-main text-white font-black py-5 text-xl">捜査を開始する</button>
+            </div>
+        </div>
+
+        <!-- 2. CHECK THEME -->
+        <div id="check-screen" class="hidden flex-1 flex flex-col text-center fade-in">
+            <div class="mt-8">
+                <p class="text-pink-500 font-black text-sm mb-2 text-glow">この人に渡してください</p>
+                <h2 class="text-3xl md:text-5xl font-black text-white italic drop-shadow-[0_0_15px_rgba(255,255,255,0.6)]" id="player-turn-label"></h2>
+            </div>
+            <div class="flex-1 flex flex-col justify-center items-center px-4">
+                <div id="reveal-area" onclick="handleRevealAreaClick()" class="w-full max-w-xl min-h-[250px] md:min-h-[350px] bg-black/40 backdrop-blur-md rounded-3xl p-10 flex flex-col items-center justify-center border-2 border-cyan-500/30 cursor-pointer transition-all hover:bg-black/60 hover:border-cyan-400 hover:shadow-[0_0_40px_rgba(0,243,255,0.3)]">
+                    <div id="instruction-text" class="space-y-4">
+                        <div class="w-20 h-20 bg-cyan-500/10 rounded-full flex items-center justify-center border-2 border-cyan-500/50 mx-auto animate-pulse shadow-[0_0_30px_rgba(0,243,255,0.3)]">
+                            <svg class="w-10 h-10 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
+                        </div>
+                        <p class="text-lg font-bold text-cyan-100 text-glow">タップしてお題を確認</p>
+                    </div>
+                    <div id="theme-display" class="hidden text-center">
+                        <p class="text-pink-500 text-xs font-black mb-2 tracking-widest text-glow">あなたのお題</p>
+                        <p id="theme-text" class="text-5xl md:text-7xl font-black text-white drop-shadow-[0_0_20px_rgba(255,255,255,0.8)]"></p>
+                    </div>
+                </div>
+            </div>
+            <div class="mb-8 space-y-4 max-w-sm mx-auto w-full">
+                <button id="reveal-btn" onclick="toggleReveal()" class="w-full py-4 rounded-xl bg-white/5 border border-white/20 font-black hover:bg-white/10 hover:border-white/50 hover:shadow-[0_0_20px_rgba(0,243,255,0.4)] transition-all">お題を見る</button>
+                <button id="next-player-btn" onclick="nextPlayer()" class="w-full py-5 btn-main text-white font-black hidden">確認しました</button>
+            </div>
+        </div>
+
+        <!-- 3. READY -->
+        <div id="ready-screen" class="hidden flex-1 flex flex-col justify-center text-center fade-in">
+            <h2 class="text-5xl md:text-8xl font-black mb-8 italic text-white neon-title">準備完了</h2>
+            <p class="text-cyan-400 text-lg md:text-2xl mb-12 px-6 leading-relaxed drop-shadow-[0_0_10px_rgba(0,243,255,0.5)]">全員お題を見終わりました。<br>会話の中からスパイを見つけ出そう！</p>
+            <div class="flex justify-center">
+                <button onclick="startTimer()" class="w-full max-w-md py-6 btn-main text-2xl font-black">捜査スタート！</button>
+            </div>
+        </div>
+
+        <!-- 4. TIMER -->
+        <div id="timer-screen" class="hidden flex-1 flex flex-col justify-center items-center text-center fade-in relative">
+            <div class="relative w-64 md:w-80 aspect-square mb-6 flex items-center justify-center">
+                <!-- 光が切れないように overflow: visible を追加 -->
+                <svg class="w-full h-full -rotate-90" viewBox="0 0 100 100" style="overflow: visible;">
+                    <circle cx="50" cy="50" r="45" fill="none" stroke="rgba(0,243,255,0.2)" stroke-width="8"></circle>
+                    <circle id="timer-path" cx="50" cy="50" r="45" class="timer-circle-progress"></circle>
+                </svg>
+                <div id="timer-display" class="absolute text-6xl md:text-7xl font-black text-white tabular-nums drop-shadow-[0_0_15px_rgba(255,255,255,0.6)]"></div>
+            </div>
+            <button onclick="stopTimerAndGoToVoting()" class="max-w-sm w-full py-5 rounded-xl bg-pink-600 font-black text-xl hover:bg-pink-500 shadow-[0_0_30px_rgba(219,39,119,0.6)] transition-all">投票へ進む</button>
+            
+            <!-- Recall Button (Floating) -->
+            <div class="fab-recall" onclick="openRecallModal()">
+                <svg class="w-10 h-10 text-cyan-400 drop-shadow-[0_0_8px_rgba(34,211,238,0.8)]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                <span class="text-xs font-black text-white mt-1 text-glow">思い出す</span>
+            </div>
+        </div>
+
+        <!-- 5. VOTING SELECT -->
+        <div id="voting-select-screen" class="hidden flex-1 flex flex-col fade-in overflow-hidden">
+            <!-- 文言変更: だれが投票する？ → 投票の操作をする人を選んでください。 -->
+            <h2 class="text-xl md:text-2xl font-black text-center mb-6 text-cyan-400 italic text-glow">投票の操作をする人を選んでください。</h2>
+            <div id="voter-grid" class="grid grid-cols-1 sm:grid-cols-2 gap-4 flex-1 overflow-y-auto no-scrollbar px-2"></div>
+            <div class="flex justify-center mt-4">
+                <button id="show-result-final-btn" onclick="startRevealEnding()" class="hidden w-full md:w-2/3 py-6 btn-main font-black text-xl">結果を見る</button>
+            </div>
+        </div>
+
+        <!-- 6. VOTING ACTION -->
+        <div id="voting-action-screen" class="hidden flex-1 flex flex-col fade-in overflow-hidden">
+            <div class="text-center mb-6">
+                <p id="current-voter-label" class="text-pink-500 font-black text-sm mb-1 tracking-widest text-glow"></p>
+                <!-- 文言変更: だれをタイホしますか？ → だれがスパイだと思いますか？ -->
+                <h2 class="text-2xl font-black text-white italic drop-shadow-[0_0_15px_rgba(255,255,255,0.6)]">だれがスパイだと思いますか？</h2>
+            </div>
+            <div id="target-grid" class="grid grid-cols-2 gap-3 flex-1 overflow-y-auto no-scrollbar px-2"></div>
+            <div class="mt-4 space-y-3 flex flex-col items-center">
+                <button id="vote-confirm-btn" onclick="openConfirmModal()" disabled class="w-full md:w-2/3 py-5 rounded-xl font-black text-xl bg-white/5 text-gray-500">投票を決定</button>
+                <button onclick="showScreen('voting-select-screen')" class="w-full py-3 text-gray-400 font-bold hover:text-white transition-colors">戻る</button>
+            </div>
+        </div>
+
+        <!-- ENDING REVEAL SCREEN (Moved inside container) -->
+        <div id="ending-reveal-screen" class="hidden flex-1 flex flex-col items-center justify-center text-center fade-in relative overflow-hidden">
+            <!-- スキャンラインをオーバーレイ -->
+            <div class="absolute inset-0 pointer-events-none opacity-20" style="background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06)); background-size: 100% 2px, 3px 100%;"></div>
+            
+            <!-- スマホ調整: px-4を追加して左右に余白を確保 -->
+            <div class="w-full max-w-4xl space-y-4 md:space-y-8 relative z-10 px-4">
+                <!-- スマホ調整: 高さを固定ではなく min-h に変更して柔軟に -->
+                <div class="min-h-[40px] flex items-end justify-center">
+                    <p id="msg-line-pre" class="text-xl md:text-3xl font-bold text-cyan-600 drop-shadow-[0_0_5px_rgba(34,211,238,0.5)]"></p>
+                </div>
+                
+                <div class="min-h-[80px] md:min-h-[120px] flex items-center justify-center">
+                    <p id="msg-line-name" class="text-4xl md:text-7xl font-black text-white italic drop-shadow-[0_0_15px_rgba(255,255,255,0.8)]"></p>
+                </div>
+                
+                <div class="min-h-[40px] flex items-start justify-center">
+                    <p id="msg-line-post" class="text-xl md:text-3xl font-bold text-cyan-600 drop-shadow-[0_0_5px_rgba(34,211,238,0.5)]"></p>
+                </div>
+
+                <div class="min-h-[120px] flex items-center justify-center">
+                    <p id="msg-line-last-word" class="font-black text-pink-500 italic leading-relaxed drop-shadow-[0_0_10px_rgba(236,72,153,0.8)]"></p>
+                </div>
+                
+                <div class="flex justify-center pt-4">
+                    <!-- 修正: hiddenを削除し、opacity-0 pointer-events-none を追加して透明＆操作不可にする -->
+                    <button id="final-result-btn" onclick="showFinalScoreboard()" class="opacity-0 pointer-events-none py-4 px-12 border-2 border-cyan-500 text-cyan-400 font-black text-xl hover:bg-cyan-500/10 hover:shadow-[0_0_30px_rgba(0,243,255,0.4)] transition-all rounded-xl">結果詳細へ</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 7. FINAL SCORE -->
+        <div id="final-score-screen" class="hidden flex-1 flex flex-col text-center fade-in overflow-y-auto no-scrollbar">
+            <div class="py-2 md:py-4">
+                <h2 id="final-victory-title" class="font-black italic text-4xl md:text-6xl lg:text-7xl"></h2>
+            </div>
+            <div class="bg-black/40 py-4 px-4 md:py-6 md:px-8 rounded-3xl border-2 border-pink-500/30 mb-4 max-w-3xl mx-auto w-full shadow-[0_0_30px_rgba(255,0,85,0.2)]">
+                <p class="text-pink-500 font-black text-sm md:text-base mb-1 tracking-[0.2em] italic drop-shadow-[0_0_5px_rgba(236,72,153,0.8)]">スパイの正体</p>
+                <p id="final-spy-identity" class="text-3xl md:text-5xl lg:text-6xl font-black text-white italic truncate px-2 drop-shadow-[0_0_15px_rgba(255,255,255,0.6)]"></p>
+            </div>
+            <div class="grid grid-cols-2 gap-3 md:gap-6 mb-4 max-w-3xl mx-auto w-full">
+                <div class="p-3 md:p-5 bg-pink-500/5 border border-pink-500/20 rounded-2xl shadow-[0_0_15px_rgba(255,0,85,0.1)]">
+                    <p class="text-[10px] md:text-xs font-black text-pink-500 mb-1 tracking-widest underline decoration-2 underline-offset-4">スパイのお題</p>
+                    <p id="final-wolf-theme" class="text-2xl md:text-4xl lg:text-5xl font-black text-white drop-shadow-[0_0_10px_rgba(255,0,85,0.4)]"></p>
+                </div>
+                <div class="p-3 md:p-5 bg-cyan-500/5 border border-cyan-500/20 rounded-2xl shadow-[0_0_15px_rgba(0,243,255,0.1)]">
+                    <p class="text-[10px] md:text-xs font-black text-cyan-500 mb-1 tracking-widest underline decoration-2 underline-offset-4">ポリスのお題</p>
+                    <p id="final-citizen-theme" class="text-2xl md:text-4xl lg:text-5xl font-black text-white drop-shadow-[0_0_10px_rgba(0,243,255,0.4)]"></p>
+                </div>
+            </div>
+            <div class="mt-auto space-y-2 pb-4 flex flex-col items-center">
+                <button onclick="openVoteDetailModal()" class="w-full md:w-2/3 py-3 rounded-xl border border-cyan-500/30 text-cyan-400 font-black hover:bg-cyan-500/10 hover:shadow-[0_0_15px_rgba(0,243,255,0.2)] transition-all text-sm">投票の詳細を見る</button>
+                <button onclick="openRestartConfirmModal()" class="w-full md:w-2/3 py-3 rounded-xl bg-white/5 border border-white/10 font-black hover:bg-white/10 hover:border-white/30 transition-all text-sm">もう一回あそぶ</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- RECALL MODAL -->
+    <div id="recall-modal" class="hidden fixed inset-0 z-[200] bg-black/90 flex flex-col items-center justify-center p-6 backdrop-blur-md">
+        <div id="recall-step-1" class="w-full max-w-md text-center space-y-6">
+            <h3 class="text-2xl font-black text-cyan-400 italic underline underline-offset-8 drop-shadow-[0_0_8px_rgba(34,211,238,0.8)]">思い出す</h3>
+            <p class="text-white font-bold">あなたの名前を押してね</p>
+            <div id="recall-player-list" class="grid grid-cols-1 gap-3 max-h-[50vh] overflow-y-auto no-scrollbar"></div>
+            <button onclick="closeRecallModal()" class="w-full py-3 text-gray-400 font-bold border border-white/10 rounded-xl hover:text-white hover:border-white/30 transition-colors">やめる</button>
+        </div>
+        <div id="recall-step-2" class="hidden w-full max-w-sm text-center space-y-6 bg-slate-900/90 border-2 border-pink-500 p-8 rounded-3xl shadow-[0_0_30px_rgba(255,0,85,0.3)]">
+            <p id="recall-confirm-text" class="text-xl font-black text-white leading-relaxed drop-shadow-[0_0_5px_rgba(255,255,255,0.5)]"></p>
+            <div class="flex flex-col gap-2">
+                <button id="recall-yes-btn" class="w-full py-4 bg-pink-600 text-white font-black text-lg rounded-xl hover:bg-pink-500 shadow-[0_0_15px_rgba(219,39,119,0.5)] transition-all">はい</button>
+                <button onclick="resetRecall()" class="w-full py-3 text-gray-400 font-bold hover:text-white transition-colors">いいえ</button>
+            </div>
+        </div>
+        <div id="recall-step-3" class="hidden w-full max-w-md text-center space-y-10">
+            <div>
+                <p id="recall-owner-name" class="text-pink-500 font-black text-sm mb-2 drop-shadow-[0_0_5px_rgba(236,72,153,0.8)]"></p>
+                <p class="text-white text-xs opacity-50 mb-6">まわりの人に見られないように注意！</p>
+                <div class="bg-white/10 p-12 rounded-3xl border border-cyan-500/50 shadow-[0_0_30px_rgba(0,242,255,0.2)]">
+                    <p id="recall-keyword" class="text-5xl md:text-7xl font-black text-white italic drop-shadow-[0_0_20px_rgba(255,255,255,0.5)]"></p>
+                </div>
+            </div>
+            <button onclick="closeRecallModal()" class="w-full py-5 btn-main text-white font-black text-xl">わかった</button>
+        </div>
+    </div>
+
+    <!-- GENERAL CONFIRM MODAL -->
+    <div id="confirm-modal" class="hidden fixed inset-0 z-[201] bg-black/80 flex items-center justify-center p-4 backdrop-blur-sm">
+        <div class="bg-slate-900/90 border-2 border-cyan-500 p-8 rounded-3xl w-full max-w-sm text-center space-y-6 shadow-[0_0_30px_rgba(0,243,255,0.3)]">
+            <p id="confirm-modal-text" class="text-xl font-black text-white drop-shadow-[0_0_5px_rgba(255,255,255,0.5)]"></p>
+            <div class="flex flex-col gap-2">
+                <button onclick="executeConfirmAction()" class="w-full py-4 btn-main text-white font-black text-lg">はい</button>
+                <button onclick="closeConfirmModal()" class="w-full py-3 text-gray-400 font-bold hover:text-white transition-colors">キャンセル</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- VOTE DETAIL MODAL -->
+    <div id="vote-detail-modal" class="hidden fixed inset-0 z-[200] bg-black/90 flex items-center justify-center p-4 backdrop-blur-md">
+        <div class="bg-slate-900 border border-white/10 p-6 rounded-3xl w-full max-w-md max-h-[80vh] flex flex-col shadow-[0_0_30px_rgba(0,243,255,0.1)]">
+            <h3 class="text-cyan-400 font-black mb-4 italic text-lg drop-shadow-[0_0_5px_rgba(34,211,238,0.8)]">捜査記録</h3>
+            <div id="vote-detail-list" class="flex-1 overflow-y-auto space-y-3 no-scrollbar mb-6"></div>
+            <button onclick="closeVoteDetailModal()" class="w-full py-4 bg-white/5 rounded-xl font-black hover:bg-white/10 hover:shadow-[0_0_15px_rgba(255,255,255,0.1)] transition-all">閉じる</button>
+        </div>
+    </div>
+
+    <!-- 以前の ENDING REVEAL OVERLAY は削除し、#app 内に移動しました -->
+
+<script>
+const themes = {
+    easy: [
+        {c:"犬", w:"猫"},
+        {c:"うさぎ", w:"かめ"},
+        {c:"ライオン", w:"ゾウ"},
+        {c:"パンダ", w:"キリン"},
+        {c:"カラス", w:"スズメ"},
+        {c:"カレー", w:"ラーメン"},
+        {c:"ハンバーガー", w:"おにぎり"},
+        {c:"ピザ", w:"すし"},
+        {c:"ケーキ", w:"アイス"},
+        {c:"チョコレート", w:"ガム"},
+        {c:"水", w:"牛乳"},
+        {c:"ジュース", w:"お茶"},
+        {c:"コーラ", w:"サイダー"},
+        {c:"スポーツドリンク", w:"水"},
+        {c:"サッカー", w:"野球"},
+        {c:"ドッジボール", w:"鬼ごっこ"},
+        {c:"トランプ", w:"将棋"},
+        {c:"ゲーム", w:"外遊び"},
+        {c:"授業", w:"休み時間"},
+        {c:"給食", w:"お弁当"},
+        {c:"運動会", w:"学習発表会"},
+        {c:"校長先生", w:"担任の先生"},
+        {c:"教室", w:"校庭"},
+        {c:"えんぴつ", w:"消しゴム"},
+        {c:"ノート", w:"教科書"},
+        {c:"上ぐつ", w:"下ぐつ"},
+        {c:"ランドセル", w:"手さげ"},
+        {c:"テレビ", w:"スマホ"},
+        {c:"学校", w:"家"},
+        {c:"公園", w:"家"},
+        {c:"プール", w:"海"},
+        {c:"りんご", w:"みかん"},
+        {c:"バナナ", w:"いちご"},
+        {c:"朝", w:"夜"},
+        {c:"平日", w:"休日"},
+        {c:"夏", w:"冬"},
+        {c:"雨", w:"晴れ"},
+        {c:"マグロ", w:"サーモン"},
+        {c:"勉強", w:"遊び"},
+        {c:"男の子", w:"女の子"}
+    ],
+
+    normal: [
+        {c:"犬", w:"うさぎ"},
+        {c:"猫", w:"ハムスター"},
+        {c:"イルカ", w:"ペンギン"},
+        {c:"ペンギン", w:"ダチョウ"},
+        {c:"カレー", w:"シチュー"},
+        {c:"ラーメン", w:"うどん"},
+        {c:"ハンバーグ", w:"からあげ"},
+        {c:"ピザ", w:"グラタン"},
+        {c:"オムライス", w:"チャーハン"},
+        {c:"もも", w:"ぶどう"},
+        {c:"レモン", w:"パイナップル"},
+        {c:"梨（なし）", w:"くり"},
+        {c:"コーヒー", w:"カフェオレ"},
+        {c:"緑茶", w:"麦茶"},
+        {c:"ジュース", w:"スポーツドリンク"},
+        {c:"卓球", w:"テニス"},
+        {c:"ドッジボール", w:"バレーボール"},
+        {c:"トランプ", w:"UNO"},
+        {c:"テレビゲーム", w:"スマホゲーム"},
+        {c:"朝の会", w:"帰りの会"},
+        {c:"委員会", w:"係活動"},
+        {c:"宿題", w:"自主学習"},
+        {c:"テスト直し", w:"漢字テスト"},
+        {c:"音楽", w:"図工"},
+        {c:"えんぴつ", w:"シャープペン"},
+        {c:"色えんぴつ", w:"クレパス"},
+        {c:"ノート", w:"メモ帳"},
+        {c:"漢字テスト", w:"漢字ドリル"},
+        {c:"教室", w:"図書室"},
+        {c:"校庭", w:"体育館"},
+        {c:"昼休み", w:"放課後"},
+        {c:"月曜日", w:"日曜日"},
+        {c:"朝ごはん", w:"昼ごはん"},
+        {c:"給食", w:"家のごはん"},
+        {c:"自転車", w:"三輪車"},
+        {c:"バス", w:"電車"},
+        {c:"雨", w:"くもり"},
+        {c:"春", w:"秋"},
+        {c:"家族", w:"兄弟"},
+        {c:"家", w:"マンション"}
+    ],
+
+    hard: [
+        {c:"イルカ", w:"クジラ"},
+        {c:"アシカ", w:"アザラシ"},
+        {c:"トラ", w:"ライオン"},
+        {c:"ハムスター", w:"モルモット"},
+        {c:"カレー", w:"ハヤシライス"},
+        {c:"ラーメン", w:"ソーメン"},
+        {c:"うどん", w:"ソーメン"},
+        {c:"ハンバーグ", w:"ミートボール"},
+        {c:"オレンジ", w:"レモン"},
+        {c:"りんご", w:"梨（なし）"},
+        {c:"ぶどう", w:"マスカット"},
+        {c:"抹茶", w:"緑茶"},
+        {c:"プリン", w:"ゼリー"},
+        {c:"コーヒー", w:"お酒"},
+        {c:"鬼ごっこ", w:"かくれんぼ"},
+        {c:"チョコケーキ", w:"チョコクッキー"},
+        {c:"テレビゲーム", w:"YouTube"},
+        {c:"朝の会", w:"学級会"},
+        {c:"テスト", w:"プリント"},
+        {c:"肩たたき", w:"けんか"},
+        {c:"ラジオ体操", w:"ダンス"},
+        {c:"図工", w:"音楽"},
+        {c:"教科書", w:"資料集"},
+        {c:"ゴキブリ", w:"カブトムシ"},
+        {c:"消しゴム", w:"ねり消し"},
+        {c:"セミ", w:"スズムシ"},
+        {c:"音楽室", w:"多目的室"},
+        {c:"体育館", w:"多目的室"},
+        {c:"昼休み", w:"放課後"},
+        {c:"朝ごはん", w:"昼ごはん"},
+        {c:"ステーキ", w:"焼肉"},
+        {c:"給食", w:"お弁当"},
+        {c:"晴れ", w:"くもり"},
+        {c:"落ち葉", w:"紅葉"},
+        {c:"さつまいも", w:"ジャガイモ"},
+        {c:"からあげくん", w:"焼き鳥"},
+        {c:"兄", w:"弟"},
+        {c:"公園", w:"校庭"},
+        {c:"プール", w:"水泳"},
+        {c:"テレビ", w:"動画"}
+    ]
+};
+        const citizenLastWords = [
+            "「えっ、ボクはポリスだよ！？」", "「うそだろ！？ボクは無実だ！」", "「ちがう、ボクじゃないよー！」",
+            "「私はポリスだって言ったじゃないか！」", "「うそ〜ん、ボクは仲間だよ！？」",
+            "「信じてたのに…ショックだ…。」", "「…なぜ信じてくれないんだ！」"
+        ];
+        let state = {
+            players: 3, timeLimit: 3, playerNames: [], difficulty: 'normal',
+            data: null, wolfIdx: -1, currentP: 0, timeLeft: 180, timerId: null,
+            votedPlayers: new Set(), votes: {}, activeVoter: -1, selectedTarget: -1,
+            lastArrestedIdx: -1, isTie: false, policeWin: false, usedThemes: new Set(),
+            pendingConfirmAction: null, enableAlertSound: true, hasAlertPlayed: false
+        };
+
+        // オーディオコンテキストをグローバルで管理
+        let audioCtx = null;
+
+        // スマホ対策：ユーザー操作時にオーディオを有効化しておく関数
+        function initAudio() {
+            if (!state.enableAlertSound) return;
+            
+            // コンテキストがなければ作成
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            }
+
+            // サスペンド状態なら再開させる（これがスマホで重要）
+            if (audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+
+            // 念のため無音を一瞬再生してブラウザに「音出していいよ」と認識させる
+            try {
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                gain.gain.value = 0; // 無音
+                osc.start(0);
+                osc.stop(0.1);
+            } catch (e) {
+                console.error("Audio init error", e);
+            }
+        }
+
+        function playWindChime() {
+            if (!state.enableAlertSound || !audioCtx) return;
+            try {
+                // ここでは既存の audioCtx を使う
+                const playTone = (freq, delay, length, vol) => {
+                    const osc = audioCtx.createOscillator();
+                    const gain = audioCtx.createGain();
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(freq, audioCtx.currentTime + delay);
+                    gain.gain.setValueAtTime(vol, audioCtx.currentTime + delay);
+                    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + delay + length);
+                    osc.connect(gain);
+                    gain.connect(audioCtx.destination);
+                    osc.start(audioCtx.currentTime + delay);
+                    osc.stop(audioCtx.currentTime + delay + length);
+                };
+                playTone(1567.98, 0, 3.0, 0.2);
+                playTone(2093.00, 0.05, 2.5, 0.1);
+                playTone(2489.02, 0.1, 2.0, 0.05);
+            } catch(e) { console.error("Audio error", e); }
+        }
+
+        function toggleAlertSound() {
+            state.enableAlertSound = !state.enableAlertSound;
+            const btn = document.getElementById('alert-sound-toggle');
+            const knob = document.getElementById('alert-sound-knob');
+            if (state.enableAlertSound) {
+                btn.parentElement.classList.replace('bg-gray-600', 'bg-pink-600');
+                knob.classList.replace('translate-x-1', 'translate-x-7');
+                // ONにしたタイミングでも初期化を試みる
+                initAudio();
+            } else {
+                btn.parentElement.classList.replace('bg-pink-600', 'bg-gray-600');
+                knob.classList.replace('translate-x-7', 'translate-x-1');
+            }
+        }
+
+        function init() {
+            // 初期値を「さん」なしに変更
+            state.playerNames = ["プレーヤー 1", "プレーヤー 2", "プレーヤー 3"];
+            renderNameInputs();
+            setDifficulty('easy');
+            if (document.fonts) document.fonts.ready.then(() => document.body.classList.add('fonts-loaded'));
+            else document.body.classList.add('fonts-loaded');
+        }
+
+        function showScreen(screenId) {
+            // ending-reveal-screen を画面リストに追加
+            const screens = ['setup-screen', 'check-screen', 'ready-screen', 'timer-screen', 'voting-select-screen', 'voting-action-screen', 'ending-reveal-screen', 'final-score-screen'];
+            screens.forEach(id => document.getElementById(id)?.classList.add('hidden'));
+            const target = document.getElementById(screenId);
+            if (target) { target.classList.remove('hidden'); target.classList.add('fade-in'); }
+        }
+
+        function changePlayers(delta) {
+            const next = state.players + delta;
+            if (next < 3 || next > 10) return;
+            state.players = next;
+            document.getElementById('player-count-display').innerText = state.players;
+            // 追加されるプレイヤー名も「さん」なしに変更
+            while (state.playerNames.length < state.players) state.playerNames.push(`プレーヤー ${state.playerNames.length + 1}`);
+            while (state.playerNames.length > state.players) state.playerNames.pop();
+            renderNameInputs();
+        }
+
+        function changeTime(delta) {
+            state.timeLimit = Math.max(1, state.timeLimit + delta);
+            document.getElementById('time-setting-display').innerText = state.timeLimit;
+        }
+
+        function renderNameInputs() {
+            const container = document.getElementById('name-inputs-container');
+            container.innerHTML = '';
+            state.playerNames.forEach((name, i) => {
+                const input = document.createElement('input');
+                input.className = 'input-name w-full py-3 px-5 rounded-xl font-black text-sm';
+                input.value = name;
+                input.onfocus = (e) => { if(e.target.value.startsWith('プレーヤー ')) e.target.value = ''; };
+                input.onblur = (e) => { 
+                    let val = e.target.value.trim();
+                    if(val === '') val = `プレーヤー ${i + 1}`;
+                    // 「さん」を強制的に追加する処理を削除
+                    e.target.value = val; state.playerNames[i] = val;
+                };
+                container.appendChild(input);
+            });
+        }
+
+        function setDifficulty(d) {
+            state.difficulty = d;
+            ['easy','normal','hard'].forEach(id => {
+                const btn = document.getElementById(`btn-${id}`);
+                // サイバー風スタイル変更に合わせてクラスを調整
+                if (id === d) {
+                    btn.className = 'py-3 rounded text-xs font-black bg-pink-600 text-white shadow-[0_0_15px_rgba(236,72,153,0.6)] transition-all';
+                } else {
+                    btn.className = 'py-3 rounded text-xs font-black bg-white/5 text-gray-400 border border-white/5 hover:bg-white/10 hover:text-white transition-all';
+                }
+            });
+        }
+
+        function startGame() {
+            const allThemes = themes[state.difficulty];
+            let availableThemes = allThemes.filter(t => !state.usedThemes.has(`${t.c}-${t.w}`));
+            if (availableThemes.length === 0) { state.usedThemes.clear(); availableThemes = allThemes; }
+            const selected = availableThemes[Math.floor(Math.random() * availableThemes.length)];
+            state.usedThemes.add(`${selected.c}-${selected.w}`);
+            const swap = Math.random() < 0.5;
+            state.data = { c: swap ? selected.w : selected.c, w: swap ? selected.c : selected.w };
+            state.wolfIdx = Math.floor(Math.random() * state.players);
+            state.currentP = 0;
+            state.hasAlertPlayed = false;
+            showScreen('check-screen');
+            updateCheckUI();
+        }
+
+        function handleRevealAreaClick() {
+            if (document.getElementById('next-player-btn').classList.contains('hidden')) toggleReveal();
+        }
+
+        function toggleReveal() {
+            document.getElementById('theme-text').innerText = (state.currentP === state.wolfIdx) ? state.data.w : state.data.c;
+            document.getElementById('instruction-text').classList.add('hidden');
+            document.getElementById('theme-display').classList.remove('hidden');
+            document.getElementById('reveal-btn').classList.add('hidden');
+            document.getElementById('next-player-btn').classList.remove('hidden');
+        }
+
+        function nextPlayer() {
+            state.currentP++;
+            if (state.currentP >= state.players) showScreen('ready-screen');
+            else updateCheckUI();
+        }
+
+        function updateCheckUI() {
+            // 表示時に「さん」をつける
+            document.getElementById('player-turn-label').innerText = state.playerNames[state.currentP] + " さん";
+            document.getElementById('theme-display').classList.add('hidden');
+            document.getElementById('instruction-text').classList.remove('hidden');
+            document.getElementById('reveal-btn').classList.remove('hidden');
+            document.getElementById('next-player-btn').classList.add('hidden');
+        }
+
+        function startTimer() {
+            // スマホ対策：タイマー開始ボタンを押したタイミングでオーディオ準備
+            initAudio();
+
+            showScreen('timer-screen');
+            document.body.classList.remove('danger-mode');
+            const totalSeconds = state.timeLimit * 60;
+            state.timeLeft = totalSeconds;
+            const path = document.getElementById('timer-path');
+            path.style.transition = 'none';
+            path.style.strokeDashoffset = '0';
+            updateTimerDisplay();
+            setTimeout(() => {
+                state.timeLeft--;
+                updateTimerDisplay();
+                const offset = 282.74 * (1 - (state.timeLeft / totalSeconds));
+                path.style.transition = 'stroke-dashoffset 1s linear';
+                path.style.strokeDashoffset = offset;
+                state.timerId = setInterval(() => {
+                    state.timeLeft--;
+                    updateTimerDisplay();
+                    const nextOffset = 282.74 * (1 - (state.timeLeft / totalSeconds));
+                    path.style.strokeDashoffset = nextOffset;
+                    if (state.timeLeft === 60 && !state.hasAlertPlayed) { playWindChime(); state.hasAlertPlayed = true; }
+                    if (state.timeLeft <= 10 && state.timeLeft > 0) document.body.classList.add('danger-mode');
+                    else document.body.classList.remove('danger-mode');
+                    if (state.timeLeft <= 0) stopTimerAndGoToVoting();
+                }, 1000);
+            }, 50);
+        }
+
+        function updateTimerDisplay() {
+            const m = Math.floor(state.timeLeft / 60), s = state.timeLeft % 60;
+            document.getElementById('timer-display').innerText = `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+        }
+
+        function stopTimerAndGoToVoting() {
+            clearInterval(state.timerId);
+            document.body.classList.remove('danger-mode');
+            state.votedPlayers.clear();
+            state.votes = {};
+            showScreen('voting-select-screen');
+            renderVoterSelection();
+        }
+
+        /* RECALL LOGIC */
+        function openRecallModal() {
+            const list = document.getElementById('recall-player-list');
+            list.innerHTML = '';
+            state.playerNames.forEach((name, i) => {
+                const btn = document.createElement('button');
+                btn.className = "py-4 bg-white/5 border border-white/10 rounded-xl font-bold text-white hover:bg-white/10 hover:border-white/30 hover:shadow-[0_0_15px_rgba(0,243,255,0.2)] transition-all";
+                // リスト表示に「さん」をつける
+                btn.innerText = name + " さん";
+                btn.onclick = () => selectRecallPlayer(i, name);
+                list.appendChild(btn);
+            });
+            resetRecall();
+            document.getElementById('recall-modal').classList.remove('hidden');
+        }
+
+        function selectRecallPlayer(idx, name) {
+            document.getElementById('recall-step-1').classList.add('hidden');
+            const step2 = document.getElementById('recall-step-2');
+            step2.classList.remove('hidden');
+            // nameには「さん」が含まれていないので、ここでつけると自然な文章になる
+            document.getElementById('recall-confirm-text').innerText = `あなたは本当に\n${name}\nさんですね？`;
+            
+            document.getElementById('recall-yes-btn').onclick = () => {
+                step2.classList.add('hidden');
+                const step3 = document.getElementById('recall-step-3');
+                step3.classList.remove('hidden');
+                // お題の持ち主表示にも「さん」をつける
+                document.getElementById('recall-owner-name').innerText = name + " さんのお題";
+                document.getElementById('recall-keyword').innerText = (idx === state.wolfIdx) ? state.data.w : state.data.c;
+            };
+        }
+
+        function resetRecall() {
+            document.getElementById('recall-step-1').classList.remove('hidden');
+            document.getElementById('recall-step-2').classList.add('hidden');
+            document.getElementById('recall-step-3').classList.add('hidden');
+        }
+
+        function closeRecallModal() {
+            document.getElementById('recall-modal').classList.add('hidden');
+        }
+
+        function renderVoterSelection() {
+            const grid = document.getElementById('voter-grid');
+            grid.innerHTML = '';
+            state.playerNames.forEach((name, i) => {
+                const btn = document.createElement('button');
+                btn.className = "bg-white/5 py-5 md:py-8 rounded-xl font-black border border-white/5 transition-all hover:bg-white/10 hover:border-white/30 hover:shadow-[0_0_20px_rgba(0,243,255,0.2)]";
+                // ボタン表示に「さん」をつける
+                btn.innerText = name + " さん" + (state.votedPlayers.has(i) ? " (完了)" : "");
+                if (state.votedPlayers.has(i)) btn.classList.add('opacity-30');
+                else {
+                    btn.onclick = () => {
+                        state.activeVoter = i; state.selectedTarget = -1;
+                        showScreen('voting-action-screen');
+                        // タイトル表示に「さん」をつける
+                        document.getElementById('current-voter-label').innerText = `${state.playerNames[i]} さんの投票`;
+                        const cBtn = document.getElementById('vote-confirm-btn');
+                        cBtn.disabled = true;
+                        cBtn.className = 'w-full md:w-2/3 py-5 rounded-xl bg-white/5 text-gray-500 font-black text-xl';
+                        renderTargetSelection(i);
+                    };
+                }
+                grid.appendChild(btn);
+            });
+            document.getElementById('show-result-final-btn').classList.toggle('hidden', state.votedPlayers.size !== state.players);
+        }
+
+        function renderTargetSelection(voterIdx) {
+            const grid = document.getElementById('target-grid');
+            grid.innerHTML = '';
+            state.playerNames.forEach((name, i) => {
+                if (i === voterIdx) return;
+                const btn = document.createElement('button');
+                btn.className = "bg-white/5 py-5 rounded-xl font-black border border-white/5 transition-all hover:bg-white/10 hover:border-cyan-400";
+                // ターゲット選択ボタンに「さん」をつける
+                btn.innerText = name + " さん";
+                btn.onclick = () => {
+                    state.selectedTarget = i;
+                    document.querySelectorAll('#target-grid button').forEach(b => b.classList.remove('border-cyan-500', 'bg-cyan-500/20', 'shadow-[0_0_15px_rgba(0,243,255,0.3)]'));
+                    btn.classList.add('border-cyan-500', 'bg-cyan-500/20', 'shadow-[0_0_15px_rgba(0,243,255,0.3)]');
+                    const cBtn = document.getElementById('vote-confirm-btn');
+                    cBtn.disabled = false;
+                    cBtn.className = 'w-full md:w-2/3 py-5 rounded-xl btn-main text-white font-black text-xl';
+                };
+                grid.appendChild(btn);
+            });
+        }
+
+        function openConfirmModal() {
+            const targetName = state.playerNames[state.selectedTarget];
+            // 文言変更: ～さんをタイホしますか？ → ～さんに投票しますか？
+            // 変な位置で改行されないように <br> で意図的に改行する
+            document.getElementById('confirm-modal-text').innerHTML = `${targetName} さんに<br>投票しますか？`;
+            state.pendingConfirmAction = 'vote';
+            document.getElementById('confirm-modal').classList.remove('hidden');
+        }
+
+        function openRestartConfirmModal() {
+            document.getElementById('confirm-modal-text').innerText = "メニュー画面に戻りますか？";
+            state.pendingConfirmAction = 'restart';
+            document.getElementById('confirm-modal').classList.remove('hidden');
+        }
+
+        function closeConfirmModal() { document.getElementById('confirm-modal').classList.add('hidden'); }
+
+        function executeConfirmAction() {
+            const action = state.pendingConfirmAction;
+            closeConfirmModal();
+            if (action === 'vote') {
+                state.votes[state.activeVoter] = state.selectedTarget;
+                state.votedPlayers.add(state.activeVoter);
+                showScreen('voting-select-screen');
+                renderVoterSelection();
+            } else if (action === 'restart') { 
+                // location.reload(); // 修正前: リロードすると設定が消えてしまう
+                returnToSetup();      // 修正後: 設定を保持してセットアップ画面へ戻る
+            }
+        }
+
+        // 追加: 設定を維持したままセットアップ画面に戻る関数
+        function returnToSetup() {
+            // ゲーム進行に関する状態のみリセット
+            state.data = null;
+            state.wolfIdx = -1;
+            state.currentP = 0;
+            state.timerId = null; // タイマーIDのリセット
+            state.votedPlayers.clear();
+            state.votes = {};
+            state.activeVoter = -1;
+            state.selectedTarget = -1;
+            state.lastArrestedIdx = -1;
+            state.isTie = false;
+            state.policeWin = false;
+            state.hasAlertPlayed = false;
+            
+            // アラートモード解除
+            document.body.classList.remove('danger-mode');
+            
+            // 結果詳細ボタンの状態をリセット（透明＆操作不可に戻す）
+            const btn = document.getElementById('final-result-btn');
+            btn.classList.add('opacity-0', 'pointer-events-none');
+            
+            // showScreenで管理されるようになったため、個別のhidden操作は不要
+            showScreen('setup-screen');
+            
+            // スクロール位置を一番上に戻す
+            const setupContent = document.querySelector('#setup-screen .overflow-y-auto');
+            if (setupContent) setupContent.scrollTop = 0;
+        }
+
+        async function startRevealEnding() {
+            // showScreenを使って切り替えることで枠内で表示
+            showScreen('ending-reveal-screen');
+            
+            const counts = {};
+            Object.values(state.votes).forEach(v => counts[v] = (counts[v] || 0) + 1);
+            let max = 0, targetIdx = -1, isTie = false;
+            for (let i in counts) {
+                if (counts[i] > max) { max = counts[i]; targetIdx = parseInt(i); isTie = false; }
+                else if (counts[i] === max) isTie = true;
+            }
+            const lPre = document.getElementById('msg-line-pre'), lName = document.getElementById('msg-line-name'),
+                  lPost = document.getElementById('msg-line-post'), lLast = document.getElementById('msg-line-last-word');
+            [lPre, lName, lPost, lLast].forEach(el => el.innerText = "");
+            
+            // スピードを遅く変更 (70 -> 120) -> (120 -> 80)
+            const speed = 80;
+            
+            if (isTie) {
+                // 第4引数 delayを追加: 最初のメッセージだけ2秒(2000ms)待ってから入力開始
+                await prepareAndTypeText(lPre, "みんなの投票の結果…", speed, 2000);
+                await sleep(1000);
+                // 他は delay=0 で待たずに入力
+                await prepareAndTypeText(lPost, "意見が分かれ、だれもタイホできなかった…", speed, 0);
+                state.policeWin = false; state.isTie = true;
+            } else {
+                // 第4引数 delayを追加: 最初のメッセージだけ2秒(2000ms)待ってから入力開始
+                await prepareAndTypeText(lPre, "みんなの投票の結果…", speed, 2000);
+                await sleep(600);
+                // 結果発表の名前に「さん」をつける (delay=0)
+                await prepareAndTypeText(lName, `「${state.playerNames[targetIdx]} さん」`, speed, 0);
+                await sleep(600);
+                await prepareAndTypeText(lPost, "をタイホすることに決定した！", speed, 0);
+                await sleep(2500);
+                const lastText = (targetIdx === state.wolfIdx) ? "「なぜだ…バレるはずはなかったのに…」" : citizenLastWords[Math.floor(Math.random() * citizenLastWords.length)];
+                state.policeWin = (targetIdx === state.wolfIdx);
+                state.isTie = false; state.lastArrestedIdx = targetIdx;
+                await prepareAndTypeText(lLast, lastText, speed, 0);
+            }
+            await sleep(1000);
+            
+            // 修正: hiddenの削除ではなく、透明度とポインターイベントを操作して表示
+            const btn = document.getElementById('final-result-btn');
+            btn.classList.remove('opacity-0', 'pointer-events-none');
+        }
+
+        // delay引数を追加 (デフォルト0)
+        async function prepareAndTypeText(el, text, speed, delay = 0) {
+            // 1. 初期化とフォントサイズ計算
+            el.style.visibility = "hidden";
+            el.innerText = text; 
+            el.style.width = 'auto';
+            el.style.height = 'auto';
+            el.style.position = 'relative'; 
+            el.style.display = 'inline-block'; 
+            // 重要: サイズ計算のために一時的に改行を禁止する
+            el.style.whiteSpace = 'nowrap';
+            
+            const isMobile = window.innerWidth < 768;
+            let size;
+            
+            // allowWrap変数は廃止し、常に1行に収める方針に変更
+
+            if (isMobile) {
+                if (el.id === 'msg-line-name') size = 32;
+                else if (el.id === 'msg-line-last-word') size = 20;
+                else size = 18;
+            } else {
+                if (el.id === 'msg-line-name') size = 60;
+                else if (el.id === 'msg-line-last-word') size = 45;
+                else size = 30;
+            }
+
+            el.style.fontSize = size + 'px';
+            
+            // 親要素の幅に合わせて縮小 (パディング分として少し余裕を持たせる)
+            const parentWidth = el.parentElement.clientWidth - 10;
+            
+            // ループして収まるまで小さくする
+            while (el.scrollWidth > parentWidth && size > 10) { 
+                size -= 1; 
+                el.style.fontSize = size + 'px'; 
+            }
+
+            // 2. 二重構造を作る
+            el.innerHTML = '';
+            el.style.visibility = 'visible'; 
+            el.style.textAlign = 'left';
+
+            // A. 場所確保用 (Phantom) - Visibleと全く同じ構造で作る
+            const phantom = document.createElement('div');
+            phantom.style.visibility = 'hidden'; 
+            
+            if (text.length > 0) {
+                const body = text.slice(0, -1);
+                const lastChar = text.slice(-1);
+                phantom.innerHTML = escapeHtml(body) + '<span style="white-space: nowrap;">' + escapeHtml(lastChar) + '<span class="cursor-char" style="visibility:hidden;">|</span></span>';
+            } else {
+                phantom.innerHTML = '<span class="cursor-char" style="visibility:hidden;">|</span>';
+            }
+
+            // 常に nowrap (1行) に設定
+            phantom.style.whiteSpace = 'nowrap';
+            phantom.style.height = 'auto'; 
+            
+            // B. 表示アニメーション用 (Visible)
+            const visible = document.createElement('div');
+            visible.style.position = 'absolute';
+            visible.style.top = '0';
+            visible.style.left = '0';
+            visible.style.whiteSpace = 'nowrap'; // 常に nowrap
+            visible.style.textAlign = 'left';
+            visible.style.width = '100%'; 
+            // 修正: 最初はカーソルだけを表示して点滅させておく
+            visible.innerHTML = '<span class="cursor-char">|</span>'; 
+            
+            el.appendChild(phantom);
+            el.appendChild(visible);
+            
+            // 修正: 指定された時間(delay)だけカーソルのみ表示して待機する
+            if (delay > 0) {
+                await sleep(delay);
+            }
+
+            await typeText(visible, text, speed);
+        }
+
+        function typeText(el, text, speed) {
+            return new Promise(resolve => {
+                let i = 0; 
+                
+                const type = () => {
+                    if (i >= text.length) {
+                        // 完了したらカーソルを除去して文字だけにする
+                        // ただし、レイアウト崩れを防ぐため、Phantomと同じ構造（最後の文字+不可視カーソル）にするか
+                        // あるいは単にテキストにするか。
+                        // ここではカーソルを残したままにするか、点滅させたままにするのが自然。
+                        // 完了状態: 全文表示 + カーソル点滅継続
+                        const body = text.slice(0, -1);
+                        const lastChar = text.slice(-1);
+                        if (text.length > 0) {
+                            el.innerHTML = escapeHtml(body) + '<span style="white-space: nowrap;">' + escapeHtml(lastChar) + '<span class="cursor-char" style="visibility: hidden;">|</span></span>';
+                        } else {
+                            el.innerHTML = '<span class="cursor-char" style="visibility: hidden;">|</span>';
+                        }
+                        resolve();
+                        return;
+                    }
+                    
+                    // テキストを一文字ずつ追加
+                    const currentText = text.substring(0, i + 1);
+                    
+                    if (currentText.length > 0) {
+                        const body = currentText.slice(0, -1);
+                        const lastChar = currentText.slice(-1);
+                        // サニタイズを行ってからHTMLにセット
+                        el.innerHTML = escapeHtml(body) + '<span style="white-space: nowrap;">' + escapeHtml(lastChar) + '<span class="cursor-char">|</span></span>';
+                    } else {
+                        el.innerHTML = '<span class="cursor-char">|</span>';
+                    }
+                    
+                    i++;
+                    setTimeout(type, speed);
+                };
+                type();
+            });
+        }
+
+        // HTMLエスケープ用関数
+        function escapeHtml(str) {
+            if (!str) return '';
+            return str.replace(/[&<>"']/g, function(match) {
+                const escape = {
+                    '&': '&amp;',
+                    '<': '&lt;',
+                    '>': '&gt;',
+                    '"': '&quot;',
+                    "'": '&#39;'
+                };
+                return escape[match];
+            });
+        }
+
+        function sleep(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
+
+        function openVoteDetailModal() {
+            const list = document.getElementById('vote-detail-list');
+            list.innerHTML = '';
+            const arrestDiv = document.createElement('div');
+            arrestDiv.className = "bg-pink-600/20 p-4 rounded-xl border border-pink-500/50 mb-4";
+            // 詳細モーダル：タイホされた人に「さん」をつける
+            arrestDiv.innerHTML = `<p class="text-[10px] text-pink-400 font-black mb-1">タイホされた人</p>
+                                   <p class="text-xl font-black text-white">${state.isTie ? "なし" : state.playerNames[state.lastArrestedIdx] + " さん"}</p>`;
+            list.appendChild(arrestDiv);
+            state.playerNames.forEach((name, i) => {
+                const item = document.createElement('div');
+                item.className = "flex justify-between items-center py-2 border-b border-white/5";
+                // 詳細モーダル：リストに「さん」をつける
+                item.innerHTML = `<span class="text-sm text-cyan-400 font-bold">${name} さん</span>
+                                  <span class="text-xs text-white/30">➡</span>
+                                  <span class="text-sm text-white font-black">${state.playerNames[state.votes[i]]} さん</span>`;
+                list.appendChild(item);
+            });
+            document.getElementById('vote-detail-modal').classList.remove('hidden');
+        }
+
+        function closeVoteDetailModal() { document.getElementById('vote-detail-modal').classList.add('hidden'); }
+
+        function showFinalScoreboard() {
+            // showScreen で管理されるようになったため、個別のhidden操作は不要
+            showScreen('final-score-screen');
+            const title = document.getElementById('final-victory-title');
+            title.innerText = state.policeWin ? "ポリスの勝利！" : "スパイの勝利！";
+            title.className = "text-4xl md:text-8xl font-black italic p-4 " + (state.policeWin ? "victory-police" : "victory-spy");
+            // スパイの正体表示に「さん」をつける
+            document.getElementById('final-spy-identity').innerText = state.playerNames[state.wolfIdx] + " さん";
+            document.getElementById('final-wolf-theme').innerText = state.data.w;
+            document.getElementById('final-citizen-theme').innerText = state.data.c;
+        }
+    </script>
+</body>
+</html>
