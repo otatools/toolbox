@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>大型モニタ - Oekaki Quiz Ver 18.3 (Filter 0pts)</title>
+    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-database-compat.js"></script>
+    <style>
+        body { margin: 0; background: #121212; color: white; font-family: 'Helvetica Neue', Arial, sans-serif; overflow: hidden; height: 100vh; }
+        .screen { position: absolute; width: 100%; height: 100%; display: none; flex-direction: column; align-items: center; justify-content: center; }
+        
+        /* ルーレット画面 */
+        #rouletteScreen { background: radial-gradient(circle, #333, #000); }
+        .roulette-container { height: 150px; overflow: hidden; border: 4px solid gold; border-radius: 20px; background: white; width: 80%; position: relative; }
+        .roulette-inner { transition: transform 4s cubic-bezier(0.1, 0, 0.1, 1); }
+        .r-item { height: 150px; line-height: 150px; font-size: 80px; font-weight: bold; color: #222; text-align: center; }
+        
+        /* プレイ中画面 */
+        #playScreen { background: #1a1a1a; display: flex; }
+        .play-main { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; position: relative; width: 100%; padding-top: 40px; }
+        #liveCanvas { max-width: 85%; max-height: 65vh; aspect-ratio: 4/3; background: white; border: 10px solid #444; border-radius: 10px; box-shadow: 0 0 50px rgba(0,0,0,0.8); object-fit: contain; opacity: 0; transition: opacity 0.3s; z-index: 1; }
+
+        .timer-badge { position: absolute; top: 30px; right: 30px; background: red; font-size: 60px; padding: 10px 30px; border-radius: 50px; font-weight: bold; min-width: 100px; text-align: center; z-index: 100; }
+        .drawer-badge { position: absolute; top: 30px; left: 30px; background: #0088ff; font-size: 40px; padding: 10px 30px; border-radius: 50px; z-index: 100; }
+
+        #winnerContainer { position: absolute; top: 130px; width: 100%; text-align: center; z-index: 50; pointer-events: none; }
+        .winner-tag { display: inline-block; background: #26890c; color: white; padding: 10px 20px; border-radius: 30px; margin: 5px; font-size: 28px; font-weight: bold; box-shadow: 0 4px 10px rgba(0,0,0,0.5); animation: pop 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+        @keyframes pop { 0% { transform: scale(0); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
+
+        /* 正解発表画面 */
+        #correctScreen { background: #ffcc00; color: #d40000; z-index: 200; }
+        .ans-text { font-size: 150px; font-weight: bold; text-shadow: 4px 4px 0px white; }
+
+        /* ランキング画面 */
+        #rankScreen { background: #46178f; }
+        .rank-list { position: relative; width: 85%; max-width: 1000px; height: 600px; margin-top: 20px; }
+        .rank-row { position: absolute; width: 100%; height: 70px; background: rgba(255,255,255,0.1); border-radius: 10px; display: flex; align-items: center; padding: 0 30px; transition: all 1.2s cubic-bezier(0.68, -0.55, 0.265, 1.55); box-sizing: border-box; overflow: hidden; }
+        .rank-row.up { background: rgba(255,255,255,0.4); box-shadow: 0 0 20px rgba(255,255,255,0.5); border: 2px solid white; }
+        .rank-num { width: 80px; font-size: 32px; font-weight: bold; color: gold; font-style: italic; }
+        .rank-name { flex: 1; font-size: 32px; font-weight: bold; }
+        .rank-score { font-size: 36px; font-weight: bold; font-family: monospace; }
+        .rank-diff { width: 100px; text-align: right; font-size: 24px; color: #00f0ff; font-weight: bold; opacity: 0; transition: opacity 0.5s; }
+
+        /* 最終結果用 表彰台 */
+        .final-container { width: 90%; max-width: 1100px; display: flex; flex-direction: column-reverse; gap: 20px; margin-top: 20px; }
+        .final-row { background: rgba(255,255,255,0.1); border-radius: 20px; padding: 25px 40px; display: none; align-items: center; animation: slideUp 0.8s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards; border: 2px solid transparent; }
+        @keyframes slideUp { from { transform: translateY(50px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+        .f-rank { font-size: 50px; font-weight: bold; color: gold; margin-right: 40px; font-style: italic; }
+        .f-names { flex: 1; font-size: 50px; font-weight: bold; }
+        .f-score { font-size: 45px; font-weight: bold; opacity: 0.8; }
+        .f-rank-1 { background: rgba(255, 215, 0, 0.2); border-color: gold; box-shadow: 0 0 30px rgba(255,215,0,0.3); }
+        .f-rank-2 { background: rgba(192, 192, 192, 0.2); border-color: silver; }
+        .f-rank-3 { background: rgba(205, 127, 50, 0.2); border-color: #cd7f32; }
+    </style>
+</head>
+<body>
+
+    <div id="rouletteScreen" class="screen">
+        <h1 style="font-size: 50px; color: gold;">描く人を決めるよ...！</h1>
+        <div class="roulette-container">
+            <div id="rouletteInner" class="roulette-inner"></div>
+        </div>
+    </div>
+
+    <div id="playScreen" class="screen">
+        <div id="winnerContainer"></div> 
+        <div class="drawer-badge">🎨 <span id="pName">---</span></div>
+        <div class="timer-badge" id="pTimer">--</div>
+        <div class="play-main">
+            <img id="liveCanvas" src="" onload="this.style.opacity=1" onerror="this.style.opacity=0">
+        </div>
+    </div>
+
+    <div id="correctScreen" class="screen">
+        <div style="font-size: 50px; color: #000;">せいかいは...</div>
+        <div class="ans-text" id="ansText">---</div>
+    </div>
+
+    <div id="rankScreen" class="screen">
+        <h1 id="rankTitle" style="font-size: 40px; margin-bottom:10px;">ランキング</h1>
+        <div id="rankContainer" class="rank-list"></div>
+        <div id="finalContainer" class="final-container"></div>
+    </div>
+
+    <script>
+        const config = { apiKey: "AIzaSyCo4uq1uJBRcgU-c7mWemukU25MrX635m0", authDomain: "oekaki-quiz-23ab5.firebaseapp.com", databaseURL: "https://oekaki-quiz-23ab5-default-rtdb.asia-southeast1.firebasedatabase.app", projectId: "oekaki-quiz-23ab5", appId: "1:61801325910:web:330fa68a1701dbbc9822f7" };
+        firebase.initializeApp(config); const db = firebase.database();
+        const myRoom = sessionStorage.getItem('quiz_room');
+
+        let lastPhase = "";
+        let usersData = {};
+        let userElements = {};
+
+        db.ref(`rooms/${myRoom}`).on('value', snap => {
+            const data = snap.val(); if(!data) return;
+            const state = data.state || {};
+            usersData = data.users || {};
+            if(state.phase !== lastPhase) { switchPhase(state.phase, state); lastPhase = state.phase; }
+            
+            if(state.phase === "playing" || state.phase === "countdown") { updateWinnerDisplay(usersData); }
+            
+            if(state.phase === "playing") {
+                document.getElementById('pTimer').innerText = state.timeLeft;
+                document.getElementById('pName').innerText = state.drawerName || "---";
+                const canvasImg = document.getElementById('liveCanvas');
+                if(state.currentDrawer && usersData[state.currentDrawer]) {
+                    const newSrc = usersData[state.currentDrawer].image || "";
+                    if(canvasImg.src !== newSrc) canvasImg.src = newSrc;
+                }
+            }
+            if(state.phase === "countdown") {
+                document.getElementById('pTimer').innerText = state.countdown;
+                document.getElementById('pName').innerText = state.drawerName || "---";
+            }
+        });
+
+        function updateWinnerDisplay(users) {
+            const container = document.getElementById('winnerContainer');
+            const winners = Object.values(users).filter(u => u.isCorrect).map(u => u.name);
+            if(container.childElementCount !== winners.length) { container.innerHTML = winners.map(name => `<span class="winner-tag">✓ ${name}</span>`).join(''); }
+        }
+
+        function switchPhase(phase, state) {
+            document.querySelectorAll('.screen').forEach(s => s.style.display = 'none');
+            
+            if(phase === "roulette") { 
+                const canvasImg = document.getElementById('liveCanvas');
+                canvasImg.src = "";
+                canvasImg.style.opacity = 0;
+                showRoulette(state.currentDrawer); 
+            }
+            else if(phase === "countdown" || phase === "playing") { document.getElementById('playScreen').style.display = 'flex'; }
+            else if(phase === "result") { document.getElementById('ansText').innerText = state.correctAnswer || "---"; document.getElementById('correctScreen').style.display = 'flex'; }
+            else if(phase === "ranking") { showRankingAnimation(false); }
+            else if(phase === "final") { showRankingAnimation(true); }
+        }
+
+        function getRank(score, sortedList) {
+            const uniqueScores = [...new Set(sortedList.map(u => u.score || u.prevScore || 0))].sort((a,b) => b-a);
+            return uniqueScores.indexOf(score) + 1;
+        }
+
+        async function showRankingAnimation(isFinal) {
+            const screen = document.getElementById('rankScreen');
+            screen.style.display = 'flex';
+            const title = document.getElementById('rankTitle');
+            const rankList = document.getElementById('rankContainer');
+            const finalPodium = document.getElementById('finalContainer');
+
+            rankList.innerHTML = "";
+            finalPodium.innerHTML = "";
+            userElements = {};
+
+            const userArray = Object.keys(usersData).map(uid => ({uid, ...usersData[uid]}));
+
+            if(!isFinal) {
+                title.innerText = "現在のランキング";
+                rankList.style.display = "block";
+                finalPodium.style.display = "none";
+
+                // スコアが0点より大きい人だけを抽出（今回正解したか、以前に正解したことがある人）
+                const activeUsers = userArray.filter(u => (u.score || 0) > 0 || (u.prevScore || 0) > 0);
+                
+                // 表示する対象がいなければタイトルのみ表示
+                if(activeUsers.length === 0) {
+                    title.innerText = "ランキング（正解者がでると表示されます）";
+                    return;
+                }
+
+                const prevSorted = [...activeUsers].sort((a, b) => (b.prevScore || 0) - (a.prevScore || 0));
+                prevSorted.slice(0, 8).forEach((u, i) => {
+                    const rank = getRank(u.prevScore || 0, prevSorted);
+                    const row = document.createElement('div');
+                    row.className = "rank-row";
+                    row.style.top = `${i * 75}px`;
+                    row.innerHTML = `
+                        <div class="rank-num" id="ranknum-${u.uid}">${rank}位</div>
+                        <div class="rank-name">${u.name}</div>
+                        <div class="rank-score" id="score-${u.uid}">${u.prevScore || 0}</div>
+                        <div class="rank-diff" id="diff-${u.uid}">+${(u.score || 0) - (u.prevScore || 0)}</div>
+                    `;
+                    rankList.appendChild(row);
+                    userElements[u.uid] = row;
+                });
+
+                await new Promise(r => setTimeout(r, 1500));
+
+                const nowSorted = [...activeUsers].sort((a, b) => (b.score || 0) - (a.score || 0));
+                activeUsers.forEach((u) => {
+                    const row = userElements[u.uid];
+                    const finalPos = nowSorted.findIndex(item => item.uid === u.uid);
+                    if(row && finalPos < 8) {
+                        const newRank = getRank(u.score || 0, nowSorted);
+                        row.style.top = `${finalPos * 75}px`;
+                        document.getElementById(`ranknum-${u.uid}`).innerText = `${newRank}位`;
+                        document.getElementById(`score-${u.uid}`).innerText = u.score || 0;
+                        if((u.score || 0) > (u.prevScore || 0)) {
+                            document.getElementById(`diff-${u.uid}`).style.opacity = "1";
+                            row.classList.add('up');
+                        }
+                    } else if(row) { row.style.opacity = "0"; }
+                });
+
+            } else {
+                title.innerText = "✨ 最終結果発表 ✨";
+                rankList.style.display = "none";
+                finalPodium.style.display = "flex";
+
+                const nowSorted = [...userArray].sort((a, b) => (b.score || 0) - (a.score || 0));
+                const grouped = [];
+                nowSorted.forEach(u => {
+                    const score = u.score || 0;
+                    let group = grouped.find(g => g.score === score);
+                    if(!group) {
+                        group = { score: score, names: [], rank: getRank(score, nowSorted) };
+                        grouped.push(group);
+                    }
+                    group.names.push(u.name);
+                });
+
+                const top3Groups = grouped.filter(g => g.rank <= 3).reverse(); 
+
+                for (const group of top3Groups) {
+                    await new Promise(r => setTimeout(r, 1500));
+                    const fRow = document.createElement('div');
+                    fRow.className = `final-row f-rank-${group.rank}`;
+                    fRow.style.display = "flex";
+                    fRow.innerHTML = `
+                        <div class="f-rank">${group.rank}位</div>
+                        <div class="f-names">${group.names.join('、')} さん</div>
+                        <div class="f-score">${group.score} pts</div>
+                    `;
+                    finalPodium.appendChild(fRow);
+                }
+            }
+        }
+
+        function showRoulette(targetUid) {
+            const inner = document.getElementById('rouletteInner');
+            document.getElementById('rouletteScreen').style.display = 'flex';
+            inner.innerHTML = ""; 
+            inner.style.transition = "none";
+            inner.style.transform = `translateY(0px)`;
+
+            const userKeys = Object.keys(usersData);
+            if(userKeys.length === 0) return;
+
+            let displayList = [];
+            const targetName = usersData[targetUid] ? usersData[targetUid].name : "???";
+            
+            for(let i=0; i<45; i++) {
+                const randomUid = userKeys[Math.floor(Math.random() * userKeys.length)];
+                displayList.push(usersData[randomUid].name);
+            }
+
+            const stopIndex = 2; 
+            displayList[stopIndex] = targetName;
+
+            displayList.forEach(name => {
+                const div = document.createElement('div');
+                div.className = "r-item"; 
+                div.innerText = name; 
+                inner.appendChild(div);
+            });
+
+            const itemHeight = 150;
+            const startOffset = (displayList.length - 3) * itemHeight;
+            inner.style.transform = `translateY(-${startOffset}px)`;
+
+            setTimeout(() => {
+                inner.style.transition = "transform 4s cubic-bezier(0.1, 0, 0.1, 1)";
+                inner.style.transform = `translateY(-${stopIndex * itemHeight}px)`;
+            }, 100);
+        }
+    </script>
+</body>
+</html>

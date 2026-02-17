@@ -1,0 +1,187 @@
+<!DOCTYPE html><html lang="ja"><head>
+    <meta charset="UTF-8"><title>管理画面 - Ver 5.5</title>
+    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-database-compat.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <style>
+        body { background: #1a1a1a; color: white; font-family: sans-serif; margin: 0; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+        .header { padding: 10px; background: #333; display: flex; align-items: center; gap: 8px; border-bottom: 1px solid #555; z-index: 2100; flex-wrap: wrap; }
+        #grid-container { flex-grow: 1; overflow: hidden; position: relative; padding: 10px; }
+        #grid { display: grid; gap: 10px; justify-content: center; align-content: start; width: 100%; height: 100%; }
+        .card { background: #0047AB; border-radius: 8px; position: relative; border: 3px solid #444; cursor: pointer; box-sizing: border-box; overflow: hidden; width: 100%; height: 100%; }
+        .card.selected { border-color: #ffcc00 !important; border-width: 4px; }
+        .card.correct { background: #C2185B; }
+        .card img { width: 100%; height: 100%; object-fit: contain; pointer-events: none; }
+        .card .info { position: absolute; top: 0; left: 0; right: 0; background: rgba(0,0,0,0.6); font-size: 11px; padding: 3px 6px; z-index: 10; white-space: nowrap; overflow: hidden; }
+        .status-mark { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 50px; font-weight: bold; pointer-events: none; z-index: 20; display: none; text-shadow: 0 0 10px rgba(0,0,0,0.8); }
+        .card.correct .mark-o { display: block; color: white; opacity: 0.9; }
+        .card.is-wrong .mark-x { display: block; color: white; opacity: 0.9; }
+        
+        .btn { padding: 8px 12px; border-radius: 5px; border: 1px solid #666; background: #444; color: #aaa; cursor: pointer; font-size: 14px; font-weight: bold; }
+        .btn.active-gold { background: #ffcc00 !important; color: #000 !important; border: none; }
+        .btn-stop { background: #ffcc00 !important; color: #000 !important; }
+        .btn:disabled { opacity: 0.2; cursor: not-allowed; background: #444 !important; color: #aaa !important; }
+        
+        .sep { border-left: 2px solid #555; height: 25px; margin: 0 5px; }
+        #timerSec { width: 45px; font-size: 18px; text-align: center; border-radius: 5px; border: none; padding: 4px; }
+        
+        #roomZoom, #zoomOverlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.98); z-index: 3000; }
+        #zoomContent { display: grid; width: 100vw; height: 100vh; gap: 15px; padding: 20px; box-sizing: border-box; justify-items: center; align-items: center; }
+        .zoom-item { background: #0047AB; border: 3px solid white; border-radius: 10px; position: relative; overflow: hidden; width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; }
+        .zoom-item img { max-width: 100%; max-height: 100%; object-fit: contain; }
+        .zoom-name { position: absolute; top: 10px; left: 10px; background: rgba(0,0,0,0.5); color: white; padding: 5px 15px; border-radius: 5px; font-size: 20px; z-index: 10; }
+
+        .footer { background: #222; padding: 5px; text-align: center; font-size: 12px; color: #777; border-top: 1px solid #444; }
+    </style></head><body>
+    <div class="header">
+        <span>部屋:</span><span id="roomID" onclick="showRoomZoom()" style="font-size:20px; font-weight:bold; text-decoration:underline; cursor:pointer;">----</span>
+        <span>👤<span id="pCount">0</span></span>
+        <div class="sep"></div>
+        <button class="btn" id="lockBtn" onclick="toggleLock()">ロック</button>
+        <input type="number" id="timerSec" value="30">秒
+        <button class="btn" id="timerBtn" onclick="startTimer()">スタート</button>
+        <div class="sep"></div>
+        <button class="btn" id="allSelectBtn" onclick="allSelect()">全選択</button>
+        <button class="btn" id="allClearBtn" onclick="allClear()">全解除</button>
+        <div class="sep"></div>
+        <button class="btn" id="judgeBtn" onclick="sendResult('correct')">正解</button>
+        <button class="btn" id="wrongBtn" onclick="sendResult('all_wrong')">全員不合格</button>
+        <button class="btn" id="clearJudgeBtn" onclick="clearJudge()">判定解除</button>
+        <button class="btn" id="zoomBtn" onclick="zoomSelected()">拡大</button>
+        <div class="sep"></div>
+        <button class="btn" onclick="clearAll()">リセット</button>
+        <button class="btn" id="kickBtn" onclick="kickSelected()" style="margin-left:auto;">退出</button>
+        <button class="btn" onclick="closeRoom()" style="background:#cc0000; color:white;">部屋を閉じる</button>
+    </div>
+
+    <div id="grid-container"><div id="grid"></div></div>
+
+    <div class="footer">オンライン回答ボード | Ver 5.5 | ota tools</div>
+
+    <div id="roomZoom" onclick="this.style.display='none'" style="flex-direction:column; align-items:center; justify-content:center; display:none;"><div id="zoomNumber" style="font-size:150px; font-weight:bold;"></div><div id="qrcode"></div></div>
+    <div id="zoomOverlay" onclick="closeZoomOverlay()"><div id="zoomContent"></div></div>
+
+    <script>
+        const config = { apiKey: "AIzaSyCQeNeHqy9VbtBv-hYHa7nantsoE6KLigw", authDomain: "ota-tools.firebaseapp.com", databaseURL: "https://ota-tools-default-rtdb.firebaseio.com", projectId: "ota-tools", appId: "1:671143719220:web:c89149c15de830e6d03561" };
+        firebase.initializeApp(config); const db = firebase.database();
+        const myRoom = sessionStorage.getItem('quiz_room'); document.getElementById('roomID').innerText = myRoom;
+        let usersData = {}, selectedUsers = new Set(), timerObj = null, defaultSec = 30, currentAllWrong = false;
+        const roomRef = db.ref(`rooms/${myRoom}`);
+
+        window.addEventListener('beforeunload', () => roomRef.remove());
+
+        roomRef.on('value', snap => {
+            const data = snap.val() || {}, users = data.users || {}, s = data.state || {};
+            usersData = users; currentAllWrong = s.allWrongMode || false;
+            document.getElementById('pCount').innerText = Object.keys(usersData).length;
+            const lockBtn = document.getElementById('lockBtn');
+            if(s.locked) { lockBtn.innerText = "解除"; lockBtn.classList.add('active-gold'); }
+            else { lockBtn.innerText = "ロック"; lockBtn.classList.remove('active-gold'); }
+            updateButtonStyles(s); renderGrid();
+        });
+
+        function renderGrid() {
+            const grid = document.getElementById('grid'); const container = document.getElementById('grid-container');
+            const userKeys = Object.keys(usersData).sort((a,b)=>usersData[a].no-usersData[b].no);
+            const count = userKeys.length; if (count === 0) { grid.innerHTML = ''; return; }
+            const cw = container.clientWidth - 20; const ch = container.clientHeight - 20;
+            let bestCols = 1, maxCardW = 0;
+            for (let c = 1; c <= count; c++) {
+                const r = Math.ceil(count / c); const cardW = cw / c - 10; const cardH = cardW * (3/4);
+                if (cardH * r <= ch) { if (cardW > maxCardW) { maxCardW = cardW; bestCols = c; } }
+                else { const cardH2 = ch / r - 10; const cardW2 = cardH2 * (4/3); if (cardW2 * c <= cw) { if (cardW2 > maxCardW) { maxCardW = cardW2; bestCols = c; } } }
+            }
+            grid.style.gridTemplateColumns = `repeat(${bestCols}, ${maxCardW}px)`; grid.style.gridAutoRows = `${maxCardW * (3/4)}px`;
+            grid.innerHTML = '';
+            userKeys.forEach(uid => {
+                const user = usersData[uid]; const isCorrect = user.status === 'correct'; const isWrong = user.status === 'wrong' || (currentAllWrong && !isCorrect);
+                const div = document.createElement('div'); div.className = `card ${selectedUsers.has(uid) ? 'selected' : ''} ${isCorrect ? 'correct' : ''} ${isWrong ? 'is-wrong' : ''}`;
+                const imgSrc = (user.image && user.image.length > 100) ? user.image : "";
+                div.innerHTML = `<div class="info">${user.no||''} ${user.name}</div>${imgSrc ? `<img src="${imgSrc}">` : ''}<div class="status-mark mark-o">○</div><div class="status-mark mark-x">×</div>`;
+                div.onclick = () => { if(selectedUsers.has(uid)) selectedUsers.delete(uid); else selectedUsers.add(uid); updateButtonStyles(); renderGrid(); };
+                grid.appendChild(div);
+            });
+        }
+
+        function updateButtonStyles(state) {
+            const userCount = Object.keys(usersData).length; const selectCount = selectedUsers.size;
+            const hasMark = Object.values(usersData).some(u => u.status === 'correct' || u.status === 'wrong');
+            const isAllWrong = state ? (state.allWrongMode || false) : currentAllWrong;
+            document.getElementById('allSelectBtn').classList.toggle('active-gold', userCount > 0 && selectCount < userCount);
+            document.getElementById('allClearBtn').classList.toggle('active-gold', selectCount > 0);
+            const canJudge = selectCount > 0 && !hasMark && !isAllWrong;
+            document.getElementById('judgeBtn').classList.toggle('active-gold', canJudge);
+            document.getElementById('zoomBtn').classList.toggle('active-gold', selectCount > 0);
+            document.getElementById('kickBtn').classList.toggle('active-gold', selectCount > 0);
+            const wrongBtn = document.getElementById('wrongBtn');
+            const canAllWrong = userCount > 0 && !hasMark && !isAllWrong && selectCount === 0;
+            wrongBtn.disabled = !canAllWrong;
+            wrongBtn.classList.toggle('active-gold', canAllWrong);
+            document.getElementById('clearJudgeBtn').classList.toggle('active-gold', hasMark || isAllWrong);
+        }
+
+        function startTimer() {
+            const btn = document.getElementById('timerBtn'); 
+            const input = document.getElementById('timerSec');
+            if(timerObj) { 
+                clearInterval(timerObj); timerObj = null; 
+                btn.innerText = "スタート"; btn.classList.remove('btn-stop'); 
+                input.value = defaultSec; db.ref(`rooms/${myRoom}/state/timerCount`).set(0); 
+                return; 
+            }
+            db.ref(`rooms/${myRoom}/state/locked`).set(false);
+            defaultSec = input.value; let sec = parseInt(defaultSec); 
+            db.ref(`rooms/${myRoom}/state/timerCount`).set(sec); // 即時反映
+            btn.innerText = "ストップ"; btn.classList.add('btn-stop');
+            timerObj = setInterval(() => {
+                sec--; 
+                input.value = Math.max(sec, 0);
+                if(sec < 0) { 
+                    db.ref(`rooms/${myRoom}/state/locked`).set(true); 
+                    clearInterval(timerObj); timerObj = null; 
+                    btn.innerText = "スタート"; btn.classList.remove('btn-stop'); 
+                    input.value = defaultSec; 
+                    return; 
+                }
+                db.ref(`rooms/${myRoom}/state/timerCount`).set(sec);
+            }, 1000);
+        }
+
+        function zoomSelected() {
+            if(selectedUsers.size === 0) return;
+            const content = document.getElementById('zoomContent'); content.innerHTML = '';
+            const count = selectedUsers.size; let cols = Math.ceil(Math.sqrt(count)); if(count === 2) cols = 2;
+            content.style.gridTemplateColumns = `repeat(${cols}, 1fr)`; content.style.gridTemplateRows = `repeat(${Math.ceil(count/cols)}, 1fr)`;
+            selectedUsers.forEach(uid => {
+                const item = document.createElement('div'); item.className = 'zoom-item';
+                item.innerHTML = `<div class="zoom-name">${usersData[uid].name}</div><img src="${usersData[uid].image}">`;
+                content.appendChild(item);
+            });
+            document.getElementById('zoomOverlay').style.display = 'block';
+        }
+        function closeZoomOverlay() { document.getElementById('zoomOverlay').style.display = 'none'; allClear(); }
+        function sendResult(type) {
+            const updates = {};
+            if(type === 'correct') { Object.keys(usersData).forEach(uid => updates[`users/${uid}/status`] = selectedUsers.has(uid) ? 'correct' : 'wrong'); }
+            else { updates['state/allWrongMode'] = true; }
+            db.ref(`rooms/${myRoom}`).update(updates); allClear();
+        }
+        function clearJudge() {
+            const updates = { 'state/allWrongMode': false };
+            Object.keys(usersData).forEach(uid => updates[`users/${uid}/status`] = 'normal');
+            db.ref(`rooms/${myRoom}`).update(updates);
+        }
+        function allSelect() { Object.keys(usersData).forEach(u => selectedUsers.add(u)); updateButtonStyles(); renderGrid(); }
+        function allClear() { selectedUsers.clear(); updateButtonStyles(); renderGrid(); }
+        function toggleLock() { db.ref(`rooms/${myRoom}/state/locked`).transaction(l => !l); }
+        function clearAll() {
+            const updates = { 'state/forceClear': true, 'state/locked': false, 'state/timerCount': 0, 'state/allWrongMode': false };
+            Object.keys(usersData).forEach(uid => updates[`users/${uid}/status`] = 'normal');
+            db.ref(`rooms/${myRoom}`).update(updates);
+            setTimeout(() => db.ref(`rooms/${myRoom}/state/forceClear`).set(false), 300); allClear();
+        }
+        function kickSelected() { if(selectedUsers.size === 0 || !confirm('退室させますか？')) return; selectedUsers.forEach(uid => db.ref(`rooms/${myRoom}/users/${uid}/status`).set('kicked')); allClear(); }
+        function closeRoom() { if(!confirm('部屋を閉じますか？')) return; roomRef.off(); roomRef.remove().then(() => { location.href = 'index.html'; }); }
+        function showRoomZoom() { document.getElementById('zoomNumber').innerText = myRoom; document.getElementById('qrcode').innerHTML = ''; let url = window.location.origin + window.location.pathname.replace('teacher','answer') + `?r=${myRoom}`; new QRCode(document.getElementById("qrcode"), { text: url, width: 250, height: 250 }); document.getElementById('roomZoom').style.display = 'flex'; }
+        window.addEventListener('resize', renderGrid);
+    </script></body></html>

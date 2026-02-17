@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>児童用 Ver 19.8.1 (Roulette Sync Support)</title>
+<script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-database-compat.js"></script>
+<style>
+body { margin: 0; background: #222; color: white; font-family: sans-serif; overflow: hidden; height: 100vh; touch-action: none; }
+#stage { position: relative; width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; }
+#canvasBox { position: relative; width: 100%; max-width: 100vh; aspect-ratio: 4 / 3; background: white; box-shadow: 0 0 20px black; }
+canvas, #viewer img {
+position: absolute; top:0; left:0; width: 100%; height: 100%;
+object-fit: contain;
+image-rendering: pixelated;
+}
+#sharedImg:not([src]), #sharedImg[src=""] { opacity: 0; }
+#infoBar { position: fixed; top: 0; left: 0; width: 100%; background: rgba(0,0,0,0.6); padding: 5px; display: flex; justify-content: space-around; align-items: center; font-size: 14px; z-index: 3000; }
+#drawerDisplay { color: #00f0ff; font-weight: bold; flex: 1; text-align: left; padding-left: 10px; }
+#scoreArea { flex: 1; text-align: right; padding-right: 10px; display: flex; align-items: center; justify-content: flex-end; gap: 10px; }
+#myScoreDisplay { color: #ffcc00; }
+#timerWrapper { display: flex; align-items: center; gap: 5px; }
+#limitTimer { background: #ff3333; color: white; font-size: 24px; font-weight: bold; padding: 2px 15px; border-radius: 10px; min-width: 50px; text-align: center; }
+#multBadge { background: #ff00ff; color: white; font-size: 16px; font-weight: bold; padding: 4px 8px; border-radius: 5px; display: none; box-shadow: 0 0 10px #ff00ff; }
+#odaiGhost { position: absolute; top: 10%; width: 100%; text-align: center; font-size: 32px; color: rgba(180, 0, 0, 0.6); pointer-events: none; z-index: 5; font-weight: bold; text-shadow: 2px 2px 2px white; }
+#hintDisplay { position: fixed; top: 50px; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 8px; z-index: 3000; background: rgba(0,0,0,0.4); padding: 5px 15px; border-radius: 20px; min-height: 30px; }
+#hintLabel { font-weight: bold; font-size: 20px; color: #ffcc00; margin-right: 5px; }
+.hint-dot { width: 18px; height: 18px; border: 2px solid white; border-radius: 50%; background: rgba(255,255,255,0.4); }
+.hint-dot.small { width: 12px; height: 12px; }
+#judgeEffect { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 100px; font-weight: bold; z-index: 10000; pointer-events: none; display: none; text-shadow: 0 0 20px rgba(0,0,0,0.5); }
+#kbdWrapper { position: fixed; bottom: 0; left: 0; width: 100%; background: rgba(30, 30, 30, 0.85); backdrop-filter: blur(4px); z-index: 5000; display: none; flex-direction: column; padding: 5px 0 env(safe-area-inset-bottom) 0; border-top: 4px solid #ffcc00; }
+.input-display { display: flex; width: 95%; margin: 5px auto; gap: 8px; align-items: center; position: relative; }
+#answerInput { flex: 1; height: 50px; font-size: 28px; text-align: center; border-radius: 10px; border: 2px solid #ccc; background: white; color: black; font-weight: bold; }
+.k-key { background: #eee; color: #000; border: none; border-radius: 8px; height: 48px; font-size: 20px; font-weight: bold; box-shadow: 0 3px 0 #bbb; display: flex; align-items: center; justify-content: center; }
+.k-key:active { transform: translateY(2px); box-shadow: none; background: #ddd; }
+.k-close-x { position: absolute; top: -45px; right: 0; background: #666; color: white; border: 2px solid #fff; border-radius: 50%; width: 40px; height: 40px; font-size: 24px; display: flex; align-items: center; justify-content: center; }
+
+#attemptCounter { position: absolute; top: -45px; left: 10px; background: #333; color: #fff; padding: 5px 15px; border-radius: 15px; border: 2px solid #ffcc00; font-weight: bold; font-size: 18px; }
+#attemptCounter.out { color: #ff4444; border-color: #ff4444; }
+
+.k-main-area { display: flex; direction: rtl; padding: 5px; gap: 5px; }
+.k-grid { display: grid; grid-template-columns: repeat(11, 1fr); gap: 4px; flex: 1; }
+.k-side { width: 80px; display: flex; flex-direction: column; gap: 4px; }
+.k-special { background: #ccc; font-size: 16px; }
+.k-bs { background: #ff6666; color: white; width: 100px; height: 50px; font-size: 16px; }
+.k-decide { background: #00cc00; color: white; height: 100%; font-size: 24px; grid-row: span 5; }
+#drawTools { position: fixed; bottom: 0; left: 0; width: 100%; background: #333; z-index: 4000; display: none; flex-direction: column; padding: 10px 5px env(safe-area-inset-bottom) 5px; gap: 10px; border-top: 2px solid #555; }
+.color-row { display: grid; grid-template-columns: repeat(7, 1fr); gap: 8px; justify-items: center; max-width: 500px; margin: 0 auto; }
+.color-btn { width: 35px; height: 35px; border-radius: 50%; border: 2px solid #fff; }
+.color-btn.active { transform: scale(1.2); border-color: #ffcc00; box-shadow: 0 0 10px #ffcc00; }
+.tool-row-bottom { display: flex; align-items: center; justify-content: center; gap: 25px; min-height: 60px; }
+.size-dot-wrap { display: flex; flex-direction: column; align-items: center; justify-content: center; cursor: pointer; }
+.size-dot { border-radius: 50%; background: black; border: 2px solid transparent; }
+.size-dot-wrap.active .size-dot { border-color: white; box-shadow: 0 0 8px white; }
+.eraser-btn { background: #eee; color: #333; border-radius: 8px; padding: 8px 15px; font-weight: bold; }
+.eraser-btn.active { background: #ffcc00; outline: 3px solid white; }
+.overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 10000; display: none; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
+#countdownOverlay { z-index: 15000; background: rgba(0,0,0,0.95); color: white; }
+#finalRankingOverlay { background: rgba(0,0,0,0.95); overflow-y: auto; padding-top: 50px; justify-content: flex-start; z-index: 20000; }
+#toggleKbd { position: fixed; bottom: 15px; right: 15px; z-index: 4500; padding: 12px 24px; border-radius: 30px; background: #ffcc00; font-weight: bold; border: 2px solid #fff; box-shadow: 0 4px 10px rgba(0,0,0,0.5); }
+#chanceEffect { position: fixed; top: 35%; left: 50%; transform: translate(-50%, -50%); font-size: 70px; font-weight: bold; color: #fff; text-shadow: 0 0 20px #ff00ff, 0 0 40px #ff00ff; z-index: 12000; pointer-events: none; display: none; animation: chancePop 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+@keyframes chancePop { 0% { transform: translate(-50%, -50%) scale(0); } 100% { transform: translate(-50%, -50%) scale(1); } }
+.loading-dots::after { content: '...'; animation: dots 1.5s infinite; }
+@keyframes dots { 0%, 20% { content: ''; } 40% { content: '.'; } 60% { content: '..'; } 80%, 100% { content: '...'; } }
+</style>
+</head>
+<body>
+<div id="infoBar">
+<div id="drawerDisplay">描いている人: ---</div>
+<div id="timerWrapper">
+<div id="multBadge"></div>
+<div id="limitTimer" style="display:none;"></div>
+</div>
+<div id="scoreArea">
+<div id="myScoreDisplay"></div>
+</div>
+</div>
+<div id="hintDisplay"></div>
+<div id="judgeEffect"></div>
+<div id="chanceEffect"></div>
+<div id="stage">
+<div id="canvasBox">
+<div id="odaiGhost"></div>
+<canvas id="canvas"></canvas>
+<div id="viewer" style="display:none;"><img id="sharedImg" src=""></div>
+</div>
+</div>
+<div id="drawTools">
+<div class="color-row" id="colorRow"></div>
+<div class="tool-row-bottom">
+<div class="size-dot-wrap" id="wrap1" onclick="changeSize(4, 'wrap1')"><div class="size-dot" style="width: 6px; height: 6px;"></div></div>
+<div class="size-dot-wrap" id="wrap2" onclick="changeSize(12, 'wrap2')"><div class="size-dot" style="width: 15px; height: 15px;"></div></div>
+<div class="size-dot-wrap" id="wrap3" onclick="changeSize(28, 'wrap3')"><div class="size-dot" style="width: 30px; height: 30px;"></div></div>
+<button class="eraser-btn" id="eraserBtn" onclick="setEraser()">消しゴム</button>
+<button onclick="clearCanvas()" style="font-size:24px; background:none; border:none;">🗑️</button>
+</div>
+</div>
+<button id="toggleKbd" onclick="toggleKeyboard()" style="display:none;">答えを入力</button>
+<div id="kbdWrapper">
+<div class="input-display">
+<div id="attemptCounter">のこり: - 回</div>
+<button class="k-close-x" onclick="toggleKeyboard()">×</button>
+<input type="text" id="answerInput" readonly placeholder="答えを入力...">
+<button class="k-key k-bs" onclick="bs()">1文字消す</button>
+</div>
+<div style="display:flex; gap:10px; justify-content: center; margin-bottom:5px;">
+<button id="btnHira" class="k-key k-special" style="width:120px;" onclick="changeKbdType('hira')">ひらがな</button>
+<button id="btnKana" class="k-key k-special" style="width:120px;" onclick="changeKbdType('kana')">カタカナ</button>
+</div>
+<div class="k-main-area">
+<div class="k-grid" id="kanaGrid"></div>
+<div class="k-side" id="sideGrid"></div>
+</div>
+</div>
+<div id="waitScreen" class="overlay" style="background:rgba(0,0,0,0.85); z-index: 25000;">
+<h2 style="font-size: 32px; color: #00f0ff;">つぎのお題をじゅんび中<span class="loading-dots"></span></h2>
+</div>
+<div id="countdownOverlay" class="overlay">
+<div id="cdName" style="font-size:30px; color:gold;"></div>
+<div id="cdNumber" style="font-size:150px; font-weight:bold;"></div>
+</div>
+<div id="answerOverlay" class="overlay" style="background:rgba(255,204,0,0.85); color:black;">
+<div style="font-size:30px; font-weight:bold; color:red;">せいかいは...</div>
+<div id="finalAnswer" style="font-size:70px; font-weight:bold; margin:20px 0;"></div>
+<div id="winnerList" style="font-size:22px;"></div>
+</div>
+<div id="finalRankingOverlay" class="overlay">
+<h1 style="color:gold;">🏆 最終結果発表 🏆</h1>
+<div id="rankContainer" style="width:100%; display:flex; flex-direction:column-reverse; align-items:center;"></div>
+<div id="myFinalRank" style="margin:30px; padding:20px; border:3px dashed #ffcc00; font-size:24px; opacity:0; color:#ffcc00;"></div>
+</div>
+<script>
+const config = { apiKey: "AIzaSyCo4uq1uJBRcgU-c7mWemukU25MrX635m0", authDomain: "oekaki-quiz-23ab5.firebaseapp.com", databaseURL: "https://oekaki-quiz-23ab5-default-rtdb.asia-southeast1.firebasedatabase.app", projectId: "oekaki-quiz-23ab5", appId: "1:61801325910:web:330fa68a1701dbbc9822f7" };
+firebase.initializeApp(config); const db = firebase.database();
+const myRoom = sessionStorage.getItem('quiz_room'), myUid = sessionStorage.getItem('quiz_uid');
+if(!myRoom || !myUid) location.href = "answer.html";
+const canvas = document.getElementById('canvas'), ctx = canvas.getContext('2d');
+let drawing = false, penColor = "black", penSize = 12, isDrawer = false, isEraserMode = false;
+let lastX=0, lastY=0, kbdType = 'hira', lastStatePhase = "", lastMult = 1, currentIsPlaying = false;
+
+let myAttempts = 0; 
+let maxLimit = 999; 
+
+function resize() { const box = document.getElementById('canvasBox'); canvas.width = box.clientWidth * 2; canvas.height = box.clientHeight * 2; ctx.scale(2, 2); ctx.lineCap = 'round'; ctx.lineJoin = 'round'; }
+window.onload = () => { resize(); initKbd(); initColors(); changeSize(12, 'wrap2'); };
+window.onresize = resize;
+canvas.onpointerdown = e => { if(!isDrawer || !currentIsPlaying) return; drawing=true; const r=canvas.getBoundingClientRect(); lastX=e.clientX-r.left; lastY=e.clientY-r.top; ctx.beginPath(); ctx.globalCompositeOperation = isEraserMode ? 'destination-out' : 'source-over'; ctx.fillStyle = isEraserMode ? 'white' : penColor; ctx.arc(lastX, lastY, penSize/2, 0, Math.PI * 2); ctx.fill(); throttleUpload(); };
+canvas.onpointermove = e => { if(!drawing || !currentIsPlaying) return; e.preventDefault(); const r=canvas.getBoundingClientRect(), x=e.clientX-r.left, y=e.clientY-r.top; ctx.beginPath(); ctx.globalCompositeOperation = isEraserMode ? 'destination-out' : 'source-over'; ctx.strokeStyle = isEraserMode ? 'rgba(0,0,0,1)' : penColor; ctx.lineWidth=penSize; ctx.moveTo(lastX, lastY); ctx.lineTo(x, y); ctx.stroke(); lastX=x; lastY=y; throttleUpload(); };
+window.onpointerup = () => { if(drawing){ drawing=false; upload(); } };
+let uploadTimeout = null;
+function throttleUpload() { if (!uploadTimeout) { uploadTimeout = setTimeout(() => { upload(); uploadTimeout = null; }, 120); } }
+function upload() { const temp = document.createElement('canvas'); temp.width = 800; temp.height = 600; temp.getContext('2d').drawImage(canvas, 0, 0, 800, 600); db.ref(`rooms/${myRoom}/users/${myUid}/image`).set(temp.toDataURL('image/webp', 0.8)); }
+
+db.ref(`rooms/${myRoom}`).on('value', snap => {
+const data = snap.val(); if(!data) { location.href = "answer.html"; return; }
+const state = data.state || {}, users = data.users || {};
+if (!users[myUid]) return;
+
+isDrawer = (state.currentDrawer === myUid);
+currentIsPlaying = (state.phase === "playing" && state.active);
+maxLimit = state.maxAttempts || 999; 
+
+const timerEl = document.getElementById('limitTimer');
+if (currentIsPlaying && state.timeLeft !== undefined) {
+    timerEl.style.display = "block";
+    timerEl.innerText = state.timeLeft;
+    timerEl.style.background = state.timeLeft <= 10 ? "#ff0000" : "#ff3333";
+} else { timerEl.style.display = "none"; }
+
+const mult = Number(state.multiplier || 1);
+const multBadge = document.getElementById('multBadge');
+if (currentIsPlaying && mult > 1) {
+    multBadge.style.display = "block"; multBadge.innerText = mult + "倍";
+    if (mult !== lastMult) {
+        const ce = document.getElementById('chanceEffect'); ce.innerText = mult + "倍チャンス！"; ce.style.display = "block";
+        setTimeout(() => { ce.style.display = "none"; }, 2500);
+    }
+} else { multBadge.style.display = "none"; }
+lastMult = mult;
+
+if (state.phase !== lastStatePhase) {
+    if (state.phase !== "playing") {
+        document.getElementById('kbdWrapper').style.display = 'none';
+        document.getElementById('answerInput').value = "";
+    }
+    if (state.phase === "countdown" || state.phase === "roulette") {
+        ctx.clearRect(0,0,canvas.width,canvas.height);
+        myAttempts = 0; 
+    }
+    lastStatePhase = state.phase;
+}
+
+const left = maxLimit - myAttempts;
+const counterEl = document.getElementById('attemptCounter');
+counterEl.innerText = maxLimit >= 999 ? "制限なし" : `のこり: ${Math.max(0, left)} 回`;
+if(left <= 0 && maxLimit < 999) counterEl.classList.add('out'); else counterEl.classList.remove('out');
+
+// --- ネタバレ防止修正箇所 ---
+// ルーレット中は名前を隠す
+if(state.phase === "roulette" || state.phase === "waiting") {
+    document.getElementById('drawerDisplay').innerText = `描いている人: 選定中...`;
+} else {
+    document.getElementById('drawerDisplay').innerText = `描いている人: ${state.drawerName || "---"}`;
+}
+
+document.getElementById('countdownOverlay').style.display = (state.phase === "countdown") ? 'flex' : 'none';
+if (state.phase === "countdown") {
+    // ルーレットが終わってカウントダウンになったときだけ名前を表示
+    document.getElementById('cdName').innerText = `次は ${state.drawerName || '...'} さん`;
+    document.getElementById('cdNumber').innerText = state.countdown ?? "";
+}
+// -------------------------
+
+document.getElementById('answerOverlay').style.display = (state.phase === "result") ? 'flex' : 'none';
+if(state.phase === "result") {
+    document.getElementById('finalAnswer').innerText = state.correctAnswer || "？";
+    const winners = Object.values(users).filter(u => u.isCorrect).map(u => u.name);
+    document.getElementById('winnerList').innerText = "正解者：" + (winners.length > 0 ? winners.join('、 ') : "なし");
+}
+document.getElementById('waitScreen').style.display = (state.phase === "waiting" || state.phase === "roulette") ? 'flex' : 'none';
+if ((state.phase === "final" || state.showRanking)) startRankingShow(users);
+document.getElementById('drawTools').style.display = (isDrawer && currentIsPlaying) ? 'flex' : 'none';
+
+document.getElementById('toggleKbd').style.display = (currentIsPlaying && !isDrawer && !users[myUid]?.isCorrect && left > 0) ? 'block' : 'none';
+
+const viewer = document.getElementById('viewer');
+if(!isDrawer && (currentIsPlaying || state.phase === "result")) {
+    viewer.style.display = 'block';
+    const sImg = document.getElementById('sharedImg'), newSrc = users[state.currentDrawer]?.image || "";
+    if (sImg.src !== newSrc) { if(!newSrc) sImg.removeAttribute('src'); else sImg.src = newSrc; }
+} else { viewer.style.display = 'none'; }
+if (state.scoreOn) {
+    let scoreText = `点数: ${users[myUid]?.score || 0}`;
+    if (state.rankOn) {
+        const sorted = Object.values(users).sort((a,b) => (b.score||0)-(a.score||0));
+        let r = 1; sorted.forEach(u => { if((u.score||0) > (users[myUid].score||0)) r++; });
+        scoreText += ` (${r}位)`;
+    }
+    document.getElementById('myScoreDisplay').innerText = scoreText;
+}
+document.getElementById('odaiGhost').innerText = (isDrawer && currentIsPlaying) ? `お題： 「 ${state.correctAnswer} 」` : "";
+const hintBox = document.getElementById('hintDisplay'); hintBox.innerHTML = "";
+if (!isDrawer && currentIsPlaying && state.hintOn && (state.timeLeft <= 30)) {
+    const label = document.createElement('div'); label.id = "hintLabel"; label.innerText = "ヒント："; hintBox.appendChild(label);
+    [...state.correctAnswer].forEach(char => { const dot = document.createElement('div'); dot.className = "hint-dot" + ("ぁぃぅぇぉゃゅょっァィゥェォャュョッ".includes(char) ? " small" : ""); hintBox.appendChild(dot); });
+}
+});
+
+function toHira(str) { return str.replace(/[\u30a1-\u30f6]/g, m => String.fromCharCode(m.charCodeAt(0) - 0x60)); }
+async function checkAnswer() {
+    const snap = await db.ref(`rooms/${myRoom}`).once('value');
+    const state = snap.val().state;
+    const val = document.getElementById('answerInput').value; if(!val || state.phase !== "playing") return;
+    if (myAttempts >= maxLimit) return;
+    if(toHira(val) === toHira(state.correctAnswer)) {
+        showJudge("正解！", "#ffcc00");
+        const addPoint = 10 * (state.multiplier || 1);
+        db.ref(`rooms/${myRoom}/users/${myUid}`).update({ isCorrect: true, answerAttempts: myAttempts + 1 });
+        db.ref(`rooms/${myRoom}/users/${myUid}/score`).transaction(s => (s||0) + addPoint);
+        if(state.correctCount === 0) db.ref(`rooms/${myRoom}/users/${state.currentDrawer}/score`).transaction(s => (s||0) + addPoint);
+        db.ref(`rooms/${myRoom}/state/correctCount`).transaction(c => (c||0) + 1);
+        document.getElementById('kbdWrapper').style.display = 'none';
+    } else {
+        myAttempts++;
+        db.ref(`rooms/${myRoom}/users/${myUid}/answerAttempts`).set(myAttempts);
+        showJudge("×", "red");
+        document.getElementById('answerInput').value = "";
+        if (myAttempts >= maxLimit) {
+            setTimeout(() => {
+                document.getElementById('kbdWrapper').style.display = 'none';
+                showJudge("回答終了！", "red");
+            }, 600);
+        }
+    }
+}
+function showJudge(text, color) { const el = document.getElementById('judgeEffect'); el.innerText = text; el.style.color = color; el.style.display = "block"; setTimeout(() => { el.style.display = "none"; }, 1000); }
+function initKbd() { const hira = "あいうえお かきくけこ さしすせそ たちつてと なにぬねの はひふへほ まみむめも やゆよ　　 らりるれろ わをん　ー".split(" "); const kana = "アイウエオ カキクケコ サシスセソ タチツテト ナニヌネノ ハヒフヘホ マミムメモ ヤユヨ　　 ラリルレロ ワヲン　ー".split(" "); const target = kbdType === 'hira' ? hira : kana; const grid = document.getElementById('kanaGrid'); grid.innerHTML = ""; for(let i=0; i<5; i++) { target.forEach((row, rowIndex) => { if (rowIndex === 0 && i === 0) { const d = document.createElement('button'); d.className = 'k-key k-decide'; d.innerText = "決定"; d.onclick = checkAnswer; grid.appendChild(d); } const c = row[i]; if(!c || c === "　") { grid.appendChild(document.createElement('div')); return; } const b = document.createElement('button'); b.className = 'k-key'; b.innerText = c; b.onclick = () => { document.getElementById('answerInput').value += c; }; grid.appendChild(b); }); } const side = document.getElementById('sideGrid'); side.innerHTML = ""; const henkan = document.createElement('button'); henkan.className = 'k-key k-special'; henkan.style.height = "120px"; henkan.innerHTML = "゛ ゜<br><br>小"; henkan.onclick = () => { let v = document.getElementById('answerInput').value; if(!v) return; let last = v.slice(-1); document.getElementById('answerInput').value = v.slice(0,-1) + convertChar(last); }; side.appendChild(henkan); }
+function convertChar(c) { const data = {'あ':'ぁ','ぁ':'あ','い':'ぃ','ぃ':'い','う':'ぅ','ぅ':'う','ゔ':'う','え':'ぇ','ぇ':'え','お':'ぉ','ぉ':'お','か':'ガ','ガ':'カ','き':'ぎ','ぎ':'き','く':'ぐ','ぐ':'く','け':'げ','げ':'け','こ':'ご','ご':'こ','さ':'ざ','ざ':'さ','し':'じ','じ':'し','す':'ず','ず':'す','せ':'ぜ','ぜ':'せ','そ':'ぞ','ぞ':'そ','た':'だ','だ':'た','ち':'ぢ','ぢ':'ち','つ':'っ','っ':'づ','づ':'つ','て':'で','て':'て','と':'ど','ど':'と','は':'ば','ば':'ぱ','ぱ':'は','ひ':'び','び':'ぴ','ぴ':'ひ','ふ':'ぶ','ぶ':'ぷ','ぷ':'ふ','へ':'べ','べ':'ぺ','ぺ':'へ','ほ':'ぼ','ぼ':'ぽ','ぽ':'ほ','や':'ゃ','ゃ':'や','ゆ':'ゅ','ゅ':'ゆ','よ':'ょ','ょ':'よ','ア':'ァ','ァ':'ア','イ':'ィ','ィ':'イ','ウ':'ゥ','ゥ':'ヴ','ヴ':'ウ','エ':'ェ','ェ':'エ','オ':'ォ','ォ':'ア','カ':'ガ','ガ':'カ','キ':'ギ','ギ':'キ','ク':'グ','グ':'ク','ケ':'ゲ','ゲ':'ケ','コ':'ゴ','ゴ':'コ','サ':'ザ','ザ':'サ','シ':'ジ','ジ':'シ','ス':'ズ','ズ':'ス','せ':'ゼ','ゼ':'セ','ソ':'ゾ','ゾ':'ソ','タ':'ダ','ダ':'タ','チ':'ヂ','ヂ':'チ','ツ':'ッ','ッ':'ヅ','ヅ':'ツ','て':'デ','デ':'て','ト':'ド','ド':'ト','ハ':'バ','バ':'パ','パ':'ハ','ヒ':'ビ','ヒ':'ぴ','ピ':'ヒ','フ':'ブ','ブ':'プ','ぷ':'フ','ヘ':'ベ','ベ':'ぺ','ペ':'ヘ','ほ':'ぼ','ぼ':'ぽ','ぽ':'ほ','や':'ャ','ャ':'ヤ','ユ':'ュ','ユ':'ユ','よ':'ョ','ョ':'ヨ'}; return data[c] || c; }
+function changeKbdType(type) { kbdType = type; document.getElementById('btnHira').style.background = type === 'hira' ? '#ffcc00' : '#ccc'; document.getElementById('btnKana').style.background = type === 'kana' ? '#ffcc00' : '#ccc'; initKbd(); }
+function bs() { const el = document.getElementById('answerInput'); el.value = el.value.slice(0, -1); }
+function toggleKeyboard(){ const k=document.getElementById('kbdWrapper'); k.style.display=(k.style.display==='flex')?'none':'flex'; }
+function initColors() { const colors = ['#ffff00', '#adff2f', '#008000', '#00bfff', '#0000ff', '#800080', '#ff69b4', '#ff0000', '#ff8c00', '#f5deb3', '#8b4513', '#000000', '#777777', '#ffffff']; const row = document.getElementById('colorRow'); row.innerHTML = ""; colors.forEach(c => { const b = document.createElement('div'); b.className = 'color-btn'; b.style.background = c; b.onclick = () => { isEraserMode = false; penColor = c; updateActiveColor(); }; row.appendChild(b); }); updateActiveColor(); }
+function updateActiveColor() { document.querySelectorAll('.color-btn').forEach(b => b.classList.toggle('active', b.style.backgroundColor === penColor && !isEraserMode)); document.getElementById('eraserBtn').classList.toggle('active', isEraserMode); }
+function changeSize(s, id) { penSize = s; document.querySelectorAll('.size-dot-wrap').forEach(b => b.classList.remove('active')); document.getElementById(id).classList.add('active'); }
+function setEraser() { isEraserMode = true; penSize = 28; document.querySelectorAll('.size-dot-wrap').forEach(b => b.classList.remove('active')); document.getElementById('wrap3').classList.add('active'); updateActiveColor(); }
+function clearCanvas(){ if(confirm('ぜんぶ消す？')){ ctx.clearRect(0,0,canvas.width,canvas.height); upload(); } }
+
+async function startRankingShow(users) {
+    const overlay = document.getElementById('finalRankingOverlay'); if(overlay.style.display==='flex') return;
+    const container = document.getElementById('rankContainer'), myBox = document.getElementById('myFinalRank');
+    container.innerHTML = ""; myBox.style.opacity = 0; overlay.style.display = 'flex';
+    const userList = Object.entries(users).map(([uid, u]) => ({ uid, name: u.name, score: u.score || 0 }));
+    userList.sort((a, b) => b.score - a.score);
+    const grouped = [];
+    userList.forEach(u => {
+        const lastGroup = grouped[grouped.length - 1];
+        if (lastGroup && lastGroup.score === u.score) {
+            lastGroup.names.push(u.name);
+        } else {
+            grouped.push({ score: u.score, names: [u.name] });
+        }
+    });
+    const displayGroups = grouped.slice(0, 3);
+    const revealOrder = displayGroups.map((_, i) => i).reverse(); 
+    for (const groupIdx of revealOrder) {
+        await new Promise(r => setTimeout(r, 1500)); 
+        const group = displayGroups[groupIdx];
+        const rankNum = groupIdx + 1;
+        const item = document.createElement('div');
+        let bgColor = "#333";
+        if(rankNum === 1) bgColor = "linear-gradient(45deg, #ffd700, #b8860b)";
+        if(rankNum === 2) bgColor = "linear-gradient(45deg, #c0c0c0, #708090)";
+        if(rankNum === 3) bgColor = "linear-gradient(45deg, #cd7f32, #8b4513)";
+        item.style.cssText = `font-size:28px; margin:10px; padding:20px; background:${bgColor}; width:85%; border-radius:15px; font-weight:bold; box-shadow: 0 4px 15px rgba(0,0,0,0.5); border: 2px solid white; line-height:1.4;`;
+        const nameListText = group.names.join('、 ');
+        item.innerText = `${rankNum}位: ${nameListText} さん (${group.score}点)`;
+        container.appendChild(item);
+    }
+    setTimeout(() => {
+        const myScore = users[myUid]?.score || 0;
+        let myRank = 1;
+        userList.forEach(u => { if (u.score > myScore) myRank++; });
+        myBox.innerText = `あなたは ${myRank} 位でした！`;
+        myBox.style.opacity = 1;
+    }, 1500);
+}
+</script>
+</body>
+</html>

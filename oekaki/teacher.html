@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>管理画面 - Ver 19.0 (Attempt Limited)</title>
+    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-database-compat.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <style>
+        body { background: #1a1a1a; color: white; font-family: sans-serif; display: flex; height: 100vh; margin: 0; overflow: hidden; }
+        .sidebar { width: 340px; min-width: 340px; background: #333; display: flex; flex-direction: column; border-right: 2px solid #555; }
+        .room-header { padding: 10px; background: #222; border-bottom: 1px solid #555; text-align: center; }
+        #roomID { font-size: 20px; color: #ffcc00; font-weight: bold; cursor: pointer; text-decoration: underline; }
+        .sort-controls { display: flex; padding: 5px; gap: 2px; background: #444; }
+        .btn-sort { flex: 1; padding: 10px 2px; font-size: 11px; background: #555; color: #ccc; border: 1px solid #666; cursor: pointer; line-height: 1.2; }
+        .btn-sort.active { background: #ffcc00; color: #000; font-weight: bold; border-color: #fff; }
+        .btn-dir { width: 50px; background: #666; color: white; border: 1px solid #777; cursor: pointer; font-size: 12px; }
+        .user-list { flex: 1; overflow-y: auto; padding: 5px; background: #262626; }
+        .user-item { display: flex; align-items: center; padding: 8px 10px; background: #444; margin-bottom: 4px; border-radius: 4px; cursor: pointer; border: 2px solid transparent; gap: 8px; font-size: 14px; }
+        .user-item.selected { border-color: #ffcc00; background: #555; }
+        .user-item.is-drawing { background: #800; border-color: #ff4444; }
+        .user-item.is-correct { background: #1b5e20; border-color: #4caf50; }
+        /* 回数切れのスタイル */
+        .user-item.out-of-attempts .u-name { color: #ff4444; text-decoration: line-through; }
+        
+        .u-status { width: 20px; text-align: center; font-size: 12px; }
+        .u-no { width: 30px; color: #aaa; font-family: monospace; text-align: center; border-right: 1px solid #555; }
+        .u-name { flex: 1; font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-left: 5px; }
+        .u-score { width: 60px; text-align: right; color: gold; font-weight: bold; font-family: monospace; }
+        .main-panel { flex: 1; display: flex; flex-direction: column; height: 100vh; }
+        .controls-area { background: #222; padding: 12px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; border-bottom: 2px solid #555; }
+        .option-box { grid-column: span 3; background: #444; padding: 8px; border-radius: 5px; display: flex; gap: 15px; font-size: 13px; align-items: center; }
+        .btn { padding: 8px; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; font-size: 13px; transition: 0.2s; }
+        .btn-main { background: #ffcc00; color: #000; font-size: 16px; grid-column: span 3; padding: 12px; }
+        .btn-sub { background: #444; color: white; }
+        .btn-stop { background: #aa0000; color: white; }
+        .btn-ranking { background: #ff00ff; color: white; }
+        .btn-monitor { background: #00c3ff; color: #000; border: 2px solid white; }
+        .btn-close { background: #300; color: #f44; border: 1px solid #f44; }
+        input, select { padding: 8px; border-radius: 4px; border: none; font-size: 14px; background: #eee; color: black; width: 100%; box-sizing: border-box; }
+        .monitor-area { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 10px; background: #111; position: relative; }
+        #monitor { width: 100%; max-width: 65vh; aspect-ratio: 4 / 3; background: white; border: 4px solid #444; position: relative; overflow: hidden; color: #000; }
+        #monitorImg { width: 100%; height: 100%; object-fit: contain; position: absolute; top:0; left:0; display: none; }
+        .timer-box { position: absolute; bottom: 20px; right: 20px; background: rgba(0,0,0,0.8); padding: 10px 20px; border-radius: 10px; border: 2px solid #ffcc00; text-align: center; z-index: 30; }
+        #roomZoom { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.95); z-index: 5000; flex-direction: column; align-items: center; justify-content: center; }
+        .btn-plus { background: #666; color: white; padding: 2px 6px; font-size: 11px; margin-left: 2px; }
+        .btn-plus:hover { background: #888; }
+    </style>
+</head>
+<body>
+<div class="sidebar">
+    <div class="room-header">
+        <span id="roomID" onclick="showRoomZoom()">部屋: ----</span>
+        <div style="margin-top:5px;"><button onclick="resetScores()" class="btn" style="padding:2px 10px; font-size:10px; background:#333; color:#aaa;">スコア全消去</button></div>
+    </div>
+    <div class="sort-controls">
+        <button id="sortNo" onclick="setSort('no')" class="btn-sort active">出席番号順<br>(小さい順)</button>
+        <button id="sortScore" onclick="setSort('score')" class="btn-sort">点数順<br>(高い順)</button>
+        <button id="sortDir" onclick="toggleDir()" class="btn-dir">昇順▲</button>
+    </div>
+    <div id="userList" class="user-list"></div>
+</div>
+
+<div class="main-panel">
+    <div class="controls-area">
+        <button class="btn btn-sub" onclick="pickRandom('new')">未描画から選ぶ</button>
+        <button class="btn btn-sub" onclick="pickRandom('low')">低得点から選ぶ</button>
+        <button class="btn btn-monitor" onclick="openRankingMonitor()">📺 大型モニタ起動</button>
+        
+        <div style="display:flex; gap:4px; grid-column: span 3; background: #333; padding: 5px; border-radius: 4px;">
+            <input type="text" id="ansIn" placeholder="お題を入力" style="flex: 2;">
+            <select id="categorySel" style="flex: 1.5; background: #fff;"></select>
+            <button class="btn" onclick="setRandomWord()" style="flex: 1.5; background:#555; color:white; white-space: nowrap; font-size: 11px;">お題ランダム入力</button>
+        </div>
+
+        <div style="display:flex; align-items:center; gap:4px;"><input type="number" id="timeIn" value="60" style="width:60px;">秒</div>
+        <div style="display:flex; align-items:center; gap:4px;">
+            制限:<input type="number" id="limitIn" value="1" style="width:50px;">人
+            <button class="btn btn-plus" onclick="addLimit(5)">+5</button>
+            <button class="btn btn-plus" onclick="addLimit(10)">+10</button>
+        </div>
+        <div style="display:flex; align-items:center; gap:4px; font-size: 12px;">
+            回答回数:<input type="number" id="maxAttemptIn" placeholder="-" style="width:50px; background:#ffd;">回
+        </div>
+        <select id="mulIn">
+            <option value="1">1倍</option>
+            <option value="2">2倍</option>
+            <option value="3">3倍</option>
+        </select>
+        <div class="option-box">
+            <b>機能ON:</b>
+            <label><input type="checkbox" id="hintCheck" checked> ヒント</label>
+            <label><input type="checkbox" id="scoreCheck" checked> 自分の点数</label>
+            <label><input type="checkbox" id="rankCheck"> 自分の順位</label>
+        </div>
+        <button class="btn btn-main" onclick="startGame()">クイズ開始！</button>
+        <button class="btn btn-stop" onclick="finishGame()">強制終了 / 正解発表</button>
+        <button class="btn btn-ranking" onclick="startRanking()">🏆 最終結果発表！</button>
+        <button class="btn btn-close" onclick="closeRoom()">部屋を閉じる</button>
+    </div>
+    <div class="monitor-area">
+        <div id="monitor">
+            <img id="monitorImg" src="">
+            <div style="position:absolute; top:10px; left:10px; background:rgba(0,0,0,0.7); color:white; padding:4px 12px; border-radius:20px; z-index:10; font-size:14px;">
+                🎨 <span id="monitorName">待機中</span>
+            </div>
+        </div>
+        <div class="timer-box">
+            <div id="timerDisplay" style="color:gold; font-size:40px; font-weight:bold; font-family:monospace;">00</div>
+        </div>
+    </div>
+</div>
+
+<div id="roomZoom" onclick="this.style.display='none'"><div id="qrcode" style="background:white; padding:20px; border-radius:10px;"></div><h1 id="zoomNum" style="font-size:80px; color:gold; margin:20px 0;"></h1></div>
+
+<script src="odai-list.js"></script>
+
+<script>
+    const config = { apiKey: "AIzaSyCo4uq1uJBRcgU-c7mWemukU25MrX635m0", authDomain: "oekaki-quiz-23ab5.firebaseapp.com", databaseURL: "https://oekaki-quiz-23ab5-default-rtdb.asia-southeast1.firebasedatabase.app", projectId: "oekaki-quiz-23ab5", appId: "1:61801325910:web:330fa68a1701dbbc9822f7" };
+    firebase.initializeApp(config); const db = firebase.database();
+    const myRoom = sessionStorage.getItem('quiz_room');
+    if(!myRoom) location.href="index.html";
+    document.getElementById('roomID').innerText = "部屋: " + myRoom;
+
+    window.onload = () => {
+        const catSel = document.getElementById('categorySel');
+        if(typeof odaiData !== 'undefined') {
+            Object.keys(odaiData).forEach(cat => {
+                const opt = document.createElement('option');
+                opt.value = cat; opt.innerText = cat; catSel.appendChild(opt);
+            });
+        }
+    };
+
+    let usersData = {}, selectedUid = "", timerInterval = null;
+    let sortMode = 'no'; let sortAsc = true; let monitorWin = null; 
+    let currentMaxAttempts = 999;
+
+    db.ref(`rooms/${myRoom}`).on('value', snap => {
+        if(!snap.exists()) return;
+        const data = snap.val(), users = data.users || {}, state = data.state || {};
+        usersData = users;
+        currentMaxAttempts = state.maxAttempts || 999;
+
+        if (state.active && state.phase === "playing" && state.correctCount >= state.answerLimit) finishGame();
+        
+        if(state.phase === "countdown") {
+            document.getElementById('timerDisplay').innerText = state.countdown;
+            document.getElementById('timerDisplay').style.color = "red";
+        } else {
+            document.getElementById('timerDisplay').innerText = state.timeLeft || 0;
+            document.getElementById('timerDisplay').style.color = "gold";
+        }
+
+        const monitorImg = document.getElementById('monitorImg');
+        if(state.currentDrawer && users[state.currentDrawer]) {
+            const newSrc = users[state.currentDrawer].image || "";
+            if(newSrc !== "") {
+                if(monitorImg.src !== newSrc) monitorImg.src = newSrc;
+                monitorImg.style.display = "block";
+            } else { monitorImg.style.display = "none"; }
+            document.getElementById('monitorName').innerText = users[state.currentDrawer].name;
+        } else {
+            monitorImg.src = ""; monitorImg.style.display = "none";
+            document.getElementById('monitorName').innerText = "待機中";
+        }
+        renderList(state.currentDrawer);
+    });
+
+    function setSort(mode) { sortMode = mode; sortAsc = (mode === 'no'); updateSortUI(); renderList(); }
+    function toggleDir() { sortAsc = !sortAsc; updateSortUI(); renderList(); }
+    function updateSortUI() {
+        document.getElementById('sortNo').classList.toggle('active', sortMode === 'no');
+        document.getElementById('sortScore').classList.toggle('active', sortMode === 'score');
+        document.getElementById('sortDir').innerText = sortAsc ? "昇順▲" : "降順▼";
+    }
+
+    function renderList(drawerUid) {
+        const list = document.getElementById('userList');
+        let keys = Object.keys(usersData);
+        keys.sort((a, b) => {
+            let valA, valB;
+            if(sortMode === 'score') { valA = usersData[a].score || 0; valB = usersData[b].score || 0; }
+            else { valA = parseInt(usersData[a].no) || 999; valB = parseInt(usersData[b].no) || 999; }
+            return sortAsc ? valA - valB : valB - valA;
+        });
+        list.innerHTML = '';
+        keys.forEach(uid => {
+            const u = usersData[uid];
+            // 回数制限を超えているか判定（正解者は除外）
+            const isOutOfAttempts = (!u.isCorrect && uid !== drawerUid && u.answerAttempts >= currentMaxAttempts);
+            
+            const item = document.createElement('div');
+            item.className = `user-item ${uid === selectedUid ? 'selected' : ''} ${uid === drawerUid ? 'is-drawing' : ''} ${u.isCorrect ? 'is-correct' : ''} ${isOutOfAttempts ? 'out-of-attempts' : ''}`;
+            
+            const statusIcon = u.isCorrect ? "⭐" : (u.hasDrawn ? "✔" : (isOutOfAttempts ? "❌" : "　"));
+            
+            item.innerHTML = `<div class="u-status">${statusIcon}</div><div class="u-no">${u.no || "--"}</div><div class="u-name">${u.name}</div><div class="u-score">${u.score || 0}点</div>`;
+            item.onclick = () => { selectedUid = uid; renderList(drawerUid); };
+            list.appendChild(item);
+        });
+    }
+
+    function openRankingMonitor() { monitorWin = window.open('ranking.html', 'rankingMonitor', 'width=1200,height=800'); }
+    
+    async function pickRandom(mode) {
+        let candidates = Object.keys(usersData); if(candidates.length === 0) return;
+        if(mode === 'new') {
+            let notDrawn = candidates.filter(uid => !usersData[uid].hasDrawn);
+            if(notDrawn.length === 0) {
+                if(confirm("全員描き終わりました。チェックをリセットして2回目を開始しますか？")) {
+                    const resetUpdates = {};
+                    candidates.forEach(uid => {
+                        resetUpdates[`users/${uid}/hasDrawn`] = false;
+                        usersData[uid].hasDrawn = false;
+                    });
+                    await db.ref(`rooms/${myRoom}`).update(resetUpdates);
+                    notDrawn = candidates;
+                } else { return; }
+            }
+            candidates = notDrawn;
+        } else if (mode === 'low') {
+            candidates.sort((a,b) => (usersData[a].score||0) - (usersData[b].score||0));
+            candidates = candidates.slice(0, Math.ceil(candidates.length / 2));
+        }
+        selectedUid = candidates[Math.floor(Math.random() * candidates.length)];
+        renderList();
+    }
+
+    function addLimit(val) {
+        const input = document.getElementById('limitIn');
+        input.value = parseInt(input.value || 0) + val;
+    }
+
+    async function startGame() {
+        const ans = document.getElementById('ansIn').value;
+        const sec = parseInt(document.getElementById('timeIn').value);
+        const limit = parseInt(document.getElementById('limitIn').value);
+        const mult = Number(document.getElementById('mulIn').value); 
+        const maxAtt = parseInt(document.getElementById('maxAttemptIn').value) || 999; // 回数制限
+        
+        if(!ans || !selectedUid) return alert("お題と人を選んで！");
+
+        const isMonitorOpen = monitorWin && !monitorWin.closed;
+        const updates = {};
+        
+        Object.keys(usersData).forEach(uid => { 
+            updates[`users/${uid}/prevScore`] = usersData[uid].score || 0;
+            updates[`users/${uid}/isCorrect`] = false; 
+            updates[`users/${uid}/image`] = ""; 
+            updates[`users/${uid}/answerAttempts`] = 0; // 回答回数をリセット
+        });
+        
+        updates[`users/${selectedUid}/hasDrawn`] = true;
+
+        updates['state'] = {
+            phase: isMonitorOpen ? "roulette" : "countdown", 
+            currentDrawer: selectedUid,
+            correctAnswer: ans,
+            timeLeft: sec,
+            answerLimit: limit,
+            maxAttempts: maxAtt, // ここで回数制限をDBにセット
+            correctCount: 0,
+            active: false,
+            showRanking: false,
+            multiplier: mult,
+            drawerName: usersData[selectedUid].name,
+            hintOn: document.getElementById('hintCheck').checked,
+            scoreOn: document.getElementById('scoreCheck').checked,
+            rankOn: document.getElementById('rankCheck').checked,
+            lastCorrecter: "",
+            countdown: 3 
+        };
+        
+        await db.ref(`rooms/${myRoom}`).update(updates);
+
+        if (isMonitorOpen) {
+            setTimeout(() => { startCountdownSequence(); }, 5000); 
+        } else {
+            startCountdownSequence();
+        }
+    }
+
+    async function startCountdownSequence() {
+        const stateRef = db.ref(`rooms/${myRoom}/state`);
+        await stateRef.update({ phase: "countdown", countdown: 3, active: false });
+        let cd = 3;
+        if(timerInterval) clearInterval(timerInterval);
+        timerInterval = setInterval(() => {
+            cd--; 
+            if(cd <= 0) {
+                clearInterval(timerInterval);
+                stateRef.update({ phase: "playing", countdown: 0, active: true });
+                startTimer();
+            } else { stateRef.update({ countdown: cd }); }
+        }, 1000);
+    }
+
+    function startTimer() {
+        if(timerInterval) clearInterval(timerInterval);
+        timerInterval = setInterval(async () => {
+            const snap = await db.ref(`rooms/${myRoom}/state/timeLeft`).once('value');
+            let t = snap.val();
+            if(t <= 0) finishGame();
+            else db.ref(`rooms/${myRoom}/state/timeLeft`).set(t - 1);
+        }, 1000);
+    }
+
+    async function finishGame() {
+        if(timerInterval) clearInterval(timerInterval);
+        await db.ref(`rooms/${myRoom}/state`).update({ phase: "result", active: false, timeLeft: 0 });
+        setTimeout(async () => {
+            const snap = await db.ref(`rooms/${myRoom}/state/phase`).once('value');
+            if (snap.val() === "result") await db.ref(`rooms/${myRoom}/state`).update({ phase: "ranking" });
+        }, 3500); 
+    }
+
+    async function startRanking() {
+        if(confirm("最終結果発表を開始します。児童画面も自動で切り替わります。")) {
+            db.ref(`rooms/${myRoom}/state`).update({ phase: "final", showRanking: true });
+        }
+    }
+
+    function setRandomWord() { 
+        const cat = document.getElementById('categorySel').value;
+        if(typeof odaiData !== 'undefined' && odaiData[cat]) {
+            const list = odaiData[cat];
+            document.getElementById('ansIn').value = list[Math.floor(Math.random() * list.length)]; 
+        }
+    }
+    
+    function resetScores() { if(confirm("リセットしますか？")) db.ref(`rooms/${myRoom}/users`).once('value', s => s.forEach(u => db.ref(`rooms/${myRoom}/users/${u.key}`).update({score:0, prevScore:0, hasDrawn:false, isCorrect:false, image:"", answerAttempts:0}))); }
+    function closeRoom() { if(confirm("部屋を閉じますか？")) db.ref(`rooms/${myRoom}`).remove().then(() => { sessionStorage.removeItem('quiz_room'); location.href="index.html"; }); }
+    function showRoomZoom() {
+        document.getElementById('qrcode').innerHTML = "";
+        new QRCode(document.getElementById("qrcode"), { text: window.location.origin + "/answer.html", width: 250, height: 250 });
+        document.getElementById('zoomNum').innerText = myRoom;
+        document.getElementById('roomZoom').style.display = 'flex';
+    }
+</script>
+</body>
+</html>

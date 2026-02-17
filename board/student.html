@@ -1,0 +1,183 @@
+<!DOCTYPE html><html lang="ja"><head>
+    <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>回答ボード - Ver 5.5</title>
+    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-database-compat.js"></script>
+    <style>
+        body { margin: 0; background-color: #0047AB; overflow: hidden; font-family: sans-serif; touch-action: none; display: flex; flex-direction: column; height: 100vh; }
+        .red-mode { background-color: #C2185B !important; }
+        .judge-layer { position: fixed; top: 0; left: 0; width: 100%; height: 100%; display: none; pointer-events: none; z-index: 500; align-items: center; justify-content: center; opacity: 0.6; }
+        #correctMark { width: 60vh; height: 60vh; border: 60px solid white; border-radius: 50%; box-sizing: border-box; }
+        #incorrectMark { width: 60vh; height: 60vh; position: relative; }
+        #incorrectMark::before, #incorrectMark::after { content: ""; position: absolute; top: 50%; left: 50%; width: 100%; height: 60px; background: white; border-radius: 30px; }
+        #incorrectMark::before { transform: translate(-50%, -50%) rotate(45deg); }
+        #incorrectMark::after { transform: translate(-50%, -50%) rotate(-45deg); }
+        body.red-mode #layer-o { display: flex; }
+        body.show-x:not(.red-mode) #layer-x { display: flex; }
+        
+        #timerDisp { position: fixed; top: 10px; right: 20px; font-size: 45px; font-weight: bold; color: white; z-index: 1000; pointer-events: none; text-shadow: 2px 2px 4px rgba(0,0,0,0.5); }
+        #userInfo { position: fixed; top: 10px; left: 15px; color: white; font-size: 18px; font-weight: bold; z-index: 100; }
+        #orientOverlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #000; color: #fff; z-index: 9999; display: none; flex-direction: column; align-items: center; justify-content: center; }
+        @media screen and (orientation: portrait) { #orientOverlay { display: flex; } }
+
+        #startOverlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 71, 171, 0.95); z-index: 2000; display: flex; flex-direction: column; align-items: center; justify-content: center; color: white; }
+        .toolbar { position: fixed; bottom: 40px; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 20px; background: rgba(0,0,0,0.8); padding: 10px 30px; border-radius: 50px; z-index: 100; }
+        .pen-opt { background: white; border-radius: 50%; cursor: pointer; border: 3px solid transparent; }
+        .pen-opt.active { border-color: #ffcc00; }
+        #eraserBtn { color: white; border: 1px solid white; padding: 5px 15px; border-radius: 10px; cursor: pointer; }
+        #eraserBtn.active { background: #ffcc00; color: #000; }
+        #clearBtn { position: fixed; bottom: 45px; right: 20px; background: rgba(0,0,0,0.8); width: 60px; height: 60px; border-radius: 50%; display: flex; align-items: center; justify-content: center; z-index: 100; font-size: 30px; color: white; cursor: pointer; user-select: none; -webkit-user-select: none; }
+        
+        .footer { background: #222; padding: 5px; text-align: center; font-size: 12px; color: #777; border-top: 1px solid #444; width: 100%; z-index: 1; }
+        #canvas { flex-grow: 1; width: 100%; }
+    </style></head><body>
+    <div id="orientOverlay"><h1>画面を横向きにしてください</h1></div>
+    <div id="startOverlay">
+        <button id="fullBtn" style="padding:25px 50px; font-size:24px; border-radius:15px; border:none; background:#ffcc00; font-weight:bold; cursor:pointer;" onclick="goFull()">全画面で開始</button>
+        <p style="margin-top:15px;">※授業中は全画面で利用してください</p>
+    </div>
+
+    <div id="timerDisp"></div>
+    <div id="userInfo"><span id="userNameDisp"></span> <span id="lockMark" style="display:none;">🔒</span></div>
+    
+    <canvas id="canvas"></canvas>
+
+    <div class="footer">オンライン回答ボード | Ver 5.5 | ota tools</div>
+
+    <div class="toolbar" id="toolbar">
+        <div class="pen-opt" onclick="setPen(4, this)" style="width:10px; height:10px;"></div>
+        <div class="pen-opt active" onclick="setPen(14, this)" style="width:20px; height:20px;"></div>
+        <div class="pen-opt" onclick="setPen(35, this)" style="width:35px; height:35px;"></div>
+        <div id="eraserBtn" onclick="toggleEraser()">消しゴム</div>
+    </div>
+    <div id="clearBtn" onclick="clearCanvas()">🗑️</div>
+    <div id="layer-o" class="judge-layer"><div id="correctMark"></div></div>
+    <div id="layer-x" class="judge-layer"><div id="incorrectMark"></div></div>
+
+    <script>
+        const config = { apiKey: "AIzaSyCQeNeHqy9VbtBv-hYHa7nantsoE6KLigw", authDomain: "ota-tools.firebaseapp.com", databaseURL: "https://ota-tools-default-rtdb.firebaseio.com", projectId: "ota-tools", appId: "1:671143719220:web:c89149c15de830e6d03561" };
+        firebase.initializeApp(config); const db = firebase.database();
+        const myRoom = sessionStorage.getItem('quiz_room'); 
+        const myUid = sessionStorage.getItem('quiz_uid');
+        const canvas = document.getElementById('canvas'); 
+        const ctx = canvas.getContext('2d');
+        let isLocked = false, penSize = 14, isEraser = false;
+
+        // 滑らか描画用の点管理配列
+        let drawing = false, points = [];
+
+        function resize() { 
+            canvas.width = window.innerWidth; 
+            canvas.height = window.innerHeight - 25; 
+            ctx.lineCap="round"; ctx.lineJoin="round"; 
+        }
+        window.addEventListener('resize', resize); resize();
+
+        function checkFullscreen() {
+            const isFull = document.fullscreenElement || document.webkitFullscreenElement;
+            document.getElementById('startOverlay').style.display = isFull ? 'none' : 'flex';
+        }
+        document.addEventListener('fullscreenchange', checkFullscreen);
+        document.addEventListener('webkitfullscreenchange', checkFullscreen);
+
+        async function goFull() { 
+            try {
+                const de = document.documentElement;
+                if (de.requestFullscreen) await de.requestFullscreen();
+                else if (de.webkitRequestFullscreen) await de.webkitRequestFullscreen();
+                if (screen.orientation && screen.orientation.lock) await screen.orientation.lock('landscape');
+            } catch(e) { console.log("Fullscreen failed"); }
+            document.getElementById('startOverlay').style.display='none';
+        }
+
+        function setPen(w, el) { 
+            penSize = w; isEraser = false; 
+            document.querySelectorAll('.pen-opt').forEach(p=>p.classList.remove('active')); 
+            el.classList.add('active'); 
+            document.getElementById('eraserBtn').classList.remove('active'); 
+        }
+        function toggleEraser() { 
+            isEraser = !isEraser; 
+            document.getElementById('eraserBtn').classList.toggle('active', isEraser); 
+            if(!isEraser) document.querySelector('.pen-opt.active').click(); 
+        }
+        
+        function getPos(e) { 
+            const t = e.touches ? e.touches[0] : e; 
+            const rect = canvas.getBoundingClientRect();
+            return { x: t.clientX - rect.left, y: t.clientY - rect.top };
+        }
+
+        function start(e) { 
+            if(isLocked) return; 
+            drawing = true; 
+            points = []; 
+            points.push(getPos(e));
+        }
+
+        function move(e) { 
+            if(!drawing || isLocked) return; 
+            e.preventDefault(); 
+            
+            const pos = getPos(e);
+            points.push(pos);
+
+            if (points.length < 3) return;
+
+            ctx.beginPath();
+            ctx.strokeStyle = isEraser ? "#0047AB" : "white"; 
+            ctx.lineWidth = isEraser ? 60 : penSize; 
+            
+            // 最初の点に移動
+            ctx.moveTo(points[0].x, points[0].y);
+            
+            // 各点の間をベジェ曲線で繋いで滑らかにする
+            let i;
+            for (i = 1; i < points.length - 2; i++) {
+                const xc = (points[i].x + points[i + 1].x) / 2;
+                const yc = (points[i].y + points[i + 1].y) / 2;
+                ctx.quadraticCurveTo(points[i].x, points[i].y, xc, yc);
+            }
+            
+            // 最後の点まで結ぶ
+            ctx.quadraticCurveTo(points[i].x, points[i].y, points[i+1].x, points[i+1].y);
+            ctx.stroke();
+
+            // 描画済みデータを整理してパフォーマンス維持
+            points = [points[points.length - 2], points[points.length - 1]];
+        }
+
+        function stop() { if(drawing){ drawing=false; points=[]; upload(); } }
+        
+        canvas.addEventListener('mousedown', start); canvas.addEventListener('touchstart', start, {passive:false});
+        window.addEventListener('mousemove', move); window.addEventListener('touchmove', move, {passive:false});
+        window.addEventListener('mouseup', stop); window.addEventListener('touchend', stop);
+        
+        function upload() { 
+            const data = canvas.toDataURL('image/webp', 0.1); 
+            db.ref(`rooms/${myRoom}/users/${myUid}/image`).set(data); 
+        }
+        function clearCanvas() { ctx.clearRect(0,0,canvas.width,canvas.height); upload(); }
+
+        db.ref(`rooms/${myRoom}`).on('value', snap => {
+            const data = snap.val() || {}, users = data.users || {};
+            if(!users[myUid] || users[myUid].status === 'kicked') { location.href = 'answer.html'; return; }
+            const myData = users[myUid];
+            document.getElementById('userNameDisp').innerText = myData.name;
+            
+            const hasCorrect = Object.values(users).some(u => u.status === 'correct');
+            const isAllWrongMode = data.state && data.state.allWrongMode === true;
+            
+            isLocked = (data.state?.locked) || myData.status === 'correct' || hasCorrect || isAllWrongMode;
+            
+            document.getElementById('lockMark').style.display = data.state?.locked ? "inline" : "none";
+            const count = data.state?.timerCount;
+            document.getElementById('timerDisp').innerText = (count > 0) ? count : "";
+            document.getElementById('toolbar').style.display = document.getElementById('clearBtn').style.display = isLocked ? "none" : "flex";
+            
+            document.body.classList.toggle('red-mode', myData.status === 'correct');
+            document.body.classList.toggle('show-x', (hasCorrect || isAllWrongMode));
+            
+            if(data.state?.forceClear) clearCanvas();
+        });
+    </script></body></html>

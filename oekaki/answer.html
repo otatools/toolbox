@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>入室 - Ver 17.9</title>
+    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-database-compat.js"></script>
+    <style>
+        body { background: #0047AB; color: white; font-family: sans-serif; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; flex-direction: column; }
+        .box { background: rgba(255,255,255,0.2); padding: 25px; border-radius: 20px; width: 350px; text-align: center; border: 1px solid rgba(255,255,255,0.3); }
+        input { width: 100%; padding: 15px; margin: 10px 0; border-radius: 10px; border: none; box-sizing: border-box; font-size: 18px; }
+        #noSelector { background: #fff; color: #333; padding: 15px; border-radius: 10px; cursor: pointer; font-size: 18px; font-weight: bold; margin: 10px 0; }
+        #noPanel { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.95); z-index: 3000; padding: 20px; box-sizing: border-box; flex-direction: column; }
+        .no-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; flex-grow: 1; margin: 20px 0; overflow-y: auto; }
+        .no-btn { background: #444; color: white; border: none; border-radius: 8px; font-size: 20px; font-weight: bold; min-height: 50px; }
+        .btn-gold { background: #ffcc00; color: #333; width:100%; padding:20px; border:none; border-radius:10px; font-weight:bold; font-size:24px; margin-top:15px; cursor:pointer; }
+        .direct-input-area { background: #333; padding: 15px; border-radius: 10px; display: flex; align-items: center; gap: 10px; }
+        .footer { margin-top: 20px; font-size: 12px; opacity: 0.8; }
+    </style>
+</head>
+<body>
+    <div class="box">
+        <h2 style="margin-top:0">お絵かきクイズ 入室</h2>
+        <input type="text" id="roomID" placeholder="部屋番号" inputmode="numeric" autocomplete="off">
+        <div id="noSelector" onclick="openNoPanel()">出席番号をえらぶ</div>
+        <input type="text" id="userName" placeholder="なまえ" autocomplete="off">
+        <button id="enterBtn" class="btn-gold" onclick="enter()">入室する</button>
+    </div>
+
+    <div id="noPanel">
+        <h3 style="text-align:center; margin:0;">番号をえらぶ</h3>
+        <div class="no-grid">
+            <script>for(let i=1;i<=40;i++) document.write(`<button class="no-btn" onclick="setNo(${i})">${i}</button>`);</script>
+        </div>
+        <div class="direct-input-area">
+            <span>直接入力:</span>
+            <input type="number" id="noInput" style="margin:0; width:100px; text-align:center;" placeholder="番号">
+            <button onclick="setNo(document.getElementById('noInput').value)" style="padding:15px; border-radius:8px; background:#ffcc00; border:none; font-weight:bold;">決定</button>
+        </div>
+        <button style="margin-top:15px; padding:15px; background:#888; color:white; border:none; border-radius:8px;" onclick="closeNoPanel()">もどる</button>
+    </div>
+
+    <div class="footer">お絵かきクイズ | Ver 17.9 | oekaki-quiz</div>
+
+    <script>
+        // ★新しいサーバー設定 (oekaki-quiz)
+        const config = {
+            apiKey: "AIzaSyCo4uq1uJBRcgU-c7mWemukU25MrX635m0",
+            authDomain: "oekaki-quiz-23ab5.firebaseapp.com",
+            databaseURL: "https://oekaki-quiz-23ab5-default-rtdb.asia-southeast1.firebasedatabase.app",
+            projectId: "oekaki-quiz-23ab5",
+            appId: "1:61801325910:web:330fa68a1701dbbc9822f7"
+        };
+        firebase.initializeApp(config); const db = firebase.database();
+        let currentNo = "";
+
+        window.onload = () => {
+            const r = new URLSearchParams(window.location.search).get('r');
+            if (r) document.getElementById('roomID').value = r;
+            document.getElementById('userName').value = localStorage.getItem('quiz_name') || '';
+            const savedNo = localStorage.getItem('quiz_no') || '';
+            if(savedNo) setNo(savedNo);
+        };
+
+        function openNoPanel() { document.getElementById('noPanel').style.display = 'flex'; }
+        function closeNoPanel() { document.getElementById('noPanel').style.display = 'none'; }
+        
+        function setNo(n) { 
+            currentNo = n; 
+            document.getElementById('noSelector').innerText = n ? "出席番号: " + n : "出席番号をえらぶ";
+            closeNoPanel(); 
+        }
+
+        async function enter() {
+            const btn = document.getElementById('enterBtn'); 
+            const room = document.getElementById('roomID').value;
+            const name = document.getElementById('userName').value;
+            if(!room || !name) return alert('部屋番号となまえを入れてね');
+            
+            btn.disabled = true;
+            localStorage.setItem('quiz_name', name); 
+            localStorage.setItem('quiz_no', currentNo);
+            
+            const uid = btoa(encodeURIComponent(name + currentNo)).replace(/=/g, "");
+            
+            await db.ref(`rooms/${room}/users/${uid}`).update({ 
+                name: name, 
+                no: currentNo, 
+                score: 0,
+                hasDrawn: false,
+                image: "" 
+            });
+            
+            sessionStorage.setItem('quiz_room', room); 
+            sessionStorage.setItem('quiz_uid', uid);
+            sessionStorage.setItem('quiz_no', currentNo);
+            sessionStorage.setItem('quiz_name', name);
+            location.href = 'student.html'; // クイズ本体画面へ
+        }
+    </script>
+</body>
+</html>
