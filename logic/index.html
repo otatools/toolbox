@@ -1,0 +1,737 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>推理ゲーム・真実を解明せよ！</title>
+<style>
+body { font-family: 'Helvetica Neue', Arial, sans-serif; background: #0b1a11; color: #e0d9c1; text-align: center; padding: 5px; margin: 0; touch-action: manipulation; overflow-x: hidden; }
+.container { max-width: 900px; width: 95%; margin: 5px auto; background: #1a2e22; padding: 15px; border-radius: 8px; box-shadow: 0 10px 40px rgba(0,0,0,0.8); border: 2px solid #a6894a; position: relative; box-sizing: border-box; }
+h1 { color: #a6894a; margin-bottom: 10px; font-size: 1.4em; }
+.hidden { display: none !important; }
+#room-id-display-top { position: absolute; top: 10px; left: 10px; font-size: 0.7em; color: #a6894a; opacity: 0.8; z-index: 101; }
+#timer-display { background: #e94560; color: white; padding: 3px 12px; border-radius: 20px; font-weight: bold; position: sticky; top: 0; z-index: 100; display: inline-block; margin-bottom: 5px; border: 2px solid #fff; font-size: 0.9em; }
+label { display: block; text-align: left; margin: 5px 0 2px; font-size: 0.8em; color: #8e9e94; }
+input, select, button { width: 100%; padding: 10px; margin-bottom: 8px; border-radius: 4px; border: none; box-sizing: border-box; font-size: 16px; }
+input, select { background: #0b1a11; color: #e0d9c1; border: 1px solid #a6894a; appearance: none; -webkit-appearance: none; }
+select option { background: #0b1a11; color: #e0d9c1; }
+.flex-row { display: flex; gap: 10px; }
+.flex-row > * { flex: 1; }
+button { background: #a6894a; color: #1a2e22; font-weight: bold; cursor: pointer; transition: 0.2s; }
+button:disabled { background: #444; color: #888; cursor: not-allowed; }
+.btn-secondary { background: #4e7c5a; color: white; }
+.btn-accent { background: #e94560; color: white; margin-top: 10px; }
+.tab-menu { display: flex; gap: 5px; margin-bottom: 10px; }
+.tab-btn { flex: 1; padding: 8px; font-size: 0.8em; background: #0b1a11; color: #a6894a; border: 1px solid #a6894a; }
+.tab-btn.active { background: #a6894a; color: #1a2e22; }
+.info-card { background: #0b1a11; padding: 12px; border-radius: 4px; border: 1px inset #a6894a; text-align: left; margin-bottom: 8px; }
+.player-item { border-bottom: 1px solid #333; padding: 12px 0; font-size: 0.85em; display: flex; flex-direction: row; justify-content: space-between; align-items: center; text-align: left; transition: 0.3s; }
+.item-info { flex: 1; line-height: 1.6; }
+.item-name { color: #a6894a; font-weight: bold; font-size: 1.1em; display: block; margin-bottom: 4px; }
+.item-details { display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: center; color: #e0d9c1; }
+.list-cell { display: inline-block; }
+.divider { color: #444; }
+.check-controls { display: flex; flex-direction: row; gap: 5px; margin-top: 0; margin-left: 2px; }
+.check-btn { padding: 6px 8px; font-size: 0.75em; border-radius: 4px; border: 1px solid #a6894a; background: transparent; color: #a6894a; margin-bottom: 0; white-space: nowrap; width: auto; flex: none; }
+.btn-reset { border-color: #8e9e94; color: #8e9e94; }
+.status-suspect { border-left: 4px solid #e94560; background: rgba(233, 69, 96, 0.15) !important; padding-left: 8px; }
+.status-safe { border-bottom: none !important; }
+.status-safe .item-info, .status-safe .check-btn:not(.btn-reset) { opacity: 0.3; filter: grayscale(1); }
+#event-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: black; z-index: 2000; display: flex; align-items: center; justify-content: center; flex-direction: column; padding: 20px; box-sizing: border-box; }
+.typewriter-box { color: #4ecca3; font-family: monospace; font-size: 1.5em; text-align: left; width: 100%; max-width: 600px; min-height: 100px; margin-bottom: 30px; line-height: 1.6; }
+.event-text { color: #e94560; font-size: 3.5em; font-weight: bold; transform: scale(0); text-shadow: 0 0 25px rgba(233,69,96,0.7); text-align: center; width: 100%; margin-top: 20px; word-break: break-all; }
+.stamp-anim { animation: stamp 0.5s forwards ease-in; }
+@keyframes stamp { 0% { transform: scale(5); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
+#memo-container { background: white; border-radius: 4px; position: relative; overflow: hidden; touch-action: none; width: 100%; }
+canvas { width: 100%; height: 60vh; cursor: crosshair; display: block; }
+.memo-tools { display: flex; gap: 5px; margin-top: 5px; }
+.memo-tools button { padding: 8px; font-size: 0.8em; flex: 1; }
+.tool-active { background: #e94560 !important; color: white !important; }
+@keyframes revealCulprit { 0% { transform: scale(0.5); opacity: 0; } 70% { transform: scale(1.1); opacity: 1; } 100% { transform: scale(1); opacity: 1; } }
+.reveal-animation { animation: revealCulprit 1.5s ease-out forwards; }
+.winner-tag { display: inline-block; background: #4ecca3; color: #1a2e22; padding: 2px 8px; border-radius: 4px; margin: 2px; font-size: 0.9em; }
+footer { margin-top: 20px; font-size: 0.7em; color: #4e7c5a; opacity: 0.8; }
+</style>
+</head>
+<body>
+
+<div id="event-overlay" class="hidden">
+<div id="event-typewriter" class="typewriter-box"></div>
+<div id="event-title-display" class="event-text"></div>
+</div>
+
+<div class="container">
+<div id="room-id-display-top" class="hidden">事件番号: <span id="top-room-id">----</span></div>
+<div id="game-timer" class="hidden"><span id="timer-display">残り --:--</span></div>
+<h1 id="main-title">🔍 推理ゲーム・真実を解明せよ！</h1>
+
+<div id="setup-screen">
+<h2>調査プロフィール</h2>
+<div class="flex-row">
+<div><label>みょうじ (ひらがな)</label><input type="text" id="p-last-name" placeholder="みょうじ"></div>
+<div><label>なまえ (ひらがな)</label><input type="text" id="p-first-name" placeholder="なまえ"></div>
+</div>
+<div class="flex-row">
+<div><label>ばんごう</label><select id="p-id"></select></div>
+<div><label>たんじょう月</label><select id="p-month"></select></div>
+<div><label>たんじょう日</label><select id="p-day"></select></div>
+</div>
+<button id="btn-create-mode">探偵事務所を開く (親機)</button>
+<button id="btn-join-mode" class="btn-secondary">調査に参加する (子機)</button>
+</div>
+
+<div id="join-screen" class="hidden">
+<h2>事件番号の入力</h2>
+<input type="text" id="input-room-id" placeholder="0000" inputmode="numeric" autocomplete="off">
+<button id="btn-confirm-join">事務所に入る</button>
+</div>
+
+<div id="lobby-screen" class="hidden">
+<h2>事件番号: <span id="display-room-id" style="color:#a6894a;">----</span></h2>
+<p style="text-align: right; margin: 0; font-size: 0.9em; color: #4ecca3;">現在：<span id="player-count">0</span>名が入室中</p>
+<div class="info-card" id="player-list"></div>
+<div id="host-controls" class="hidden">
+<label>捜査制限時間</label>
+<select id="game-duration"></select>
+<button id="start-game-btn">調査開始！</button>
+</div>
+<div id="guest-waiting" class="hidden">
+<p>探偵を募集中です...</p>
+</div>
+</div>
+
+<div id="game-screen" class="hidden">
+<div class="tab-menu" id="game-tabs">
+<button class="tab-btn active" id="tab-btn-hint" onclick="switchTab('tab-hint')">ヒント</button>
+<button class="tab-btn" id="tab-btn-list" onclick="switchTab('tab-list')">捜査名簿</button>
+<button class="tab-btn" id="tab-btn-memo" onclick="switchTab('tab-memo')">メモ</button>
+</div>
+<div id="tab-hint">
+<div class="info-card">
+<h3 style="color:#a6894a; margin:0; font-size:1em;">📋 発生した事件</h3>
+<p id="incident-text" style="font-size:0.9em; margin: 5px 0;"></p>
+</div>
+<div class="info-card" style="border-color:#e94560;">
+<h3 style="color:#e94560; margin:0; font-size:1em;">💡 あなたの手がかり</h3>
+<p id="my-hint" style="font-weight:bold; font-size:1.1em; color:#fff; margin: 5px 0;"></p>
+</div>
+<div id="answered-status" class="info-card hidden" style="text-align:center;">
+<p style="color:#4ecca3; margin:0;">回答を送信しました。<br>全員が揃うまでお待ちください。</p>
+</div>
+<button class="btn-accent" id="btn-solve-open">犯人が分かった！</button>
+</div>
+<div id="tab-list" class="hidden" style="max-height: 70vh; overflow-y: auto;">
+<div class="info-card" id="investigation-list"></div>
+</div>
+<div id="tab-memo" class="hidden">
+<div id="memo-container">
+<canvas id="memo-canvas"></canvas>
+</div>
+<div class="memo-tools">
+<button id="btn-pen" class="btn-secondary tool-active" onclick="setTool('pen')">ペン</button>
+<button id="btn-eraser" class="btn-secondary" onclick="setTool('eraser')">消しゴム</button>
+<button class="btn-secondary" style="background:#444;" onclick="clearCanvas()">全消し</button>
+</div>
+</div>
+</div>
+
+<div id="solve-screen" class="hidden">
+<h2>犯人を特定せよ</h2>
+<div id="suspect-list" style="max-height: 50vh; overflow-y: auto;"></div>
+<button onclick="switchTab('tab-hint')" class="btn-secondary" style="margin-top:10px;">まだ考え直す</button>
+</div>
+
+<div id="result-screen" class="hidden">
+<h2 id="result-header">真実はいつも１つ！</h2>
+<div class="info-card" id="result-main" style="text-align:center;">
+<div id="culprit-animation-area">
+<p id="result-incident-title" style="color:#a6894a; font-weight:bold;"></p>
+<p style="font-size:1.2em;">犯人は…</p>
+<p id="culprit-reveal" class="reveal-animation" style="color:#e94560; font-size:1.8em; font-weight:bold; margin: 20px 0;"></p>
+</div>
+<div id="winner-section" style="border-top:1px solid #a6894a; padding-top:15px; margin-top:15px;">
+<p id="winner-title" style="font-size:0.9em; color:#4ecca3;">✨ 真実にたどり着いた探偵 ✨</p>
+<div id="winner-list"></div>
+</div>
+</div>
+<button onclick="location.reload()" class="btn-secondary">タイトルへ戻る</button>
+</div>
+
+<footer>
+推理ゲーム | Ver 21.8.1 | ota tools
+</footer>
+
+</div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+import { getFirestore, doc, setDoc, getDoc, getDocs, updateDoc, deleteDoc, collection, onSnapshot, query, where, orderBy, limit } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+
+const firebaseConfig = {
+apiKey: "AIzaSyCCPSYYB0NMg4BpnyhUO8PW6bLvzjb_uoU",
+authDomain: "logic-73279.firebaseapp.com",
+projectId: "logic-73279",
+storageBucket: "logic-73279.firebasestorage.app",
+messagingSenderId: "138225936033",
+appId: "1:138225936033:web:a3e02e1bbed8044f7532e0"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+
+let investigationStatus = {}; 
+
+const runTypewriter = (el, text, speed, append = false) => {
+    return new Promise(resolve => {
+        const baseText = append ? el.innerText : "";
+        const startTime = performance.now();
+        const timer = setInterval(() => {
+            const elapsed = performance.now() - startTime;
+            const charCount = Math.floor(elapsed / 80); // 速度を80に固定
+            el.innerText = baseText + text.substring(0, charCount);
+            if (charCount >= text.length) {
+                clearInterval(timer);
+                resolve();
+            }
+        }, 30);
+    });
+};
+
+const robustWait = (ms) => {
+    return new Promise(resolve => {
+        const startTime = performance.now();
+        const check = () => {
+            if (performance.now() - startTime >= ms) resolve();
+            else setTimeout(check, 50);
+        };
+        check();
+    });
+};
+
+const restrictToHiragana = (el) => {
+    el.addEventListener('input', (e) => {
+        if (e.isComposing) return;
+        const val = e.target.value;
+        const filtered = val.replace(/[^ぁ-ん\s]/g, '');
+        if (val !== filtered) e.target.value = filtered;
+    });
+    el.addEventListener('compositionend', (e) => {
+        const val = e.target.value;
+        const filtered = val.replace(/[^ぁ-ん\s]/g, '');
+        if (val !== filtered) e.target.value = filtered;
+    });
+};
+
+restrictToHiragana(document.getElementById('p-last-name'));
+restrictToHiragana(document.getElementById('p-first-name'));
+
+const roomIdInput = document.getElementById('input-room-id');
+roomIdInput.addEventListener('input', (e) => {
+    let val = e.target.value;
+    val = val.replace(/[０-９]/g, (s) => String.fromCharCode(s.charCodeAt(0) - 0xFEE0));
+    val = val.replace(/[^0-9]/g, '');
+    e.target.value = val;
+});
+
+const idSel = document.getElementById('p-id');
+for(let i=1; i<=40; i++) idSel.add(new Option(i + "番", i));
+const mSel = document.getElementById('p-month');
+for(let i=1; i<=12; i++) mSel.add(new Option(i + "月", i));
+const dSel = document.getElementById('p-day');
+for(let i=1; i<=31; i++) dSel.add(new Option(i + "日", i));
+
+const durationSel = document.getElementById('game-duration');
+for(let i=1; i<=15; i++) {
+const opt = new Option(i + "分", i);
+if(i === 5) opt.selected = true;
+durationSel.add(opt);
+}
+
+const loadProfile = () => {
+const saved = localStorage.getItem('detective_profile');
+if (saved) {
+const data = JSON.parse(saved);
+document.getElementById('p-last-name').value = data.last || "";
+document.getElementById('p-first-name').value = data.first || "";
+document.getElementById('p-id').value = data.id || 1;
+document.getElementById('p-month').value = data.month || 1;
+document.getElementById('p-day').value = data.day || 1;
+}
+};
+const saveProfileLocal = (last, first, id, month, day) => {
+const data = { last, first, id, month, day };
+localStorage.setItem('detective_profile', JSON.stringify(data));
+};
+loadProfile();
+
+let isHost = false, myRoomId = "", myProfile = null, players = [], hasAnswered = false;
+
+const incidentData = [
+    { title: "伝説の彫刻刀紛失事件", detail: "図工の時間、男子全員のあこがれ「漆黒の龍」が彫られた世界一かっこいい彫刻刀がケースごと消えてしまった。一体だれが持ち去ったのか…。" },
+    { title: "三角定規カド欠け事件", detail: "算数の授業前、先生が愛用する巨大三角定規のカドが激しく欠けていた。チャイムの直前、教室には全員いたはずだが、落とした犯人はだれだ？" },
+    { title: "チョーク粉砕事件", detail: "黒板のチョークがすべて粉々に踏みつぶされ、今日の授業が始められない。先生に恨みをもつ者の犯行なのか？一体だれが何のために！？" },
+    { title: "高級プリン消失事件", detail: "先生が家庭科室の冷蔵庫に隠していた、3つ星パティシエの高級プリンが消えた！ゴミ箱に残された空容器……食べた犯人はだれだ！？" },
+    { title: "高級リコーダーすり替え事件", detail: "音楽の授業、いざ吹こうとしたら先生のダイヤモンドでできたリコーダーが、100円ショップのものと入れ替わっていた！中身を替えたのはだれだ！？" },
+    { title: "消えたテスト解答用紙の謎", detail: "先生が採点済みテストを持って教室に向かっていると、急に目の前が真っ暗に！気づくとテスト用紙がなくなっていた。奪い去った犯人はだれだ？" },
+    { title: "金魚鉢の水あふれ事件", detail: "みんなで飼っている金魚鉢のふたが開けられ、床が水浸しになっている。だれかが深夜に金魚と遊ぼうとしたのか、それとも……。" },
+    { title: "給食の唐揚げ足りない事件", detail: "楽しみにしていた唐揚げが、計算よりも1つ足りない。床にも落ちていないことから、犯行は配膳中に絞られた。こっそりつまみ食いした犯人を捜せ！" },
+    { title: "黒板アート落書き事件", detail: "クラス全員で描いたチョークのイラストに、赤いチョークで変なヒゲの落書きが加えられている。この芸術を汚したのは一体だれだ？" },
+    { title: "書道筆カチカチ事件", detail: "習字の授業、筆を広げようとしたら糊で固めたようにカチカチになっていた。単なる洗い忘れか、それとも真犯人がいるのか…。" },
+    { title: "おしゃれすぎる上靴事件", detail: "下駄箱に置いていた上靴が、週明けに見ると「プープー」と音が鳴り、キラキラ光る改造を施されていた！だれが何の目的で！？" },
+    { title: "理科室のガイコツ移動事件", detail: "だれもいないはずの理科室で人体模型の手の角度が変わっていた。昼間なのでお化けの仕業ではないはず。模型を動かした犯人はだれだ！" },
+    { title: "消しゴムカス大量収集事件", detail: "休み明け、特定の机の上に山のような消しゴムのカスが降り積もっていた。これほどの手間をかけた犯人は一体だれなんだ？" },
+    { title: "放送室の謎の鼻歌事件", detail: "昼の放送が終わった直後、マイクから小さな鼻歌が全校に流れてしまった！放送委員の切り忘れか、それとも…。いったいだれの鼻歌なんだ？" },
+    { title: "バケツの中身逆転事件", detail: "掃除の時間、バケツを持ってこようとしたら、中身が水ではなく砂でパンパンにされていた。こんな手の込んだイタズラをするのはだれだ？" },
+    { title: "家庭科室の塩・砂糖逆転事件", detail: "調理実習のパンケーキがとんでもなくしょっぱい！砂糖と塩の中身が入れ替えられていたのだ。みんなの楽しみを奪った犯人を追え！" },
+    { title: "中庭のひまわり巨大化事件", detail: "1本だけ、他の3倍の高さに成長したひまわり。夜中にこっそり秘密の肥料を与え続けているのは誰なんだ？" },
+    { title: "教卓の下のラブレター事件", detail: "教卓の下に、ハートマークで封をされた名前のないラブレターが。中身を読んでみると……。これを書いたのはだれだ？" },
+    { title: "リッピー誘拐事件", detail: "清原先生が大切にしているリッピーが突然消えてしまった。机の上に置いていたはずなのに……。連れ去った犯人はだれだ！" },
+    { title: "花瓶の謎の液体事件", detail: "教卓の花瓶から、なぜかほうじ茶の香りがする。水の代わりに毎日新しいお茶を注いでいるのは、一体だれだ！" },
+    { title: "消えたシール事件", detail: "みんながコツコツ集めていた漢字シールがまるごと消えてしまった。努力を奪い、自分のものにしようとした犯人はだれだ…。" },
+    { title: "運動会のハチマキ結び事件", detail: "運動会前日、赤組のハチマキがすべてガチガチの固結びでつながれていた。これをやったのは、もしかして白組の…？" },
+    { title: "机の上の不思議な折り紙事件", detail: "朝、登校すると全員の机に「金色のカエル」の折り紙が。一体だれが、どんなメッセージを込めて置いたのだろうか？" },
+    { title: "キーボードクラッシュ事件", detail: "全校タイピング大会当日、新貝先生のキーボードの「A」だけが抜き取られていた！よりにもよって……。犯人は一体だれだ！？" },
+    { title: "ピアノのふたの謎メモ事件", detail: "音楽室のピアノを開けると、「次は図工室へ行け！ゲームのはじまりだ！」という挑戦状が。このゲームを仕組んだ犯人はだれだ？" },
+    { title: "習字の半紙花丸事件", detail: "提出前の作品に、勝手に「優勝」と大きな花丸が描かれていた。先生のふりをして勝手に優勝を決めた犯人はだれなんだ！" },
+    { title: "校庭の巨大な地上絵の謎", detail: "朝のグラウンドに、ほうきで描かれた巨大な「の」の字が出現した。こんなダイナミックな落書きをした犯人はだれだ？" },
+    { title: "カニの足ポッキン事件", detail: "学校中のカニのイラストの足が2本に描き直され、先生の大切なカニのフィギュアまで足を折られている！一体だれが！？" },
+    { title: "黒板真っ白け事件", detail: "授業を始めようとしたら、なんと黒板がチョークで真っ白に塗られていた！貴重なチョークを無駄遣いした犯人を捜せ！" },
+    { title: "赤いペン先入れ替え事件", detail: "赤ペンで丸をつけようとしたら、青い色が出てきた！中身を巧妙に入れ替えたのは、一体だれだ！" },
+    { title: "上履き左右逆転事件", detail: "下駄箱の上履きが、全クラス分「右と左」入れ替わっていた。地味ながら大変な作業をやり遂げた犯人は誰だ？" },
+    { title: "とても優しいあの子を捜せ", detail: "失敗して落ち込んでいる先生の机に「元気出してください！」というメモが…。こんなに優しいメモをくれたのは誰だ！？" },
+    { title: "謎のお笑い大会優勝者を捜せ", detail: "校内お笑い大会で大爆笑をさらった謎のお面出場者。文句なしの優勝に輝いた、正体不明の面白い人は誰なんだろう？" },
+    { title: "逆さまに貼られたポスターの謎", detail: "廊下の掲示物がすべて正確に「逆さま」に貼り直されていた。かなりの執念を感じるこの犯行、犯人はだれだ？" },
+    { title: "給食の白衣ボタン紛失事件", detail: "給食当番が着ようとした白衣のボタンが、すべて取れていた。糸をわざと切って嫌がらせをしたのは一体だれだ！" },
+    { title: "校長先生の椅子固定事件", detail: "校長室の椅子が、部屋の隅を向いたままガチガチに固定されていた。校長先生を驚かせた犯人はだれなんだ？" },
+    { title: "水飲み場のキラキラ石事件", detail: "水飲み場のすべての蛇口の上に、川で拾ったようなキラキラした石が置かれていた。だれが何のために…。" },
+    { title: "消えたバレーボールの空気", detail: "体育館のボール20個すべての空気が、半分だけ抜かれていた。弾まないボール……だれの仕業だ！" },
+    { title: "図書室の図鑑入れ替え事件", detail: "図書室の『宇宙図鑑』のケースに『恐竜図鑑』が…。全部の中身がバラバラで大混乱！図書室をメチャクチャにした犯人はだれだ？" },
+    { title: "ラケットふにゃふにゃ事件", detail: "太田先生のバドミントンラケットが、こんにゃくのようにふにゃふにゃに！？一体だれが！？…というか、どうやってやったの？" }
+];
+
+const colorMap = { "赤色": "#ff4d4d", "青色": "#4d94ff", "黄色": "#ffff4d", "緑色": "#4dff88" };
+const colors = Object.keys(colorMap);
+
+const getDisplayColor = (colorName) => {
+    return colorMap[colorName] || "#ffffff";
+};
+
+// --- Canvas処理 ---
+const canvas = document.getElementById('memo-canvas');
+const ctx = canvas.getContext('2d');
+let drawing = false, currentTool = 'pen', canvasInitialized = false;
+
+function initCanvas() {
+if(canvasInitialized) return;
+canvas.width = canvas.parentElement.clientWidth;
+canvas.height = canvas.parentElement.clientHeight || window.innerHeight * 0.6;
+ctx.lineCap = 'round'; ctx.lineWidth = 4;
+canvasInitialized = true;
+}
+canvas.addEventListener('pointerdown', (e) => { drawing = true; ctx.beginPath(); const rect = canvas.getBoundingClientRect(); ctx.moveTo(e.clientX - rect.left, e.clientY - rect.top); });
+canvas.addEventListener('pointermove', (e) => { if(drawing) { const rect = canvas.getBoundingClientRect(); ctx.lineTo(e.clientX - rect.left, e.clientY - rect.top); ctx.globalCompositeOperation = (currentTool === 'eraser') ? 'destination-out' : 'source-over'; ctx.strokeStyle = (currentTool === 'eraser') ? 'rgba(0,0,0,1)' : '#1a2e22'; ctx.lineWidth = (currentTool === 'eraser') ? 20 : 4; ctx.stroke(); } });
+canvas.addEventListener('pointerup', () => { drawing = false; });
+window.setTool = (tool) => { currentTool = tool; document.getElementById('btn-pen').classList.toggle('tool-active', tool === 'pen'); document.getElementById('btn-eraser').classList.toggle('tool-active', tool === 'eraser'); };
+window.clearCanvas = () => { if(confirm("メモを全部消しますか？")) ctx.clearRect(0, 0, canvas.width, canvas.height); };
+
+window.switchTab = (tabId) => {
+document.querySelectorAll('#game-screen > div:not(.tab-menu), #solve-screen, #result-screen').forEach(el => el.classList.add('hidden'));
+document.getElementById(tabId).classList.remove('hidden');
+document.querySelectorAll('.tab-btn').forEach(btn => {
+const attr = btn.getAttribute('onclick');
+if(attr) {
+const bId = attr.match(/'([^']+)'/)[1];
+btn.classList.toggle('active', bId === tabId);
+}
+});
+if(tabId === 'tab-memo') initCanvas();
+if(tabId === 'solve-screen') window.renderSuspectButtons();
+};
+
+const getBasicProfile = () => {
+const last = document.getElementById('p-last-name').value.trim(), first = document.getElementById('p-first-name').value.trim();
+const id = document.getElementById('p-id').value;
+const month = document.getElementById('p-month').value;
+const day = document.getElementById('p-day').value;
+if(!last || !first) { alert("なまえを入力してね"); return null; }
+saveProfileLocal(last, first, id, month, day);
+return {
+name: last + " " + first,
+lastName: last,
+firstName: first,
+fullName: last + first,
+idNum: parseInt(id),
+m: parseInt(month), d: parseInt(day)
+};
+};
+
+async function cleanupOldRooms() {
+    const thirtyMinutesAgo = Date.now() - (30 * 60 * 1000); 
+    const roomsRef = collection(db, "rooms");
+    const q = query(roomsRef, where("createdAt", "<", thirtyMinutesAgo));
+    try {
+        const querySnapshot = await getDocs(q);
+        querySnapshot.forEach(async (roomDoc) => {
+            await deleteDoc(doc(db, "rooms", roomDoc.id));
+        });
+    } catch (e) {
+        console.error("Cleanup error:", e);
+    }
+}
+
+document.getElementById('btn-create-mode').onclick = async () => {
+myProfile = getBasicProfile(); if(!myProfile) return;
+await cleanupOldRooms(); 
+isHost = true; myRoomId = Math.floor(1000 + Math.random() * 9000).toString();
+await setDoc(doc(db, "rooms", myRoomId), { 
+    status: "waiting", 
+    host: myProfile.name,
+    createdAt: Date.now() 
+});
+enterLobby(myRoomId);
+};
+
+document.getElementById('btn-join-mode').onclick = () => { if(getBasicProfile()) { document.getElementById('setup-screen').classList.add('hidden'); document.getElementById('join-screen').classList.remove('hidden'); }};
+
+document.getElementById('btn-confirm-join').onclick = async () => {
+myProfile = getBasicProfile(); const rId = document.getElementById('input-room-id').value;
+const snap = await getDoc(doc(db, "rooms", rId));
+if(snap.exists()) { myRoomId = rId; enterLobby(rId); } else alert("番号がちがいます");
+};
+
+async function enterLobby(roomId) {
+await setDoc(doc(db, "rooms", roomId, "players", myProfile.name), { ...myProfile, isHost, answer: null, answerTime: null });
+document.getElementById('display-room-id').innerText = roomId;
+document.getElementById('top-room-id').innerText = roomId; 
+document.getElementById('room-id-display-top').classList.remove('hidden'); 
+
+document.getElementById('setup-screen').classList.add('hidden');
+document.getElementById('join-screen').classList.add('hidden');
+document.getElementById('lobby-screen').classList.remove('hidden');
+if(isHost) document.getElementById('host-controls').classList.remove('hidden');
+else document.getElementById('guest-waiting').classList.remove('hidden');
+
+onSnapshot(collection(db, "rooms", roomId, "players"), (snap) => {
+players = []; const list = document.getElementById('player-list'); list.innerHTML = "";
+let answeredCount = 0;
+snap.forEach(d => {
+const p = d.data(); players.push(p);
+if(p.answer) answeredCount++;
+});
+players.sort((a, b) => a.idNum - b.idNum);
+players.forEach(p => {
+list.innerHTML += `<div class="player-item"><span class="item-name">🕵️‍♂️ ${p.name}</span></div>`;
+});
+document.getElementById('player-count').innerText = players.length;
+if(isHost && players.length > 0 && answeredCount === players.length) checkAndFinish();
+});
+
+onSnapshot(doc(db, "rooms", roomId), (d) => {
+const data = d.data(); if(!data) return;
+if(data.status === "started") {
+    const updatedMe = data.finalPlayers.find(p => p.name === myProfile.name);
+    if(updatedMe) myProfile = updatedMe; 
+    players = data.finalPlayers; 
+    startGame(data);
+}
+if(data.status === "finished") showResults(data);
+if(data.endTime) updateTimer(data.endTime);
+});
+}
+
+async function checkAndFinish() {
+const roomRef = doc(db, "rooms", myRoomId);
+const snap = await getDoc(roomRef);
+if(snap.exists() && snap.data().status === "started") await updateDoc(roomRef, { status: "finished" });
+}
+
+function checkAlibi(player, rangeStart, rangeEnd) {
+    if (player.alibi === "アリバイ無し") return false;
+    if (rangeStart === "AM" && player.alibi === "午前") return true;
+    if (rangeStart === "PM" && player.alibi === "午後") return true;
+    if (player.alibi.includes("〜")) {
+        const parts = player.alibi.split("：");
+        const start = parseInt(parts[0]);
+        const end = parseInt(parts[1].split("〜")[1]);
+        return (start < rangeEnd && end > rangeStart);
+    }
+    return false;
+}
+
+function getAllPossibleHints(culprit, allPlayers, crimeTime) {
+    const hints = [];
+    const crimeH = parseInt(crimeTime.split(":")[0]);
+    const lastN = culprit.lastName;
+    const firstN = culprit.firstName;
+    const fullN = culprit.fullName;
+
+    const rawHints = [
+        { label: `犯人の上の名前は${lastN.length}文字である。`, fn: p => p.lastName.length === lastN.length, category: 1 },
+        { label: `犯人の下の名前は${firstN.length}文字である。`, fn: p => p.firstName.length === firstN.length, category: 1 },
+        { label: `犯人の姓名を合わせると${fullN.length}文字である。`, fn: p => p.fullName.length === fullN.length, category: 1 },
+        { label: `犯人の名前は${fullN.length}文字以下である。`, fn: p => p.fullName.length <= fullN.length, category: 1 }
+    ];
+
+    const rows = { "あ行": /[あいうえお]/, "か行": /[かきくけこがぎぐげご]/, "さ行": /[さしすせそざじずぜぞ]/, "た行": /[たちつてとだぢづでど]/, "な行": /[なにぬねの]/, "は行": /[はひふへほばびぶべぼぱぴぷぺぽ]/, "ま行": /[まみむめも]/, "や行": /[やゆよ]/, "ら行": /[らりるれろ]/ };
+    Object.keys(rows).forEach(row => {
+        const has = rows[row].test(fullN);
+        rawHints.push({ label: `犯人の名前に「${row}」の文字が${has ? '含まれている' : '含まれない'}。`, fn: p => rows[row].test(p.fullName) === has, category: 1 });
+    });
+
+    [2, 3, 5].forEach(n => {
+        const isTarget = (culprit.idNum % n === 0);
+        rawHints.push({ label: `犯人の出席番号は${n}の倍数で${isTarget ? 'ある' : 'ない'}。`, fn: p => (p.idNum % n === 0) === isTarget, category: 1 });
+    });
+    rawHints.push({ label: `犯人の誕生月は${culprit.m % 2 === 0 ? '偶数' : '奇数'}である。`, fn: p => (p.m % 2 === 0) === (culprit.m % 2 === 0), category: 1 });
+    rawHints.push({ label: `犯人の誕生日の1の位は${culprit.d % 10}である。`, fn: p => (p.d % 10) === (culprit.d % 10), category: 1 });
+
+    rawHints.push({ label: `服と靴下の色が${culprit.cloth === culprit.socks ? '同じ' : '違う'}である。`, fn: p => (p.cloth === p.socks) === (culprit.cloth === culprit.socks), category: 2 });
+    rawHints.push({ label: `犯人のズボンの色は「${culprit.pants}」だ。`, fn: p => p.pants === culprit.pants, category: 2 });
+    rawHints.push({ label: `犯人の靴下の色は「${culprit.socks}」だ。`, fn: p => p.socks === culprit.socks, category: 2 });
+    rawHints.push({ label: `身につけているものの中に「${culprit.cloth}」が1つ以上ある。`, fn: p => (p.cloth === culprit.cloth || p.pants === culprit.cloth || p.socks === culprit.cloth), category: 2 });
+    
+    const itemIcons = { "🍎": "りんご", "⚽": "サッカーボール", "💎": "ほうせき", "👓": "めがね", "🎮": "ゲーム", "⌚": "とけい", "🎧": "ヘッドホン", "🎀": "リボン", "📷": "カメラ" };
+    Object.keys(itemIcons).forEach(icon => {
+        const has = culprit.items.includes(icon);
+        rawHints.push({ label: `犯人は「${icon}${itemIcons[icon]}」を${has ? 'もっている' : 'もっていない'}。`, fn: p => p.items.includes(icon) === has, category: 2 });
+    });
+
+    rawHints.push({ label: `犯行時刻は${crimeH < 12 ? '午前' : '午後'}だ。`, fn: p => !checkAlibi(p, (crimeH < 12 ? "AM" : "PM"), null), category: 3 });
+    rawHints.push({ label: `犯行時刻は${crimeH}：00〜${crimeH + 1}：00の間におこなわれた。`, fn: p => !checkAlibi(p, crimeH, crimeH + 1), category: 3 });
+    rawHints.push({ label: `犯行時刻は${crimeH - 1}：00〜${crimeH + 1}：00の間におこなわれた。`, fn: p => !checkAlibi(p, crimeH - 1, crimeH + 1), category: 3 });
+    
+    rawHints.forEach(h => {
+        const matchingPlayers = allPlayers.filter(p => h.fn(p));
+        if (matchingPlayers.length >= 2 && matchingPlayers.length < allPlayers.length) {
+            hints.push(h);
+        }
+    });
+
+    if (hints.length === 0) {
+        hints.push({ label: "犯人はこの名簿の中にいるようだ。", fn: p => true, category: 1 });
+    }
+    
+    return hints;
+}
+
+function generateDynamicHints(culprit, allPlayers, crimeTime) {
+    const total = allPlayers.length;
+    const allHints = getAllPossibleHints(culprit, allPlayers, crimeTime);
+    let finalHints = [];
+    let usedLabels = new Set();
+    let attempts = 0;
+    while (attempts < 200) {
+        const h1 = allHints.filter(h => h.category === 1).sort(() => Math.random() - 0.5)[0];
+        const h2 = allHints.filter(h => h.category === 2).sort(() => Math.random() - 0.5)[0];
+        const h3 = allHints.filter(h => h.category === 3).sort(() => Math.random() - 0.5)[0];
+        if (!h1 || !h2 || !h3) { attempts++; continue; }
+        const suspects = allPlayers.filter(p => h1.fn(p) && h2.fn(p) && h3.fn(p));
+        if (suspects.length === 1 && suspects[0].name === culprit.name) {
+            finalHints = [h1.label, h2.label, h3.label];
+            usedLabels.add(h1.label); usedLabels.add(h2.label); usedLabels.add(h3.label);
+            break;
+        }
+        attempts++;
+    }
+    let catCounter = 0;
+    const categories = [1, 2, 3];
+    while (finalHints.length < total) {
+        const targetCat = categories[catCounter % 3];
+        const candidates = allHints.filter(h => h.category === targetCat && !usedLabels.has(h.label));
+        let added = false;
+        for (let cand of candidates.sort(() => Math.random() - 0.5)) {
+            const matchCount = allPlayers.filter(p => cand.fn(p)).length;
+            if (matchCount > 1 && matchCount < allPlayers.length) {
+                finalHints.push(cand.label);
+                usedLabels.add(cand.label);
+                added = true;
+                break;
+            }
+        }
+        if (!added) {
+            const innocent = allPlayers.filter(p => p.name !== culprit.name).sort(() => Math.random() - 0.5)[0];
+            finalHints.push(`${innocent.name} さんは犯人じゃない。`);
+        }
+        catCounter++;
+    }
+    return finalHints.sort(() => Math.random() - 0.5);
+}
+
+document.getElementById('start-game-btn').onclick = async () => {
+    if(players.length < 2) { alert("2人以上必要です"); return; }
+    const hours = [8, 9, 10, 11, 12, 13, 14];
+    const selectedHour = hours[Math.floor(Math.random() * hours.length)];
+    const crimeTimeStr = `${selectedHour}:00`;
+
+    const assignBalancedColorsAndAlibi = (playerList) => {
+        const categories = ['cloth', 'pants', 'socks'];
+        const numPlayers = playerList.length;
+        const itemIcons = ["👓", "⌚", "🎧", "🎀", "📷", "🍎", "⚽", "💎", "🔑"];
+        categories.forEach(cat => {
+            let colorPool = [];
+            for (let i = 0; i < numPlayers; i++) colorPool.push(colors[i % colors.length]);
+            colorPool.sort(() => Math.random() - 0.5);
+            playerList.forEach((p, idx) => { p[cat] = colorPool[idx]; });
+        });
+        playerList.forEach(p => {
+            p.items = [...itemIcons].sort(() => Math.random() - 0.5).slice(0, 3).join(" ");
+            const alibiTypes = ["4h", "5h", "6h", "AM", "PM", "none"];
+            const type = alibiTypes[Math.floor(Math.random() * alibiTypes.length)];
+            if (type === "none") p.alibi = "アリバイ無し";
+            else if (type === "AM") p.alibi = "午前";
+            else if (type === "PM") p.alibi = "午後";
+            else {
+                const duration = parseInt(type);
+                let start = 8 + Math.floor(Math.random() * (15 - 8 - duration + 1));
+                p.alibi = `${start}：00〜${start + duration}：00`;
+            }
+        });
+        const culpritObj = playerList[Math.floor(Math.random() * numPlayers)];
+        culpritObj.isCulprit = true;
+        let isOverlapping = false;
+        const crimeH = selectedHour;
+        if (culpritObj.alibi === "午前" && crimeH < 12) isOverlapping = true;
+        if (culpritObj.alibi === "午後" && crimeH >= 12) isOverlapping = true;
+        if (culpritObj.alibi.includes("〜")) {
+            const parts = culpritObj.alibi.split("：");
+            const start = parseInt(parts[0]);
+            const end = parseInt(parts[1].split("〜")[1]);
+            if (crimeH >= start && crimeH < end) isOverlapping = true;
+        }
+        if (isOverlapping) culpritObj.alibi = "アリバイ無し";
+        return { list: playerList, culprit: culpritObj };
+    };
+
+    const { list: finalPlayers, culprit } = assignBalancedColorsAndAlibi([...players]);
+    const incident = incidentData[Math.floor(Math.random() * incidentData.length)];
+    const duration = parseInt(document.getElementById('game-duration').value);
+    const endTime = Date.now() + (duration * 60 * 1000);
+    const assignedHints = generateDynamicHints(culprit, finalPlayers, crimeTimeStr);
+
+    await updateDoc(doc(db, "rooms", myRoomId), {
+        status: "started", 
+        culpritName: culprit.name, 
+        incident: incident.title, 
+        detail: incident.detail,
+        endTime: endTime, 
+        hints: assignedHints,
+        finalPlayers: finalPlayers,
+        crimeTime: crimeTimeStr
+    });
+};
+
+function updateTimer(endTime) {
+    const display = document.getElementById('timer-display');
+    document.getElementById('game-timer').classList.remove('hidden');
+    const interval = setInterval(async () => {
+        const remaining = Math.max(0, Math.floor((endTime - Date.now()) / 1000));
+        display.innerText = `残り ${Math.floor(remaining/60)}:${(remaining%60).toString().padStart(2,'0')}`;
+        if(remaining <= 0) { clearInterval(interval); if(isHost) checkAndFinish(); }
+    }, 1000);
+}
+
+let gameStartedLocally = false;
+async function startGame(data) {
+    if(gameStartedLocally) return;
+    gameStartedLocally = true;
+    const overlay = document.getElementById('event-overlay');
+    const typeBox = document.getElementById('event-typewriter');
+    const titleDisp = document.getElementById('event-title-display');
+    overlay.classList.remove('hidden');
+    await runTypewriter(typeBox, "探偵事務所に調査依頼が届きました...\n\n" + data.detail, 80);
+    await robustWait(2000);
+    titleDisp.innerText = "【" + data.incident + "】";
+    titleDisp.classList.add('stamp-anim');
+    await robustWait(2000);
+    overlay.classList.add('hidden');
+    document.getElementById('lobby-screen').classList.add('hidden');
+    document.getElementById('game-screen').classList.remove('hidden');
+    document.getElementById('incident-text').innerText = data.incident;
+    const myIndex = players.findIndex(p => p.name === myProfile.name);
+    document.getElementById('my-hint').innerText = data.hints[myIndex] || "有力な情報を得られなかった...";
+    
+    const listContainer = document.getElementById('investigation-list');
+    listContainer.innerHTML = players.map((p, idx) =>
+    `<div class="player-item" id="investigate-p-${idx}">
+        <div class="item-info">
+            <span class="item-name">${p.name}</span>
+            <div class="item-details">
+                <span class="list-cell">${p.idNum}番 / ${p.m}月${p.d}日</span><span class="divider">/</span>
+                <span class="list-cell">服:<span style="color:${getDisplayColor(p.cloth)};">${p.cloth}</span> ズボン:<span style="color:${getDisplayColor(p.pants)};">${p.pants}</span> 靴下:<span style="color:${getDisplayColor(p.socks)};">${p.socks}</span></span><span class="divider">/</span>
+                <span class="list-cell">持ち物:${p.items}</span><span class="divider">/</span>
+                <span class="list-cell" style="color:#4ecca3;">アリバイ:${p.alibi}</span>
+            </div>
+        </div>
+        <div class="check-controls">
+            <button class="check-btn" onclick="toggleStatus(${idx}, 'suspect')">❓ 犯人かも</button>
+            <button class="check-btn" onclick="toggleStatus(${idx}, 'safe')">✅ 犯人じゃない</button>
+            <button class="check-btn btn-reset" onclick="resetStatus(${idx})">リセット</button>
+        </div>
+    </div>`).join("");
+}
+
+window.toggleStatus = (idx, status) => {
+    const row = document.getElementById(`investigate-p-${idx}`);
+    row.classList.remove('status-suspect', 'status-safe');
+    investigationStatus[idx] = status;
+    if(status === 'suspect') row.classList.add('status-suspect');
+    else if(status === 'safe') row.classList.add('status-safe');
+};window.resetStatus = (idx) => {
+    const row = document.getElementById(`investigate-p-${idx}`);
+    row.classList.remove('status-suspect', 'status-safe');
+    delete investigationStatus[idx];
+};window.renderSuspectButtons = () => {
+    const container = document.getElementById('suspect-list');
+    container.innerHTML = "";
+    players.forEach((p, idx) => {
+        const isSafe = investigationStatus[idx] === 'safe';
+        const btn = document.createElement('button');
+        btn.style.opacity = isSafe ? "0.5" : "1";
+        btn.style.background = isSafe ? "#333" : "#a6894a";
+        btn.style.color = isSafe ? "#888" : "#1a2e22";
+        btn.innerHTML = `🕵️‍♂️ ${p.name} ${isSafe ? '(シロ判定中)' : ''}`;
+        btn.onclick = () => submitAnswer(p.name);
+        container.appendChild(btn);
+    });
+};document.getElementById('btn-solve-open').onclick = () => switchTab('solve-screen');async function submitAnswer(name) {
+    if(!confirm(`${name} が犯人で間違いないですか？`)) return;
+    hasAnswered = true;
+    document.getElementById('btn-solve-open').classList.add('hidden');
+    document.getElementById('answered-status').classList.remove('hidden');
+    await updateDoc(doc(db, "rooms", myRoomId, "players", myProfile.name), {
+        answer: name,
+        answerTime: Date.now()
+    });
+    switchTab('tab-hint');
+}async function showResults(data) {
+    const overlay = document.getElementById('event-overlay');
+    const typeBox = document.getElementById('event-typewriter');
+    const titleDisp = document.getElementById('event-title-display');
+    const playerSnaps = await getDocs(collection(db, "rooms", myRoomId, "players"));
+    let winners = [];
+    playerSnaps.forEach(p => { 
+        const pData = p.data();
+        if(pData.answer === data.culpritName) winners.push(pData); 
+    });
+    winners.sort((a, b) => (a.answerTime || 9999999999999) - (b.answerTime || 9999999999999));
+    overlay.classList.remove('hidden');
+    titleDisp.classList.remove('stamp-anim');
+    titleDisp.innerText = "";
+    let msg = winners.length > 0 
+        ? `名探偵の「${winners[0].name}」さんが真実にたどり着き、教室にみんなを集めた……。\n\nその内の１人を指差して、犯人の名前を叫んだ！\n\n「この事件の犯人はあなたです！」`
+        : "犯人は逃げ切ってしまったようだ…。\n放課後、みんなが帰った教室で、先生が静かに口をひらいた…\n\n「まさか、あなたが犯人だったなんて…」";
+    await runTypewriter(typeBox, msg, 80);
+    await robustWait(2000);
+    titleDisp.innerText = `${data.culpritName} さん`;
+    titleDisp.classList.add('stamp-anim');
+    await robustWait(2000);
+    overlay.classList.add('hidden');
+    document.getElementById('game-screen').classList.add('hidden');
+    document.getElementById('result-screen').classList.remove('hidden');
+    document.getElementById('result-incident-title').innerText = "【" + data.incident + "】";
+    document.getElementById('culprit-reveal').innerText = data.culpritName;
+    const wList = document.getElementById('winner-list');
+    wList.innerHTML = winners.length > 0 
+        ? winners.map(w => `<span class="winner-tag">🏆 ${w.name}</span>`).join("")
+        : "<p style='color:#888;'>正解者はいませんでした…</p>";
+}setTimeout(loadProfile, 100);</script></body></html>
