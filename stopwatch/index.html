@@ -42,11 +42,10 @@
 
         html { height: -webkit-fill-available; }
 
-        /* タイマー表示：最小サイズ(4rem->5rem)を上げ、可変の基準を強化 */
+        /* タイマー表示 */
         .timer-display {
             font-variant-numeric: tabular-nums;
-            /* clamp(最小, 推奨(中央値), 最大) */
-            font-size: clamp(5rem, 22vw, 14rem);
+            font-size: clamp(5.5rem, 24vw, 16rem);
             font-weight: 800;
             line-height: 1;
             display: flex;
@@ -86,7 +85,10 @@
             transition: all 0.3s ease;
             color: #94a3b8;
             font-weight: 800;
+            outline: none; /* フォーカス枠を削除 */
         }
+        .nav-link:focus { outline: none; }
+
         .nav-link.active {
             color: var(--accent-primary);
             position: relative;
@@ -113,7 +115,10 @@
             align-items: center;
             justify-content: center;
             touch-action: manipulation;
+            outline: none; /* フォーカス枠を削除 */
         }
+        .btn-base:focus { outline: none; }
+
         .btn-start {
             background: rgba(14, 165, 233, 0.1);
             color: var(--accent-primary);
@@ -148,7 +153,9 @@
             border: 1px solid var(--glass-border);
             cursor: pointer;
             z-index: 50;
+            outline: none; /* フォーカス枠を削除 */
         }
+        .theme-toggle:focus { outline: none; }
 
         /* 記録リストのデザイン */
         .log-container {
@@ -173,23 +180,25 @@
             opacity: 0.7;
             margin-top: 1rem;
             letter-spacing: 0.05em;
+            text-align: center;
+            line-height: 1.5;
         }
 
         /* --- レスポンシブ調整 --- */
 
-        /* モバイル表示などで高さがない場合のみ、タイマーを縮小 */
-        @media (max-height: 600px) and (orientation: portrait) {
-            .timer-display { font-size: 15vh; }
+        /* スマホ縦向き: 高さがない場合 - 数字サイズを22vhへ拡大 */
+        @media (max-height: 700px) {
+            .timer-display { font-size: 22vh; }
             .button-container { margin-top: 1rem !important; }
             .btn-base { height: 3.5rem !important; }
         }
 
         /* スマホ横向き (Landscape) 専門の調整 */
         @media (orientation: landscape) and (max-height: 500px) {
-            .timer-display { font-size: clamp(4rem, 40vh, 10rem); }
+            .timer-display { font-size: 35vh; }
             .button-container { 
                 flex-direction: row !important; 
-                max-width: 520px !important;
+                max-width: 480px !important;
                 margin-top: 0.5rem !important;
                 gap: 0.75rem !important;
                 padding: 0 1rem;
@@ -201,7 +210,7 @@
             footer { display: none; }
         }
 
-        /* パソコン版（横幅が広く、高さもある場合）の微調整 */
+        /* パソコン版の微調整 */
         @media (min-width: 1024px) {
             .button-container { max-width: 320px !important; }
         }
@@ -218,8 +227,8 @@
             <h3 class="text-xl font-bold mb-2 text-slate-800 dark:text-white">きろくを消しますか？</h3>
             <p class="text-sm text-slate-400 mb-8 font-medium">このそうさは、とりけせません。</p>
             <div class="flex flex-col gap-3">
-                <button id="confirmDelete" class="w-full py-4 bg-rose-500 text-white font-bold rounded-2xl">ぜんぶ消す</button>
-                <button id="cancelDelete" class="w-full py-4 text-slate-400 font-bold">やめる</button>
+                <button id="confirmDelete" class="w-full py-4 bg-rose-500 text-white font-bold rounded-2xl focus:outline-none">ぜんぶ消す</button>
+                <button id="cancelDelete" class="w-full py-4 text-slate-400 font-bold focus:outline-none">やめる</button>
             </div>
         </div>
     </div>
@@ -263,7 +272,8 @@
                     リセット
                 </button>
                 <div class="space-info">
-                    スペースキーでスタート / ストップ
+                    スペースキーでスタート / ストップ<br>
+                    エンターキーでリセット
                 </div>
             </div>
         </div>
@@ -276,7 +286,7 @@
                 </div>
                 <div class="flex items-center gap-3 text-right">
                     <span class="text-[9px] font-bold text-slate-400 opacity-70 leading-none uppercase">Session logs only</span>
-                    <button id="clearLogs" class="p-2 text-slate-400 hover:text-rose-500 transition-colors">
+                    <button id="clearLogs" class="p-2 text-slate-400 hover:text-rose-500 transition-colors focus:outline-none">
                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                         </svg>
@@ -296,7 +306,7 @@
     </main>
 
     <footer class="text-center shrink-0 py-4 opacity-40 text-[10px] font-medium tracking-wide">
-        ストップウォッチ | Ver 2.2 | ota tools
+        ストップウォッチ | Ver 2.5 | ota tools
     </footer>
 
     <script>
@@ -443,6 +453,9 @@
             if (e.code === "Space") {
                 e.preventDefault();
                 toggleStartStop();
+            } else if (e.code === "Enter") {
+                e.preventDefault();
+                reset();
             }
         });
 
