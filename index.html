@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ota tools | 大阪市の教員による自作アプリ集</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- React & ReactDOM -->
+    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <!-- Babel for JSX -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Firebase SDK -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, doc, setDoc, updateDoc, increment, onSnapshot, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyB4fpt6ffIuTBDJo_9g37kYr6KOWNgIcEY",
+            authDomain: "otatoolssite.firebaseapp.com",
+            projectId: "otatoolssite",
+            storageBucket: "otatoolssite.firebasestorage.app",
+            messagingSenderId: "20522292752",
+            appId: "1:20522292752:web:22fba7fecb61736593dc95"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        window.db = getFirestore(app);
+        window.auth = getAuth(app);
+        window.fb = { collection, doc, setDoc, updateDoc, increment, onSnapshot, getDoc, signInAnonymously, onAuthStateChanged };
+        
+        window.APP_ID = "otatoolssite-v1";
+    </script>
+
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700;900&family=Noto+Sans+JP:wght@400;500;700;900&display=swap');
+        
+        html {
+            overflow-y: scroll;
+        }
+
+        body { 
+            font-family: 'Inter', 'Noto Sans JP', sans-serif; 
+        }
+        
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+        /* 管理者用隠しボタンのエリア */
+        .admin-trigger {
+            position: absolute;
+            bottom: 0;
+            right: 0;
+            width: 40px;
+            height: 40px;
+            cursor: default;
+            z-index: 9999;
+            opacity: 0;
+        }
+        .admin-trigger:hover {
+            opacity: 0.1;
+            background: rgba(0,0,0,0.1);
+        }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800">
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useMemo } = React;
+
+        // IDに基づき3桁のファイル名を生成するヘルパー
+        const getImageUrlById = (id) => {
+            const formattedId = String(id).padStart(3, '0');
+            return `${formattedId}.png`;
+        };
+
+        const initialAppList = [
+{ id: "1", title: "卒業文集清書ツール", category: "class", description: "卒業文集の下書きを書くために作ったツールです。他の学校でも使えるようにカスタム設定もできます。「、」や「。」などの縦書きならではの処理にも対応しているはず…。", url: "https://otatools.github.io/graduationtool/", imageUrl: "001.png", date: "2026-01-15", initialViews: 0 },
+{ id: "2", title: "オンライン回答ボード", category: "game", description: "クイズ番組のように、子機で描いた文字や絵が親機で表示され正誤もそれぞれの端末に表示されるようになっています。", url: "https://board.otatools2.workers.dev/", imageUrl: "002.png", date: "2026-01-13", initialViews: 0 },
+{ id: "3", title: "お絵かきクイズ", category: "game", description: "１人がお題を見てその絵を描いて他の児童になんとかお題を伝えるお絵かきゲーム。先生が管理機として管理してください。", url: "https://oekaki2.otatools2.workers.dev/", imageUrl: "003.png", date: "2026-01-28", initialViews: 0 },
+{ id: "4", title: "漢字パズル", category: "game", description: "熟語が４つできるように真ん中に漢字を書き込もう。画数があまりにも違う時はなぞり書きモードに切り替わります。熟語の意味もでるようにしました。", url: "https://kanji.otatools2.workers.dev/", imageUrl: "004.png", date: "2026-01-29", initialViews: 0 },
+{ id: "5", title: "推理ゲーム・真実を解明せよ！", category: "game", description: "全員が探偵となり、参加者の中にいる犯人を捜し出せ！それぞれにヒントが与えられますが、それだけでは絞り込めません。教室内をウロウロして他の人のヒントと交換しよう。誰かが親機となり、部屋番号を子機が入力してね。", url: "https://suiri.otatools2.workers.dev/", imageUrl: "005.png", date: "2026-02-03", initialViews: 0 },
+{ id: "6", title: "文章入力（画像出力付）", category: "class", description: "文字数をカウントしながら入力することができます。出来上がった文章は縦書きにもでき、画像出力でA4サイズ１枚のJPEGになるので提出もしやすいです。", url: "https://word2.otatools2.workers.dev/", imageUrl: "006.png", date: "2026-02-5", initialViews: 0 },
+{ id: "7", title: "ポリス vs スパイ", category: "game", description: "いわゆるワードウルフです。１台の端末をみんなで回して使います。全員に同じキーワードが渡っているはずが、スパイだけには違うキーワードが…。喋り合うことでスパイを捜せ！", url: "https://spy.otatools2.workers.dev/", imageUrl: "007.png", date: "2026-02-10", initialViews: 0 },
+{ id: "8", title: "シカくんとたのしいしりとり", category: "game", description: "しりとりゲームです。子どもたちが鍛えたせいで最強のシカになってしまいました。見つけた言葉が100個突破する毎にトップページのシカのイラストが変化します！", url: "https://siritori.otatools2.workers.dev/", imageUrl: "008.png", date: "2026-02-12", initialViews: 0 },
+{ id: "9", title: "ストップウォッチ", category: "utility", description: "ただのストップウォッチです。子どもにも使いやすいようにタップだけでなくスペースキーでも操作できます。ダークモードや記録といった機能付きです。", url: "https://stopwatch.otatools2.workers.dev/", imageUrl: "009.png", date: "2026-01-20", initialViews: 0 },
+{ id: "10", title: "学習タイマー", category: "utility", description: "カウントダウンタイマーです。視覚的どのくらい時間が減っているか分かる円も表示しています。終了の音に異様なこだわりをもってつくりました。もちろんオフにもできます。", url: "https://timer.otatools2.workers.dev/", imageUrl: "010.png", date: "2026-01-22", initialViews: 0 },
+        ];
+
+        const categories = [
+            { id: 'all', label: 'すべて', icon: 'layout-grid' },
+            { id: 'game', label: 'ゲーム', icon: 'gamepad-2' },
+            { id: 'class', label: '授業用', icon: 'graduation-cap' },
+            { id: 'utility', label: '便利ツール', icon: 'clock' },
+            { id: 'admin', label: '校務支援', icon: 'settings' },
+        ];
+
+        function App() {
+            const [activeCategory, setActiveCategory] = useState('all');
+            const [searchQuery, setSearchQuery] = useState('');
+            const [sortOrder, setSortOrder] = useState('newest');
+            const [user, setUser] = useState(null);
+            const [viewCounts, setViewCounts] = useState({});
+            const [isGeneratorOpen, setIsGeneratorOpen] = useState(false);
+            const [hasAccessError, setHasAccessError] = useState(false);
+
+            const [newAppData, setNewAppData] = useState({
+                title: '',
+                category: 'game',
+                description: '',
+                url: '',
+                imageUrl: '' // 手動入力も可能だが自動生成を優先
+            });
+
+            useEffect(() => {
+                if (!window.fb) return;
+                const initAuth = async () => {
+                    try {
+                        await window.fb.signInAnonymously(window.auth);
+                    } catch (e) { 
+                        setHasAccessError(true);
+                    }
+                };
+                initAuth();
+                return window.fb.onAuthStateChanged(window.auth, (u) => {
+                    if (u) setUser(u);
+                });
+            }, []);
+
+            useEffect(() => {
+                if (!user || !window.db) return;
+                const path = `artifacts/${window.APP_ID}/public/data/app_views`;
+                const colRef = window.fb.collection(window.db, ...path.split('/'));
+                const unsubscribe = window.fb.onSnapshot(colRef, (snap) => {
+                    const counts = {};
+                    snap.forEach(d => { counts[d.id] = d.data().count; });
+                    setViewCounts(counts);
+                    setHasAccessError(false);
+                }, (err) => { setHasAccessError(true); });
+                return () => unsubscribe();
+            }, [user]);
+
+            useEffect(() => {
+                if (window.lucide) window.lucide.createIcons();
+            });
+
+            const checkIfNew = (dateString) => {
+                const appDate = new Date(dateString);
+                const today = new Date();
+                const diffTime = Math.abs(today - appDate);
+                const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                return diffDays <= 14;
+            };
+
+            const handleAppClick = async (app) => {
+                if (!user || !window.db) return;
+                const docRef = window.fb.doc(window.db, 'artifacts', window.APP_ID, 'public', 'data', 'app_views', String(app.id));
+                try {
+                    const docSnap = await window.fb.getDoc(docRef);
+                    if (docSnap.exists()) {
+                        await window.fb.updateDoc(docRef, { count: window.fb.increment(1) });
+                    } else {
+                        await window.fb.setDoc(docRef, { count: (app.initialViews || 0) + 1 });
+                    }
+                } catch (e) { console.error(e); }
+            };
+
+            const processedApps = useMemo(() => {
+                return initialAppList
+                    .map(app => ({ 
+                        ...app, 
+                        displayViews: viewCounts[String(app.id)] !== undefined ? viewCounts[String(app.id)] : (app.initialViews || 0),
+                        isNew: checkIfNew(app.date)
+                    }))
+                    .filter(app => (activeCategory === 'all' || app.category === activeCategory) && 
+                        (app.title.includes(searchQuery) || app.description.includes(searchQuery)))
+                    .sort((a, b) => sortOrder === 'popular' ? (b.displayViews - a.displayViews) : new Date(b.date) - new Date(a.date));
+            }, [viewCounts, activeCategory, searchQuery, sortOrder]);
+
+            const getCategoryLabel = (catId) => {
+                const cat = categories.find(c => c.id === catId);
+                return cat ? cat.label : catId;
+            };
+
+            const generatedCode = useMemo(() => {
+                const maxId = Math.max(...initialAppList.map(a => parseInt(a.id)), 0);
+                const nextId = (maxId + 1).toString();
+                const today = new Date().toISOString().split('T')[0];
+                // 自動生成される画像ファイル名
+                const autoImage = getImageUrlById(nextId);
+                return `{ id: "${nextId}", title: "${newAppData.title || 'アプリ名'}", category: "${newAppData.category}", description: "${newAppData.description || '説明文...'}", url: "${newAppData.url || '#'}", imageUrl: "${newAppData.imageUrl || autoImage}", date: "${today}", initialViews: 0 },`;
+            }, [newAppData]);
+
+            const copyToClipboard = () => {
+                const textArea = document.createElement("textarea");
+                textArea.value = generatedCode;
+                document.body.appendChild(textArea);
+                textArea.select();
+                document.execCommand('copy');
+                document.body.removeChild(textArea);
+            };
+
+            return (
+                <div className="min-h-screen bg-slate-50 flex flex-col relative">
+                    <header className="bg-white border-b sticky top-0 z-30 shadow-sm">
+                        <div className="max-w-6xl mx-auto px-4 h-16 flex justify-between items-center">
+                            <div className="flex items-center gap-2">
+                                <div className="bg-gradient-to-br from-blue-500 to-cyan-400 text-white p-2 rounded-xl shadow-lg shadow-blue-100">
+                                    <i data-lucide="laptop" className="w-6 h-6"></i>
+                                </div>
+                                <div>
+                                    <h1 className="text-xl font-bold text-slate-900 leading-tight">ota tools</h1>
+                                    <p className="text-[10px] text-slate-500">大阪市の教員による自作アプリ集</p>
+                                </div>
+                            </div>
+                            <div className="hidden md:flex items-center bg-slate-100 rounded-full px-4 py-1.5 w-64 border border-transparent focus-within:border-blue-200 focus-within:bg-white transition-all">
+                                <i data-lucide="search" className="w-4 h-4 text-slate-400 mr-2"></i>
+                                <input type="text" placeholder="アプリを検索..." className="bg-transparent outline-none text-sm w-full font-medium" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />
+                            </div>
+                        </div>
+                        <div className="max-w-6xl mx-auto px-4 py-3 overflow-x-auto no-scrollbar flex gap-2">
+                            {categories.map(cat => (
+                                <button key={cat.id} onClick={() => setActiveCategory(cat.id)} className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-bold border whitespace-nowrap transition-all ${activeCategory === cat.id ? "bg-blue-600 text-white border-blue-600 shadow-md" : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"}`}>
+                                    <i data-lucide={cat.icon} className="w-4 h-4"></i>{cat.label}
+                                </button>
+                            ))}
+                        </div>
+                    </header>
+
+                    <main className="max-w-6xl mx-auto w-full px-4 py-8 flex-1">
+                        <div className="mb-6 flex justify-between items-center">
+                            <p className="text-slate-500 text-sm font-bold">{processedApps.length} 件表示中</p>
+                            <div className="flex bg-white p-1 rounded-xl border border-slate-200 shadow-sm">
+                                <button onClick={() => setSortOrder('newest')} className={`px-4 py-1.5 text-xs font-bold rounded-lg flex items-center gap-1.5 transition-all ${sortOrder === 'newest' ? "bg-blue-50 text-blue-700" : "text-slate-400 hover:text-slate-600"}`}><i data-lucide="calendar" className="w-3.5 h-3.5"></i> 新着</button>
+                                <button onClick={() => setSortOrder('popular')} className={`px-4 py-1.5 text-xs font-bold rounded-lg flex items-center gap-1.5 transition-all ${sortOrder === 'popular' ? "bg-blue-50 text-blue-700" : "text-slate-400 hover:text-slate-600"}`}><i data-lucide="eye" className="w-3.5 h-3.5"></i> 人気</button>
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
+                            {processedApps.map(app => (
+                                <a 
+                                    key={app.id} 
+                                    href={app.url} 
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    onClick={() => handleAppClick(app)}
+                                    className="group bg-white rounded-2xl border border-slate-200 overflow-hidden hover:shadow-2xl hover:shadow-blue-100/50 hover:-translate-y-1 transition-all duration-300 flex flex-col h-full cursor-pointer"
+                                >
+                                    <div className="relative h-48 bg-slate-50 flex items-center justify-center overflow-hidden">
+                                        <div className="absolute inset-0 bg-gradient-to-br from-blue-50/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                                        
+                                        <div className="w-full h-full flex items-center justify-center relative z-10">
+                                            {app.imageUrl ? (
+                                                <img 
+                                                    src={app.imageUrl} 
+                                                    alt={app.title} 
+                                                    className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                                                    onError={(e) => {
+                                                        e.target.style.display = 'none';
+                                                        e.target.nextSibling.style.display = 'flex';
+                                                    }}
+                                                />
+                                            ) : null}
+                                            <div className={`w-full h-full flex items-center justify-center bg-slate-50 ${app.imageUrl ? 'hidden' : 'flex'}`}>
+                                                <i data-lucide={app.category === 'game' ? 'gamepad-2' : app.category === 'utility' ? 'clock' : 'graduation-cap'} className="w-16 h-16 text-slate-200 group-hover:text-blue-200 group-hover:scale-110 transition-all duration-500"></i>
+                                            </div>
+                                        </div>
+
+                                        {app.isNew && <span className="absolute top-4 right-4 bg-cyan-500 text-white text-[10px] font-black px-3 py-1 rounded-full shadow-lg z-20 animate-pulse">NEW</span>}
+                                    </div>
+                                    <div className="p-6 flex-1 flex flex-col">
+                                        <div className="flex justify-between items-center mb-4 text-[10px] font-bold tracking-widest uppercase">
+                                            <span className="text-blue-600 bg-blue-50 px-2.5 py-1 rounded-md border border-blue-100">
+                                                {getCategoryLabel(app.category)}
+                                            </span>
+                                            <span className={`flex items-center gap-1 text-slate-400 transition-opacity duration-300 ${hasAccessError || viewCounts[String(app.id)] === undefined ? 'opacity-0' : 'opacity-100'}`}>
+                                                <i data-lucide="eye" className="w-3.5 h-3.5"></i>
+                                                {app.displayViews.toLocaleString()}
+                                            </span>
+                                        </div>
+                                        <h3 className="font-bold text-xl mb-2 text-slate-800 group-hover:text-blue-600 transition-colors">{app.title}</h3>
+                                        <p className="text-slate-500 text-sm mb-6 flex-1 leading-relaxed">{app.description}</p>
+                                        <div className="pt-5 border-t border-slate-50 flex justify-between items-center text-[11px] text-slate-400 font-bold">
+                                            <span>{app.date.replace(/-/g, '/')}</span>
+                                            <span className="text-blue-600 flex items-center group-hover:translate-x-1 transition-transform">
+                                                使ってみる <i data-lucide="chevron-right" className="w-3.5 h-3.5 ml-0.5"></i>
+                                            </span>
+                                        </div>
+                                    </div>
+                                </a>
+                            ))}
+                        </div>
+                    </main>
+                    
+                    <footer className="relative bg-white border-t py-12 px-4 overflow-hidden">
+                        <div className="max-w-6xl mx-auto text-center">
+                            <p className="text-slate-400 text-xs font-medium uppercase tracking-widest">© 2026 ota tools</p>
+                        </div>
+                        <div className="admin-trigger" onClick={() => setIsGeneratorOpen(true)}></div>
+                    </footer>
+
+                    {isGeneratorOpen && (
+                        <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm flex items-center justify-center z-[100] p-4">
+                            <div className="bg-white rounded-[2rem] w-full max-w-lg p-10 shadow-2xl border border-slate-100 overflow-hidden relative">
+                                <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-blue-400 to-cyan-400"></div>
+                                
+                                <div className="flex justify-between items-start mb-10">
+                                    <div>
+                                        <h2 className="text-2xl font-bold text-slate-800 tracking-tight mb-1">新規アプリ用コード生成</h2>
+                                        <p className="text-[11px] text-blue-500 font-bold uppercase tracking-widest">Internal Admin Tools</p>
+                                    </div>
+                                    <button onClick={() => setIsGeneratorOpen(false)} className="bg-slate-50 hover:bg-slate-100 p-2.5 rounded-full transition-all text-slate-400 hover:text-slate-600"><i data-lucide="x"></i></button>
+                                </div>
+                                
+                                <div className="space-y-6 mb-10">
+                                    <div className="grid grid-cols-2 gap-5">
+                                        <div>
+                                            <label className="block text-[10px] font-bold text-slate-400 mb-2 uppercase tracking-widest">ジャンル</label>
+                                            <select 
+                                                value={newAppData.category} 
+                                                onChange={e => setNewAppData({...newAppData, category: e.target.value})}
+                                                className="w-full border-2 border-slate-50 rounded-2xl p-4 text-sm bg-slate-50 outline-none focus:bg-white focus:border-blue-400 transition-all font-bold text-slate-700"
+                                            >
+                                                {categories.filter(c => c.id !== 'all').map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label className="block text-[10px] font-bold text-slate-400 mb-2 uppercase tracking-widest">タイトル</label>
+                                            <input 
+                                                type="text" 
+                                                placeholder="アプリの名称" 
+                                                value={newAppData.title}
+                                                onChange={e => setNewAppData({...newAppData, title: e.target.value})}
+                                                className="w-full border-2 border-slate-50 rounded-2xl p-4 text-sm bg-slate-50 outline-none focus:bg-white focus:border-blue-400 transition-all font-bold"
+                                            />
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <label className="block text-[10px] font-bold text-slate-400 mb-2 uppercase tracking-widest">説明文</label>
+                                        <textarea 
+                                            placeholder="詳細な説明文..." 
+                                            rows="2"
+                                            value={newAppData.description}
+                                            onChange={e => setNewAppData({...newAppData, description: e.target.value})}
+                                            className="w-full border-2 border-slate-50 rounded-2xl p-4 text-sm bg-slate-50 outline-none focus:bg-white focus:border-blue-400 transition-all font-medium"
+                                        ></textarea>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-5">
+                                        <div>
+                                            <label className="block text-[10px] font-bold text-slate-400 mb-2 uppercase tracking-widest">アプリURL</label>
+                                            <input 
+                                                type="text" 
+                                                placeholder="https://..." 
+                                                value={newAppData.url}
+                                                onChange={e => setNewAppData({...newAppData, url: e.target.value})}
+                                                className="w-full border-2 border-slate-50 rounded-2xl p-4 text-sm bg-slate-50 outline-none focus:bg-white focus:border-blue-400 transition-all font-mono text-blue-600"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-[10px] font-bold text-slate-400 mb-2 uppercase tracking-widest">画像URL（任意）</label>
+                                            <input 
+                                                type="text" 
+                                                placeholder="空欄で自動ID指定" 
+                                                value={newAppData.imageUrl}
+                                                onChange={e => setNewAppData({...newAppData, imageUrl: e.target.value})}
+                                                className="w-full border-2 border-slate-50 rounded-2xl p-4 text-sm bg-slate-50 outline-none focus:bg-white focus:border-blue-400 transition-all font-mono"
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="bg-slate-900 rounded-3xl p-6 relative group shadow-xl">
+                                    <button 
+                                        onClick={copyToClipboard}
+                                        className="absolute top-4 right-4 bg-blue-600 text-white p-2.5 rounded-xl opacity-0 group-hover:opacity-100 transition-all hover:bg-blue-500 shadow-lg active:scale-95"
+                                        title="Copy Code"
+                                    >
+                                        <i data-lucide="copy" className="w-4 h-4"></i>
+                                    </button>
+                                    <pre className="text-blue-400 text-[10px] font-mono whitespace-pre-wrap leading-relaxed max-h-32 overflow-y-auto no-scrollbar">
+                                        {generatedCode}
+                                    </pre>
+                                </div>
+                                <div className="mt-8 flex items-center justify-center gap-2 text-slate-400">
+                                    <p className="text-[10px] font-bold uppercase tracking-widest text-center">
+                                        上記をコピーして <code className="text-blue-500">initialAppList</code> 配列に追加してください。
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
