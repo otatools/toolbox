@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>卒業文集清書ツール v8.5.3</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700&display=swap');
+        @page { size: A4 landscape; margin: 0; }
+        body { background: #f0f0f0; font-family: 'Noto Sans JP', sans-serif; display: flex; flex-direction: column; align-items: center; padding: 20px; margin: 0; }
+        
+        .no-print { width: 95%; max-width: 850px; background: white; padding: 25px; border-radius: 12px; margin-bottom: 20px; box-shadow: 0 4px 20px rgba(0,0,0,0.15); }
+        .header-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
+        h3 { margin: 0; color: #1976D2; border-left: 5px solid #1976D2; padding-left: 10px; }
+        
+        #save-status { display: none; }
+
+        .mode-selector { display: flex; background: #eee; padding: 5px; border-radius: 8px; margin-bottom: 20px; }
+        .mode-btn { flex: 1; padding: 10px; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; background: transparent; transition: 0.3s; }
+        .mode-btn.active { background: white; box-shadow: 0 2px 5px rgba(0,0,0,0.1); color: #1976D2; }
+
+        .config-panel { background: #f9f9f9; padding: 15px; border-radius: 8px; margin-bottom: 15px; border: 1px solid #ddd; }
+        .config-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 15px; }
+        .config-group { display: flex; flex-direction: column; }
+        label { font-weight: bold; margin-bottom: 5px; color: #555; font-size: 0.85em; }
+        input, textarea, select { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 6px; box-sizing: border-box; font-size: 16px; font-family: inherit; }
+        textarea { height: 120px; resize: vertical; }
+
+        .button-row { display: flex; gap: 10px; margin-top: 15px; flex-wrap: wrap; }
+        .btn { padding: 12px; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; color: white; flex: 1; min-width: 100px; text-align: center; text-decoration: none; }
+        .btn-save { background: #4CAF50; }
+        .btn-load { background: #FF9800; }
+        .btn-print { background: #2196F3; flex: 2; font-size: 1.1em; }
+        .btn-reset { background: #f44336; flex: 0.5; font-size: 0.8em; }
+        .btn-auto-save { background: #9e9e9e; flex: 0.8; font-size: 0.85em; }
+        .btn-auto-save.on { background: #4CAF50; }
+
+        .footer-info { margin-top: 20px; font-size: 12px; color: #888; text-align: center; }
+
+        /* 原稿用紙設定 */
+        .paper { background: white; width: 297mm; height: 210mm; padding: 15mm 20mm; box-shadow: 0 0 15px rgba(0,0,0,0.2); display: flex; flex-direction: row-reverse; box-sizing: border-box; margin-bottom: 20px; position: relative; }
+        .line { display: flex; flex-direction: column; height: 100%; position: relative; }
+        .cell { border: 0.5px solid #ff8e8e; display: flex; align-items: center; justify-content: center; box-sizing: border-box; writing-mode: vertical-rl; -webkit-writing-mode: vertical-rl; text-orientation: upright; position: relative; }
+        
+        .extra-cell { position: absolute; left: 0; width: 100%; display: flex; align-items: center; justify-content: center; writing-mode: vertical-rl; text-orientation: upright; pointer-events: none; }
+        .pos-23 { top: 100%; border-top: none; }
+        .pos-24 { top: calc(100% + (100% / 22)); border-top: none; }
+
+        .force-rotate { display: inline-block !important; transform: rotate(90deg); line-height: 1; }
+        .zenkaku-bracket { display: inline-block; transform: none !important; text-orientation: mixed; }
+        .tcy { text-combine-upright: all; -webkit-text-combine: horizontal; }
+
+        /* コンテナの調整 */
+        #output-container { transition: transform 0.1s ease-out; }
+
+        @media print { 
+            .no-print, .footer-info { display: none !important; } 
+            body { background: white; padding: 0; } 
+            .paper { box-shadow: none; margin: 0 !important; border: none; page-break-after: always; } 
+            #output-container { transform: none !important; margin: 0 !important; } 
+        }
+    </style>
+</head>
+<body>
+
+<div class="no-print">
+    <div class="header-row">
+        <h3>卒業文集清書ツール</h3>
+        <span id="save-status"></span>
+    </div>
+    
+    <div class="mode-selector">
+        <button id="btn-fix" class="mode-btn active" onclick="switchMode('fix')">野田小用（固定設定）</button>
+        <button id="btn-custom" class="mode-btn" onclick="switchMode('custom')">カスタム（自由設定）</button>
+    </div>
+
+    <div id="custom-configs" class="config-panel" style="display: none;">
+        <div class="config-grid">
+            <div class="config-group">
+                <label>1行のマス数 (縦)</label>
+                <input type="number" id="rowsInput" value="22" oninput="updateAll()">
+            </div>
+            <div class="config-group">
+                <label>1ページの行数 (横)</label>
+                <input type="number" id="colsInput" value="28" oninput="updateAll()">
+            </div>
+            <div class="config-group">
+                <label>本文の開始行</label>
+                <select id="startColInput" onchange="updateAll()">
+                    <option value="3">4行目から (標準)</option>
+                    <option value="2">3行目から</option>
+                </select>
+            </div>
+            <div class="config-group">
+                <label>名前の下の空きマス</label>
+                <input type="number" id="namePaddingInput" value="1" min="0" oninput="updateAll()">
+            </div>
+        </div>
+    </div>
+
+    <div class="input-group">
+        <label id="titleLabel">題名（8マス目から）</label>
+        <input type="text" id="titleInput" oninput="updateAll()" onfocus="clearIfDefault(this, 'title')">
+    </div>
+    <div class="input-group">
+        <label>名前（下詰め）</label>
+        <input type="text" id="nameInput" oninput="updateAll()" onfocus="clearIfDefault(this, 'name')">
+    </div>
+    <div class="input-group">
+        <label>本文</label>
+        <textarea id="textInput" oninput="updateAll()" onfocus="clearIfDefault(this, 'body')"></textarea>
+    </div>
+
+    <div class="button-row">
+        <button onclick="saveToFile()" class="btn btn-save">ファイル保存</button>
+        <button onclick="document.getElementById('fileInput').click()" class="btn btn-load">ファイル読込</button>
+        <input type="file" id="fileInput" style="display:none" accept=".txt" onchange="loadFromFile(event)">
+        <button onclick="window.print()" class="btn btn-print">印刷 / PDF保存</button>
+        <button id="btnAutoSave" onclick="toggleAutoSave()" class="btn btn-auto-save">自動保存：OFF</button>
+        <button onclick="resetData()" class="btn btn-reset">リセット</button>
+    </div>
+</div>
+
+<div id="output-container"></div>
+
+<div class="footer-info">
+    卒業文集清書ツール ｜ v8.5.3 ｜ ota tools
+</div>
+
+<script>
+    let currentMode = 'fix';
+    let isAutoSaveOn = false;
+    const KEY = 'bungyu_draft_data_v851';
+    const AUTO_SAVE_KEY = 'bungyu_auto_save_enabled';
+    const DEFAULTS = { 
+        title: "題名", 
+        name: "野田　太郎", 
+        body: "　ここに本文を入力してください。全角で数字を打てば１マスずつ（２０）、半角で数字を打てば１マス（20）に入力できます。" 
+    };
+
+    function clearIfDefault(el, key) {
+        if (el.value === DEFAULTS[key]) { el.value = ''; updateAll(); }
+    }
+
+    window.onload = () => {
+        const autoSavePref = localStorage.getItem(AUTO_SAVE_KEY);
+        if (autoSavePref === 'true') {
+            isAutoSaveOn = true;
+            document.getElementById('btnAutoSave').innerText = '自動保存：ON';
+            document.getElementById('btnAutoSave').classList.add('on');
+        }
+        const saved = localStorage.getItem(KEY);
+        if (saved) {
+            const data = JSON.parse(saved);
+            document.getElementById('titleInput').value = data.title || '';
+            document.getElementById('nameInput').value = data.name || '';
+            document.getElementById('textInput').value = data.body || '';
+            document.getElementById('rowsInput').value = data.rows || 22;
+            document.getElementById('colsInput').value = data.cols || 28;
+            document.getElementById('startColInput').value = data.startCol || 3;
+            document.getElementById('namePaddingInput').value = data.namePadding ?? 1;
+            if (data.mode) switchMode(data.mode);
+        } else {
+            document.getElementById('titleInput').value = DEFAULTS.title;
+            document.getElementById('nameInput').value = DEFAULTS.name;
+            document.getElementById('textInput').value = DEFAULTS.body;
+        }
+        updateAll();
+    };
+
+    function toggleAutoSave() {
+        isAutoSaveOn = !isAutoSaveOn;
+        const btn = document.getElementById('btnAutoSave');
+        if (isAutoSaveOn) {
+            btn.innerText = '自動保存：ON'; btn.classList.add('on');
+            localStorage.setItem(AUTO_SAVE_KEY, 'true');
+            saveToLocalStorage();
+        } else {
+            btn.innerText = '自動保存：OFF'; btn.classList.remove('on');
+            localStorage.setItem(AUTO_SAVE_KEY, 'false');
+            localStorage.removeItem(KEY);
+        }
+    }
+
+    function updateAll() {
+        if (isAutoSaveOn) saveToLocalStorage();
+        generatePaper();
+        autoScalePaper();
+    }
+
+    function saveToLocalStorage() {
+        const data = {
+            title: document.getElementById('titleInput').value,
+            name: document.getElementById('nameInput').value,
+            body: document.getElementById('textInput').value,
+            mode: currentMode,
+            rows: document.getElementById('rowsInput').value,
+            cols: document.getElementById('colsInput').value,
+            startCol: document.getElementById('startColInput').value,
+            namePadding: document.getElementById('namePaddingInput').value
+        };
+        localStorage.setItem(KEY, JSON.stringify(data));
+    }
+
+    function resetData() { if (confirm("リセットしますか？")) { localStorage.removeItem(KEY); location.reload(); } }
+
+    function switchMode(mode) {
+        currentMode = mode;
+        document.getElementById('btn-fix').className = mode === 'fix' ? 'mode-btn active' : 'mode-btn';
+        document.getElementById('btn-custom').className = mode === 'custom' ? 'mode-btn active' : 'mode-btn';
+        document.getElementById('custom-configs').style.display = mode === 'custom' ? 'block' : 'none';
+        document.getElementById('titleLabel').innerText = mode === 'fix' ? '題名（8マス目から）' : '題名';
+        updateAll();
+    }
+
+    function fixSymbol(char) {
+        const map = { 'ー': '丨', '—': '丨', '―': '丨', '-': '丨', '－': '丨', '…': '︙', '‥': '︰', '(': '（', ')': '）' };
+        return map[char] || char;
+    }
+
+    function generatePaper() {
+        const title = document.getElementById('titleInput').value;
+        const name = document.getElementById('nameInput').value;
+        const bodyText = document.getElementById('textInput').value;
+        
+        const ROWS = currentMode === 'fix' ? 22 : (parseInt(document.getElementById('rowsInput').value) || 22);
+        const COLS = currentMode === 'fix' ? 28 : (parseInt(document.getElementById('colsInput').value) || 28);
+        const startCol = currentMode === 'fix' ? 3 : parseInt(document.getElementById('startColInput').value);
+        const namePadding = currentMode === 'fix' ? 1 : parseInt(document.getElementById('namePaddingInput').value);
+
+        const out = document.getElementById('output-container');
+        out.innerHTML = '';
+        
+        let colData = [];
+        for(let i=0; i<COLS * 50; i++) colData.push({ cells: Array(ROWS).fill(''), extra: [] });
+
+        let tOffset = currentMode === 'fix' ? 7 : 0;
+        for(let i=0; i<title.length && (i+tOffset)<ROWS; i++) colData[0].cells[i+tOffset] = title[i];
+        
+        let nStart = ROWS - name.length - namePadding;
+        for(let i=0; i<name.length && (i+nStart)<ROWS; i++) {
+            if (i+nStart >= 0) colData[1].cells[i+nStart] = name[i];
+        }
+
+        const isEnd = (c) => /[。、）」』）]/.test(c);
+        const isStart = (c) => /[（「『(]/.test(c);
+        let tokens = bodyText.match(/[0-9]{1,2}|[０-９]|[^\n]|\n/g) || [];
+        let curC = startCol, curR = 0;
+
+        for (let i = 0; i < tokens.length; i++) {
+            if (currentMode === 'fix' && curR === 0 && (curC === 3 || curC === 4)) curR = 6;
+            let t = tokens[i];
+            if (t === '\n') { curC++; curR = 0; continue; }
+
+            if (curR === ROWS - 1) {
+                colData[curC].cells[curR] = t;
+                if (isStart(t) && tokens[i+1] && tokens[i+1] !== '\n' && !isEnd(tokens[i+1])) {
+                    colData[curC].extra.push(tokens[i+1]);
+                    i++;
+                } else {
+                    while(tokens[i+1] && isEnd(tokens[i+1]) && tokens[i+1] !== '\n') {
+                        colData[curC].extra.push(tokens[i+1]);
+                        i++;
+                        if (colData[curC].extra.length >= 2) break;
+                    }
+                }
+                if (tokens[i+1] === '\n') i++;
+                curC++; curR = 0;
+            } else {
+                colData[curC].cells[curR] = t;
+                curR++;
+                if (curR >= ROWS) { curC++; curR = 0; }
+            }
+        }
+
+        const totalPages = Math.max(1, Math.ceil((curC + (curR > 0 ? 1 : 0)) / COLS));
+        
+        for (let p = 0; p < totalPages; p++) {
+            const paper = document.createElement('div');
+            paper.className = 'paper';
+            for (let c = 0; c < COLS; c++) {
+                const idx = p * COLS + c;
+                const line = document.createElement('div');
+                line.className = 'line';
+                line.style.width = `calc(100% / ${COLS})`;
+                for (let r = 0; r < ROWS; r++) {
+                    const cell = document.createElement('div');
+                    cell.className = 'cell';
+                    cell.style.height = `calc(100% / ${ROWS})`;
+                    cell.style.fontSize = `${Math.min(22, (550 / ROWS))}px`;
+                    let d = colData[idx]?.cells[r] || '';
+                    if (d) {
+                        let cls = /^[0-9]+$/.test(d) ? 'tcy' : (/[（）]/.test(d) ? 'zenkaku-bracket' : (/[()]/.test(d) ? 'force-rotate' : ''));
+                        cell.innerHTML = `<span class="${cls}">${fixSymbol(d)}</span>`;
+                    }
+                    line.appendChild(cell);
+                }
+                colData[idx]?.extra.forEach((ex, ei) => {
+                    const exc = document.createElement('div');
+                    exc.className = `extra-cell pos-${23+ei}`;
+                    exc.style.height = `calc(100% / ${ROWS})`;
+                    exc.style.fontSize = `${Math.min(22, (550 / ROWS))}px`;
+                    let cls = /^[0-9]+$/.test(ex) ? 'tcy' : (/[（）]/.test(ex) ? 'zenkaku-bracket' : (/[()]/.test(ex) ? 'force-rotate' : ''));
+                    exc.innerHTML = `<span class="${cls}">${fixSymbol(ex)}</span>`;
+                    line.appendChild(exc);
+                });
+                paper.appendChild(line);
+            }
+            out.appendChild(paper);
+        }
+    }
+
+    // ウィンドウの縦幅・横幅に合わせて「パンパン」に自動拡大縮小する
+    function autoScalePaper() {
+        const container = document.getElementById('output-container');
+        const papers = document.querySelectorAll('.paper');
+        if (!papers.length) return;
+
+        // 画面の有効な表示領域（98%まで使い切る）
+        const availableWidth = window.innerWidth * 0.98;
+        const availableHeight = window.innerHeight * 0.98; 
+
+        // A4横の基準サイズ（ピクセル）
+        const paperBaseWidth = 1122; 
+        const paperBaseHeight = 794;
+
+        // 横幅基準のスケールと縦幅基準のスケールのうち、より小さい方を採用
+        const scaleW = availableWidth / paperBaseWidth;
+        const scaleH = availableHeight / paperBaseHeight;
+        
+        // 画面に収まる最大倍率を選択（パンパンにするため上限1.0を撤廃）
+        const finalScale = Math.min(scaleW, scaleH);
+
+        // スタイル適用
+        container.style.transform = `scale(${finalScale})`;
+        container.style.transformOrigin = 'top center';
+        
+        // 縮小・拡大した分、下の空白を詰める調整
+        const scaledHeight = paperBaseHeight * finalScale;
+        container.style.marginBottom = `calc(-${paperBaseHeight - scaledHeight}px + 10px)`;
+        container.style.marginTop = '10px';
+    }
+
+    window.addEventListener('resize', autoScalePaper);
+
+    function saveToFile() {
+        const data = { title: titleInput.value, name: nameInput.value, body: textInput.value, mode: currentMode, rows: rowsInput.value, cols: colsInput.value, startCol: startColInput.value, namePadding: namePaddingInput.value };
+        const blob = new Blob([JSON.stringify(data, null, 2)], {type: 'text/plain'});
+        const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+        a.download = `文集_${nameInput.value.trim() || '原稿'}.txt`; a.click();
+    }
+
+    function loadFromFile(event) {
+        const file = event.target.files[0]; if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            try {
+                const data = JSON.parse(e.target.result);
+                document.getElementById('titleInput').value = data.title;
+                document.getElementById('nameInput').value = data.name;
+                document.getElementById('textInput').value = data.body;
+                rowsInput.value = data.rows || 22; colsInput.value = data.cols || 28;
+                document.getElementById('startColInput').value = data.startCol || 3;
+                document.getElementById('namePaddingInput').value = data.namePadding ?? 1;
+                if(data.mode) switchMode(data.mode); else updateAll();
+            } catch (err) { alert("読込失敗"); }
+        };
+        reader.readAsText(file);
+    }
+</script>
+</body>
+</html>

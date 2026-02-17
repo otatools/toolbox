@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>ストップウォッチ</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=M+PLUS+1p:wght@400;500;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --accent-primary: #0ea5e9;
+            --accent-stop: #f43f5e;
+            --bg-color: #ffffff;
+            --text-main: #1e293b;
+            --glass-bg: rgba(255, 255, 255, 0.4);
+            --glass-border: rgba(255, 255, 255, 0.7);
+            --text-reflect: rgba(255, 255, 255, 0.8);
+            --divider-color: rgba(148, 163, 184, 0.15);
+        }
+
+        body.dark-mode {
+            --bg-color: #0f172a;
+            --text-main: #f1f5f9;
+            --glass-bg: rgba(30, 41, 59, 0.4);
+            --glass-border: rgba(255, 255, 255, 0.1);
+            --text-reflect: rgba(255, 255, 255, 0.15);
+            --divider-color: rgba(255, 255, 255, 0.05);
+        }
+
+        body {
+            background-color: var(--bg-color);
+            font-family: 'M PLUS 1p', sans-serif;
+            overflow: hidden;
+            user-select: none;
+            color: var(--text-main);
+            min-height: 100vh;
+            min-height: -webkit-fill-available;
+            transition: background-color 0.5s cubic-bezier(0.4, 0, 0.2, 1), color 0.3s ease;
+            display: flex;
+            flex-direction: column;
+        }
+
+        html { height: -webkit-fill-available; }
+
+        /* タイマー表示：最小サイズ(4rem->5rem)を上げ、可変の基準を強化 */
+        .timer-display {
+            font-variant-numeric: tabular-nums;
+            /* clamp(最小, 推奨(中央値), 最大) */
+            font-size: clamp(5rem, 22vw, 14rem);
+            font-weight: 800;
+            line-height: 1;
+            display: flex;
+            align-items: baseline;
+            justify-content: center;
+            color: var(--text-main);
+            opacity: 0.95;
+            text-shadow: 
+                0px 2px 4px var(--text-reflect),
+                0px 10px 30px rgba(14, 165, 233, 0.1);
+        }
+
+        /* 縦方向の余裕に基づいたサイズ微調整 */
+        @media (min-height: 800px) {
+            .timer-display { font-size: clamp(6rem, 25vh, 14rem); }
+        }
+
+        .unit-label {
+            font-size: 0.18em;
+            font-weight: 500;
+            color: #94a3b8;
+            margin: 0 0.12em;
+            text-shadow: none;
+        }
+
+        .ms-digit {
+            font-size: 0.6em;
+            color: var(--accent-primary);
+            opacity: 0.7;
+            font-weight: 500;
+            margin-left: 0.1em;
+            text-shadow: none;
+        }
+
+        .nav-link {
+            padding: 0.75rem 2rem;
+            transition: all 0.3s ease;
+            color: #94a3b8;
+            font-weight: 800;
+        }
+        .nav-link.active {
+            color: var(--accent-primary);
+            position: relative;
+        }
+        .nav-link.active::after {
+            content: '';
+            position: absolute;
+            bottom: 0.25rem;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 1.5rem;
+            height: 4px;
+            background: var(--accent-primary);
+            border-radius: 99px;
+        }
+
+        .btn-base {
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            border-radius: 1.5rem;
+            backdrop-filter: blur(12px);
+            border: 1px solid var(--glass-border);
+            height: 4rem; 
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            touch-action: manipulation;
+        }
+        .btn-start {
+            background: rgba(14, 165, 233, 0.1);
+            color: var(--accent-primary);
+        }
+        .btn-start:hover { background: rgba(14, 165, 233, 0.15); }
+        .btn-start:active { transform: scale(0.96) translateY(2px); }
+
+        .btn-stop {
+            background: rgba(244, 63, 94, 0.1);
+            color: var(--accent-stop);
+            border-color: rgba(244, 63, 94, 0.2);
+        }
+        .btn-stop:hover { background: rgba(244, 63, 94, 0.15); }
+
+        .btn-reset {
+            background: rgba(148, 163, 184, 0.05);
+            color: #94a3b8;
+            height: 2.5rem;
+        }
+
+        .theme-toggle {
+            position: absolute;
+            top: 1.5rem;
+            right: 1.5rem;
+            width: 3rem;
+            height: 3rem;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(148, 163, 184, 0.1);
+            border: 1px solid var(--glass-border);
+            cursor: pointer;
+            z-index: 50;
+        }
+
+        /* 記録リストのデザイン */
+        .log-container {
+            background: var(--glass-bg);
+            backdrop-filter: blur(12px);
+            border: 1px solid var(--glass-border);
+            border-radius: 1.5rem;
+            overflow: hidden;
+        }
+
+        .log-item {
+            transition: background-color 0.2s ease;
+            border-bottom: 1px solid var(--divider-color);
+        }
+        .log-item:last-child { border-bottom: none; }
+        .log-item:hover { background-color: rgba(14, 165, 233, 0.03); }
+
+        .space-info {
+            font-size: 11px;
+            font-weight: 500;
+            color: var(--accent-primary);
+            opacity: 0.7;
+            margin-top: 1rem;
+            letter-spacing: 0.05em;
+        }
+
+        /* --- レスポンシブ調整 --- */
+
+        /* モバイル表示などで高さがない場合のみ、タイマーを縮小 */
+        @media (max-height: 600px) and (orientation: portrait) {
+            .timer-display { font-size: 15vh; }
+            .button-container { margin-top: 1rem !important; }
+            .btn-base { height: 3.5rem !important; }
+        }
+
+        /* スマホ横向き (Landscape) 専門の調整 */
+        @media (orientation: landscape) and (max-height: 500px) {
+            .timer-display { font-size: clamp(4rem, 40vh, 10rem); }
+            .button-container { 
+                flex-direction: row !important; 
+                max-width: 520px !important;
+                margin-top: 0.5rem !important;
+                gap: 0.75rem !important;
+                padding: 0 1rem;
+            }
+            .btn-base { height: 3.2rem !important; flex: 1; }
+            .btn-reset { height: 3.2rem !important; max-width: 120px; }
+            .space-info { display: none; }
+            nav { margin-top: 0 !important; }
+            footer { display: none; }
+        }
+
+        /* パソコン版（横幅が広く、高さもある場合）の微調整 */
+        @media (min-width: 1024px) {
+            .button-container { max-width: 320px !important; }
+        }
+
+        .fade-in { animation: fadeIn 0.4s ease-out forwards; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+    </style>
+</head>
+<body class="flex flex-col">
+
+    <!-- 確認モーダル -->
+    <div id="modalOverlay" class="hidden fixed inset-0 z-[100] flex items-center justify-center p-6 bg-black/40 backdrop-blur-sm">
+        <div class="bg-white dark:bg-slate-800 p-8 rounded-[2rem] shadow-2xl max-w-xs w-full text-center border border-white/20">
+            <h3 class="text-xl font-bold mb-2 text-slate-800 dark:text-white">きろくを消しますか？</h3>
+            <p class="text-sm text-slate-400 mb-8 font-medium">このそうさは、とりけせません。</p>
+            <div class="flex flex-col gap-3">
+                <button id="confirmDelete" class="w-full py-4 bg-rose-500 text-white font-bold rounded-2xl">ぜんぶ消す</button>
+                <button id="cancelDelete" class="w-full py-4 text-slate-400 font-bold">やめる</button>
+            </div>
+        </div>
+    </div>
+
+    <button id="themeToggle" class="theme-toggle" title="テーマ切り替え">
+        <svg id="sunIcon" class="w-6 h-6 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+            <circle cx="12" cy="12" r="5" />
+            <line x1="12" y1="1" x2="12" y2="3" />
+            <line x1="12" y1="21" x2="12" y2="23" />
+            <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" />
+            <line x1="18.36" y1="18.36" x2="19.78" y2="19.78" />
+            <line x1="1" y1="12" x2="3" y2="12" />
+            <line x1="21" y1="12" x2="23" y2="12" />
+            <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" />
+            <line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
+        </svg>
+        <svg id="moonIcon" class="hidden w-6 h-6 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+        </svg>
+    </button>
+
+    <nav class="flex justify-center gap-2 px-8 z-10 shrink-0 mt-2">
+        <button id="tabTimer" class="nav-link active">はかる</button>
+        <button id="tabLogs" class="nav-link">きろく</button>
+    </nav>
+
+    <main class="flex-1 flex flex-col items-center relative overflow-hidden main-content">
+        
+        <div id="timerSection" class="flex-1 w-full flex flex-col items-center justify-center p-4 fade-in">
+            <div class="timer-display">
+                <span id="min">00</span><span class="unit-label">分</span>
+                <span id="sec">00</span><span class="unit-label">秒</span>
+                <span id="msec" class="ms-digit">00</span>
+            </div>
+
+            <div class="mt-12 w-full max-w-xs flex flex-col items-center gap-4 px-6 button-container">
+                <button id="startStopBtn" class="btn-base btn-start w-full text-2xl font-extrabold tracking-tight">
+                    スタート
+                </button>
+                <button id="resetBtn" class="btn-base btn-reset w-full text-xs font-bold tracking-widest uppercase">
+                    リセット
+                </button>
+                <div class="space-info">
+                    スペースキーでスタート / ストップ
+                </div>
+            </div>
+        </div>
+
+        <div id="logsSection" class="hidden w-full max-w-xl h-full overflow-y-auto px-6 py-6 fade-in">
+            <div class="flex justify-between items-center mb-6 px-2">
+                <div>
+                    <h2 class="text-2xl md:text-3xl font-800 tracking-tight">きろく</h2>
+                    <div class="h-1 w-12 bg-sky-400 rounded-full mt-1"></div>
+                </div>
+                <div class="flex items-center gap-3 text-right">
+                    <span class="text-[9px] font-bold text-slate-400 opacity-70 leading-none uppercase">Session logs only</span>
+                    <button id="clearLogs" class="p-2 text-slate-400 hover:text-rose-500 transition-colors">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                    </button>
+                </div>
+            </div>
+            
+            <div id="logContainer" class="log-container mb-24">
+                <div id="logList" class="flex flex-col">
+                    <div id="emptyMsg" class="text-center py-24 opacity-40">
+                        <p class="text-sm font-bold tracking-widest uppercase">データがありません</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <footer class="text-center shrink-0 py-4 opacity-40 text-[10px] font-medium tracking-wide">
+        ストップウォッチ | Ver 2.2 | ota tools
+    </footer>
+
+    <script>
+        let startTime;
+        let elapsedTime = 0;
+        let timerInterval;
+        let isRunning = false;
+        let logs = [];
+
+        const body = document.body;
+        const themeToggle = document.getElementById('themeToggle');
+        const sunIcon = document.getElementById('sunIcon');
+        const moonIcon = document.getElementById('moonIcon');
+
+        const elMin = document.getElementById('min');
+        const elSec = document.getElementById('sec');
+        const elMsec = document.getElementById('msec');
+        const startStopBtn = document.getElementById('startStopBtn');
+        const resetBtn = document.getElementById('resetBtn');
+        const timerSection = document.getElementById('timerSection');
+        const logsSection = document.getElementById('logsSection');
+        const tabTimer = document.getElementById('tabTimer');
+        const tabLogs = document.getElementById('tabLogs');
+        const logList = document.getElementById('logList');
+        const clearLogsBtn = document.getElementById('clearLogs');
+        
+        const modalOverlay = document.getElementById('modalOverlay');
+        const confirmDelete = document.getElementById('confirmDelete');
+        const cancelDelete = document.getElementById('cancelDelete');
+
+        themeToggle.addEventListener('click', () => {
+            body.classList.toggle('dark-mode');
+            const isDark = body.classList.contains('dark-mode');
+            sunIcon.classList.toggle('hidden', isDark);
+            moonIcon.classList.toggle('hidden', !isDark);
+        });
+
+        function switchTab(to) {
+            if (to === 'timer') {
+                tabTimer.classList.add('active');
+                tabLogs.classList.remove('active');
+                timerSection.classList.remove('hidden');
+                logsSection.classList.add('hidden');
+            } else {
+                tabLogs.classList.add('active');
+                tabTimer.classList.remove('active');
+                logsSection.classList.remove('hidden');
+                timerSection.classList.add('hidden');
+            }
+        }
+
+        tabTimer.addEventListener('click', () => switchTab('timer'));
+        tabLogs.addEventListener('click', () => switchTab('logs'));
+
+        function updateDisplay(time) {
+            let mm = Math.floor(time / 60000);
+            let ss = Math.floor((time % 60000) / 1000);
+            let ms = Math.floor((time % 1000) / 10);
+            elMin.innerText = mm.toString().padStart(2, "0");
+            elSec.innerText = ss.toString().padStart(2, "0");
+            elMsec.innerText = ms.toString().padStart(2, "0");
+        }
+
+        function toggleStartStop() {
+            if (!isRunning) {
+                startTime = Date.now() - elapsedTime;
+                timerInterval = setInterval(() => {
+                    elapsedTime = Date.now() - startTime;
+                    updateDisplay(elapsedTime);
+                }, 10);
+                startStopBtn.innerText = "ストップ";
+                startStopBtn.classList.replace('btn-start', 'btn-stop');
+                isRunning = true;
+            } else {
+                clearInterval(timerInterval);
+                startStopBtn.innerText = "スタート";
+                startStopBtn.classList.replace('btn-stop', 'btn-start');
+                isRunning = false;
+                if (elapsedTime > 0) saveLog();
+            }
+        }
+
+        function reset() {
+            clearInterval(timerInterval);
+            elapsedTime = 0;
+            updateDisplay(0);
+            isRunning = false;
+            startStopBtn.innerText = "スタート";
+            startStopBtn.classList.remove('btn-stop');
+            startStopBtn.classList.add('btn-start');
+        }
+
+        function saveLog() {
+            const m = elMin.innerText;
+            const s = elSec.innerText;
+            const ms = elMsec.innerText;
+            const now = new Date();
+            const timestamp = `${now.getHours()}:${now.getMinutes().toString().padStart(2, '0')}`;
+            logs.push({ m, s, ms, timestamp });
+            updateLogUI();
+        }
+
+        function updateLogUI() {
+            const emptyMsg = document.getElementById('emptyMsg');
+            if (emptyMsg) emptyMsg.remove();
+            
+            const lastLog = logs[logs.length - 1];
+            const div = document.createElement('div');
+            div.className = "log-item flex justify-between items-center py-3 px-5 fade-in";
+            div.innerHTML = `
+                <div class="flex flex-col">
+                    <div class="flex items-center gap-2">
+                        <span class="text-[10px] font-800 text-sky-500 uppercase tracking-tighter">${logs.length}回目</span>
+                        <span class="text-[9px] font-bold opacity-30">${lastLog.timestamp}</span>
+                    </div>
+                </div>
+                <div class="text-xl font-800 tracking-tight opacity-80 flex items-baseline tabular-nums">
+                    ${lastLog.m}<span class="text-[9px] opacity-40 mx-0.5 font-medium">分</span>
+                    ${lastLog.s}<span class="text-[9px] opacity-40 mx-0.5 font-medium">秒</span>
+                    <span class="text-sky-500 text-base ml-1 font-bold">${lastLog.ms}</span>
+                </div>
+            `;
+            logList.insertBefore(div, logList.firstChild);
+        }
+
+        clearLogsBtn.addEventListener('click', () => {
+            if (logs.length > 0) modalOverlay.classList.remove('hidden');
+        });
+
+        confirmDelete.addEventListener('click', () => {
+            logs = [];
+            logList.innerHTML = `<div id="emptyMsg" class="text-center py-24 opacity-40"><p class="text-sm font-bold tracking-widest uppercase">データがありません</p></div>`;
+            modalOverlay.classList.add('hidden');
+        });
+
+        cancelDelete.addEventListener('click', () => {
+            modalOverlay.classList.add('hidden');
+        });
+
+        startStopBtn.addEventListener("click", toggleStartStop);
+        resetBtn.addEventListener("click", reset);
+
+        window.addEventListener("keydown", (e) => {
+            if (e.code === "Space") {
+                e.preventDefault();
+                toggleStartStop();
+            }
+        });
+
+        window.addEventListener('resize', () => {
+            document.body.style.height = window.innerHeight + 'px';
+        });
+        window.dispatchEvent(new Event('resize'));
+    </script>
+</body>
+</html>

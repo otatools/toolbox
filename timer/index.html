@@ -1,0 +1,518 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>わくわくタイマー Pro</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@700;900&display=swap');
+        
+        :root {
+            --primary: #10b981;
+            --primary-bg: #ecfdf5;
+            --accent: #f59e0b;
+            --danger: #ff6b6b;
+            --bg-app: #f8fafc;
+            --bg-card: #ffffff;
+            --bg-input: #f1f5f9;
+            --text-main: #1e293b;
+            --text-sub: #64748b;
+            --border: #e2e8f0;
+            --circle-bg: #f1f5f9;
+        }
+
+        .dark-mode {
+            --bg-app: #0f172a;
+            --bg-card: #1e293b;
+            --bg-input: #334155;
+            --text-main: #f8fafc;
+            --text-sub: #94a3b8;
+            --border: #334155;
+            --circle-bg: #334155;
+            --primary-bg: #064e3b;
+        }
+
+        body {
+            font-family: 'M PLUS Rounded 1c', sans-serif;
+            background-color: var(--bg-app);
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            width: 100%;
+            color: var(--text-main);
+            padding: 1rem;
+            overflow-x: hidden;
+            transition: background-color 0.3s ease, color 0.3s ease;
+        }
+
+        @media (max-height: 450px) {
+            body { padding: 0.5rem; }
+        }
+
+        /* 設定カード */
+        .glass-card {
+            background: var(--bg-card);
+            padding: clamp(1rem, 4vh, 2rem);
+            border-radius: 2.5rem;
+            box-shadow: 0 20px 50px -10px rgba(0, 0, 0, 0.15);
+            max-width: 800px;
+            width: 100%;
+            border: 1px solid var(--border);
+            z-index: 10;
+            transition: all 0.3s ease;
+        }
+
+        .setup-grid {
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+
+        @media (min-width: 768px) {
+            .setup-grid { flex-direction: row; align-items: stretch; }
+            .divider { display: block; background-color: var(--border); width: 1px; margin: 0 1rem; }
+        }
+
+        .divider { display: none; }
+
+        .input-display {
+            font-size: clamp(3rem, 10vh, 5.5rem);
+            font-weight: 900;
+            width: clamp(90px, 22vw, 150px);
+            height: clamp(70px, 15vh, 120px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: var(--bg-input);
+            border-radius: 1.5rem;
+            color: var(--text-main);
+            border: 3px solid var(--border);
+            line-height: 1;
+            box-shadow: inset 0 2px 4px rgba(0,0,0,0.05);
+        }
+
+        .step-btn {
+            width: clamp(45px, 8vh, 60px);
+            height: clamp(45px, 8vh, 60px);
+            border-radius: 1.2rem;
+            background: var(--bg-card);
+            border: 2px solid var(--border);
+            font-size: 1.8rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.2s;
+            color: var(--text-sub);
+        }
+        .step-btn:hover { border-color: var(--primary); color: var(--primary); background: var(--primary-bg); }
+        .step-btn:active { transform: scale(0.9); }
+
+        .add-time-btn {
+            background-color: var(--bg-app);
+            border: 2px solid var(--border);
+            border-radius: 1rem;
+            padding: 0.6rem 0.2rem;
+            font-weight: 900;
+            font-size: clamp(0.85rem, 2vw, 1.1rem);
+            color: var(--text-sub);
+            transition: all 0.2s;
+        }
+        .add-time-btn:hover { border-color: var(--primary); color: var(--primary); background: var(--primary-bg); }
+
+        .main-btn {
+            background: #10b981;
+            color: white;
+            font-size: clamp(1.2rem, 4vh, 2rem);
+            font-weight: 900;
+            padding: 1rem;
+            border-radius: 1.5rem;
+            box-shadow: 0 10px 20px -5px rgba(16, 185, 129, 0.4);
+            transition: all 0.2s;
+            cursor: pointer;
+            width: 100%;
+            margin-top: 0.5rem;
+        }
+        .main-btn:hover { background: #059669; transform: translateY(-2px); }
+
+        /* タイマー表示画面 */
+        .timer-screen {
+            position: fixed;
+            inset: 0;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            background-color: var(--bg-app);
+            z-index: 50;
+            padding: 1rem;
+        }
+
+        @media (orientation: landscape) and (max-height: 500px) {
+            .timer-screen { flex-direction: row; gap: 3rem; }
+            .outer-controls { flex-direction: column; margin-top: 0 !important; width: auto !important; }
+            .circle-container { width: 80vh !important; height: 80vh !important; }
+        }
+
+        .circle-container {
+            position: relative;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            width: clamp(260px, 80vmin, 550px);
+            height: clamp(260px, 80vmin, 550px);
+        }
+
+        .circle-svg {
+            position: absolute;
+            transform: rotate(-90deg);
+            width: 100%;
+            height: 100%;
+        }
+
+        .circle-progress {
+            fill: none;
+            stroke: var(--primary);
+            stroke-width: 20;
+            /* stroke-linecap: round; を削除して端を平らに */
+        }
+
+        .circle-bg {
+            fill: none;
+            stroke: var(--circle-bg);
+            stroke-width: 20;
+        }
+
+        .time-display-box {
+            display: flex;
+            align-items: baseline;
+            justify-content: center;
+            z-index: 10;
+            width: 90%;
+            text-align: center;
+        }
+
+        .time-number {
+            font-size: clamp(3.5rem, 16vmin, 10rem);
+            font-weight: 900;
+            font-variant-numeric: tabular-nums;
+            color: var(--text-main);
+            line-height: 1;
+        }
+
+        .time-unit {
+            font-size: clamp(1rem, 3.5vmin, 2.5rem);
+            font-weight: 700;
+            color: var(--text-sub);
+            margin: 0 0.3rem;
+        }
+
+        .finish-text {
+            color: var(--accent);
+            font-size: clamp(3rem, 13vmin, 9rem) !important;
+            animation: bounce 0.5s infinite alternate;
+            white-space: nowrap; /* 画面が大きくても改行されないように修正 */
+        }
+
+        @keyframes bounce { from { transform: scale(1); } to { transform: scale(1.08); } }
+
+        .outer-controls {
+            display: flex;
+            gap: 1rem;
+            margin-top: 2.5rem;
+            width: 100%;
+            justify-content: center;
+        }
+
+        .control-btn {
+            font-size: clamp(1rem, 3vw, 1.2rem);
+            font-weight: 700;
+            color: var(--text-sub);
+            padding: 0.8rem 2rem;
+            border-radius: 1.2rem;
+            border: 2px solid var(--border);
+            background: var(--bg-card);
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .control-btn:hover { border-color: var(--primary); color: var(--primary); }
+
+        .theme-toggle {
+            position: fixed;
+            top: 1.5rem;
+            right: 1.5rem;
+            z-index: 100;
+            background: var(--bg-card);
+            border: 2px solid var(--border);
+            color: var(--text-main);
+            width: 48px;
+            height: 48px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 1rem;
+            cursor: pointer;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        }
+
+        .footer {
+            position: fixed;
+            bottom: 1rem;
+            width: 100%;
+            text-align: center;
+            color: var(--text-sub);
+            font-size: 0.75rem;
+            letter-spacing: 0.05em;
+            opacity: 0.6;
+            pointer-events: none;
+            z-index: 5;
+        }
+
+        @media (max-height: 400px) {
+            .footer { display: none; }
+        }
+
+        .hidden { display: none !important; }
+    </style>
+</head>
+<body>
+
+<button class="theme-toggle" onclick="toggleTheme()" id="themeBtn">
+    <svg id="sunIcon" class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>
+    <svg id="moonIcon" class="w-6 h-6 hidden" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
+</button>
+
+<div id="setupView" class="glass-card">
+    <div class="setup-grid">
+        <div class="flex-1 flex flex-col items-center gap-4">
+            <h2 class="text-xl font-black text-slate-500">じかんをきめる</h2>
+            <div class="flex items-center gap-4">
+                <div class="flex flex-col items-center gap-2">
+                    <span class="font-bold text-slate-400">分</span>
+                    <button class="step-btn" onclick="adjustTime('min', 1)">＋</button>
+                    <div id="dispMin" class="input-display">00</div>
+                    <button class="step-btn" onclick="adjustTime('min', -1)">ー</button>
+                </div>
+                <div class="flex flex-col items-center gap-2">
+                    <span class="font-bold text-slate-400">秒</span>
+                    <button class="step-btn" onclick="adjustTime('sec', 1)">＋</button>
+                    <div id="dispSec" class="input-display">00</div>
+                    <button class="step-btn" onclick="adjustTime('sec', -1)">ー</button>
+                </div>
+            </div>
+            <button class="text-slate-400 font-bold underline text-sm" onclick="resetSetting()">リセット</button>
+        </div>
+
+        <div class="divider"></div>
+
+        <div class="flex-1 flex flex-col gap-4 justify-center">
+            <div>
+                <p class="font-bold text-slate-400 text-sm mb-1">おわりの音</p>
+                <select id="soundType" class="w-full p-3 border-2 rounded-2xl bg-slate-50 outline-none text-main" style="background-color: var(--bg-input); border-color: var(--border);" onchange="saveSettings()">
+                    <option value="01.mp3">はとどけい</option>
+                    <option value="02.mp3">ゴング</option>
+                    <option value="03.mp3">パフ</option>
+                    <option value="04.mp3">和太鼓</option>
+                    <option value="05.mp3">レジ</option>
+                    <option value="06.mp3">ラッパ</option>
+                    <option value="07.mp3">きらーん</option>
+                    <option value="08.mp3">琴</option>
+                    <option value="09.mp3">終わり</option>
+                    <option value="10.mp3">タイムアップ</option>
+                    <option value="none">音なし</option>
+                </select>
+            </div>
+            <div>
+                <p class="font-bold text-slate-400 text-sm mb-1">時間をたす</p>
+                <div class="grid grid-cols-2 gap-2">
+                    <button class="add-time-btn" onclick="addTimeOnly('sec', 10)">＋10秒</button>
+                    <button class="add-time-btn" onclick="addTimeOnly('sec', 30)">＋30秒</button>
+                    <button class="add-time-btn" onclick="addTimeOnly('min', 5)">＋5分</button>
+                    <button class="add-time-btn" onclick="addTimeOnly('min', 10)">＋10分</button>
+                </div>
+            </div>
+            <button onclick="startTimer()" class="main-btn">スタート！</button>
+        </div>
+    </div>
+</div>
+
+<div id="timerView" class="timer-screen hidden">
+    <div class="circle-container">
+        <svg class="circle-svg" viewBox="0 0 240 240">
+            <circle class="circle-bg" cx="120" cy="120" r="110"></circle>
+            <circle id="progressBar" class="circle-progress" cx="120" cy="120" r="110" stroke-dasharray="691" stroke-dashoffset="0"></circle>
+        </svg>
+        <div id="timeDisplayContainer" class="time-display-box">
+            <span id="minDisplay" class="time-number">00</span>
+            <span class="time-unit">分</span>
+            <span id="secDisplay" class="time-number">00</span>
+            <span class="time-unit">秒</span>
+        </div>
+    </div>
+
+    <div class="outer-controls">
+        <button id="pauseBtn" onclick="togglePause()" class="control-btn shadow-md">一時停止</button>
+        <button id="resetBtn" onclick="resetTimer()" class="control-btn shadow-md">もどる</button>
+    </div>
+</div>
+
+<footer class="footer">
+    学習タイマー | Ver 2.1 | ota tools
+</footer>
+
+<script>
+    let setMin = 0, setSec = 0, totalMs = 0, remainingMs = 0;
+    let startTime = 0, pauseStartTime = 0, isPaused = false, isFinished = false, animationId = null;
+    const STORAGE_KEY = 'wakuwaku_timer_settings_v2';
+
+    function saveSettings() {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify({
+            min: setMin, sec: setSec, 
+            sound: document.getElementById('soundType').value,
+            darkMode: document.body.classList.contains('dark-mode')
+        }));
+    }
+
+    function loadSettings() {
+        const saved = localStorage.getItem(STORAGE_KEY);
+        if (saved) {
+            const s = JSON.parse(saved);
+            setMin = s.min || 0; setSec = s.sec || 0;
+            document.getElementById('soundType').value = s.sound || '01.mp3';
+            if (s.darkMode) {
+                document.body.classList.add('dark-mode');
+                document.getElementById('sunIcon').classList.add('hidden');
+                document.getElementById('moonIcon').classList.remove('hidden');
+            }
+            updateSetupDisplay();
+        }
+    }
+
+    function toggleTheme() {
+        const isDark = document.body.classList.toggle('dark-mode');
+        document.getElementById('sunIcon').classList.toggle('hidden', isDark);
+        document.getElementById('moonIcon').classList.toggle('hidden', !isDark);
+        saveSettings();
+    }
+
+    function updateSetupDisplay() {
+        document.getElementById('dispMin').textContent = setMin.toString().padStart(2, '0');
+        document.getElementById('dispSec').textContent = setSec.toString().padStart(2, '0');
+    }
+
+    function adjustTime(type, val) {
+        if (type === 'min') setMin = Math.max(0, Math.min(99, setMin + val));
+        else setSec = (setSec + val + 60) % 60;
+        updateSetupDisplay();
+        saveSettings();
+    }
+
+    function addTimeOnly(type, val) {
+        let total = (setMin * 60 + setSec) + (type === 'min' ? val * 60 : val);
+        total = Math.max(0, Math.min(5999, total)); 
+        setMin = Math.floor(total / 60);
+        setSec = total % 60;
+        updateSetupDisplay();
+        saveSettings();
+    }
+
+    function resetSetting() { setMin = 0; setSec = 0; updateSetupDisplay(); saveSettings(); }
+
+    const progressBar = document.getElementById('progressBar');
+    const circumference = 2 * Math.PI * 110;
+    progressBar.style.strokeDasharray = circumference;
+
+    function startTimer() {
+        totalMs = ((setMin * 60) + setSec) * 1000;
+        if (totalMs <= 0) return;
+        remainingMs = totalMs;
+        startTime = performance.now();
+        isPaused = false; isFinished = false;
+        document.getElementById('setupView').classList.add('hidden');
+        document.getElementById('themeBtn').classList.add('hidden');
+        document.getElementById('timerView').classList.remove('hidden');
+        resetDisplayUI();
+        animationId = requestAnimationFrame(tick);
+    }
+
+    function resetDisplayUI() {
+        document.getElementById('timeDisplayContainer').innerHTML = `
+            <span id="minDisplay" class="time-number">00</span><span class="time-unit">分</span>
+            <span id="secDisplay" class="time-number">00</span><span class="time-unit">秒</span>
+        `;
+        document.getElementById('pauseBtn').classList.remove('hidden');
+        document.getElementById('pauseBtn').textContent = "一時停止";
+        document.getElementById('resetBtn').textContent = "もどる";
+        progressBar.style.stroke = "var(--primary)";
+    }
+
+    function tick(timestamp) {
+        if (isPaused || isFinished) return;
+        remainingMs = Math.max(0, totalMs - (timestamp - startTime));
+        updateVisuals(remainingMs);
+        if (remainingMs <= 0) finish();
+        else animationId = requestAnimationFrame(tick);
+    }
+
+    function updateVisuals(ms) {
+        const s = Math.ceil(ms / 1000);
+        const m = Math.floor(s / 60);
+        const sec = s % 60;
+        
+        const mDisp = document.getElementById('minDisplay');
+        const sDisp = document.getElementById('secDisplay');
+        if (mDisp) mDisp.textContent = m.toString().padStart(2, '0');
+        if (sDisp) sDisp.textContent = sec.toString().padStart(2, '0');
+
+        const ratio = ms / totalMs;
+        progressBar.style.strokeDashoffset = circumference * (1 - ratio);
+        
+        if (ms <= 10000) progressBar.style.stroke = "var(--danger)";
+        else if (ratio <= 0.2) progressBar.style.stroke = "var(--accent)";
+        else progressBar.style.stroke = "var(--primary)";
+    }
+
+    function togglePause() {
+        if (isFinished) return;
+        if (!isPaused) {
+            isPaused = true;
+            pauseStartTime = performance.now();
+            cancelAnimationFrame(animationId);
+            document.getElementById('pauseBtn').textContent = "つづける";
+        } else {
+            isPaused = false;
+            startTime += (performance.now() - pauseStartTime);
+            document.getElementById('pauseBtn').textContent = "一時停止";
+            animationId = requestAnimationFrame(tick);
+        }
+    }
+
+    function finish() {
+        isFinished = true;
+        cancelAnimationFrame(animationId);
+        progressBar.style.strokeDashoffset = circumference;
+        const sound = document.getElementById('soundType').value;
+        if (sound !== 'none') {
+            const audio = new Audio(sound);
+            audio.play().catch(() => {});
+        }
+        document.getElementById('timeDisplayContainer').innerHTML = '<span class="finish-text">おしまい！</span>';
+        document.getElementById('pauseBtn').classList.add('hidden');
+        document.getElementById('resetBtn').textContent = "もういちど";
+    }
+
+    function resetTimer() {
+        cancelAnimationFrame(animationId);
+        document.getElementById('setupView').classList.remove('hidden');
+        document.getElementById('themeBtn').classList.remove('hidden');
+        document.getElementById('timerView').classList.add('hidden');
+    }
+
+    window.onload = loadSettings;
+</script>
+</body>
+</html>
