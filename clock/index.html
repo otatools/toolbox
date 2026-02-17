@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>高度なシンプル時計</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* 厳選した等幅性の高い日本語対応フォントをインポート */
+        @import url('https://fonts.googleapis.com/css2?family=DotGothic16&family=M+PLUS+1+Code:wght@700&family=Noto+Sans+JP:wght@900&family=Noto+Serif+JP:wght@900&family=IBM+Plex+Sans+JP:wght@700&family=Zen+Antique+Soft&family=Kaisei+Decol:wght@700&display=swap');
+        
+        body {
+            transition: background-color 0.3s ease, color 0.3s ease;
+        }
+
+        /* 物理的に位置を固定するスタイル */
+        .digit-box {
+            display: inline-block;
+            text-align: center;
+            /* 1文字の幅を厳密に固定 */
+            width: 0.65em; 
+        }
+        
+        .separator-box {
+            display: inline-block;
+            text-align: center;
+            width: 0.3em;
+        }
+
+        /* フォント定義 */
+        .font-mplus { font-family: 'M PLUS 1 Code', monospace; }
+        .font-dot { font-family: 'DotGothic16', sans-serif; }
+        .font-ibm { font-family: 'IBM Plex Sans JP', sans-serif; }
+        .font-sans { font-family: 'Noto Sans JP', sans-serif; }
+        .font-serif { font-family: 'Noto Serif JP', serif; }
+        .font-antique { font-family: 'Zen Antique Soft', serif; }
+        .font-kaisei { font-family: 'Kaisei Decol', serif; }
+
+        body.dark { background-color: #020617; color: #f8fafc; }
+        body.light { background-color: #f8fafc; color: #0f172a; }
+
+        .settings-panel {
+            transform: translateX(100%);
+            transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .settings-panel.open {
+            transform: translateX(0);
+        }
+
+        input[type=range] {
+            accent-color: #2563eb;
+        }
+    </style>
+</head>
+<body class="light flex flex-col items-center justify-center min-h-screen overflow-hidden">
+
+    <!-- 設定ボタン -->
+    <button id="settingsBtn" class="absolute top-6 right-6 p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-800 transition-all z-50 hover:rotate-90">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+        </svg>
+    </button>
+
+    <!-- 設定パネル -->
+    <div id="settingsPanel" class="settings-panel fixed top-0 right-0 h-full w-80 bg-white dark:bg-slate-900 shadow-2xl z-40 p-8 overflow-y-auto border-l border-gray-200 dark:border-slate-800 text-slate-800 dark:text-slate-100">
+        <h2 class="text-2xl font-bold mb-6 border-b pb-2">時計設定</h2>
+        
+        <div class="space-y-6">
+            <!-- テーマ -->
+            <div>
+                <label class="block text-sm font-bold mb-2">背景テーマ</label>
+                <div class="flex gap-2">
+                    <button id="themeLight" class="flex-1 py-2 border-2 rounded-md dark:border-slate-700 hover:bg-gray-100 dark:hover:bg-slate-800 transition-colors">ライト</button>
+                    <button id="themeDark" class="flex-1 py-2 border-2 rounded-md dark:border-slate-700 hover:bg-gray-100 dark:hover:bg-slate-800 transition-colors">ダーク</button>
+                </div>
+            </div>
+
+            <!-- 時間表記 -->
+            <div>
+                <label class="block text-sm font-bold mb-2">時間表記</label>
+                <select id="timeFormat" class="w-full p-2 border-2 rounded-md dark:bg-slate-800 dark:border-slate-700">
+                    <option value="24h">24時間表記</option>
+                    <option value="12h">12時間表記</option>
+                </select>
+            </div>
+
+            <!-- 午前/午後のスタイル -->
+            <div id="ampmContainer">
+                <label class="block text-sm font-bold mb-2">午前/午後の種類</label>
+                <select id="ampmStyle" class="w-full p-2 border-2 rounded-md dark:bg-slate-800 dark:border-slate-700">
+                    <option value="jp">午前 / 午後</option>
+                    <option value="en">AM / PM</option>
+                </select>
+            </div>
+
+            <!-- フォント -->
+            <div>
+                <label class="block text-sm font-bold mb-2">フォント（固定幅表示）</label>
+                <select id="fontFamily" class="w-full p-2 border-2 rounded-md dark:bg-slate-800 dark:border-slate-700">
+                    <option value="mplus">M PLUS 1 Code</option>
+                    <option value="dot">ドットゴシック</option>
+                    <option value="ibm">IBM Plex JP</option>
+                    <option value="antique">アンティーク</option>
+                    <option value="kaisei">解星デコル</option>
+                    <option value="sans">Noto Sans JP</option>
+                    <option value="serif">Noto Serif JP</option>
+                </select>
+            </div>
+
+            <!-- 文字サイズ -->
+            <div>
+                <label class="block text-sm font-bold mb-2">表示サイズ</label>
+                <input type="range" id="clockSize" min="5" max="35" step="1" class="w-full">
+            </div>
+
+            <!-- 日付表示 -->
+            <div class="flex items-center justify-between">
+                <label class="text-sm font-bold">日付を表示する</label>
+                <input type="checkbox" id="showDate" class="w-6 h-6 rounded border-gray-300">
+            </div>
+        </div>
+
+        <button id="closeSettings" class="mt-8 w-full py-3 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 transition-colors shadow-lg">設定を閉じる</button>
+    </div>
+
+    <!-- メイン時計表示エリア -->
+    <div class="text-center select-none w-full px-4 flex flex-col items-center justify-center">
+        <!-- 日付 -->
+        <div id="dateDisplay" class="font-bold opacity-60 mb-6 text-center"></div>
+        
+        <!-- 時計（各文字をボックス化してガタつきを防止） -->
+        <div id="clockDisplay" class="font-bold leading-none whitespace-nowrap flex justify-center items-baseline">
+            <span class="digit-box" id="h1">0</span><span class="digit-box" id="h2">0</span>
+            <span class="separator-box">:</span>
+            <span class="digit-box" id="m1">0</span><span class="digit-box" id="m2">0</span>
+            <span class="separator-box">:</span>
+            <span class="digit-box" id="s1">0</span><span class="digit-box" id="s2">0</span>
+        </div>
+        
+        <!-- 午前午後 -->
+        <div id="periodDisplay" class="font-bold mt-6"></div>
+    </div>
+
+    <script>
+        // 設定の状態管理
+        let config = {
+            theme: 'light',
+            format: '24h',
+            ampmStyle: 'jp',
+            font: 'mplus',
+            size: 18,
+            showDate: true
+        };
+
+        // LocalStorageから読み込み
+        const savedConfig = localStorage.getItem('clock_settings_v6');
+        if (savedConfig) {
+            config = { ...config, ...JSON.parse(savedConfig) };
+        }
+
+        const elements = {
+            body: document.body,
+            clockContainer: document.getElementById('clockDisplay'),
+            date: document.getElementById('dateDisplay'),
+            period: document.getElementById('periodDisplay'),
+            panel: document.getElementById('settingsPanel'),
+            btnSettings: document.getElementById('settingsBtn'),
+            btnClose: document.getElementById('closeSettings'),
+            digits: {
+                h1: document.getElementById('h1'), h2: document.getElementById('h2'),
+                m1: document.getElementById('m1'), m2: document.getElementById('m2'),
+                s1: document.getElementById('s1'), s2: document.getElementById('s2')
+            }
+        };
+
+        const inputs = {
+            themeLight: document.getElementById('themeLight'),
+            themeDark: document.getElementById('themeDark'),
+            timeFormat: document.getElementById('timeFormat'),
+            ampmStyle: document.getElementById('ampmStyle'),
+            fontFamily: document.getElementById('fontFamily'),
+            clockSize: document.getElementById('clockSize'),
+            showDate: document.getElementById('showDate')
+        };
+
+        function saveConfig() {
+            localStorage.setItem('clock_settings_v6', JSON.stringify(config));
+        }
+
+        function applyConfig() {
+            elements.body.className = `flex flex-col items-center justify-center min-h-screen overflow-hidden ${config.theme}`;
+            
+            const fontClass = `font-${config.font}`;
+            elements.clockContainer.className = `${fontClass} font-bold leading-none whitespace-nowrap flex justify-center items-baseline`;
+            elements.date.className = `${fontClass} font-bold opacity-60 mb-6 text-center`;
+            elements.period.className = `${fontClass} font-bold mt-6 text-center`;
+            
+            elements.clockContainer.style.fontSize = `${config.size}vw`;
+            elements.date.style.fontSize = `${config.size * 0.18}vw`;
+            elements.period.style.fontSize = `${config.size * 0.22}vw`;
+
+            elements.date.style.display = config.showDate ? 'block' : 'none';
+            document.getElementById('ampmContainer').style.display = config.format === '12h' ? 'block' : 'none';
+
+            inputs.timeFormat.value = config.format;
+            inputs.ampmStyle.value = config.ampmStyle;
+            inputs.fontFamily.value = config.font;
+            inputs.clockSize.value = config.size;
+            inputs.showDate.checked = config.showDate;
+        }
+
+        function updateClock() {
+            const now = new Date();
+            
+            const dateOptions = { weekday: 'short', year: 'numeric', month: '2-digit', day: '2-digit' };
+            elements.date.textContent = now.toLocaleDateString('ja-JP', dateOptions);
+
+            let hours = now.getHours();
+            const minutes = String(now.getMinutes()).padStart(2, '0');
+            const seconds = String(now.getSeconds()).padStart(2, '0');
+            let ampmText = '';
+
+            if (config.format === '12h') {
+                const isPm = hours >= 12;
+                ampmText = config.ampmStyle === 'jp' ? (isPm ? '午後' : '午前') : (isPm ? 'PM' : 'AM');
+                hours = hours % 12 || 12;
+            }
+            
+            const hStr = String(hours).padStart(2, '0');
+            
+            // 各桁を個別に更新（幅が固定されているためずれません）
+            elements.digits.h1.textContent = hStr[0];
+            elements.digits.h2.textContent = hStr[1];
+            elements.digits.m1.textContent = minutes[0];
+            elements.digits.m2.textContent = minutes[1];
+            elements.digits.s1.textContent = seconds[0];
+            elements.digits.s2.textContent = seconds[1];
+            
+            elements.period.textContent = ampmText;
+        }
+
+        elements.btnSettings.addEventListener('click', () => elements.panel.classList.add('open'));
+        elements.btnClose.addEventListener('click', () => elements.panel.classList.remove('open'));
+
+        inputs.themeLight.addEventListener('click', () => { config.theme = 'light'; applyConfig(); saveConfig(); });
+        inputs.themeDark.addEventListener('click', () => { config.theme = 'dark'; applyConfig(); saveConfig(); });
+        inputs.timeFormat.addEventListener('change', (e) => { config.format = e.target.value; applyConfig(); saveConfig(); });
+        inputs.ampmStyle.addEventListener('change', (e) => { config.ampmStyle = e.target.value; applyConfig(); saveConfig(); });
+        inputs.fontFamily.addEventListener('change', (e) => { config.font = e.target.value; applyConfig(); saveConfig(); });
+        inputs.clockSize.addEventListener('input', (e) => { config.size = e.target.value; applyConfig(); saveConfig(); });
+        inputs.showDate.addEventListener('change', (e) => { config.showDate = e.target.checked; applyConfig(); saveConfig(); });
+
+        setInterval(updateClock, 200); 
+        applyConfig();
+        updateClock();
+    </script>
+</body>
+</html>
