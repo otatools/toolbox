@@ -365,23 +365,8 @@ m: parseInt(month), d: parseInt(day)
 };
 };
 
-async function cleanupOldRooms() {
-    const thirtyMinutesAgo = Date.now() - (30 * 60 * 1000); 
-    const roomsRef = collection(db, "rooms");
-    const q = query(roomsRef, where("createdAt", "<", thirtyMinutesAgo));
-    try {
-        const querySnapshot = await getDocs(q);
-        querySnapshot.forEach(async (roomDoc) => {
-            await deleteDoc(doc(db, "rooms", roomDoc.id));
-        });
-    } catch (e) {
-        console.error("Cleanup error:", e);
-    }
-}
-
 document.getElementById('btn-create-mode').onclick = async () => {
 myProfile = getBasicProfile(); if(!myProfile) return;
-await cleanupOldRooms(); 
 isHost = true; myRoomId = Math.floor(1000 + Math.random() * 9000).toString();
 await setDoc(doc(db, "rooms", myRoomId), { 
     status: "waiting", 
@@ -390,6 +375,13 @@ await setDoc(doc(db, "rooms", myRoomId), {
 });
 enterLobby(myRoomId);
 };
+
+// 親機（ホスト）が画面を閉じたときに部屋を削除する
+window.addEventListener('beforeunload', () => {
+    if (isHost && myRoomId) {
+        deleteDoc(doc(db, "rooms", myRoomId));
+    }
+});
 
 document.getElementById('btn-join-mode').onclick = () => { if(getBasicProfile()) { document.getElementById('setup-screen').classList.add('hidden'); document.getElementById('join-screen').classList.remove('hidden'); }};
 
