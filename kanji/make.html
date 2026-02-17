@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+
+<html lang="ja">
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <title>漢字パズル作成ツール</title>
+
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <style>
+
+        body { background: #f8fafc; padding: 20px; font-family: sans-serif; }
+
+        .input-card { background: white; padding: 20px; border-radius: 16px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); margin-bottom: 20px; }
+
+        .row-unit { display: flex; flex-direction: column; gap: 8px; padding: 15px; border: 1px solid #e2e8f0; border-radius: 12px; margin-bottom: 15px; background: #fff; }
+
+        .label-tag { background: #3b82f6; color: white; padding: 2px 10px; border-radius: 4px; font-weight: bold; font-size: 0.8rem; width: fit-content; }
+
+        .input-flex { display: flex; gap: 8px; }
+
+        input { border: 2px solid #e2e8f0; border-radius: 6px; padding: 8px; font-size: 0.95rem; }
+
+        input:focus { border-color: #3b82f6; outline: none; background: #f0f9ff; }
+
+        .w-kanji { width: 80px; text-align: center; font-weight: bold; }
+
+        .w-kana { width: 120px; color: #1d4ed8; }
+
+        .w-mean { flex-grow: 1; }
+
+        .grid-layout { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; max-width: 240px; margin: 0 auto; }
+
+        .preview-cell { text-align: center; background: #f1f5f9; border-radius: 6px; padding: 10px; font-size: 1.2rem; font-weight: bold; border: 1px solid #cbd5e1; min-height: 48px; display: flex; align-items: center; justify-content: center; }
+
+        .answer-cell { background: #fee2e2; border-color: #ef4444; color: #b91c1c; }
+
+        #result { white-space: nowrap; overflow-x: auto; }
+
+    </style>
+
+</head>
+
+<body>
+
+
+
+<div class="max-w-4xl mx-auto">
+
+    <h1 class="text-xl font-black mb-4 text-slate-800 text-center">漢字パズル作成ツール</h1>
+
+
+
+    <div class="input-card">
+
+        <div class="mb-6 pb-4 border-b flex items-center gap-4">
+
+            <div>
+
+                <label class="block text-sm font-bold text-slate-700 mb-2">問題IDを入力</label>
+
+                <input type="number" id="manual_id" class="w-32 bg-yellow-50 border-yellow-200" value="1">
+
+            </div>
+
+            <p class="text-xs text-slate-400 mt-6">※熟語を打つと「よみ」に反映されます。Enterで移動。</p>
+
+        </div>
+
+
+
+        <label class="block mb-3 text-slate-600 font-bold">熟語・読み・意味を入力</label>
+
+        
+
+        <div id="input-container">
+
+            <div class="row-unit" id="row_0">
+
+                <div class="label-tag">上</div>
+
+                <div class="input-flex">
+
+                    <input type="text" class="w-kanji kanji" placeholder="倍増" oninput="syncAndAnalyze(0)">
+
+                    <input type="text" class="w-kana kana" placeholder="よみ">
+
+                    <input type="text" class="w-mean mean" placeholder="二倍にふえる">
+
+                </div>
+
+            </div>
+
+            <div class="row-unit" id="row_1">
+
+                <div class="label-tag">左</div>
+
+                <div class="input-flex">
+
+                    <input type="text" class="w-kanji kanji" placeholder="急増" oninput="syncAndAnalyze(1)">
+
+                    <input type="text" class="w-kana kana" placeholder="きゅうぞう">
+
+                    <input type="text" class="w-mean mean" placeholder="急にふえる">
+
+                </div>
+
+            </div>
+
+            <div class="row-unit" id="row_2">
+
+                <div class="label-tag">右</div>
+
+                <div class="input-flex">
+
+                    <input type="text" class="w-kanji kanji" placeholder="増税" oninput="syncAndAnalyze(2)">
+
+                    <input type="text" class="w-kana kana" placeholder="ぞうぜい">
+
+                    <input type="text" class="w-mean mean" placeholder="税金を増やす">
+
+                </div>
+
+            </div>
+
+            <div class="row-unit" id="row_3">
+
+                <div class="label-tag">下</div>
+
+                <div class="input-flex">
+
+                    <input type="text" class="w-kanji kanji" placeholder="増加" oninput="syncAndAnalyze(3)">
+
+                    <input type="text" class="w-kana kana" placeholder="ぞうか">
+
+                    <input type="text" class="w-mean mean" placeholder="ふえること">
+
+                </div>
+
+            </div>
+
+        </div>
+
+
+
+        <div class="bg-slate-50 p-6 rounded-xl border-2 border-dashed border-slate-200">
+
+            <div class="grid-layout">
+
+                <div></div><div id="p_top" class="preview-cell">-</div><div></div>
+
+                <div id="p_left" class="preview-cell">-</div>
+
+                <div id="p_answer" class="preview-cell answer-cell">-</div>
+
+                <div id="p_right" class="preview-cell">-</div>
+
+                <div></div><div id="p_bottom" class="preview-cell">-</div><div></div>
+
+            </div>
+
+            <p class="text-center text-xs mt-4 text-slate-500 font-bold">画数自動取得：<span id="strokes_val" class="text-blue-600 text-sm">-</span></p>
+
+        </div>
+
+
+
+        <button onclick="generate()" class="w-full mt-6 bg-blue-600 text-white font-bold py-4 rounded-xl shadow-lg active:scale-95 transition">JSONを1行で生成</button>
+
+    </div>
+
+
+
+    <div class="input-card">
+
+        <label class="block mb-2 text-slate-600 font-bold">生成結果</label>
+
+        <textarea id="result" rows="3" readonly class="w-full bg-slate-900 text-green-400 font-mono text-xs p-4 rounded-lg"></textarea>
+
+        <button onclick="copyData()" id="copyBtn" class="w-full bg-slate-800 text-white font-bold py-4 rounded-xl mt-3 hover:bg-slate-700">コピーして次の問題へ</button>
+
+    </div>
+
+</div>
+
+
+
+<script>
+
+    // Enter移動
+
+    document.addEventListener('keydown', (e) => {
+
+        if (e.key === 'Enter') {
+
+            const inputs = Array.from(document.querySelectorAll('input[type="text"], input[type="number"]'));
+
+            const idx = inputs.indexOf(document.activeElement);
+
+            if (idx > -1 && idx < inputs.length - 1) {
+
+                e.preventDefault();
+
+                inputs[idx + 1].focus();
+
+            } else if (idx === inputs.length - 1) {
+
+                generate();
+
+            }
+
+        }
+
+    });
+
+
+
+    // 熟語入力と読みの同期、および解析
+
+    function syncAndAnalyze(idx) {
+
+        const kanjiInput = document.querySelectorAll('.kanji')[idx];
+
+        const kanaInput = document.querySelectorAll('.kana')[idx];
+
+        
+
+        // 【重要】熟語に「ひらがな」を入力している間だけ、読みの枠にコピーする
+
+        // 漢字に変換した後はコピーを停止（読みを上書きしないため）
+
+        const val = kanjiInput.value;
+
+        const isHiragana = /^[ぁ-んー]*$/.test(val);
+
+        
+
+        if (isHiragana && val.length > 0) {
+
+            kanaInput.value = val;
+
+        }
+
+
+
+        analyze();
+
+    }
+
+
+
+    async function analyze() {
+
+        const kanjiInputs = document.querySelectorAll('.kanji');
+
+        const words = Array.from(kanjiInputs).map(i => i.value.trim());
+
+        if (words.filter(w => w.length >= 1).length < 2) return;
+
+
+
+        const charCounts = {};
+
+        let answerChar = "";
+
+        words.join('').split('').forEach(c => {
+
+            charCounts[c] = (charCounts[c] || 0) + 1;
+
+            if (charCounts[c] >= 2) answerChar = c;
+
+        });
+
+
+
+        if (answerChar) {
+
+            document.getElementById('p_answer').innerText = answerChar;
+
+            document.getElementById('p_top').innerText = words[0].replace(answerChar, '') || "-";
+
+            document.getElementById('p_left').innerText = words[1].replace(answerChar, '') || "-";
+
+            document.getElementById('p_right').innerText = words[2].replace(answerChar, '') || "-";
+
+            document.getElementById('p_bottom').innerText = words[3].replace(answerChar, '') || "-";
+
+            
+
+            fetch(`https://kanjiapi.dev/v1/kanji/${encodeURIComponent(answerChar)}`)
+
+                .then(r => r.json()).then(data => {
+
+                    if (data.stroke_count) document.getElementById('strokes_val').innerText = data.stroke_count;
+
+                }).catch(() => {});
+
+        }
+
+    }
+
+
+
+    function generate() {
+
+        const kanjis = document.querySelectorAll('.kanji');
+
+        const kanas = document.querySelectorAll('.kana');
+
+        const means = document.querySelectorAll('.mean');
+
+        
+
+        // JSON出力：上(0), 下(3), 左(1), 右(2)
+
+        const sortOrder = [0, 3, 1, 2];
+
+        const lines = sortOrder.map(i => {
+
+            const k = kanjis[i].value;
+
+            const y = kanas[i].value;
+
+            const m = means[i].value;
+
+            return `【${k}${y ? '('+y+')' : ''}】${m}`;
+
+        });
+
+
+
+        const data = {
+
+            "id": parseInt(document.getElementById('manual_id').value) || 0,
+
+            "top": document.getElementById('p_top').innerText,
+
+            "bottom": document.getElementById('p_bottom').innerText,
+
+            "left": document.getElementById('p_left').innerText,
+
+            "right": document.getElementById('p_right').innerText,
+
+            "answer": document.getElementById('p_answer').innerText,
+
+            "strokes": parseInt(document.getElementById('strokes_val').innerText) || 0,
+
+            "description": lines.join('\\n')
+
+        };
+
+
+
+        const jsonLine = `{ "id": ${data.id}, "top": "${data.top}", "bottom": "${data.bottom}", "left": "${data.left}", "right": "${data.right}", "answer": "${data.answer}", "strokes": ${data.strokes}, "description": "${data.description}" },`;
+
+        document.getElementById('result').value = jsonLine;
+
+    }
+
+
+
+    function copyData() {
+
+        const el = document.getElementById('result');
+
+        if(!el.value) return;
+
+        el.select();
+
+        document.execCommand('copy');
+
+        document.getElementById('copyBtn').innerText = "コピー完了！IDを更新しました";
+
+        
+
+        const idInput = document.getElementById('manual_id');
+
+        idInput.value = parseInt(idInput.value) + 1;
+
+        
+
+        document.querySelectorAll('input[type="text"]').forEach(i => i.value = "");
+
+        setTimeout(() => document.getElementById('copyBtn').innerText = "コピーして次の問題へ", 2000);
+
+    }
+
+</script>
+
+
+
+</body>
+
+</html>

@@ -1,0 +1,599 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>漢字クロスワード</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Klee+One:wght@600;900&family=Noto+Serif+JP:wght@700;900&display=block" rel="stylesheet">
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    <style>
+        :root {
+            --primary-bg: #f8fafc;
+            --ink-black: #1a1a1a;
+            --arrow-color: #94a3b8;
+            --guide-color: #e2e8f0; 
+            scrollbar-gutter: stable;
+        }
+
+        body {
+            background-color: var(--primary-bg);
+            /* フォントが読み込まれるまで非表示にしたい場合は visibility: hidden; を検討 */
+            font-family: 'Noto Serif JP', serif;
+            color: var(--ink-black);
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            user-select: none;
+            min-height: 100vh;
+            min-height: 100dvh;
+            overflow-x: hidden;
+            overflow-y: auto;
+        }
+
+        @media (max-width: 1023px) {
+            .toggle-btn { display: none !important; }
+        }
+
+        @media (max-width: 1023px) and (orientation: portrait) {
+            #game-screen {
+                transform: scale(0.65); /* 0.75から0.65に修正 */
+                transform-origin: top center;
+                margin-bottom: -15vh; /* スケールダウンによる余白をさらに詰め */
+            }
+            #main-container {
+                gap: 0.25rem !important;
+                padding-left: 0.5rem !important;
+                padding-right: 0.5rem !important;
+            }
+            .game-header {
+                margin-top: 0.5rem !important;
+                margin-bottom: 0.5rem !important;
+            }
+            #explanation-area { padding: 0.6rem !important; }
+            #explanation-area h3 { margin-bottom: 0.3rem !important; font-size: 0.9rem !important; padding-bottom: 0.1rem !important; }
+            .explanation-row { margin-bottom: 0.2rem !important; }
+            .puzzle-wrapper { padding: 5px !important; }
+            #game-msg { height: 2.5rem !important; margin-top: 0.5rem !important; }
+        }
+        
+        #game-screen {
+            transform-origin: top center;
+        }
+
+        .course-card { 
+            position: relative;
+            background: white; 
+            border: 2px solid #e2e8f0; 
+            border-radius: 1.5rem; 
+            padding: 1.5rem 1rem;
+            cursor: pointer; 
+            transition: all 0.2s ease; 
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.05);
+        }
+        @media (min-width: 640px) { .course-card { padding: 2rem; } }
+        .course-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1);
+            border-color: #cbd5e1;
+        }
+
+        .menu-grid { display: grid; grid-template-columns: 1fr; gap: 1rem; width: 100%; max-width: 1200px; padding: 20px 0; }
+        @media (min-width: 480px) { .menu-grid { grid-template-columns: repeat(2, 1fr); } }
+        @media (min-width: 900px) { .menu-grid { grid-template-columns: repeat(5, 1fr); } }
+        
+        .menu-item, .course-card { position: relative; }
+        .menu-item { padding: 1.5rem 1rem; background: white; border: 2px solid #e2e8f0; border-radius: 20px; display: flex; flex-direction: column; align-items: center; justify-content: center; cursor: pointer; }
+        .cleared { background: #fffcf0 !important; border-color: #fbbf24 !important; }
+        .crown-icon { position: absolute; top: -12px; right: -8px; font-size: 2.2rem; transform: rotate(15deg); z-index: 10; }
+
+        .puzzle-wrapper { position: relative; padding: 10px; }
+        .cross-layout {
+            display: grid;
+            grid-template-columns: 70px 100px 70px;
+            grid-template-rows: 70px 100px 70px;
+            gap: 20px; align-items: center; justify-items: center;
+        }
+        @media (min-width: 640px) {
+            .cross-layout { grid-template-columns: 100px 140px 100px; grid-template-rows: 100px 140px 100px; gap: 30px; }
+        }
+
+        .char-box { width: 70px; height: 70px; background: white; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 2.2rem; border: 3px solid #334155; }
+        @media (min-width: 640px) { .char-box { width: 100px; height: 100px; font-size: 3.5rem; } }
+
+        .center-box { width: 100px; height: 100px; background: white; border: 5px solid #3b82f6; border-radius: 16px; display: flex; align-items: center; justify-content: center; font-size: 3rem; color: #3b82f6; font-weight: 900; }
+        @media (min-width: 640px) { .center-box { width: 140px; height: 140px; font-size: 4.5rem; } }
+        .center-box.correct { color: #e11d48; border-color: #e11d48; background: #fff1f2; }
+
+        .arrow-tip { position: absolute; width: 0; height: 0; border-style: solid; z-index: 20; }
+        .a-top { top: -24px; left: 50%; transform: translateX(-50%); border-width: 16px 12px 0 12px; border-color: var(--arrow-color) transparent transparent transparent; }
+        .a-left { left: -24px; top: 50%; transform: translateY(-50%); border-width: 12px 0 12px 16px; border-color: transparent transparent transparent var(--arrow-color); }
+        .a-right { right: -24px; top: 50%; transform: translateY(-50%); border-width: 12px 0 12px 16px; border-color: transparent transparent transparent var(--arrow-color); }
+        .a-bottom { bottom: -24px; left: 50%; transform: translateX(-50%); border-width: 16px 12px 0 12px; border-color: var(--arrow-color) transparent transparent transparent; }
+
+        @media (max-width: 639px) {
+            .a-top { top: -16px; }
+            .a-left { left: -16px; }
+            .a-right { right: -20px; }
+            .a-bottom { bottom: -20px; }
+        }
+
+        #canvas-container { 
+            width: 320px; height: 320px; background: white; border: 5px solid #1e293b; border-radius: 20px; position: relative; touch-action: none; overflow: hidden; 
+            background-image: 
+                repeating-linear-gradient(to right, var(--guide-color), var(--guide-color) 10px, transparent 10px, transparent 20px),
+                repeating-linear-gradient(to bottom, var(--guide-color), var(--guide-color) 10px, transparent 10px, transparent 20px);
+            background-position: center center;
+            background-size: 100% 2px, 2px 100%; 
+            background-repeat: no-repeat;
+        }
+
+        @media (min-width: 640px) { #canvas-container { width: 400px; height: 400px; } }
+        canvas { position: relative; z-index: 10; width: 100%; height: 100%; background: transparent; touch-action: none; }
+        
+        #canvas-hint { 
+            position: absolute; 
+            top: 45%; 
+            left: 50%; 
+            transform: translate(-50%, -50%); 
+            font-size: 350px; 
+            color: rgba(0, 0, 0, 0.08); 
+            pointer-events: none; 
+            z-index: 2; 
+            display: none; 
+            font-family: 'Klee One', serif; 
+            font-weight: 900; 
+            line-height: 1;
+        }
+
+        #explanation-area { position: absolute; inset: 0; z-index: 50; background: white; padding: 1.2rem; overflow-y: hidden; display: none; }
+        #explanation-text { font-size: 1.15rem; line-height: 1.55; opacity: 0; }
+        
+        /* 熟語と意味の間の距離を最小化 */
+        .explanation-row {
+            display: grid;
+            grid-template-columns: 4.8em 1fr; /* 5.5emから4.8emに縮小して接近 */
+            gap: 0.3rem; /* 余白をさらに縮小 */
+            margin-bottom: 0.4rem;
+            align-items: baseline;
+        }
+        .explanation-term { font-weight: 900; color: var(--ink-black); white-space: nowrap; }
+        .explanation-desc { text-align: justify; }
+
+        ruby { ruby-position: over; }
+        rt { font-family: 'Noto Serif JP', serif; font-size: 0.55em; color: #64748b; line-height: 1; vertical-align: top; }
+
+        .candidate-btn { background: white; border: 3px solid #3b82f6; padding: 8px 24px; font-size: 2.5rem; border-radius: 16px; margin: 8px; cursor: pointer; font-family: 'Klee One', serif; }
+
+        .problem-title-box {
+            position: relative;
+            padding: 0.5rem 1rem;
+            border-radius: 12px;
+            background: white;
+            border: 2px solid #e2e8f0;
+            transition: all 0.3s ease;
+            min-width: 140px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        @media (min-width: 640px) {
+            .problem-title-box { min-width: 180px; padding: 0.5rem 1.5rem; }
+        }
+        .problem-title-box.cleared {
+            background: #fffcf0 !important;
+            border-color: #fbbf24 !important;
+        }
+        .problem-title-box .crown-icon-sm {
+            position: absolute;
+            top: -15px;
+            right: -10px;
+            font-size: 1.8rem;
+            transform: rotate(15deg);
+        }
+        
+        .game-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            width: 100%;
+            max-width: 1000px;
+            padding: 0 1rem;
+        }
+
+        #candidate-area {
+            visibility: hidden;
+            display: block;
+            min-height: 120px; 
+            height: auto;
+            margin-top: 1rem;
+            pointer-events: none;
+        }
+        #candidate-area.show {
+            visibility: visible;
+            pointer-events: auto;
+        }
+    </style>
+</head>
+<body class="sm:p-4">
+
+    <div id="course-screen" class="w-full max-w-6xl text-center py-8 sm:py-12 px-4 flex-grow">
+        <h1 class="text-4xl sm:text-7xl font-black text-slate-800 mb-2 sm:mb-4">漢字クロスワード</h1>
+        <p class="text-slate-500 font-bold mb-8 sm:mb-12 text-sm sm:text-lg">挑戦するコースを選んでね！</p>
+        <div id="course-list" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8">
+            <p>読み込み中...</p>
+        </div>
+    </div>
+
+    <div id="menu-screen" class="hidden w-full max-w-5xl text-center py-6 flex-grow px-4">
+        <div class="w-full grid grid-cols-[auto_1fr_auto] items-center mb-6">
+            <button onclick="showCourseSelect()" class="font-bold px-4 py-2 bg-white rounded-xl border-2 border-slate-200 text-sm hover:bg-slate-50 transition-colors">← もどる</button>
+            <h2 id="current-course-title" class="text-lg sm:text-3xl font-black text-slate-800 text-center whitespace-nowrap"></h2>
+            <div class="w-[85px]"></div> </div>
+        
+        <div id="stats" class="mb-8 text-amber-600 font-black bg-[#fffef0] px-6 py-2 rounded-full border-2 border-amber-300 inline-flex items-center gap-3 text-xl shadow-sm">
+            <span class="text-2xl drop-shadow-sm">👑</span>
+            <span class="text-amber-700">獲得数:</span>
+            <span id="stat-count" class="text-2xl">0 / 0</span>
+        </div>
+
+        <div class="menu-grid mx-auto" id="menu-grid"></div>
+    </div>
+
+    <div id="game-screen" class="hidden w-full flex flex-col items-center flex-grow pb-32">
+        <div class="game-header mb-4 mt-2">
+            <button onclick="showMenu()" class="font-bold py-2 px-4 bg-white rounded-xl border-2 border-slate-200 text-sm">← 戻る</button>
+            <div id="problem-title-container" class="problem-title-box">
+                <div id="problem-title" class="text-xl sm:text-3xl font-black text-slate-800"></div>
+            </div>
+            <div class="flex justify-end">
+                <button onclick="toggleHandedness()" class="toggle-btn font-bold py-2 px-3 bg-white rounded-xl border-2 border-slate-200 text-xs">左右切替</button>
+                <div class="lg:hidden w-[80px]"></div> </div>
+        </div>
+
+        <div id="main-container" class="flex flex-col lg:flex-row justify-center items-center lg:items-start gap-4 sm:gap-8 w-full px-4">
+            <div class="flex flex-col items-center">
+                <div class="puzzle-wrapper">
+                    <div class="cross-layout">
+                        <div></div><div class="char-box" id="q-top"></div><div></div>
+                        <div class="char-box" id="q-left"></div>
+                        <div class="relative">
+                            <div class="arrow-tip a-top"></div> <div class="arrow-tip a-left"></div> <div class="arrow-tip a-right"></div> <div class="arrow-tip a-bottom"></div> <div class="center-box" id="center-display">？</div>
+                        </div>
+                        <div class="char-box" id="q-right"></div>
+                        <div></div><div class="char-box" id="q-bottom"></div><div></div>
+                    </div>
+                </div>
+                <div id="game-msg" class="text-xl font-black h-12 sm:h-20 mt-2 sm:mt-4 text-center px-4 flex items-center justify-center"></div>
+                <button id="next-btn" onclick="nextQuestion()" class="hidden bg-blue-500 text-white px-8 py-3 rounded-full text-xl font-black shadow-lg mb-4">つぎへ進む</button>
+                <button id="skip-btn" onclick="nextQuestion()" class="hidden bg-slate-400 text-white px-8 py-3 rounded-full text-lg font-black shadow-lg mb-4">分からない（つぎへ進む）</button>
+                <button id="finish-btn" onclick="showMenu()" class="hidden bg-amber-500 text-white px-8 py-3 rounded-full text-xl font-black shadow-lg mb-4">メニューへ戻る</button>
+            </div>
+
+            <div class="flex flex-col items-center w-full max-w-[320px] sm:max-w-[400px]">
+                <div id="canvas-container">
+                    <div id="canvas-hint"></div>
+                    <canvas id="hw-canvas"></canvas>
+                    <div id="explanation-area">
+                        <h3 class="text-blue-600 font-black text-xl mb-4 border-b-2 border-blue-100 pb-2">熟語の意味</h3>
+                        <div id="explanation-text" class="text-slate-700 font-bold"></div>
+                    </div>
+                </div>
+                <div class="flex gap-3 mt-4 w-full px-1">
+                    <button onclick="clearCanvas()" class="flex-1 bg-white border-2 border-slate-200 py-3 sm:py-4 rounded-xl font-bold text-base sm:text-lg shadow-sm">消す</button>
+                    <button id="recognize-btn" onclick="recognize()" class="flex-[2] bg-slate-800 text-white py-3 sm:py-4 rounded-xl font-bold text-lg sm:text-xl shadow-lg">判定する</button>
+                </div>
+                <div id="candidate-area" class="px-4 py-2 bg-white rounded-2xl border-4 border-blue-5 w-full text-center">
+                    <div id="candidates" class="flex flex-wrap justify-center"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <footer class="w-full py-4 text-slate-400 text-[10px] sm:text-xs text-center border-t border-slate-100 bg-white/50">
+        漢字パズル | Ver 4.8.2 | ota tools
+    </footer>
+
+    <script>
+        let courseData = null; let currentCourseKey = ""; let questions = []; let currentIdx = 0; let clearedQuestions = [];
+        let leftHanded = localStorage.getItem('ota_v21_hand') === 'true';
+
+        async function loadCourseData() {
+            try {
+                const response = await fetch('data.json');
+                courseData = await response.json();
+                renderCourseList();
+            } catch (error) { console.error(error); }
+        }
+
+        function showCourseSelect() {
+            document.body.style.overflowY = "auto";
+            document.getElementById('course-screen').classList.remove('hidden');
+            document.getElementById('menu-screen').classList.add('hidden');
+            document.getElementById('game-screen').classList.add('hidden');
+            renderCourseList();
+        }
+
+        function renderCourseList() {
+            const list = document.getElementById('course-list');
+            if (!courseData) return;
+            list.innerHTML = '';
+            Object.keys(courseData).forEach(key => {
+                const course = courseData[key];
+                const card = document.createElement('div');
+                const saved = JSON.parse(localStorage.getItem(`ota_save_${key}`)) || [];
+                const isAllCleared = saved.length >= course.questions.length && course.questions.length > 0;
+                card.className = `course-card ${isAllCleared ? 'cleared' : ''}`;
+                card.innerHTML = `
+                    ${isAllCleared ? '<div class="crown-icon">👑</div>' : ''}
+                    <h3 class="text-xl sm:text-2xl font-black mb-1 sm:mb-2">${course.title}</h3>
+                    <p class="text-slate-400 font-bold mb-3 sm:mb-4 text-xs sm:text-sm">全 ${course.questions.length} 問</p>
+                    <div class="${isAllCleared ? 'text-amber-600' : 'text-blue-500'} font-bold text-sm sm:text-base">クリア: ${saved.length} / ${course.questions.length}</div>
+                `;
+                card.onclick = () => selectCourse(key);
+                list.appendChild(card);
+            });
+        }
+
+        function selectCourse(key) {
+            currentCourseKey = key;
+            questions = courseData[key].questions;
+            clearedQuestions = JSON.parse(localStorage.getItem(`ota_save_${key}`)) || [];
+            document.getElementById('current-course-title').innerText = courseData[key].title;
+            showMenu();
+        }
+
+        function showMenu() {
+            document.body.style.overflowY = "auto";
+            document.getElementById('course-screen').classList.add('hidden');
+            document.getElementById('menu-screen').classList.remove('hidden');
+            document.getElementById('game-screen').classList.add('hidden');
+            renderMenu();
+        }
+
+        function renderMenu() {
+            const grid = document.getElementById('menu-grid');
+            grid.innerHTML = '';
+            questions.forEach((q, i) => {
+                const isCleared = clearedQuestions.includes(q.id);
+                const item = document.createElement('div');
+                const num = i + 1;
+                item.className = `menu-item ${isCleared ? 'cleared' : ''}`;
+                item.innerHTML = `${isCleared ? '<div class="crown-icon">👑</div>' : ''}<div>第 ${num} 問</div>`;
+                item.onclick = () => { currentIdx = i; startGame(); };
+                grid.appendChild(item);
+            });
+            document.getElementById('stat-count').innerText = `${clearedQuestions.length} / ${questions.length}`;
+        }
+
+        function startGame() {
+            window.scrollTo(0, 0);
+            document.body.style.overflowY = "auto"; 
+            document.getElementById('menu-screen').classList.add('hidden');
+            document.getElementById('game-screen').classList.remove('hidden');
+            loadQuestion();
+        }
+
+        const canvas = document.getElementById('hw-canvas');
+        const ctx = canvas.getContext('2d');
+        const hintEl = document.getElementById('canvas-hint');
+        let strokes = []; let drawing = false;
+        let lastX = 0; let lastY = 0;
+
+        function initCanvas() {
+            const size = 400; canvas.width = size; canvas.height = size;
+            ctx.lineWidth = 14; ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.strokeStyle = '#1a1a1a';
+            
+            const getPos = (e) => {
+                const rect = canvas.getBoundingClientRect();
+                const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+                const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+                
+                const scaleX = canvas.width / rect.width;
+                const scaleY = canvas.height / rect.height;
+
+                return [
+                    (clientX - rect.left) * scaleX,
+                    (clientY - rect.top) * scaleY
+                ];
+            };
+
+            const start = (e) => {
+                drawing = true;
+                const [x, y] = getPos(e);
+                [lastX, lastY] = [x, y];
+                strokes.push([[x, y, Date.now()]]);
+                ctx.beginPath();
+                ctx.arc(x, y, ctx.lineWidth / 2, 0, Math.PI * 2);
+                ctx.fill();
+            };
+
+            const move = (e) => {
+                if (!drawing) return;
+                if (e.cancelable) e.preventDefault();
+                const [x, y] = getPos(e);
+                ctx.beginPath(); ctx.moveTo(lastX, lastY); ctx.lineTo(x, y); ctx.stroke();
+                [lastX, lastY] = [x, y];
+                strokes[strokes.length - 1].push([x, y, Date.now()]);
+            };
+            const end = () => { drawing = false; };
+            canvas.addEventListener('mousedown', start);
+            window.addEventListener('mousemove', move);
+            window.addEventListener('mouseup', end);
+            canvas.addEventListener('touchstart', start, { passive: false });
+            canvas.addEventListener('touchmove', move, { passive: false });
+            canvas.addEventListener('touchend', end);
+        }
+
+        function loadQuestion() {
+            const q = questions[currentIdx];
+            
+            const titleContainer = document.getElementById('problem-title-container');
+            const isCleared = clearedQuestions.includes(q.id);
+            if (isCleared) {
+                titleContainer.classList.add('cleared');
+                document.getElementById('problem-title').innerHTML = `<span class="crown-icon-sm">👑</span>問題 ${currentIdx+1}`;
+            } else {
+                titleContainer.classList.remove('cleared');
+                document.getElementById('problem-title').innerText = `問題 ${currentIdx+1}`;
+            }
+
+            document.getElementById('q-top').innerText = q.top; document.getElementById('q-bottom').innerText = q.bottom;
+            document.getElementById('q-left').innerText = q.left; document.getElementById('q-right').innerText = q.right;
+            const display = document.getElementById('center-display');
+            display.innerText = "？"; display.classList.remove('correct');
+            document.getElementById('game-msg').innerText = ""; 
+            document.getElementById('next-btn').classList.add('hidden');
+            document.getElementById('finish-btn').classList.add('hidden');
+            
+            const skipBtn = document.getElementById('skip-btn');
+            if (currentIdx < questions.length - 1) {
+                skipBtn.classList.remove('hidden');
+            } else {
+                skipBtn.classList.add('hidden');
+            }
+
+            document.getElementById('explanation-area').style.display = "none";
+            document.getElementById('explanation-text').style.opacity = "0";
+            hintEl.innerText = ""; hintEl.style.display = "none";
+            clearCanvas(); applyHandedness();
+        }
+
+        function clearCanvas() { 
+            ctx.clearRect(0,0,400,400); strokes = []; 
+            document.getElementById('candidate-area').classList.remove('show'); 
+            document.getElementById('game-msg').innerText = "";
+        }
+
+        async function recognize() {
+            if (strokes.length === 0) return;
+            const btn = document.getElementById('recognize-btn');
+            btn.disabled = true; btn.innerText = "判定中...";
+            const ink = strokes.map(s => [s.map(p => p[0]), s.map(p => p[1]), s.map(p => p[2])]);
+            try {
+                const res = await fetch('https://www.google.com/inputtools/request?ime=handwriting&app=autodraw&dbg=1&cs=1&oe=UTF-8', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ "input_type": 0, "requests": [{ "language": "ja", "writing_guide": { "width": 400, "height": 400 }, "input_type": 0, "ink": ink }] })
+                });
+                const data = await res.json();
+                if (data && data[1][0][1]) {
+                    const candidates = data[1][0][1]; const q = questions[currentIdx];
+                    const isStrokeCountValid = (strokes.length === q.strokes || strokes.length === q.strokes - 1);
+                    if (candidates[0] === q.answer && isStrokeCountValid) handleCorrect();
+                    else if (candidates.includes(q.answer)) {
+                        const area = document.getElementById('candidates');
+                        area.innerHTML = `<div class="text-blue-500 font-bold w-full text-xs">これかな？</div>`;
+                        const b = document.createElement('button');
+                        b.className = 'candidate-btn'; b.innerText = q.answer;
+                        b.onclick = () => isStrokeCountValid ? handleCorrect() : (hintEl.innerText = q.answer, hintEl.style.display = "block", document.getElementById('game-msg').innerHTML = "<span class='text-orange-600 text-sm'>画数を意識してなぞってね。</span>", clearCanvas());
+                        area.appendChild(b);
+                        document.getElementById('candidate-area').classList.add('show');
+                        setTimeout(() => { b.scrollIntoView({ behavior: 'smooth', block: 'end' }); }, 50);
+                    } else { 
+                        document.getElementById('game-msg').innerHTML = "<span class='text-slate-400'>ちがうみたい...もう一回考えてみよう</span>";
+                    }
+                }
+            } catch(e) { console.error(e); } finally { btn.disabled = false; btn.innerText = "判定する"; }
+        }
+
+        function parseRuby(text) {
+            if (!text) return "";
+            return text.replace(/([一-龠々]+)\(([^)]+)\)/g, '<ruby>$1<rt>$2</rt></ruby>');
+        }
+
+        function adjustFontSize() {
+            const area = document.getElementById('explanation-area');
+            const text = document.getElementById('explanation-text');
+            if (!text.innerHTML) return;
+            const baseSize = window.innerWidth < 640 ? 0.9 : 1.15;
+            let currentSize = baseSize;
+            text.style.opacity = "0";
+            text.style.fontSize = `${currentSize}rem`;
+            while (area.scrollHeight > area.clientHeight && currentSize > 0.5) {
+                currentSize -= 0.05;
+                text.style.fontSize = `${currentSize}rem`;
+            }
+            text.style.opacity = "1";
+        }
+
+        function handleCorrect() {
+            const q = questions[currentIdx];
+            const display = document.getElementById('center-display');
+            display.innerText = q.answer; display.classList.add('correct');
+            document.getElementById('candidate-area').classList.remove('show');
+            document.getElementById('skip-btn').classList.add('hidden'); 
+            hintEl.style.display = "none";
+            
+            if (q.description) {
+                const rows = q.description.split('\n').filter(line => line.trim() !== '').map(line => {
+                    const parsedLine = parseRuby(line);
+                    const match = line.match(/(【[^】]+】)(.*)/);
+                    if (match) {
+                        return `<div class="explanation-row"><span class="explanation-term">${parseRuby(match[1])}</span><span class="explanation-desc">${parseRuby(match[2])}</span></div>`;
+                    } else {
+                        return `<div class="mb-2 block">${parsedLine}</div>`;
+                    }
+                }).join('');
+                document.getElementById('explanation-text').innerHTML = rows;
+                document.getElementById('explanation-area').style.display = "block";
+                setTimeout(adjustFontSize, 0);
+            }
+
+            const isNewClear = !clearedQuestions.includes(q.id);
+            if (isNewClear) {
+                clearedQuestions.push(q.id);
+                localStorage.setItem(`ota_save_${currentCourseKey}`, JSON.stringify(clearedQuestions));
+                const titleContainer = document.getElementById('problem-title-container');
+                titleContainer.classList.add('cleared');
+                document.getElementById('problem-title').innerHTML = `<span class="crown-icon-sm">👑</span>問題 ${currentIdx+1}`;
+            }
+            
+            const isAllClearedNow = clearedQuestions.length === questions.length;
+            if (isAllClearedNow) {
+                if (isNewClear) {
+                    document.getElementById('game-msg').innerHTML = "<span class='text-amber-600 font-black text-2xl sm:text-3xl animate-bounce whitespace-nowrap'>🎊 コースクリアおめでとう！ 🎊</span>";
+                    confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 }, colors: ['#fbbf24', '#3b82f6', '#ef4444', '#10b981'] });
+                } else {
+                    document.getElementById('game-msg').innerHTML = "<span class='text-red-500 font-black text-3xl animate-bounce'>✨ 正解！ ✨</span>";
+                }
+                document.getElementById('finish-btn').classList.remove('hidden');
+                document.getElementById('next-btn').classList.add('hidden');
+            } else {
+                document.getElementById('game-msg').innerHTML = "<span class='text-red-500 font-black text-3xl animate-bounce'>✨ 正解！ ✨</span>";
+                if (currentIdx === questions.length - 1) {
+                    document.getElementById('finish-btn').classList.remove('hidden');
+                    document.getElementById('next-btn').classList.add('hidden');
+                } else {
+                    document.getElementById('next-btn').classList.remove('hidden');
+                    document.getElementById('finish-btn').classList.add('hidden');
+                }
+            }
+        }
+
+        function nextQuestion() { currentIdx++; loadQuestion(); }
+        function toggleHandedness() { leftHanded = !leftHanded; localStorage.setItem('ota_v21_hand', leftHanded); applyHandedness(); }
+        function applyHandedness() { 
+            const container = document.getElementById('main-container');
+            if (window.innerWidth >= 1024) {
+                container.style.flexDirection = leftHanded ? 'row-reverse' : 'row';
+            } else {
+                container.style.flexDirection = 'column';
+            }
+        }
+
+        window.onload = () => { initCanvas(); loadCourseData(); };
+        window.onresize = () => { 
+            applyHandedness(); 
+            adjustFontSize(); 
+        };
+    </script>
+</body>
+</html>
