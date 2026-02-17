@@ -1,0 +1,1518 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>シカくんとたのしいしりとり</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* 修正箇所: display=swap を display=block に変更し、フォント読み込み時のレイアウトズレを防止 */
+        @import url('https://fonts.googleapis.com/css2?family=Kiwi+Maru:wght@400;500;900&display=block');
+        body {
+            font-family: 'Kiwi Maru', serif;
+            background-color: #f7fee7;
+            overflow: hidden;
+            color: #422006;
+            margin: 0;
+            padding: 0;
+            /* スマホ対応: アドレスバー対策 */
+            height: 100vh;
+            height: 100dvh; 
+            overscroll-behavior: none; 
+            /* キーボード押し上げ防止 */
+            position: fixed;
+            width: 100%;
+            top: 0;
+            left: 0;
+        }
+        /* コンテナ調整 */
+        #app {
+            width: 100%;
+            /* スマホ対応: 画面いっぱいに収める */
+            height: 100vh; 
+            height: 100dvh;
+            display: flex;
+            flex-direction: column;
+            background-color: #fffdfa;
+            position: relative;
+            margin: 0 auto;
+            overflow: hidden; /* はみ出し防止 */
+        }
+
+        /* 画面が小さい場合にスクロールを可能にする設定 */
+        #screen-start {
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        /* 画像サイズ調整 */
+        .deer-img {
+            width: auto;
+            max-width: 220px;
+            max-height: 25vh; /* PCデフォルト */
+            height: auto;
+            object-fit: contain;
+            filter: drop-shadow(0 10px 15px rgba(0,0,0,0.1));
+            flex-shrink: 0;
+            display: block;
+        }
+
+        /* ルーレットのスタイル */
+        .routte-container {
+            width: 150px;
+            height: 150px;
+            border-radius: 50%;
+            border: 6px solid #a16207;
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: white;
+            font-size: 4rem;
+            font-weight: 900;
+            color: #a16207;
+            box-shadow: 0 0 20px rgba(0,0,0,0.1);
+            flex-shrink: 0;
+        }
+        .roulette-anim {
+            animation: spin 0.1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: scale(1); opacity: 0.8; }
+            50% { transform: scale(1.05); opacity: 1; }
+            100% { transform: scale(1); opacity: 0.8; }
+        }
+
+        /* チャットスタイル */
+        .chat-bubble {
+            max-width: 85%;
+            padding: 10px 14px;
+            border-radius: 18px;
+            margin-bottom: 8px;
+            font-size: 1rem;
+            box-shadow: 0 2px 4px -1px rgb(0 0 0 / 0.1);
+            animation: pop 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            position: relative;
+            word-wrap: break-word;
+        }
+        @keyframes pop { from { transform: scale(0.5); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+        .bot-bubble { background: white; border: 2px solid #fef3c7; align-self: flex-start; border-bottom-left-radius: 2px; cursor: pointer; }
+        .user-bubble { background: #713f12; color: white; align-self: flex-end; border-bottom-right-radius: 2px; }
+
+        .explain-btn {
+            font-size: 0.7rem;
+            background: #fef3c7;
+            color: #92400e;
+            padding: 2px 8px;
+            border-radius: 99px;
+            margin-top: 4px;
+            display: inline-block;
+            font-weight: bold;
+            border: 1px solid #fde68a;
+        }
+
+        /* タイマーバー */
+        #timer-bar {
+            transition: width 0.1s linear;
+        }
+        
+        /* PC用レイアウト調整 (768px以上) */
+        @media (min-width: 768px) {
+            #app {
+                max-width: 900px !important;
+                flex-direction: row;
+                height: 85vh; /* PCは少し小さく浮かせる */
+                margin: 7.5vh auto;
+                border-radius: 2rem;
+                overflow: hidden;
+                box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+            }
+            #screen-game {
+                flex-direction: row !important;
+            }
+            #game-main {
+                flex: 1;
+                display: flex;
+                flex-direction: column;
+                border-right: 4px solid #fef3c7;
+                height: 100%;
+            }
+            #game-side {
+                width: 300px;
+                background: #fffdfa;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                padding: 2rem 1rem;
+                flex-shrink: 0;
+            }
+            .chat-bubble {
+                padding: 12px 18px;
+                font-size: 1.1rem;
+            }
+            .routte-container {
+                width: 180px;
+                height: 180px;
+                font-size: 4.5rem;
+            }
+        }
+
+        /* スマホ向け調整 (767px以下) */
+        @media (max-width: 767px) {
+            /* スタート画面の画像を少し小さくして全体を入れる */
+            .deer-img {
+                max-height: 20vh;
+            }
+            /* フッターを安全領域に対応 */
+            footer {
+                padding-bottom: max(1rem, env(safe-area-inset-bottom));
+            }
+            #chat-window {
+                overscroll-behavior: contain;
+            }
+            input[type="text"] {
+                font-size: 16px !important; 
+            }
+        }
+
+        /* リザルト画面を中央に固定 */
+        #screen-game-over {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 200;
+            background-color: #fffdfa;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="explain-modal" class="hidden fixed inset-0 z-[110] flex items-center justify-center p-6 bg-black/50 backdrop-blur-sm">
+        <div class="bg-white rounded-3xl p-6 w-full max-w-sm shadow-2xl space-y-4">
+            <div class="flex items-center space-x-3 border-b pb-3 border-amber-100">
+                <img src="cha1.png" class="shika-avatar w-12 h-12 rounded-full border-2 border-amber-200 object-cover">
+                <span id="explain-title" class="font-black text-amber-900">シカくんの豆知識</span>
+            </div>
+            <p id="explain-content" class="text-amber-800 leading-relaxed font-medium"></p>
+            <button onclick="closeExplain()" class="w-full bg-amber-700 text-white py-3 rounded-xl font-bold active:scale-95 transition">なるほど！</button>
+        </div>
+    </div>
+
+    <div id="collection-modal" class="hidden fixed inset-0 z-[120] flex items-center justify-center p-6 bg-black/50 backdrop-blur-sm">
+        <div class="bg-white rounded-3xl p-6 w-full max-w-md shadow-2xl space-y-4 max-h-[80vh] flex flex-col">
+            <div class="flex items-center justify-between border-b pb-3 border-amber-100 shrink-0">
+                <span class="font-black text-amber-900 text-lg">見つけた単語帳</span>
+                <button onclick="closeCollection()" class="text-amber-500 hover:text-amber-700 font-bold p-2">✕</button>
+            </div>
+            <div id="collection-list" class="flex-1 overflow-y-auto grid grid-cols-2 gap-2 p-2 content-start">
+                </div>
+            <button onclick="closeCollection()" class="w-full bg-amber-700 text-white py-3 rounded-xl font-bold active:scale-95 transition shrink-0">とじる</button>
+        </div>
+    </div>
+
+    <div id="character-collection-modal" class="hidden fixed inset-0 z-[130] flex items-center justify-center p-6 bg-black/50 backdrop-blur-sm">
+        <div class="bg-white rounded-3xl p-6 w-full max-w-md shadow-2xl space-y-4 max-h-[85vh] flex flex-col">
+            <div class="flex items-center justify-between border-b pb-3 border-amber-100 shrink-0">
+                <span class="font-black text-amber-900 text-lg">シカくんのすがた</span>
+                <button onclick="closeCharacterCollection()" class="text-amber-500 hover:text-amber-700 font-bold p-2">✕</button>
+            </div>
+            <div id="character-collection-list" class="flex-1 overflow-y-auto flex flex-col space-y-4 p-2 content-start">
+                </div>
+            <button onclick="closeCharacterCollection()" class="w-full bg-amber-700 text-white py-3 rounded-xl font-bold active:scale-95 transition shrink-0">とじる</button>
+        </div>
+    </div>
+
+    <div id="app" class="shadow-2xl">
+        
+        <div id="screen-start" class="flex-1 flex flex-col items-center p-4 md:p-8 space-y-2 md:space-y-6 w-full">
+            <div class="flex flex-col items-center justify-center min-h-full py-2 md:py-4 w-full my-auto">
+                <h1 class="text-2xl md:text-3xl lg:text-4xl font-black text-amber-900 tracking-tighter shrink-0 mb-2 md:mb-4">シカくんとたのしいしりとり</h1>
+                
+                <img src="cha1.png" alt="シカくん" onclick="showCharacterCollection()" title="すがたを見る" class="shika-avatar deer-img animate-bounce block mb-1 cursor-pointer hover:opacity-80 transition active:scale-95">
+                
+                <div class="w-full space-y-2 md:space-y-3 max-w-sm shrink-0 mb-4 md:mb-6">
+                    <div class="text-center p-1 md:p-2">
+                        <p class="text-amber-800 font-bold leading-relaxed text-sm md:text-base">
+                            ボクとしりとりしようよ！<br>
+                            「ん」ともう１つ使えないもじを<br>ふやしてあそぼう！
+                        </p>
+                    </div>
+
+                    <div class="flex justify-center space-x-4 md:space-x-8 bg-white p-3 md:p-4 rounded-3xl shadow-sm border border-amber-100">
+                        <div class="text-center">
+                            <p class="text-[10px] font-bold text-amber-600">シカくんに勝った数</p>
+                            <p id="stats-win" class="text-xl md:text-2xl font-black text-orange-600">0</p>
+                        </div>
+                        <div class="text-center border-l border-amber-100 pl-4 md:pl-8">
+                            <p class="text-[10px] font-bold text-amber-600">最高記録</p>
+                            <p class="text-xl md:text-2xl font-black text-amber-900"><span id="high-score-val">0</span><span class="text-xs ml-1">単語</span></p>
+                        </div>
+                        <div class="text-center border-l border-amber-100 pl-4 md:pl-8 cursor-pointer hover:opacity-70 transition" onclick="showCollection()">
+                            <p class="text-[10px] font-bold text-amber-600">見つけた単語</p>
+                            <p class="text-xl md:text-2xl font-black text-amber-900"><span id="found-words-count">0</span><span class="text-xs ml-1">語</span></p>
+                        </div>
+                    </div>
+                </div>
+
+                <button id="start-btn" onclick="startSequence()" class="bg-amber-700 hover:bg-amber-800 text-white text-xl md:text-2xl font-black py-3 px-8 md:py-4 md:px-12 rounded-full shadow-xl transform transition active:scale-95 w-full max-w-xs shrink-0">
+                    はじめる
+                </button>
+            </div>
+        </div>
+
+        <div id="screen-roulette" class="hidden flex-1 flex flex-col items-center justify-center p-8 space-y-8 text-center bg-orange-50 w-full overflow-y-auto">
+            <div class="bg-white p-4 rounded-2xl shadow-sm border border-amber-100 mb-4 w-full max-w-sm">
+                <h2 id="roulette-title" class="text-xl font-black text-amber-800">お互いのルールを決めよう！</h2>
+            </div>
+            <div id="roulette-box" class="routte-container">
+                <span id="roulette-char">あ</span>
+            </div>
+            <p id="roulette-desc" class="text-amber-900 font-bold text-lg h-12 leading-tight">公平に決めようね...</p>
+            
+            <button id="skip-btn" onclick="skipRoulette()" class="hidden mt-8 bg-gray-400 hover:bg-gray-500 text-white font-bold py-3 px-8 rounded-full text-base transition shadow-md">
+                演出をスキップする
+            </button>
+        </div>
+
+        <div id="screen-game" class="hidden flex-1 flex flex-col h-full w-full">
+            <div id="game-main" class="flex-1 flex flex-col h-full overflow-hidden">
+                <header class="bg-amber-700 text-white shadow-lg shrink-0">
+                    <div class="p-3 md:p-4 flex justify-between items-center">
+                        <div class="flex items-center space-x-3">
+                            <img src="cha1.png" class="shika-avatar w-10 h-10 rounded-full border-2 border-white bg-white object-cover">
+                            <div>
+                                <span class="font-black text-sm block leading-none">シカくん</span>
+                                <span class="text-xs opacity-80" id="score-counter">0単語目</span>
+                            </div>
+                        </div>
+                        <div id="timer-text" class="text-2xl font-black tabular-nums bg-amber-800 px-3 py-1 rounded-lg">30</div>
+                    </div>
+                    <div class="bg-amber-800 text-amber-100 text-[10px] px-3 py-1 flex justify-between md:hidden font-bold">
+                        <span>禁止[シカ]: <span id="header-forbidden-bot">?</span>で終わる</span>
+                        <span>禁止[キミ]: ずで終わる</span>
+                    </div>
+                    <div class="w-full h-2 bg-amber-900/30">
+                        <div id="timer-bar" class="h-full bg-yellow-400 w-full"></div>
+                    </div>
+                </header>
+
+                <div id="chat-window" class="flex-1 overflow-y-auto p-4 flex flex-col space-y-3 bg-[#fffdfa]"></div>
+
+                <footer class="p-3 md:p-4 bg-white border-t-4 border-amber-100 shrink-0">
+                    <div id="input-container">
+                        <div id="next-letter" class="text-xs text-amber-600 font-bold mb-1 ml-2"></div>
+                        
+                        <form class="flex space-x-2 w-full" onsubmit="event.preventDefault(); handleInput();">
+                            <input type="text" id="user-input" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="「ひらがな」か「カタカナ」で入力してね" class="flex-1 min-w-0 border-2 border-amber-50 rounded-full px-4 md:px-5 py-2 md:py-3 focus:outline-none focus:border-amber-500 text-base md:text-lg shadow-inner bg-amber-50/30">
+                            <button type="submit" id="send-btn" class="bg-amber-700 text-white w-12 h-12 md:w-14 md:h-14 rounded-full flex items-center justify-center shadow-lg active:scale-90 transition shrink-0">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 10l7-7m0 0l7 7m-7-7v18" /></svg>
+                            </button>
+                        </form>
+                        
+                        <p id="error-msg" class="text-red-500 text-xs font-bold mt-2 ml-4 h-4 h-4"></p>
+                    </div>
+                </footer>
+            </div>
+
+            <div id="game-side" class="hidden md:flex">
+                <div class="w-full space-y-6">
+                    <div class="bg-amber-50 p-6 rounded-3xl border-2 border-amber-100 shadow-inner text-center">
+                        <img src="cha1.png" class="shika-avatar w-32 h-32 mx-auto mb-4 drop-shadow-lg">
+                        <h3 class="font-black text-amber-900 text-xl mb-1">シカくん</h3>
+                        <p class="text-amber-700 text-sm font-bold">しりとりマスター</p>
+                    </div>
+                    
+                    <div class="space-y-3">
+                        <div class="flex justify-between items-center bg-white p-4 rounded-2xl border border-amber-100">
+                            <span class="text-amber-600 font-bold">現在のスコア</span>
+                            <span id="side-score" class="font-black text-amber-900 text-xl">0 単語</span>
+                        </div>
+                        <div class="bg-red-50 p-4 rounded-2xl border border-red-100">
+                            <p class="text-red-400 text-[10px] font-bold uppercase tracking-wider mb-1">禁止ルール</p>
+                            <p class="text-red-700 font-black">シカくん：<span id="side-forbidden-bot">?</span> で終わる</p>
+                            <p class="text-red-700 font-black">キミ：ず で終わる</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="screen-game-over" class="hidden flex-1 flex flex-col items-center justify-center p-6 md:p-8 text-center bg-[#fffdfa] w-full overflow-y-auto">
+            <h2 class="text-3xl md:text-4xl font-black text-amber-900 mb-4 md:mb-6 leading-tight">しりとり終了！</h2>
+            <div class="bg-white p-6 md:p-8 rounded-[3rem] shadow-xl border-4 border-amber-100 mb-6 md:mb-8 w-full max-w-sm">
+                <img id="result-img" src="cha2.png" class="w-32 h-32 md:w-40 md:h-40 mx-auto mb-4 md:mb-6 object-contain">
+                <p id="game-over-text" class="text-lg md:text-xl font-black text-amber-800 mb-4 md:mb-6 leading-relaxed"></p>
+                <div class="bg-amber-50 p-4 rounded-2xl mb-2">
+                    <p id="final-score-text" class="text-2xl md:text-3xl font-black text-amber-900"></p>
+                </div>
+            </div>
+            <button onclick="location.reload()" class="bg-amber-700 hover:bg-amber-800 text-white text-xl md:text-2xl font-black py-4 px-12 rounded-full shadow-xl transform transition active:scale-95 w-full max-w-xs">
+                もういっかい！
+            </button>
+        </div>
+
+    </div>
+
+    <script>
+        // ゲーム状態
+        let score = 0;
+        let used = new Set();
+        let lastW = "";
+        let timeLeft = 30;
+        const MAX_TIME = 30;
+        let timerId = null;
+        let isGameOver = false;
+        let forbiddenBot = "";
+        let lastTickTime = 0; 
+        const chars = "あいうえおかきくけこさしすせそたちつてとなにぬねのはひふへほまみむめもやゆよらりるれろわがぎぐげござじずぜぞだぢづでどばびぶべぼぱぴぷぺぽ".split("");
+
+        // タイマー制御用（スキップ機能のため）
+        let rInterval = null;
+        let rTimeout = null;
+
+        let foundWordsSet = new Set();
+        const savedFound = localStorage.getItem('deer_shiritori_found_words');
+        if (savedFound) {
+            foundWordsSet = new Set(JSON.parse(savedFound));
+        }
+        
+        // 辞書の本来の表記を保存するマップ
+        const displayFormMap = {};
+
+        // ローカル辞書
+        const localValidWords = new Set();
+        const explanationMap = {};
+
+        const suDictionary = {
+            'あ': [
+                {w:'アイス', d:'つめたくて あまい デザートだシカ！'},
+                {w:'アドレス', d:'メールの あてさきの ことだシカ！'},
+                {w:'あきす', d:'るすの家に しのびこんで ものをぬすむ 悪いことだシカ！'},
+                {w:'アンバランス', d:'つりあいが とれていないことだシカ！'},
+                {w:'アクセス', d:'ばしょや じょうほうに つながったり、たどりつく ことだシカ！'},
+                {w:'アトラス', d:'ペルソナや めがみてんせいなど ゆうめいな作品を作っている 日本のゲーム会社だシカ！'},
+                {w:'アナウンス', d:'みんなに しらせるための おしらせや ほうそうの ことだシカ！'},
+                {w:'アマゾネス', d:'むかしの ものがたりに でてくる、つよい おんなの せんしたちだシカ！'},
+                {w:'アキレス', d:'ギリシャしんわに でてくる えいゆうで、かかとが よわてんだと いわれている ひとだシカ！'},
+                {w:'アンモニアガス', d:'つよい においが する ガスで、そうじや かがくで つかわれる ことが あるガスだシカ！'},
+                {w:'アスパラガス', d:'みどりで ながい おやさいだシカ！'}
+            ],
+            'い': [
+                {w:'イス', d:'すわるための どうぐだシカ！'},
+                {w:'イギリス', d:'ヨーロッパにある くにの なまえだシカ！'},
+                {w:'いけす', d:'魚を 生きたまま 入れておくところだシカ'},
+                {w:'いるす', d:'家に いるのに わざと いないと うそをつくことだシカ！'},
+                {w:'イエス', d:'「はい」や さんせい する ときに つかう ことばだシカ！'},
+                {w:'インターフェイス', d:'ひと と きかい、または きかい どうしを つなぐ しくみの ことだシカ！'},
+                {w:'インフルエンザウイルス', d:'かぜより つらい びょうきを おこす げんいんの ウイルスだシカ！'},
+                {w:'インデックス', d:'ほんの もくじや さくいんの ことだシカ！'}
+            ],
+            'う': [
+                {w:'ウグイス', d:'はるを つげる とりさんだシカ！'},
+                {w:'ウエハース', d:'サクサクの おいしい おかしのことだシカ！'},
+                {w:'ウスターソース', d:'やさいや くだもので できた、あじの こい ソースだシカ！'},
+                {w:'ウエディングドレス', d:'けっこんしきで はなよめさんが きる しろい ドレスだシカ！'},
+                {w:'ウッドハウス', d:'きで できた いえや こやの ことだシカ！'},
+                {w:'ウイスキーグラス', d:'ウイスキーを のむための ちいさな コップだシカ！'},
+                {w:'ウイルス', d:'びょうきの もとに なる ちいさなやつだシカ！'}
+            ],
+            'え': [
+                {w:'エキス', d:'しょくぶつなどから とりだした せいぶんだシカ！'},
+                {w:'えびす', d:'しょうばいはんじょうを もたらす 日本の神様だシカ！'},
+                {w:'エアロビクス', d:'おんがくに あわせて からだを うごかす うんどうだシカ！'},
+                {w:'エクスプレス', d:'はやく はこぶ ための とくべつな でんしゃや びんの ことだシカ！'},
+                {w:'エンゼルス', d:'アメリカの やきゅうチームの なまえだシカ！'},
+                {w:'エアロスミス', d:'アメリカの ゆうめいな ロックバンドの なまえだシカ！'},
+                {w:'エッセンス', d:'ものごとの だいじな ところだシカ！'}
+            ],
+            'お': [
+                {w:'オムライス', d:'たまごで 包んだ ごはん、おいしいシカ〜！'},
+                {w:'オフィス', d:'おしごとを する ばしょだシカ！'},
+                {w:'オアシス', d:'さばくの なかに みずや きが ある ばしょだシカ！'},
+                {w:'オープンソース', d:'みんなが つかって なおせる プログラムの しくみだシカ！'},
+                {w:'オープンハウス', d:'いえや たてものの なかを みせてくれる ひだシカ！'},
+                {w:'オープンキャンパス', d:'だいがくを みに いける たいけんの ひだシカ！'},
+                {w:'オーケストラボックス', d:'えんげきじょうで がっきを えんそうする せきだシカ！'},
+                {w:'オムニバス', d:'みじかい はなしを いくつも あつめた さくひんだシカ！'},
+                {w:'オニオンソース', d:'たまねぎで つくった あじの ある ソースだシカ！'},
+                {w:'オイスターソース', d:'かきから つくった ちゅうかりょうりの ソースだシカ！'},
+                {w:'オレンジジュース', d:'オレンジを しぼって つくる のみものだシカ！'},
+                {w:'オクトパス', d:'えいごで たこの ことだシカ！'},
+                {w:'オートフォーカス', d:'カメラが じどうで ピントを あわせる しくみだシカ！'},
+                {w:'オンラインサービス', d:'インターネットで つかえる べんりな しくみだシカ！'}
+            ],
+            'か': [
+                {w:'カラス', d:'くろくて かしこい とりさんだシカ！'},
+                {w:'カオス', d:'ぐちゃぐちゃで、じゅんばんが ない じょうたいの ことだシカ！'},
+                {w:'カフェテラス', d:'カフェの そとに ある いすと テーブルの ばしょだシカ！'},
+                {w:'カクタス', d:'サボテンの えいごの なまえだシカ！'},
+                {w:'カルピス', d:'しろくて あまい のみものだシカ！'},
+                {w:'カプチーノアイス', d:'コーヒーあじの あまい アイスクリームだシカ！'},
+                {w:'カードケース', d:'カードを まとめて いれる いれものだシカ！'},
+                {w:'カラオケハウス', d:'うたを うたって たのしむ ばしょだシカ！'},
+                {w:'カウンセリングサービス', d:'なやみを きいて たすけて くれる しくみだシカ！'},
+                {w:'カニクリームソース', d:'かに と クリームで つくった ソースだシカ！'},
+                {w:'カフェオレアイス', d:'コーヒーと ミルクあじの アイスだシカ！'},
+                {w:'カレーソース', d:'カレーの あじが する ソースだシカ！'},
+                {w:'カフェハウス', d:'コーヒーを のんで やすめる おみせだシカ！'},
+                {w:'カメラケース', d:'カメラを まもって いれる いれものだシカ！'},
+                {w:'カラーボックス', d:'ものを いれる しかくい たなだシカ！'}
+            ],
+            'き': [
+                {w:'キス', d:'さかなの シロギスの ことだシカ！'},
+                {w:'キリギリス', d:'あきに 鳴いてる バッタみたいな やつだシカ！'},
+                {w:'キックス', d:'関西国際空港（空港コードKIX） という いみだシカ！'},
+                {w:'キャンパス', d:'だいがくの しきちの ことだシカ！'},
+                { w:'キーホルダーケース', d:'キーホルダーを まとめて いれる いれものだシカ！' },
+                { w:'キーカードケース', d:'カードの かたちの かぎを いれる ケースだシカ！' },
+                { w:'キッズスペース', d:'こどもが あんしんして あそべる ばしょだシカ！' },
+                { w:'キッズダンス', d:'こども むけの ダンスの ことだシカ！' },
+                { w:'キャンパス', d:'がっこうや だいがくの しきち ぜんたいの ことだシカ！' },
+                { w:'キャンバス', d:'えを かく ための ぬのの ことだシカ！' },
+                { w:'キーボックス', d:'かぎを たくさん ほかん する はこだシカ！' },
+                { w:'キーレス', d:'かぎを ささずに ボタンで あけられる しくみだシカ！' }
+            ],
+            'く': [
+                {w:'クラス', d:'がっこうの くみの ことだシカ！'},
+                {w:'クリスマス', d:'12がつの たのしい いべんとだシカ！'},
+                {w:'クロス', d:'ぬのや まじわること を いうシカ！'}
+            ],
+            'け': [
+                {w:'ケース', d:'ものを いれる はこの ことだシカ！'},
+                {w:'ケルベロス', d:'じごくの ばんけんのことだシカ！こわいシカ…'},
+                {w:'ケンタウロス', d:'ギリシアしんわに でてくる かはんしんが馬の やつだシカ！'}
+            ],
+            'こ': [
+                {w:'コース', d:'りょうりの じゅんばんや、みちすじのことだシカ！'},
+                {w:'コスモス', d:'あきに さく きれいな おはなだシカ！'},
+                {w:'コンパス', d:'ほうがくを しらべる どうぐだシカ！'}
+            ],
+            'さ': [
+                {w:'サービス', d:'おきゃくさんに してあげる ことだシカ！'},
+                {w:'サーカス', d:'テントで ショーを する おまつりだシカ！'},
+                {w:'サイエンス', d:'かがくの ことだシカ！はかせだシカ！'}
+            ],
+            'し': [
+                {w:'シラス', d:'いわしの こども、ごはんの おともだシカ！'},
+                {w:'シトラス', d:'かんきつるいの ことだシカ！いいにおいシカ！'},
+                {w:'シェアハウス', d:'ひとつの いえに、なんにんかで いっしょに すむ おうちだシカ！'},
+                {w:'シティバス', d:'まちの なかを はしる バスの ことだシカ！'},
+                {w:'シリウス', d:'よぞらで いちばん あかるく みえる ほしの なまえだシカ！'},
+                {w:'シーラカンス', d:'こだいぎょの ことだシカ！たべても おいしくなさそうだシカ…'}
+            ],
+'す': [
+    {w:'す', d:'ごはんや すしにつかう すっぱい あじの ちょうみりょうだシカ！'},
+    {w:'すす', d:'ものを やいた あとに のこる くろい こなだシカ！'},
+    {w:'スイス', d:'ヨーロッパに ある くにの なまえだシカ！'},
+    {w:'スタンス', d:'ものごとに たいする かんがえかたや たちばの ことだシカ！'},
+    {w:'ステルス', d:'みえにくく する ぎじゅつの ことだシカ！'},
+    {w:'ストレス', d:'いやだな つかれたなと かんじる きもちだシカ！'},
+    {w:'スペース', d:'あき ばしょ や ひろさの ことだシカ！'},
+    {w:'スライス', d:'うすくきること または きった ものだシカ！'},
+    {w:'スムース', d:'でこぼこが なくて なめらかな ことだシカ！'},
+    {w:'スパイス', d:'りょうりを おいしく する こうしんりょうだシカ！'},
+    {w:'スコパス', d:'むかしの ギリシアに いた ちょうこくかだシカ！'},
+    {w:'すりガラス', d:'むこうが ぼんやり みえる ガラスだシカ！'},
+    {w:'スラックス', d:'ズボンの しゅるいの なまえだシカ！'},
+    {w:'水素ガス', d:'とても かるい ガスの しゅるいだシカ！'},
+    {w:'スターチス', d:'ドライフラワーに つかわれる はなだシカ！'},
+    {w:'ステータス', d:'じょうたい や いちの ことだシカ！'},
+    {w:'ステンレス', d:'さびにくい きんぞくだシカ！'},
+    {w:'スルーパス', d:'サッカーで あいだを ぬく パスだシカ！'},
+    {w:'スペルミス', d:'えいごの つづりの まちがいだシカ！'},
+    {w:'スーツケース', d:'りょこうで つかう おおきな かばんだシカ！'},
+    {w:'スクールバス', d:'がっこうに いく ための バスだシカ！'},
+    {w:'スフィンクス', d:'エジプトに ある きょだいな 像だシカ！'},
+    {w:'スモークガス', d:'けむりの ような ガスだシカ！'},
+    {w:'スローロリス', d:'うごきが とても ゆっくりな どうぶつだシカ！'},
+    {w:'スターアニス', d:'ほしの かたちを した スパイスだシカ！'},
+    {w:'スローペース', d:'ゆっくりな すすみかただシカ！'},
+    {w:'スイカアイス', d:'スイカあじの アイスだシカ！'},
+    {w:'スリーベース', d:'やきゅうで 3るいのことだシカ！'},
+    {w:'ストリングス', d:'げんがっきの なかまのことだシカ！'},
+    {w:'ステゴザウルス', d:'せなかに とげが ある きょうりゅうだシカ！'},
+    {w:'スピノサウルス', d:'せなかに ほのような ものが ある きょうりゅうだシカ！'},
+    {w:'ステンドグラス', d:'いろガラスで えを えがいた まどだシカ！'},
+    {w:'スプーンレース', d:'スプーンを つかった あそびだシカ！'},
+    {w:'スライドガラス', d:'けんびきょうで みるために ちいさい ものをのせる うすいガラスだシカ！'},
+    {w:'水上バス', d:'みずの うえを はしる バスだシカ！'},
+    {w:'ステージダンス', d:'ぶたいの うえで おどる ダンスだシカ！'},
+    {w:'スポーツハウス', d:'うんどうを する しせつだシカ！'},
+    {w:'スマートハウス', d:'でんきを かしこく つかう いえだシカ！'},
+    {w:'ストラップレス', d:'ひもが ない ふくの かたちだシカ！'},
+    {w:'スターバックス', d:'コーヒーの みせの なまえだシカ！'},
+    {w:'ストラディバリウス', d:'とても ゆうめいな バイオリンだシカ！'},
+    {w:'スリーピース', d:'3つで ひとそろいの ふくだシカ！'},
+    {w:'スモークハウス', d:'くんせいを つくる たてものだシカ！'},
+    {w:'スチールハウス', d:'てつで できた いえだシカ！'},
+    {w:'スキャンダラス', d:'よくない できごとで さわがれる ことだシカ！'},
+    {w:'スチューデントハウス', d:'がくせいが すむ いえだシカ！'}
+],
+
+            'せ': [
+                {w:'センス', d:'かんかくや おおぎの ことだシカ！'},
+                {w:'セールス', d:'ものを うる ことだシカ！'},
+                {w:'セルロース', d:'しょくもつせんいの ことだシカ！'}
+            ],
+            'そ': [
+                {w:'ソース', d:'りょうりに かける えきたいの あれだシカ！'},
+                {w:'ソックス', d:'あしに はく くつしたの ことだシカ！'},
+                {w:'ソフトテニス', d:'やわらかい ボールでやる テニスだシカ！'}
+            ],
+            'た': [
+                {w:'タンス', d:'ようふくを しまう かぐだシカ！'},
+                {w:'タコス', d:'メキシコの おいしい りょうりだシカ！'},
+                {w:'タイプレス', d:'キーボードを うたなくても いいことだシカ！'}
+            ],
+            'ち': [
+                {w:'チップス', d:'うすく きって あげた おかしだシカ！'},
+                {w:'チュロス', d:'ぼうの かたちをした あまい おかしだシカ！'},
+                {w:'チキンライス', d:'ケチャップで あじつけをした たべものだシカ！オムライスの中身だシカ！'}
+            ],
+            'つ': [
+                {w:'ツルナス', d:'つるせいの ナスの なかまだシカ！'},
+                {w:'ツールドフランス', d:'3しゅうかんかけて 自転車で はしるレースだシカ！'},
+                {w:'ツールケース', d:'どうぐを いれる はこの ことだシカ！'},
+                {w:'ツリーハウス', d:'きの うえや まわりに つくった ひみつきち みたいな いえだシカ！'},
+                {w:'つうやくサービス', d:'ちがう ことばを はなす ひとの かわりに つたえてくれる しごとだシカ！'},
+                {w:'つうがくバス', d:'がっこうに いくときに のる バスだシカ！'},
+                {w:'つうしんパス', d:'インターネットや れんらくを つかうための けんりや じょうほうだシカ！'},
+                {w:'つうちミス', d:'しらせる ときに まちがえて しまう ことだシカ！'},
+                {w:'つやだしワックス', d:'ゆかや くるまを ピカピカに する えきだシカ！'},
+                {w:'つうこうパス', d:'とおって いいですよ と ゆるされる しるしだシカ！'},
+                {w:'つうきんバス', d:'しごとに いく ひとが のる バスだシカ！'}
+            ],
+            'て': [
+                {w:'テニス', d:'ラケットで ボールを うつ スポーツだシカ！'},
+                {w:'テラス', d:'たてものの １かいから とびだしてる スペースの ことだシカ！'},
+                {w:'テキストボックス', d:'もじを にゅうりょく するところの ことだシカ！'}
+            ],
+            'と': [
+                {w:'トランス', d:'へんあつきや むがむちゅうの ことだシカ！'},
+                {w:'トップス', d:'うえに きる ようふくの ことだシカ！'},
+                {w:'トマトソース', d:'トマトで つくった あかい ソースで、ぱすたや にくりょうりに つかうんだシカ！'},
+                {w:'トンカツソース', d:'トンカツに かける あまくて こい ソースだシカ！'},
+                {w:'トロピカルジュース', d:'みなみの くにの くだものを つかった あまい ジュースだシカ！'},
+                {w:'トマトジュース', d:'トマトを しぼって つくった のみものだシカ！'},
+                {w:'トリケラトプス', d:'つのがある きょうりゅうだシカ！かっこいいシカ！'},
+                {w:'トレーニングコース', d:'うんどうや べんきょうの れんしゅうを するために つくられた コースだシカ！'},
+                {w:'トランジットパス', d:'のりかえの ときに つかえる きっぷや しょうめいの ことだシカ！'},
+                {w:'トップニュース', d:'その日で いちばん だいじだと される ニュースだシカ！'},
+                {w:'トライアルコース', d:'おためしで たいけん できる コースの ことだシカ！'},
+                {w:'トランクケース', d:'りょこうの ときに ふくや にもつを いれる おおきな ケースだシカ！'},
+                {w:'トップス', d:'うえに きる ふくの ことを まとめて いう ことばだシカ！'},
+                {w:'トレンドニュース', d:'いま りゅうこうしている できごとを つたえる ニュースだシカ！'},
+                {w:'トピックス', d:'ニュースや はなしの なかで とくに だいじな はなしの ことだシカ！'}
+            ],
+            'な': [
+                {w:'ナス', d:'むらさきいろの おやさいだシカ！'},
+                {w:'ナンセンス', d:'いみがない ことだシカ！'},
+                {w:'ナイス', d:'いいね！って いう いみだシカ！'}
+            ],
+            'に': [
+                {w:'ニュース', d:'せかいの できごとの おしらせだシカ！'},
+                {w:'ニジマス', d:'かわに すむ おさかなだシカ！'},
+                {w:'ニャース', d:'ねこみたいな ポケモンの ことだシカ！'}
+            ],
+            'ぬ': [
+                {w:'ぬまち', d:'ぬまのだいち だシカ！'},
+                {w:'ヌース', d:'りせいや せいしんのことだシカ！むずかしいシカ…'},
+                {w:'ヌルベース', d:'データベースの むずかしい ことばだシカ！'}
+            ],
+            'ね': [
+                {w:'ネクサス', d:'つながりや きずな という いみだシカ！'},
+                {w:'ネックレス', d:'くびに つける かざりだシカ！'},
+                {w:'ネットワークス', d:'つながった 網（あみ）の ことだシカ！'}
+            ],
+            'の': [
+                {w:'ノース', d:'きた（北）の ことだシカ！'},
+                {w:'ノーチラス', d:'オウムガイや せんすいかんの なまえだシカ！'},
+                {w:'ノートケース', d:'ノートを いれる いれものだシカ！'}
+            ],
+            'は': [
+                {w:'ハウス', d:'おうちの ことだシカ！'},
+                {w:'はす', d:'きれいな おはなだシカ！ねっこは レンコンだシカ！'},
+                {w:'ハイビスカス', d:'みなみのくにの あかい おはなだシカ！'}
+            ],
+            'ひ': [
+                {w:'ひやしんす', d:'きれいな おはなだシカ！'},
+                {w:'ひきうす', d:'たいらないしを かさねて まわして こなにする どうぐだシカ！'},
+                {w:'ヒメギス', d:'ちいさい バッタの 仲間だシカ！'}
+            ],
+            'ふ': [
+                {w:'フランス', d:'パリがある オシャレな くにだシカ！'},
+                {w:'フィットネス', d:'けんこうのために 運動することだシカ！'},
+                {w:'ファックス', d:'かみを でんわで おくる きかいだシカ！'}
+            ],
+            'へ': [
+                {w:'ヘラクレスオオカブト', d:'ギネスきろくにも のっている おおきなカブトムシだシカ！'},
+                {w:'ヘラクレス', d:'しんわの 力持ちの ヒーローだシカ！'},
+                {w:'ヘルプデスク', d:'こまったときに たすけてくれる ところだシカ！'}
+            ],
+            'ほ': [
+                {w:'ホース', d:'みずを まく くだの ことだシカ！'},
+                {w:'ホチキス', d:'かみとかみを くっつける べんりな ぶんぼうぐだシカ！'},
+                {w:'ホトトギス', d:'とりのことだシカ！カッコウに にているシカ！'}
+            ],
+            'ま': [
+                {w:'マウス', d:'ネズミや パソコンで つかうやつだシカ！'},
+                {w:'マットレス', d:'ベッドに しく ふかふかの やつだシカ！'},
+                {w:'マイナス', d:'ひくことや ゼロより ちいさいことだシカ！'}
+            ],
+            'み': [
+                {w:'ミス', d:'しっぱいの ことだシカ！どんまいシカ！'},
+                {w:'ミックス', d:'まぜることだシカ！'},
+                {w:'ミートソース', d:'おにくの 入った トマトの ソースだシカ！'}
+            ],
+            'む': [
+                {w:'ムース', d:'ふわふわの おかしや かみに つけるやつだシカ！'},
+                {w:'ムーミンハウス', d:'ムーミンっていう キャラクターが すんでいる おうちだシカ！'},
+                {w:'ムーンフェイス', d:'つき みたいに まるい かおの ことだシカ！'}
+            ],
+            'め': [
+                {w:'メス', d:'しゅじゅつで つかう ナイフだシカ！'},
+                {w:'メビウス', d:'おもてと うらが つながった わっかだシカ！'},
+                {w:'メールアドレス', d:'メールの おてがみの じゅうしょだシカ！'}
+            ],
+            'も': [
+                {w:'モス', d:'ガ（蛾）や コケの ことだシカ！'},
+                {w:'モーリス', d:'ひとの なまえや くるまの なまえだシカ！'},
+                {w:'モデルハウス', d:'みほんの おうちの ことだシカ！'}
+            ],
+            'や': [
+                {w:'ヤス', d:'さかなを つく どうぐだシカ！'},
+                {w:'ヤヌス', d:'ふたつの かおを もつ かみさまだシカ！'},
+                {w:'やきなす', d:'やいた ナス。おいしいシカ〜！'}
+            ],
+            'ゆ': [
+                {w:'ユリウス', d:'むかしの えらい人の なまえだシカ！'},
+                {w:'ユニバース', d:'うちゅうや せかいの ことだシカ！'},
+                {w:'ユース', d:'わかもの という いみだシカ！'}
+            ],
+            'よ': [
+                {w:'ヨハネス', d:'ひとの なまえだシカ！'},
+                {w:'ヨットハウス', d:'ヨットを しまう たてものだシカ！'},
+                {w:'ヨセフス', d:'むかしの れきしわkる人の なまえだシカ！'}
+            ],
+            'ら': [
+                {w:'ライス', d:'ごはんの ことだシカ！'},
+                {w:'ライセンス', d:'めんきょや きょかの ことだシカ！'},
+                {w:'ラックス', d:'シャンプーの メーカーだシカ！'}
+            ],
+            'り': [
+                {w:'リス', d:'しっぽが おおきい かわいい どうぶつだシカ！'},
+                {w:'リリース', d:'はつばいや かいほうすることだシカ！'},
+                {w:'リソース', d:'しげんや ざいりょうの ことだシカ！'},
+                {w:'リンス', d:'はつばいや かいほうすることだシカ！'}
+            ],
+            'る': [
+                {w:'ルネサンス', d:'むかしの げいじゅつが さかえた じだいだシカ！'},
+                {w:'ルイス', d:'ひとの なまえだシカ！'},
+                {w:'ルーカス', d:'えいがかんとくの なまえで 有名だシカ！'}
+            ],
+            'れ': [
+                {w:'レース', d:'はやさを きそう きょうぎだシカ！'},
+                {w:'レクサス', d:'かっこいい くるまの ブランドだシカ！'},
+                {w:'レターケース', d:'おてがみを いれる はこだシカ！'}
+            ],
+            'ろ': [
+                {w:'ロマンス', d:'こいする おはなしだシカ！'},
+                {w:'ロータス', d:'ハスの おはなのことだシカ！'},
+                {w:'ロングドレス', d:'すそが ながい ドレスだシカ！'}
+            ],
+            'わ': [
+                {w:'ワックス', d:'ゆかや かみを ツヤツヤにする やつだシカ！'},
+                {w:'ワイヤレス', d:'せんが ないことだシカ！べんりだシカ！'},
+                {w:'ワークスペース', d:'さぎょうを する ばしょだシカ！'}
+            ],
+            'が': [
+                {w:'ガラス', d:'とうめいで われやすい そざいだシカ！'},
+                {w:'ガイダンス', d:'あんないや せつめいの ことだシカ！'},
+                {w:'ガウス', d:'じしゃくの つよさの たんいだシカ！'}
+            ],
+            'ぎ': [
+                {w:'ギプス', d:'けがを したときに かためる やつだシカ！'},
+                {w:'ギルドハウス', d:'なかまが あつまる おうちだシカ！'}
+            ],
+            'ぐ': [
+                {w:'グラス', d:'のみものを いれる コップだシカ！'},
+                {w:'グラフィックス', d:'ガゾウや えの ことだシカ！'}
+            ],
+            'げ': [
+                {w:'ゲームソース', d:'ゲームの プログラムの 中身だシカ！'},
+                {w:'ゲストハウス', d:'りょこうしゃが とまる おうちだシカ！'}
+            ],
+            'ご': [
+                {w:'ゴシップス', d:'うわさばなしの ことだシカ！'},
+                {w:'ゴールパス', d:'ゴールに つながる パスだシカ！'}
+            ],
+            'ざ': [
+                {w:'ザウス', d:'むかしあった スキー場の なまえだシカ！'},
+                {w:'ざっしケース', d:'ざっしを いれる いれものだシカ！'}
+            ],
+            'じ': [
+                {w:'ジャズダンス', d:'かっこいい ダンスの ジャンルだシカ！'},
+                {w:'ジュース', d:'あまくて おいしい のみものだシカ！'}
+            ],
+            'ず': [
+                {w:'ズボンケース', d:'ズボンをしまう ケースだシカ！そんな言い方あまりしないシカ！'}
+            ],
+            'ぜ': [
+                {w:'ゼウス', d:'しんわの えらい かみさまだシカ！'},
+                {w:'ゼロックス', d:'コピーきの かいしゃの なまえだシカ！'}
+            ],
+            'ぞ': [
+                {w:'ゾーンパス', d:'コートを エリア（ゾーン）にわけて パスをまわす ことだシカ！'},
+                {w:'ゾロアトラス', d:'めずらしい ガの なかまだシカ！'},
+                {w:'ゾンビハウス', d:'ゾンビの おうちだシカ！'}
+            ],
+            'だ': [
+                {w:'ダンス', d:'おどることだシカ！レッツダンス！'},
+                {w:'ダイス', d:'サイコロの ことだシカ！'},
+                {w:'ダックス', d:'あしが みじかい かわいい ワンちゃんだシカ！'}
+            ],
+            'ぢ': [],
+            'づ': [],
+            'で': [
+                {w:'デトックス', d:'からだの どくを だすことだシカ！'},
+                {w:'デバイス', d:'きかいや そうちの ことだシカ！'},
+                {w:'デラックス', d:'ごうか！っていう いみだシカ！'}
+            ],
+            'ど': [
+                {w:'ドレス', d:'パーティーで きる きれいな ふくだシカ！'},
+                {w:'ドールハウス', d:'にんぎょうの ちいさな おうちだシカ！'},
+                {w:'ドローパス', d:'おえかき ソフトの パスのことかな？'}
+            ],
+            'ば': [
+                {w:'バス', d:'みんなで のる おおきな くるまずだシカ！'},
+                {w:'バランス', d:'つりあいの ことだシカ！'},
+                {w:'バイパス', d:'まちを うかいする ひろい みちだシカ！'}
+            ],
+            'び': [
+                {w:'ビジネス', d:'おしごとの ことだシカ！'},
+                {w:'ビブス', d:'スポーツで きる ベストみたいなやつだシカ！'},
+                {w:'ビールケース', d:'ビールを いれる プラスチックの はこだシカ！'}
+            ],
+            'ぶ': [
+                {w:'ブラウス', d:'おんなのひとが きる シャツだシカ！'},
+                {w:'ブルース', d:'かなしい かんじの おんがくだシカ！'},
+                {w:'ブレス', d:'いきつぎや ブレスレットの ことだシカ！'}
+            ],
+            'べ': [
+                {w:'ベース', d:'きほんや がっきの ことだシカ！'},
+                {w:'ベストニュース', d:'いちばん よかった ニュースだシカ！'}
+            ],
+            'ぼ': [
+                {w:'ボーナス', d:'たまにもらえる うれしい おかねだシカ！'},
+                {w:'ボックス', d:'はこの ことだシカ！'},
+                {w:'ボディドレス', d:'からだに フィットする ドレスだシカ！'}
+            ],
+            'ぱ': [
+                {w:'パス', d:'ボールを わたすことだシカ！'},
+                {w:'パンプス', d:'おんなのひとが はく くつだシカ！'},
+                {w:'パレス', d:'きゅうでん！ おしろの ことだシカ！'}
+            ],
+            'ぴ': [
+                {w:'ピアス', d:'みみに つける アクセサリーだシカ！'},
+                {w:'ピラティス', d:'からだを うごかす うんどうだシカ！'},
+                {w:'ピース', d:'へいわや チョキの サインだシカ！'}
+            ],
+            'ぷ': [
+                {w:'プラス', d:'たすことや よいことだシカ！'},
+                {w:'プレス', d:'おしつぶす ことだシカ！'},
+                {w:'プリンセス', d:'おひめさまの ことだシカ！'},
+                {w:'プロセス', d:'ものごとが すすんで いく じゅんばんの ことだシカ！'},
+                {w:'プリンス', d:'えいごで おうじさま の いみだシカ！'},
+                {w:'プリウス', d:'トヨタが つくっている でんきも つかう くるまの なまえだシカ！'},
+                {w:'プロミス', d:'やくそく や ちかい の ことだシカ！'},
+                {w:'プロレス', d:'リングの うえで たたかう スポーツだシカ！'},
+                {w:'プラスチックケース', d:'プラスチックで できた ものを いれる はこだシカ！'},
+                {w:'プールサイドテラス', d:'プールの そばに ある くつろぐ ばしょだシカ！'},
+                {w:'プロポリス', d:'みつばちが つくる からだに いいと いわれる ものだシカ！'}
+            ],
+            'ぺ': [
+                {w:'ペガサス', d:'つばさの ある うまだシカ！'},
+                {w:'ペンケース', d:'ふでばこの ことだシカ！'}
+            ],
+            'ぽ': [
+                {w:'ポリス', d:'けいさつかんの ことだシカ！'},
+                {w:'ポラリス', d:'ほっきょくせいの ことだシカ！'},
+                {w:'ポッピンダンス', d:'筋肉を はじくように おどる ダンスだシカ！'}
+            ]
+        };
+
+        const commonWords = Array.from(new Set([
+"す", "すい", "すいあつ", "すいい", "スイーツ", "スイートポテト", "スイートルーム", "すいえい", "すいか", "スイカアイス",
+"スイカジュース", "スイカバー", "すいかわり", "すいがら", "すいき", "すいぎゅう", "すいげん", "すいこう", "すいこうさいばい", "すいさつ",
+"すいさい", "すいさいが", "すいさん", "すいさんぎょう", "すいさんかナトリウム", "すいじ", "すいじょうバス", "すいしつ", "すいしん", "スイス",
+"すいせい", "すいせん", "すいせんじょう", "すいそう", "すいそうがく", "すいぞう", "すいそ", "すいそガス", "すいそく", "すいた",
+"すいたい", "すいたし", "すいち", "すいちょく", "スイッチ", "すいとう", "すいどう", "すいどうかん", "すいどうきょく", "すいなん",
+"すいなんじこ", "すいはい", "すいひ", "すいぶん", "すいほう", "すいぼつ", "すいま", "スイミー", "すいみん", "スイミング",
+"すいみんぶそく", "すいみんやく", "すいみゃく", "スイム", "すいめん", "すいり", "すいりくりょうよう", "すいりしょうせつ", "すいりょく", "スイング",
+"すう", "すうかい", "すうき", "すうがく", "すうがくしゃ", "すうく", "すうけい", "すうこう", "すうじ", "すうねん", "スプリット",
+"すうはい", "すうふ", "すうようきゅうり", "すうり", "すうれつ", "スウェー", "スウェード", "スウェット", "すうどく", "すえ",
+"すえおき", "すえぜん", "すえっこ", "すえひろがり", "すがお", "スカ", "スカイ", "スカイビル", "スカイツリー", "スカイマーク",
+"スカイメニュー", "スカウター", "スカウト", "すかし", "スカル", "スカルプ", "スカルプケア", "スカーフ", "スカート", "スカンク",
+"すき", "スキマスイッチ", "すまき", "スキー", "スキーウェア", "スキーじょう", "すききらい", "すきずき", "スキニー", "スキニージーンズ",
+"スキニーパンツ", "スキップ", "すきま", "すきまかぜ", "スキミング", "すきやき", "スキレット", "スキンヘア", "スキンヘッド", "スクレーパー",
+"スクイズ", "スクイーズ", "スクエア", "スクーター", "スクール", "スクールカウンセラー", "スクールバス", "すくね", "すくも", "スクラッチ",
+"スクラップ", "スクラム", "スクランブル", "スクランブルエッグ", "スクリーン", "スクリプト", "スクリーム", "スクロール", "スクワット", "スケート",
+"スケーター", "スケートボード", "スケートボーダー", "スケール", "スケジュール", "スケジュールかんり", "すけっと", "スケッチ", "スケッチブック", "すけだち",
+"スコア", "スコアラー", "スコアボード", "すこやか", "スコップ", "すこし", "スコティッシュフォールド", "スコットランド", "スコットランドヤード", "スコッチ",
+"スコパス", "すこんぶ", "スコープ", "スコール", "スコーン", "すざく", "スサノオ", "スサノオノミコト", "すし", "すしこ", "スリット",
+"すしざんまい", "すしず", "すしだ", "すしたろう", "すしや", "スシロー", "すじ", "すじがき", "すじこ", "スジャータ",
+"すじこんぶ", "すじみち", "すす", "すすき", "すずき", "すずしげ", "すずめ", "すずめのなみだ", "すずめのとじまり", "すずめばち",
+"すずむし", "すずみやはるひ", "すずみやはるひのきょうがく", "すずみやはるひのしょうしつ", "すずみやはるひのゆううつ", "すずらん", "すずらんこうこう", "すずらんテープ", "すそ", "すそあげ",
+"すそもの", "スター", "スタンプ", "スターアニス", "スターウォーズ", "スターダム", "スターチス", "スタート", "スタートダッシュ", "スターバックス",
+"スタイル", "スタジオ", "スタッフ", "スタンダード", "スタミナ", "スタバ", "スタンドアップコメディ", "スタンス", "スタッカート", "スタンド",
+"スタンドバイ", "スタンドバイミー", "スチーム", "スチール", "スチールウール", "スチームコースター", "すちこ", "スチュアートリトル", "スチュワーデス", "すで",
+"ステイ", "すていぬ", "ステイプラー", "スティッチ", "ステカセキング", "ステイゴールド", "すてごま", "ステゴサウルス", "ステッカー", "ステッキ",
+"ステップ", "すててこ", "すてね", "すてねこ", "すてみ", "ステーキ", "ステージ", "ステージダンス", "ステーション", "ステータス",
+"ステンレス", "ステンドグラス", "ステロイド", "すとぷり", "ストア", "ストーカー", "ストーブ", "ストーリー", "ストール", "ストーム",
+"ストーンズ", "ストック", "スターミー", "ストックホルム", "ストッキング", "ストッピング", "ストップ", "ストップウォッチ", "ストライク", "ストライプ",
+"ストラディバリウス", "ストラップ", "ストラップレス", "ストレス", "ストレッチ", "ストレンジ", "ストレンジャー", "ストレート", "ストロー", "ストローク",
+"ストロボ", "すな", "スナイプ", "スナイパー", "すなえ", "すなお", "すなかぶり", "すなぎも", "すなけむり", "すなけし",
+"すなはま", "すなば", "スナップ", "スナップショット", "すなずり", "すなぶくろ", "すなぶろ", "すなぼこり", "すなぼうず", "スナメリ",
+"すなやま", "スニーカー", "スニーカーショップ", "スニッカーズ", "スヌーピー", "すね", "すねあて", "スネイプせんせい", "スネお", "すねかじり",
+"スネーク", "スノー", "スノードーム", "スノーブーツ", "スノーマン", "スノーボード", "スノボ", "すのこ", "すはだ", "すばこ",
+"スバル", "スパ", "スパイダー", "スパワールド", "スパイ", "スパイス", "スパナ", "スパム", "スパムメール", "スパムおにぎり",
+"スパルタ", "スパーリング", "スパゲッティ", "スパチャ", "スパンコール", "スピードテスト", "スピーカー", "スピーチ", "スピード", "スピッツ",
+"スピノサウルス", "スピルバーグ", "スフィンクス", "スプー", "スプラッシュ", "スプリング", "スプライト", "スプレー", "スプレンダー", "スプーン",
+"スプーンレース", "スペア", "スペアキー", "スペアポケット", "スペイン", "スペインバル", "スペース", "スペースキー", "スペースシャトル", "スペード",
+"スペシャル", "スペルミス", "スペシャルウィーク", "スポーツ", "スポーツカー", "スポーツせんしゅ", "スポーツばんぐみ", "スポーツマンシップ", "すぽると", "スポーク",
+"スポンジ", "スポイト", "スポイラー", "スポンサー", "スポンジケーキ", "スポンジボブ", "すま", "すまい", "スマイル", "スマート",
+"スマートハウス", "スマートフォン", "スマッシュ", "スマホ", "すみ", "すみか", "すみぎ", "スミス", "すみっこ", "すみびやき",
+"すみっこぐらし", "スミレ", "すみわけ", "スムース", "すめし", "すめらぎ", "スモーク", "スモークガス", "スモークハウス", "すもぐり",
+"スモッグ", "すもも", "すもう", "すもうとり", "スーサイドスクワッド", "スーツ", "スーツケース", "スーパー", "スーパーカー", "スーパーマーケット",
+"スーパーマリオ", "スーパーボール", "スープ", "スーモ", "スーホー", "すり", "スリー", "スリーコインズ", "スリーピース", "スラローム",
+"スランプ", "スリープ", "スリーベース", "すりガラス", "すりき", "すりこぎ", "スリッパ", "すりばち", "スリム", "スリラー",
+"スリランカ", "スルメ", "スルメイカ", "スルー", "スルーパス", "スルースキル", "スレ", "すれちがい", "スレッド", "スロット",
+"スロバキア", "スロー", "スロープ", "スローペース", "スローロリス", "スワヒリご", "スワロフスキー", "スワロフスキークリスタル", "スワロー", "スワローズ",
+"スワローテール", "すんか", "すんけい", "すんげき", "すんし", "スンドゥブ", "すんぽう", "すのもの", "すいどうすい", "すうち",
+"スライム", "すいはんき", "すんだいもし", "すんだい", "すいようえき", "スラ―", "スモール", "すいせいペン", "すいせいインク", "すいさんぶつ",
+"スリル", "スリリング", "スマホケース", "スマブラ", "スマッシュブラザーズ", "スマホアプリ", "スポットライト", "スティック", "ストロング", "スノーボール",
+"すだち", "スワイプ", "すきや", "すいぼく", "すいぼくが", "すいさいえのぐ", "スキーようぐ", "スキーようひん", "スマップ", "スリップ",
+"スナック", "すみだがわ", "スコミムス", "スーパーサウルス", "スクリーンショット", "スティックのり", "スカーレット", "スカッシュ", "スラッシュ", "スパイファミリー",
+"スタジアム", "スーパーコンピューター", "スピア", "スペル", "すごろく", "すやき", "スロベニア", "ストロベリー", "すなどけい", "スピードスケート",
+"スピードスケーター", "すみのえ", "すみのえく", "すみのえきょうていじょう", "スキーボード", "すいようすい", "スタートアップ", "スクープ", "スパイク", "スパーク", "すぎはらちうね",
+"スマートボール", "すわこ", "スーパーせんとう", "スーパーせんたい", "すがたもり", "すがたに", "すがたづくり", "スナックがし", "すどまり", "ストレートフラッシュ",
+"スパッツ", "スナイパーライフル", "すぶり", "スポッチャ", "すべりだい", "スリーディーエス", "スリーディー", "すうしき", "すぺいんご", "すぺいんじん",
+"すあな", "すまとらとう", "すあし", "すあげ", "すいきゅう", "スーパーマリオブラザーズ", "スーパーマリオワールド", "すいちゅう", "すいちゅうめがね", "すいへい",
+"すいきょう", "すぶた", "すうりてき", "すかしえ", "すかしもよう", "スカイブルー", "すがのもり", "すがた", "すがたえ", "すきまかせ",
+"スクラブ", "すげかさ", "スケトウダラ", "スケートリンク", "スマイルことば", "すしネタ", "すんどめ", "スカイウォーク", "すじがね", "すじにく",
+"スポーツクライミング", "スティール", "スタートエンターテイメント", "すすりなき", "スケートじょう", "スイーツパラダイス", "すそまわり", "ストーブだい", "スタンプだい", "すぎ",
+"スギやっきょく", "すましじる", "すずり", "スリーポイント", "スリーポイントシュート", "スカイテラス", "すいようび", "すいよう", "スリーベースヒット",
+"ステルスねあげ", "すますいぞくかん", "スカイピース", "スーパーカップ", "スイカゲーム", "すえきち", "スケボー",
+"スカイかぶしきがいしゃ", "スキル", "スキャナー", "すべりこみ", "すみえ", "すげがさ", "すとろべりーぷりんす", "すいていしょうじょ", "すかいらーく", "すかいらーくホールディングス", "スーパーキャッツ",
+"すみぞめ", "すみれいろ", "すもうば", "すりあし", "すりぬけ", "すわりだこ", "すうあんこう", "すきばさみ",
+"ストライキ", "すいりゅう", "スクリュー", "スティールパン", "すいへいしゃ", "スッキリ", "スキーモーグル", "スキージャンプ",
+"すいぎょうざ", "スカイダイビング", "すべりどめ", "すいへいしこう", "すいしゃ", "スイート", "すあま",
+"すじにこみ", "スイミングスクール", "すいじょうき", "スムージー", "スプラッシュモンセラー", "すいそうがくぶ", "スラム", "スラムがい", "スラムダンク",
+"ストーキング", "すいろ", "スイマー", "スニーク", "スピードメーター", "スタンプラリー", "ストップモーション", "スペースファンタジー", "すごしょう",
+"すもうべや", "すいしょう", "すいしょうだま", "スーパーマリオパーティー", "スポーツマフラー", "すいさんかカリウム", "すいさんかカルシウム", "すいさんかバリウム", 
+"すいさんかマグネシウム", "すいさんかどう", "すいさんかてつ", "すいさんかアンモニウム", "すいさんかアルミニウム", "すいさんかあえん", "すいさんかスズ", "すいさんかなまり", "すいさんかクロム",
+"スライダー", "すいえいぼう", "すいえいぶ", "すいあつき", "すいがい", "すいげつ", "すいしんりょく", "すいふ", "すがきや", "すしづめ",
+"すじがねいり", "ストイック", "ストライカー", "すのこいた", "すぶりれんしゅう", "スマートウォッチ", "スマイルマーク", "すましがお", "すみやき", "すみれそう",
+"スムーズ", "スライド", "すりおろしリンゴ", "スローボール", "すわりごこち", "すんどめ", "すいちゅうカメラ", "すいちゅうカメラマン", "すきっぱら", "すくいあみ",
+"すいあげポンプ", "すいあつけい", "すいえいきょうしつ", "すいえいぼうし", "すいがいち", "すいせいがく", "すいてき", "すいでんちたい", "すいへいめん", "すいめんか",
+"すうがくテスト", "すうしきか", "すうてきしょり", "すごもり", "ステイホーム", "すりきず", "すろーらいふ", "すいあげぐち", "すいがらいれ", "すいぐんきち",
+"すいしつけんさ", "すいはんようぐ", "すくいだし", "すいしゃごや", "すいでんのうぎょう", "すうがくきょうし", "すすきのはら", "すずな", "すずしろ", "スイートピー",
+"スイバ", "スイフヨウ", "スイレンボク", "スカエボラ", "スカビオサ", "スグリ", "スコパリア", "スズサイコ", "スズシロソウ", "ステラコルダータ",
+"ストケシア", "ストレプトカーパス", "スノードロップ", "スノーフレーク", "スパティフィラム", "スハマソウ", "スパラクシス", "スモークツリー", "すおう", "すおうちく",
+"スケバハゴロモ", "スジクワガタ", "スジグロシロチョウ", "スジコガネ", "スズメダイ", "スッポンモドキ", "スナイソギンチャク", "スベトビヤモリ", "スペインダイコクコガネ", "スミナガシ",
+"スベスベマンジュウガニ", "スジエビ", "スナネズミ", "スミイカ", "スマトラトラ", "スジアナゴ", "スズカミキリ", "スジクロアリ", "スジウミヒトデ", "スジガニ",
+"スジロカワセミ", "スジイロセミ", "スズガモ", "スキバホウジャク", "スゲハムシ", "スジグロチャバネセセリ", "スジベニコケガ", "スジボソヤマキチョウ", "スジモンヒトリ", "スズキハラボソツリアブ",
+"スナムグリヒョウタンゾウムシ", "すだれ", "スティラコサウルス", "ステゴケラス", "ステノプテリギウス", "ズニケラトプス", "スピノフォロサウルス", "ズンガリプテルス", "セントロサウルス", "ステレオサウンド",
+"ステレオタイプ", "スエズうんが", "すいしょうたい", "スローフード", "スキンケア", "スキン", "スタイリスト", "スライディング", "すすぎ", "ストリート",
+"ストリーミング", "すみび", "すべ", "すきピ", "スフレ", "すがたみ", "すあたま", "すいいき", "すいうん", "すてぜりふ", "すりごま", "スリーブ",
+"スペアリブ", "すぐれもの", "スピンオフ", "スタンバイ", "すいいりつ", "すいきょく", "ストロベリーアイス", "スカイプ", "スクショ", "すだちしゅ",
+"スナネコ", "スリカータ", "スジアラ", "スネール", "スパニエル", "スジクロハギ", "スジハゼ", "スジベラ", "スダレヤライイシモチ", "スミツキアトヒキテンジクダイ",
+"スミツキカノコ", "スミツキトノサマダイ", "スミツキベラ", "スミレヤッコ", "スカラレエンゼル", "スカシテンジクダイ", "スゴモロコ", "スジオテンジクダイ", "スジオヘビギンポ", "スジギンポ",
+"スジシマドジョウ", "スジダラ", "スジハナビラウオ", "スジブダイ", "スズハモ", "スソウミヘビ", "スダレチョウチョウウオ", "ステューレポルス", "ストライプドバス", "スナガレイ",
+"スナヤツメ", "スネークヘッド", "スポッテッドガー", "スミウキゴリ", "スミクイウオ", "スミツキアカタチ", "スミツキハナダイ", "スミレナガハナダイ", "スリースポットグラミー", "スワモロコ",
+"スアレスコメネズミ", "スウィニーキクガシラコウモリ", "スウィフトギツネ", "スウィフトフルーツコウモリ", "スウィンホーホオジロシマリス", "スーダンアレチネズミ", "スーダンクビワコウモリ", "スーダンサバンナネズミ", "スーダンジネズミ", "スーダントゲマウス",
+"スーチョワンカワネズミ", "スーチョワントビハツカネズミ", "スーティーマンガベイ", "スーラトゲマウス", "スカーリアツコツコ", "スカシバネコウモリ", "スカンクアナグマ", "スクレイターグエノン", "スクレーターモリジャコウネズミ", "スコットイタチキツネザル",
+"スコットキノボリカンガルー", "スコットホオヒゲコウモリ", "スジイルカ", "スジオイヌ", "スジポケットマウス", "ススイロカグラコウモリ", "ススイロジネズミ", "ススイロシマリス", "ススイロスミントプシス", "ススイロホップマウス",
+"ススイロモリトゲネズミ", "ススケシロスジコウモリ", "ススケナシコウモリ", "ススシロアシマウス", "スタートンシロアシマウス", "スタインクスクス", "スタインクマドジョウ", "スタインボック", "ステアートゲネズミ", "スティーブンカンガルーネズミ",
+"スティーブンズウッドラット", "スティグマアレチネズミ", "ステインメロミスモドキ", "ステッドファストテングフルーツコウモリ", "ステップアカネズミ", "ステップオナガネズミ", "ステップケナガイタチ", "ステップナキウサギ", "ステップマーモット", "ステップレミング",
+"ステノキクガシラコウモリ", "ステファンナッシュティティ", "ステラーダイカイギュウ", "ステラヤワゲネズミ", "ストライプフルーツコウモリ", "ストランドオナガネズミ", "ストリクズカミツバカグラコウモリ", "ストレイタケネズミ", "ストローオオコウモリ", "スナイロツメオワラビー",
+"スナイロバッタマウス", "スナイロミラードヤワゲネズミ", "スナイロワラビー", "スナコメネズミ", "スナスミントプシス", "スナドリネコ", "スナハダシアレチネズミ", "スナメクラネズミ", "スニ", "スネトラーゲマーモセット",
+"スパイクトゲネズミ", "スパレルウーリーコウモリ", "スパレルオヒキコウモリ", "スピッククイ", "スピックスアカテホエザル", "スピックススイツキコウモリ", "スピックスヨザル", "スプライトコメネズミ", "スプリングボック", "スペインアイベックス",
+"スペインオオヤマネコ", "スペイントガリネズミ", "スベオアルマジロ", "スペッガツィーニヤチマウス", "スペックガゼル", "スマトラウサギ", "スマトラオヒキコウモリ", "スマトラオランウータン", "スマトラカモシカ", "スマトラカワウソ",
+"スマトラカワネズミ", "スマトラクサビオモモンガ", "スマトラクマネズミ", "スマトラクリゲネズミ", "スマトラコバナフルーツコウモリ", "スマトラサイ", "スマトラスジヤシリス", "スマトラスンダトゲネズミ", "スマトラダヤクフルーツコウモリ", "スマトラホオヒゲコウモリ",
+"スマトラヤマアラシ", "スマトラヤマクマネズミ", "スミイロオヒキコウモリ", "スミクラストカヤマウス", "スミスアカウサギ", "スミスウーリーコウモリ", "スミスケムリトガリネズミ", "スミスジネズミ", "スミスネズミ", "スミスモグラネズミ",
+"スミスヤブリス", "スラウェシカグラコウモリ", "スラウェシクマネズミ", "スラウェシツヤネズミ", "スラウェシトゲネズミ", "スラウェシナガレネズミ", "スラウェシメガネザル", "スリナムオヒキコウモリ", "スリナムモリトゲネズミ", "スリランカカグラコウモリ",
+"スリランカクマネズミ", "スリランカジャコウネズミ", "スリランカネズミ", "スリランカハツカネズミ", "スロゲットヤブカローネズミ", "スワンフチア", "スンダイボイノシシ", "スンダオオコウモリ", "スンダジネズミ", "スンダスローロリス",
+"スンダミゾコウモリ", "スンダミミナガコウモリ", "スンバカグラコウモリ", "スケットダンス", "スレイヤーズ", "すばらしきこのせかい", "すもももももも", "すもももももももものうち", "すーぱーそにこ", "スパロボ",
+"スキップビート", "スクライド", "スクールウォーズ", "スキーム", "スケバンでか", "スタジオパークからこんにちは", "スタートレック", "ストリートファイター", "ストリートファイト", "スパイラル", "スリナムきょうわこく", "スロバキアきょうわこく", "スロベニアきょうわこく",
+"ストロガノフ", "スカル", "スターシップサムライ", "スチームパワー", "スペースベース", "スマトラ", "スーパーシティ", "スリナム", "スウェーデンおうこく", "スイスれんぽう", "スペインおうこく", "スーダンきょうわこく", "スリランカみんしゅしゃかいしゅぎきょうわこく",
+"スパイラルダクト", "スパイラルチューブ", "スパイラルタップ", "スペースダンディ", "スポンジブラシ", "すめばみやこ", "すめばみやこのコスモスそう", "スポーツいがく", "スポーツきしゃ", "スポーツウェア",
+"スポーツアリーナ", "スポーツセンター", "スポーツライター", "スポーツキャスター", "スポーツちょうていさいばんしょ", "スポーツカイト", "スポーツチャンバラ", "スポーツウーマン", "スポーツカフェ", "スポーツかい",
+"スポーツがり", "スポーツふきや", "スポーツのひ", "スポーツドリンク", "スポーツちょう", "スポーツほうち", "スポーツタオル", "スポーツしせつ", "スポーツバイク", "ステゴケラス", "ステノプテリギウス", "スーパーエイト",
+"スナックえんどう", "スーパードライ", "ストリートスナップ", "スターティングメンバー", "スパイスカレー", "スローイング", "ストラップ", "スイッチケース", "スイッチツー", "すいてい",
+"すいけいがく", "スカンジナビア", "スキンシップ", "スノーモービル", "すいじょうバイク", "すいじょうスキー", "スキーコース", "すいじょうきばくはつ", "すいりゲーム", "スープジャー",
+"すみそ", "スラー", "すだちサワー", "スキャンダル", "すがも", "ストリートビュー", "スパイウェア", "スモック", "スターダスト", "スターダストレビュー",
+"スターダストクルセイダース", "スライサー", "スワヒリ", "ストマック", "スノーピーク", "スノーホワイト", "スノーシュー", "スキーム", "スキーツアー", "スキーきょうしつ",
+"スキーリゾート", "スキースクール", "スノーモービル", "スノータイヤ", "スライドドア", "スカイライン", "スカイエンジェル", "すあえ", "すいどうこうねつひ", "すいとうちょう",
+"スウィング", "スキップビート", "スクロールバー", "スクリーニング", "スクラップ", "すいぐち", "すいかずら", "すいぎょう", "すいげんち", "すいげん",
+"すいしゃごや", "すいじば", "すいせんか", "すいちゅうライト", "すいどうだい", "すいのう", "すいなんしゃ", "すいぶんき", "すいめんか", "すいもんがく",
+"すいよう", "すいりがく", "すいりつ", "すいりょう", "すうじつ", "すうたい", "すうだい", "すうちか", "すうめい", "スクリュー",
+"スクリュードライバー", "スクリューコンベア", "スクリューキャップ", "スクリュープラグ", "すじちがい", "すいぎんとう", "スイッチヒッター", "スイミングパンツ", "スウェットシャツ", "スウェットスーツ",
+"スカイウォーリア", "スキャンイーグル", "スキレットケーキ", "スクラップブック", "スクリューボール", "スクリーンテスト", "スケジューリング", "スズメノエンドウ", "スズメノテッポウ", "スタントウーマン",
+"スタントマン", "スターサファイア", "すっとこどっこい", "スティールカメラ", "ステーショナリー", "ストックブリッジ", "ストラックアウト", "ストレステスト", "ストレッチパンツ", "ストレッチ",
+"ストロボ", "スピードリミット", "スプレッドシート", "スペースワールド", "スポーツソックス", "スマトラカモシカ", "スーパーバイザー", "スカイダイバー", "スカイライナー", "スキートレイル",
+"スクリーニング", "スクリーンパス", "スクールバッグ", "スクールメイト", "スケープゴート", "スケールアップ", "スケール", "スコッチエッグ", "スコットランド", "スタックルーム",
+"スタビライザー", "スタンドカラー", "スタンドコート", "スタンフォード", "スタンフォードだいがく", "スチューデント", "スチールギター", "スッポンモドキ", "スティームバス", "ステップアップ",
+"すいそガス", "ステレオタイプ", "ステレオミキサー", "ステレオミニプラグ", "ステレオグラム", "ステレオカメラ", "ステレオヘッドホン", "ステレオアンプ", "ステレオイヤホン", "ステーキハウス",
+"ステータスバー", "ステートメント", "ストコフスキー", "ストックホルム", "ストックオプション", "ストックヤード", "ストラクチャー", "ストラディバリ", "スカイライト", "スカンジウム",
+"スキャニング", "スキルアップ", "スキンヘッド", "スキーリフト", "スクリーム", "スクリーマー", "スクレイパー", "スクレーパー", "スクーリング", "スケジューラ",
+"スコアカード", "スコッティー", "スコポラミン", "スコレッジャ", "スタンダード", "スタンドオフ", "スタンドマイク", "スタンドミラー", "スタンドライト", "スチュワード",
+"スティンガー", "ステインレス", "ステノグラフ", "ストッキング", "ストライカー", "ストラクチャー", "ストレッサー", "スネア", "スネアドラム", "スノースーツ",
+"スパンコール", "スペランカー", "スピログラフ", "スピンアウト", "スピンオフ", "スピーキング", "スピーディー", "スプリンター", "スペアタイヤ", "スペインむら",
+"スペインふうオムレツ", "スペインりょうり", "スパニッシュ", "スパニッシュオムレツ", "スペクタクル", "スポーティー", "スミノエガキ", "スリムアップ", "スリーカード", "スリーサイズ",
+"スワップ", "スーザフォン", "スイーパー", "スリーパー", "スウィング", "スウィフト", "スカイラブ", "スキットル", "スキミング", "スキャット",
+"スキューバダイビング", "スキューバ", "スキーマー", "スキーヤー", "スクリプト", "スクロース", "スコッティ", "スムージー", "スズメムギ", "スタイミー",
+"スタチュー", "スタチューオブリバティ", "スタチューレジェンド", "スターチス", "ステッカー", "ステロイド", "ステンシル", "ステンレス", "ステージア", "ストレージ",
+"ストローク", "スノーガン", "スパイカー", "スパイシー", "スパチュラ", "スパルタンエックス", "スピリッツ", "スペアリブ", "スペクタクル", "スペクタクルショー",
+"スラッガー", "すりガラス", "スリランカ", "スロットル", "スロベニア", "スーベニア", "スイフト", "スカラベ", "スカルト", "すがたえ",
+"スキット", "スクール", "スケール", "スタウト", "スタウトビール", "スツール", "ステッキ", "ステッチ", "ステップ", "スナガニ",
+"スナゴケ", "スナッチ", "スパイク", "スパルタきょういく", "スパロー", "スピナー", "スフィア", "スプール", "スペック", "スポコン",
+"スポット", "スポットライト", "すましこ", "スモール", "スラリー", "スラリータンク", "スリーブ", "スワット", "スープラ",
+"すくいなげ", "スーパーガールズ", "ストレイキッズ", "スーパージュニア", "スイートステディ", "スーパービーバー", "スーパーフライ", "すいようびのカンパネラ", "すすぎじる", "すずなり", "すてき", "すなあらし", "すなち", "スガシカオ", "すわりこみ"
+        ]));
+
+        // 辞書初期化
+        commonWords.forEach(w => {
+            const h = toHira(w);
+            localValidWords.add(h);
+            displayFormMap[h] = w; // ひらがな -> 本来の表記
+        });
+        Object.values(suDictionary).flat().forEach(item => {
+            const h = toHira(item.w);
+            localValidWords.add(h);
+            explanationMap[item.w] = item.d;
+            displayFormMap[h] = item.w; // ひらがな -> 本来の表記
+        });
+
+        function toHira(s) {
+            return s.replace(/[\u30a1-\u30f6]/g, m => String.fromCharCode(m.charCodeAt(0) - 0x60));
+        }
+
+        // 見つけた言葉の数に応じてシカくんの画像を更新する関数
+        function updateDeerImage() {
+            const count = foundWordsSet.size;
+            let imgSrc = 'cha1.png';
+            
+            if (count >= 500) {
+                imgSrc = 'cha1-5.png';
+            } else if (count >= 400) {
+                imgSrc = 'cha1-4.png';
+            } else if (count >= 300) {
+                imgSrc = 'cha1-3.png';
+            } else if (count >= 200) {
+                imgSrc = 'cha1-2.png';
+            } else if (count >= 100) {
+                imgSrc = 'cha1-1.png';
+            }
+
+            // shika-avatarクラスがついているすべての画像を更新
+            const avatars = document.querySelectorAll('.shika-avatar');
+            avatars.forEach(img => {
+                img.src = imgSrc;
+            });
+        }
+
+        // 数値を画面にセットする関数
+        function loadStats() {
+            const high = localStorage.getItem('deer_shiritori_highscore') || 0;
+            const win = localStorage.getItem('deer_shiritori_win') || 0;
+            document.getElementById('high-score-val').textContent = high;
+            document.getElementById('stats-win').textContent = win;
+            // 見つけた単語数の表示更新
+            document.getElementById('found-words-count').textContent = foundWordsSet.size;
+        }
+
+        // DOM構築直後に即実行して、画面描画より前に画像と数値を反映させる（チラつき・レイアウトズレ防止）
+        updateDeerImage();
+        loadStats();
+
+        window.onload = () => {
+            document.getElementById('user-input').addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    handleInput();
+                }
+            });
+        };
+
+        // キャラクター図鑑モーダル用関数 (未獲得時は画像を出さずバッジのみ表示)
+        function showCharacterCollection() {
+            const count = foundWordsSet.size;
+            const listEl = document.getElementById('character-collection-list');
+            listEl.innerHTML = '';
+
+            const characters = [
+                { req: 0, src: 'cha1.png', label: 'いつものすがた' },
+                { req: 100, src: 'cha1-1.png', label: '100単語登録記念' },
+                { req: 200, src: 'cha1-2.png', label: '200単語登録記念' },
+                { req: 300, src: 'cha1-3.png', label: '300単語登録記念' },
+                { req: 400, src: 'cha1-4.png', label: '400単語登録記念' },
+                { req: 500, src: 'cha1-5.png', label: '500単語登録記念' }
+            ];
+
+            characters.forEach(c => {
+                const isUnlocked = count >= c.req;
+                const div = document.createElement('div');
+                div.className = `flex flex-col items-center justify-center p-6 rounded-3xl border-4 ${isUnlocked ? 'border-amber-200 bg-amber-50' : 'border-gray-200 bg-gray-50'}`;
+                
+                const imgContainer = document.createElement('div');
+                imgContainer.className = 'relative mb-3 flex items-center justify-center w-28 h-28';
+                
+                if (isUnlocked) {
+                    const img = document.createElement('img');
+                    img.src = c.src;
+                    img.className = 'w-full h-full object-contain transition-transform duration-300 drop-shadow-lg hover:scale-110';
+                    imgContainer.appendChild(img);
+                } else {
+                    const lockBadge = document.createElement('span');
+                    lockBadge.className = 'bg-gray-400 text-white text-sm font-bold px-4 py-2 rounded-full shadow-inner';
+                    lockBadge.textContent = 'もってない';
+                    imgContainer.appendChild(lockBadge);
+                }
+
+                const label = document.createElement('span');
+                label.className = `text-lg font-black ${isUnlocked ? 'text-amber-800' : 'text-gray-400'}`;
+                label.textContent = c.label;
+
+                div.appendChild(imgContainer);
+                div.appendChild(label);
+                listEl.appendChild(div);
+            });
+
+            document.getElementById('character-collection-modal').classList.remove('hidden');
+        }
+
+        function closeCharacterCollection() {
+            document.getElementById('character-collection-modal').classList.add('hidden');
+        }
+
+        function startSequence() {
+            document.getElementById('screen-start').classList.add('hidden');
+            document.getElementById('screen-roulette').classList.remove('hidden');
+            
+            // スキップボタンの表示制御
+            const skipBtn = document.getElementById('skip-btn');
+            if (foundWordsSet.size > 20) {
+                skipBtn.classList.remove('hidden');
+            } else {
+                skipBtn.classList.add('hidden');
+            }
+
+            runBotRoulette();
+        }
+
+        function runBotRoulette() {
+            const charEl = document.getElementById('roulette-char');
+            const titleEl = document.getElementById('roulette-title');
+            const boxEl = document.getElementById('roulette-box');
+            titleEl.textContent = "ボクの禁止文字は...";
+            boxEl.classList.add('roulette-anim');
+            let count = 0;
+            
+            // 既存のタイマーがあればクリア
+            if(rInterval) clearInterval(rInterval);
+            if(rTimeout) clearTimeout(rTimeout);
+
+            rInterval = setInterval(() => {
+                let r = chars[Math.floor(Math.random() * chars.length)];
+                if (r !== "す") charEl.textContent = r;
+                count++;
+            }, 60);
+
+            // 次へ
+            rTimeout = setTimeout(() => {
+                clearInterval(rInterval);
+                forbiddenBot = charEl.textContent;
+                boxEl.classList.remove('roulette-anim');
+                document.getElementById('roulette-desc').textContent = `ボクは「${forbiddenBot}」で終わる言葉を使わないよ！`;
+                document.getElementById('side-forbidden-bot').textContent = forbiddenBot;
+                document.getElementById('header-forbidden-bot').textContent = forbiddenBot;
+                rTimeout = setTimeout(runUserRoulette, 1500);
+            }, 2500);
+        }
+
+        function runUserRoulette() {
+            const charEl = document.getElementById('roulette-char');
+            const titleEl = document.getElementById('roulette-title');
+            const boxEl = document.getElementById('roulette-box');
+            titleEl.textContent = "キミの禁止文字は...";
+            boxEl.classList.add('roulette-anim');
+            document.getElementById('roulette-desc').textContent = `何が出るかな？`;
+            let count = 0;
+            
+            if(rInterval) clearInterval(rInterval);
+            if(rTimeout) clearTimeout(rTimeout);
+
+            rInterval = setInterval(() => {
+                charEl.textContent = chars[Math.floor(Math.random() * chars.length)];
+                count++;
+            }, 60);
+
+            rTimeout = setTimeout(() => {
+                clearInterval(rInterval);
+                charEl.textContent = "ず"; 
+                charEl.classList.add('text-red-700');
+                boxEl.classList.remove('roulette-anim');
+                document.getElementById('roulette-desc').innerHTML = `<span class="text-red-700">キミは「ず」で終わる言葉は禁止ね！</span>`;
+                rTimeout = setTimeout(runStartCharRoulette, 2000);
+            }, 2500);
+        }
+
+        function runStartCharRoulette() {
+            const charEl = document.getElementById('roulette-char');
+            const titleEl = document.getElementById('roulette-title');
+            const boxEl = document.getElementById('roulette-box');
+            const descEl = document.getElementById('roulette-desc');
+            titleEl.textContent = "最初の文字は...";
+            descEl.textContent = "最初の文字を決めるよ！"; 
+            charEl.classList.remove('text-red-700');
+            boxEl.classList.add('roulette-anim');
+            let count = 0;
+            
+            if(rInterval) clearInterval(rInterval);
+            if(rTimeout) clearTimeout(rTimeout);
+
+            rInterval = setInterval(() => {
+                charEl.textContent = chars[Math.floor(Math.random() * chars.length)];
+                count++;
+            }, 60);
+
+            rTimeout = setTimeout(() => {
+                clearInterval(rInterval);
+                boxEl.classList.remove('roulette-anim');
+                const startChar = "す"; 
+                charEl.textContent = startChar;
+                rTimeout = setTimeout(() => startGame(startChar), 1000);
+            }, 1500);
+        }
+
+        // スキップ機能
+        function skipRoulette() {
+            // アニメーション全停止
+            if(rInterval) clearInterval(rInterval);
+            if(rTimeout) clearTimeout(rTimeout);
+
+            // シカくんの禁止文字をランダム決定
+            let target = chars[Math.floor(Math.random() * chars.length)];
+            if(target === 'す') target = 'る'; // 「す」は避ける
+            forbiddenBot = target;
+            document.getElementById('side-forbidden-bot').textContent = forbiddenBot;
+            document.getElementById('header-forbidden-bot').textContent = forbiddenBot;
+
+            // UIリセット
+            const charEl = document.getElementById('roulette-char');
+            const boxEl = document.getElementById('roulette-box');
+            charEl.classList.remove('text-red-700');
+            boxEl.classList.remove('roulette-anim');
+
+            startGame('す');
+        }
+
+        function startGame(startChar) {
+            document.getElementById('screen-roulette').classList.add('hidden');
+            document.getElementById('screen-game').classList.remove('hidden');
+            lastW = startChar;
+            addBubble(`それじゃあ「${startChar}」からはじめよう！`, false);
+            updateIndicator();
+            startTimer();
+            // ゲーム開始時にフォーカスを当てる
+            document.getElementById('user-input').focus();
+        }
+
+        function addBubble(text, isUser, isNew = false) {
+            const win = document.getElementById('chat-window');
+            const div = document.createElement('div');
+            div.className = `chat-bubble relative z-10 ${isUser ? 'user-bubble' : 'bot-bubble'}`;
+            
+            if (!isUser && !text.includes('はじめよう')) {
+                div.onclick = () => {
+                    getExplanation(text);
+                };
+                div.innerHTML = `${text}<br><span class="explain-btn">意味を見る</span>`;
+            } else {
+                if (isNew) {
+                    div.innerHTML = `<span class="absolute -top-2 -left-2.5 bg-gradient-to-br from-pink-400 to-rose-500 text-white text-xs font-black px-2.5 py-1 rounded-full shadow-md border-2 border-white transform -rotate-12 leading-none z-20">NEW</span><span>${text}</span>`;
+                } else {
+                    div.textContent = text;
+                }
+            }
+
+            win.appendChild(div);
+            win.scrollTop = win.scrollHeight;
+        }
+
+        function getExplanation(word) {
+            const desc = explanationMap[word] || "ごめんね、よくわからないシカ...";
+            document.getElementById('explain-title').textContent = `${word}のことシカ？`;
+            document.getElementById('explain-content').textContent = desc;
+            document.getElementById('explain-modal').classList.remove('hidden');
+        }
+
+        function closeExplain() {
+            document.getElementById('explain-modal').classList.add('hidden');
+            if (!isGameOver) startTimer();
+            // 豆知識を閉じたあとにフォーカスを当てる
+            document.getElementById('user-input').focus();
+        }
+
+        // 見つけた単語帳モーダル用関数
+        function showCollection() {
+            const listEl = document.getElementById('collection-list');
+            listEl.innerHTML = '';
+            if (foundWordsSet.size === 0) {
+                listEl.innerHTML = '<p class="col-span-2 text-center text-gray-400 text-sm py-4">まだ見つけてないよ</p>';
+            } else {
+                // ソート: ひらがなに変換して比較
+                const sorted = Array.from(foundWordsSet).sort((a, b) => {
+                    return toHira(a).localeCompare(toHira(b), 'ja');
+                });
+                
+                sorted.forEach(word => {
+                    const item = document.createElement('div');
+                    item.className = 'bg-white border-2 border-amber-100 rounded-xl px-2 py-3 text-amber-950 font-bold text-base text-center shadow-sm break-words leading-tight';
+                    item.textContent = word;
+                    listEl.appendChild(item);
+                });
+            }
+            document.getElementById('collection-modal').classList.remove('hidden');
+        }
+
+        function closeCollection() {
+            document.getElementById('collection-modal').classList.add('hidden');
+        }
+
+        function startTimer() {
+            clearInterval(timerId);
+            lastTickTime = Date.now(); 
+            updateTimerUI();
+            timerId = setInterval(() => {
+                const now = Date.now();
+                const delta = (now - lastTickTime) / 1000;
+                lastTickTime = now;
+                timeLeft -= delta;
+                
+                updateTimerUI();
+                if (timeLeft <= 0) {
+                    timeLeft = 0;
+                    updateTimerUI();
+                    endGame(false);
+                }
+            }, 100);
+        }
+
+        function updateTimerUI() {
+            const timerText = document.getElementById('timer-text');
+            const timerBar = document.getElementById('timer-bar');
+            timerText.textContent = Math.ceil(timeLeft);
+            const percentage = (timeLeft / MAX_TIME) * 100;
+            timerBar.style.width = `${percentage}%`;
+            
+            if (timeLeft < 10) {
+                timerBar.classList.remove('bg-yellow-400');
+                timerBar.classList.add('bg-red-500');
+            } else {
+                timerBar.classList.add('bg-yellow-400');
+                timerBar.classList.remove('bg-red-500');
+            }
+        }
+
+        function endGame(isPlayerWinner, reason = "") {
+            if (isGameOver) return;
+            isGameOver = true;
+            clearInterval(timerId);
+            
+            const highScore = parseInt(localStorage.getItem('deer_shiritori_highscore') || 0);
+            if (score > highScore) localStorage.setItem('deer_shiritori_highscore', score);
+
+            if (isPlayerWinner) {
+                const wins = parseInt(localStorage.getItem('deer_shiritori_win') || 0);
+                localStorage.setItem('deer_shiritori_win', wins + 1);
+            }
+
+            document.getElementById('final-score-text').textContent = `今回の記録: ${score}単語`;
+            const textEl = document.getElementById('game-over-text');
+            const resultImg = document.getElementById('result-img');
+
+            if (isPlayerWinner) {
+                textEl.innerText = "やられた！\nシカたないけど\n今回はキミの勝ちだ！";
+                resultImg.src = "cha3.png"; 
+            } else {
+                if (reason === "ん") {
+                    textEl.innerText = "しりとりは「ん」で終わったら\n負けシカないシカ！\n「す」シカ考えてないシカ？";
+                    resultImg.src = "cha4.png";
+                } else {
+                    textEl.innerText = "ごめ〜ん。ボクの勝ちだね。\n「す」シカつかわなくても\nよゆうで勝てちゃった！";
+                    resultImg.src = "cha2.png";
+                }
+            }
+            document.getElementById('screen-game-over').classList.remove('hidden');
+        }
+
+        function getTail(w) {
+            let h = toHira(w);
+            let last = h.slice(-1);
+            
+            if (last === 'ー') {
+                if (h.length < 2) return last;
+                const prev = h.slice(-2, -1);
+                const lines = {
+                    'あ': 'あかさたなはまやらわがざだばぱぁゃ',
+                    'い': 'いきしちにひみりぎじぢびぴぃ',
+                    'う': 'うくすつぬふむゆるぐずづぶぷぅゅっ',
+                    'え': 'えけせてねへめれげぜでべぺぇ',
+                    'お': 'おこそとのほもよろごぞどぼぽぉょ'
+                };
+                for (const [vowel, chars] of Object.entries(lines)) {
+                    if (chars.includes(prev)) return vowel;
+                }
+                return prev; 
+            }
+            const smalls = {'ぁ':'あ','ぃ':'い','ぅ':'う','ぇ':'え','ぉ':'お','ゃ':'や','ゅ':'ゆ','ょ':'よ','っ':'つ'};
+            return smalls[last] || last;
+        }
+
+        function updateIndicator() {
+            const head = getTail(lastW);
+            document.getElementById('next-letter').textContent = `「${head}」からはじまる言葉だよ（「ず」禁止！）`;
+            document.getElementById('score-counter').textContent = `${score}単語目`;
+            document.getElementById('side-score').textContent = `${score} 単語`;
+        }
+
+        async function handleInput() {
+            if (isGameOver) return;
+            const input = document.getElementById('user-input');
+            const val = input.value.trim();
+            const err = document.getElementById('error-msg');
+            err.textContent = "";
+
+            if (!val || !val.match(/^[ぁ-んァ-ヶー]+$/)) return;
+            
+            const norm = toHira(val);
+            const head = getTail(lastW);
+            
+            if (norm[0] !== head) {
+                err.textContent = `「${head}」からはじめてね！`;
+                return;
+            }
+            if (used.has(norm)) {
+                err.textContent = "その言葉はもう使ったよ！";
+                return;
+            }
+            if (norm.endsWith('ん')) {
+                err.textContent = "「ん」がついたよ！ボクの勝ち！";
+                endGame(false, "ん");
+                return;
+            }
+            if (norm.endsWith('ず')) {
+                err.textContent = "キミは「ず」で終わる言葉は禁止だよ！";
+                return;
+            }
+
+            if (!localValidWords.has(norm)) {
+                err.textContent = "そんな言葉シカは知らないからシカたない...";
+                return;
+            }
+
+            // 見つけた単語の保存処理（辞書の表記で保存）
+            const displayWord = displayFormMap[norm] || val;
+            let isNewWord = false;
+
+            if (!foundWordsSet.has(displayWord)) {
+                foundWordsSet.add(displayWord);
+                localStorage.setItem('deer_shiritori_found_words', JSON.stringify(Array.from(foundWordsSet)));
+                isNewWord = true;
+            }
+
+            score++;
+            used.add(norm);
+            addBubble(val, true, isNewWord); // チャットは入力のまま表示
+            lastW = val;
+            input.value = "";
+            
+            // 単語が見つかったらシカくんの画像を更新する
+            if (isNewWord) {
+                updateDeerImage();
+            }
+
+            // 送信後にフォーカスを当てる
+            input.focus();
+            
+            setTimeout(botTurn, 600);
+        }
+
+        function botTurn() {
+            if (isGameOver) return;
+            const head = getTail(lastW);
+            let candidates = suDictionary[head] || [];
+            
+            let availableWords = candidates.filter(item => !used.has(toHira(item.w)) && getTail(item.w) !== forbiddenBot);
+
+            if (availableWords.length === 0) {
+                endGame(true);
+                return;
+            }
+            
+            let wordObj = availableWords[Math.floor(Math.random() * availableWords.length)];
+            
+            executeBotWord(wordObj.w);
+        }
+
+        function executeBotWord(word) {
+            const norm = toHira(word);
+            if (norm.endsWith('ん') || used.has(norm) || getTail(word) === forbiddenBot) {
+                endGame(true);
+                return;
+            }
+            addBubble(word, false);
+            used.add(norm);
+            lastW = word;
+            timeLeft = MAX_TIME;
+            updateIndicator();
+            startTimer();
+        }
+        
+        // スマホ版キーボード表示時のリサイズ・スクロール対応
+        if (window.visualViewport) {
+            window.visualViewport.addEventListener('resize', () => {
+                if (window.matchMedia('(min-width: 768px)').matches) {
+                     document.getElementById('app').style.height = '';
+                     return;
+                }
+                const app = document.getElementById('app');
+                app.style.height = `${window.visualViewport.height}px`;
+                window.scrollTo(0, 0); // 追加: 画面が縮んだときに自動で一番上にスクロールを戻す
+                const win = document.getElementById('chat-window');
+                if (win) {
+                    setTimeout(() => {
+                        win.scrollTop = win.scrollHeight;
+                    }, 50);
+                }
+            });
+            // これを入れるとキーボードが出ている間にスクロールしても戻る
+            window.visualViewport.addEventListener('scroll', () => {
+                window.scrollTo(0, 0);
+            });
+        }
+
+        // 入力欄にフォーカスした時も一番上に戻す
+        document.getElementById('user-input').addEventListener('focus', () => {
+            setTimeout(() => {
+                window.scrollTo(0, 0);
+            }, 50);
+        });
+    </script>
+
+</body>
+</html>
