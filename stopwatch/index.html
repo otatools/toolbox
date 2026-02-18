@@ -5,7 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>ストップウォッチ</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=M+PLUS+1p:wght@400;500;800&display=swap" rel="stylesheet">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <!-- display=blockに変更して、読み込み完了まで別のフォントを表示させない -->
+    <link href="https://fonts.googleapis.com/css2?family=M+PLUS+1p:wght@500;800&display=block" rel="stylesheet">
     <style>
         :root {
             --accent-primary: #0ea5e9;
@@ -27,6 +30,7 @@
             --divider-color: rgba(255, 255, 255, 0.05);
         }
 
+        /* 初期状態は透明にして、フォント読み込み後に表示 */
         body {
             background-color: var(--bg-color);
             font-family: 'M PLUS 1p', sans-serif;
@@ -35,17 +39,24 @@
             color: var(--text-main);
             min-height: 100vh;
             min-height: -webkit-fill-available;
-            transition: background-color 0.5s cubic-bezier(0.4, 0, 0.2, 1), color 0.3s ease;
+            transition: background-color 0.5s cubic-bezier(0.4, 0, 0.2, 1), color 0.3s ease, opacity 0.3s ease;
             display: flex;
             flex-direction: column;
+            opacity: 0; /* 初期非表示 */
+        }
+        
+        /* 読み込み完了後に付与するクラス */
+        body.loaded {
+            opacity: 1;
         }
 
         html { height: -webkit-fill-available; }
 
         /* タイマー表示 */
         .timer-display {
+            font-family: 'M PLUS 1p', sans-serif;
             font-variant-numeric: tabular-nums;
-            font-size: clamp(5.5rem, 24vw, 16rem);
+            font-size: min(17vw, 45vh);
             font-weight: 800;
             line-height: 1;
             display: flex;
@@ -56,23 +67,20 @@
             text-shadow: 
                 0px 2px 4px var(--text-reflect),
                 0px 10px 30px rgba(14, 165, 233, 0.1);
-        }
-
-        /* 縦方向の余裕に基づいたサイズ微調整 */
-        @media (min-height: 800px) {
-            .timer-display { font-size: clamp(6rem, 25vh, 14rem); }
+            white-space: nowrap;
+            width: 100%;
         }
 
         .unit-label {
-            font-size: 0.18em;
+            font-size: 0.15em;
             font-weight: 500;
             color: #94a3b8;
-            margin: 0 0.12em;
+            margin: 0 0.1em;
             text-shadow: none;
         }
 
         .ms-digit {
-            font-size: 0.6em;
+            font-size: 0.5em;
             color: var(--accent-primary);
             opacity: 0.7;
             font-weight: 500;
@@ -81,11 +89,11 @@
         }
 
         .nav-link {
-            padding: 0.75rem 2rem;
+            padding: 0.5rem 1.5rem;
             transition: all 0.3s ease;
             color: #94a3b8;
             font-weight: 800;
-            outline: none; /* フォーカス枠を削除 */
+            outline: none;
         }
         .nav-link:focus { outline: none; }
 
@@ -96,7 +104,7 @@
         .nav-link.active::after {
             content: '';
             position: absolute;
-            bottom: 0.25rem;
+            bottom: 0.1rem;
             left: 50%;
             transform: translateX(-50%);
             width: 1.5rem;
@@ -107,7 +115,7 @@
 
         .btn-base {
             transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-            border-radius: 1.5rem;
+            border-radius: 1.25rem;
             backdrop-filter: blur(12px);
             border: 1px solid var(--glass-border);
             height: 4rem; 
@@ -115,7 +123,7 @@
             align-items: center;
             justify-content: center;
             touch-action: manipulation;
-            outline: none; /* フォーカス枠を削除 */
+            outline: none;
         }
         .btn-base:focus { outline: none; }
 
@@ -136,15 +144,15 @@
         .btn-reset {
             background: rgba(148, 163, 184, 0.05);
             color: #94a3b8;
-            height: 2.5rem;
+            height: 3rem;
         }
 
         .theme-toggle {
             position: absolute;
-            top: 1.5rem;
-            right: 1.5rem;
-            width: 3rem;
-            height: 3rem;
+            top: 1rem;
+            right: 1rem;
+            width: 2.5rem;
+            height: 2.5rem;
             border-radius: 50%;
             display: flex;
             align-items: center;
@@ -153,7 +161,7 @@
             border: 1px solid var(--glass-border);
             cursor: pointer;
             z-index: 50;
-            outline: none; /* フォーカス枠を削除 */
+            outline: none;
         }
         .theme-toggle:focus { outline: none; }
 
@@ -174,45 +182,56 @@
         .log-item:hover { background-color: rgba(14, 165, 233, 0.03); }
 
         .space-info {
-            font-size: 11px;
+            font-size: 10px;
             font-weight: 500;
             color: var(--accent-primary);
-            opacity: 0.7;
-            margin-top: 1rem;
-            letter-spacing: 0.05em;
+            opacity: 0.6;
+            margin-top: 0.5rem;
+            letter-spacing: 0.02em;
             text-align: center;
-            line-height: 1.5;
+            line-height: 1.4;
         }
 
         /* --- レスポンシブ調整 --- */
 
-        /* スマホ縦向き: 高さがない場合 - 数字サイズを22vhへ拡大 */
+        /* スマホ縦向き: 高さがない場合 */
         @media (max-height: 700px) {
-            .timer-display { font-size: 22vh; }
-            .button-container { margin-top: 1rem !important; }
-            .btn-base { height: 3.5rem !important; }
+            .btn-base { height: 3.5rem !important; font-size: 1.25rem !important; }
+            .timer-display { margin-top: -1vh; }
         }
 
         /* スマホ横向き (Landscape) 専門の調整 */
         @media (orientation: landscape) and (max-height: 500px) {
-            .timer-display { font-size: 35vh; }
+            .timer-display { 
+                font-size: min(18vw, 55vh); 
+                margin-top: 0;
+            }
             .button-container { 
                 flex-direction: row !important; 
-                max-width: 480px !important;
-                margin-top: 0.5rem !important;
-                gap: 0.75rem !important;
+                max-width: 500px !important;
+                margin-top: 0 !important;
+                gap: 0.5rem !important;
                 padding: 0 1rem;
             }
-            .btn-base { height: 3.2rem !important; flex: 1; }
-            .btn-reset { height: 3.2rem !important; max-width: 120px; }
+            .btn-base { height: 2.8rem !important; flex: 1; font-size: 1.1rem !important; }
+            .btn-reset { height: 2.8rem !important; max-width: 120px; font-size: 0.7rem !important; }
             .space-info { display: none; }
-            nav { margin-top: 0 !important; }
+            nav { margin-top: 0 !important; margin-bottom: 0 !important; }
             footer { display: none; }
         }
 
-        /* パソコン版の微調整 */
+        /* パソコン版（横幅が広く、高さもある場合）の微調整 */
         @media (min-width: 1024px) {
             .button-container { max-width: 320px !important; }
+        }
+
+        footer {
+            font-size: 10px;
+            font-weight: 400;
+            color: #94a3b8;
+            opacity: 0.4;
+            letter-spacing: 0.02em;
+            padding-bottom: 1rem;
         }
 
         .fade-in { animation: fadeIn 0.4s ease-out forwards; }
@@ -250,7 +269,7 @@
         </svg>
     </button>
 
-    <nav class="flex justify-center gap-2 px-8 z-10 shrink-0 mt-2">
+    <nav class="flex justify-center gap-2 px-8 z-10 shrink-0 mt-1">
         <button id="tabTimer" class="nav-link active">はかる</button>
         <button id="tabLogs" class="nav-link">きろく</button>
     </nav>
@@ -258,13 +277,15 @@
     <main class="flex-1 flex flex-col items-center relative overflow-hidden main-content">
         
         <div id="timerSection" class="flex-1 w-full flex flex-col items-center justify-center p-4 fade-in">
+            <!-- タイマー数字 -->
             <div class="timer-display">
                 <span id="min">00</span><span class="unit-label">分</span>
                 <span id="sec">00</span><span class="unit-label">秒</span>
                 <span id="msec" class="ms-digit">00</span>
             </div>
 
-            <div class="mt-12 w-full max-w-xs flex flex-col items-center gap-4 px-6 button-container">
+            <!-- ボタンエリア -->
+            <div class="mt-4 w-full max-w-xs flex flex-col items-center gap-3 px-6 button-container">
                 <button id="startStopBtn" class="btn-base btn-start w-full text-2xl font-extrabold tracking-tight">
                     スタート
                 </button>
@@ -285,7 +306,7 @@
                     <div class="h-1 w-12 bg-sky-400 rounded-full mt-1"></div>
                 </div>
                 <div class="flex items-center gap-3 text-right">
-                    <span class="text-[9px] font-bold text-slate-400 opacity-70 leading-none uppercase">Session logs only</span>
+                    <span class="text-[9px] font-bold text-slate-400 opacity-70 leading-none">※がめんをとじたらきろくはきえます</span>
                     <button id="clearLogs" class="p-2 text-slate-400 hover:text-rose-500 transition-colors focus:outline-none">
                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -305,8 +326,8 @@
 
     </main>
 
-    <footer class="text-center shrink-0 py-4 opacity-40 text-[10px] font-medium tracking-wide">
-        ストップウォッチ | Ver 2.5 | ota tools
+    <footer class="text-center shrink-0 py-3 opacity-40 text-[10px] font-medium tracking-wide">
+        ストップウォッチ | Ver 2.9 | ota tools
     </footer>
 
     <script>
@@ -315,6 +336,16 @@
         let timerInterval;
         let isRunning = false;
         let logs = [];
+
+        // フォント読み込み完了を検知して画面を表示
+        document.fonts.ready.then(function() {
+            document.body.classList.add('loaded');
+        });
+        
+        // 万が一フォント読み込みに時間がかかりすぎた場合の保険
+        setTimeout(() => {
+            document.body.classList.add('loaded');
+        }, 1000);
 
         const body = document.body;
         const themeToggle = document.getElementById('themeToggle');
