@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>高跳び目標計算アプリ</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <!-- 画像保存用ライブラリ -->
+    <script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@400;700;800&display=swap');
+        
+        body {
+            font-family: 'M PLUS Rounded 1c', sans-serif;
+            background-color: #f0f9ff;
+        }
+    </style>
+</head>
+<body class="text-slate-700">
+
+    <div class="max-w-3xl mx-auto p-4 md:p-8">
+        <!-- ヘッダー -->
+        <header class="text-center mb-8 bg-white p-6 rounded-3xl shadow-lg border-b-4 border-sky-400">
+            <h1 class="text-2xl md:text-3xl font-extrabold text-sky-600 mb-2">
+                <i class="fa-solid fa-person-running mr-2"></i>走り高跳び 目標計算機
+            </h1>
+            <p class="text-slate-500 font-bold">身長と50m走の記録から、あなたの目標高さを計算しよう！</p>
+        </header>
+
+        <!-- 入力フォーム -->
+        <div class="bg-white p-6 md:p-8 rounded-3xl shadow-lg mb-8 border-2 border-sky-100" data-html2canvas-ignore>
+            <div class="grid md:grid-cols-2 gap-6">
+                <!-- 身長入力 -->
+                <div>
+                    <label for="height" class="block text-lg font-bold text-sky-700 mb-2">
+                        <i class="fa-solid fa-ruler-vertical mr-1"></i> 身長 (cm)
+                    </label>
+                    <input type="number" id="height" placeholder="例: 145" 
+                        class="w-full text-2xl p-4 border-2 border-slate-200 rounded-2xl focus:border-sky-400 focus:outline-none focus:ring-4 focus:ring-sky-100 transition text-center font-bold text-sky-600"
+                        inputmode="decimal">
+                </div>
+
+                <!-- 50m走入力 -->
+                <div>
+                    <label for="time" class="block text-lg font-bold text-sky-700 mb-2">
+                        <i class="fa-solid fa-stopwatch mr-1"></i> 50m走のタイム (秒)
+                    </label>
+                    <input type="number" id="time" placeholder="例: 8.5" step="0.01"
+                        class="w-full text-2xl p-4 border-2 border-slate-200 rounded-2xl focus:border-sky-400 focus:outline-none focus:ring-4 focus:ring-sky-100 transition text-center font-bold text-sky-600"
+                        inputmode="decimal">
+                    <p class="text-xs text-slate-400 mt-1 pl-1">※ 秒数を入力してね（例：8.75）</p>
+                </div>
+            </div>
+
+            <!-- 計算ボタン -->
+            <button onclick="calculate()" 
+                class="w-full mt-6 bg-gradient-to-r from-sky-400 to-blue-500 hover:from-sky-500 hover:to-blue-600 text-white font-extrabold text-xl py-4 rounded-2xl shadow-md transform active:scale-95 transition-all">
+                計算する！
+            </button>
+            
+            <!-- エラーメッセージ -->
+            <div id="error-container" class="hidden mt-4 bg-red-50 border-2 border-red-200 rounded-xl p-4 text-center">
+                 <p id="error-msg" class="text-red-500 font-bold">
+                    <i class="fa-solid fa-circle-exclamation mr-1"></i> 数字を正しく入力してください。
+                </p>
+            </div>
+        </div>
+
+        <!-- 結果表示エリア -->
+        <div id="result-area" class="hidden">
+            
+            <!-- 保存対象エリア（ここから下を画像にします） -->
+            <div id="capture-target" class="p-4 bg-white rounded-3xl">
+                <!-- 基本の高さの表示 -->
+                <div class="bg-gradient-to-r from-yellow-50 to-orange-50 p-6 rounded-3xl shadow-lg mb-8 border-l-8 border-orange-400">
+                    <h2 class="text-xl font-bold text-orange-600 mb-2">あなたの基準（きじゅん）の高さ</h2>
+                    <div class="flex items-end gap-2">
+                        <span id="base-height-display" class="text-5xl font-extrabold text-slate-800">100</span>
+                        <span class="text-2xl font-bold text-slate-600 mb-2">cm</span>
+                    </div>
+                    <p class="text-sm text-slate-500 mt-2 font-bold">
+                        ※ 計算式: ( 身長 × 0.5 ) + 110 - ( 50mタイム × 10 )
+                    </p>
+                </div>
+
+                <!-- 得点表 -->
+                <div class="bg-white rounded-3xl shadow-lg overflow-hidden border-2 border-slate-100">
+                    <div class="p-4 bg-sky-50 border-b border-sky-100 flex justify-between items-center">
+                        <h3 class="text-lg font-bold text-sky-800">
+                            <i class="fa-solid fa-list-ol mr-1"></i> 得点・目標高さ一覧表
+                        </h3>
+                        <!-- 画像保存時にはこのボタンを隠す設定 (data-html2canvas-ignore) -->
+                        <button id="save-btn" onclick="saveAsImage()" data-html2canvas-ignore class="bg-white text-sky-600 px-4 py-2 rounded-lg text-sm font-bold border border-sky-200 hover:bg-sky-50 transition shadow-sm flex items-center gap-2">
+                            <i class="fa-solid fa-camera"></i> 画像で保存
+                        </button>
+                    </div>
+                    
+                    <table class="w-full text-center border-collapse">
+                        <thead>
+                            <tr class="bg-slate-100 text-slate-600">
+                                <th class="p-3 border-b-2 border-slate-200 w-1/3">得点</th>
+                                <th class="p-3 border-b-2 border-slate-200 w-2/3 bg-yellow-100">あなたの目標</th>
+                            </tr>
+                        </thead>
+                        <tbody id="score-table-body" class="font-bold text-lg">
+                            <!-- JSでここに行を追加します -->
+                        </tbody>
+                    </table>
+                </div>
+                
+                <!-- 画像に入れたクレジット（保存時のみ見えるように工夫しても良いですが、常時表示でシンプルにします） -->
+                <div class="text-right mt-2 text-slate-300 text-xs font-bold">
+                    走り高跳び 目標計算機
+                </div>
+            </div>
+            
+            <div class="text-center mt-8" data-html2canvas-ignore>
+                <button onclick="window.scrollTo({top: 0, behavior: 'smooth'})" class="text-slate-400 font-bold hover:text-sky-500 transition">
+                    もう一度計算する
+                </button>
+            </div>
+        </div>
+
+        <footer class="mt-12 mb-4 text-center text-xs text-slate-400 font-light" data-html2canvas-ignore>
+            走り高跳び 目標計算機 | ver.1.0 | ota tools
+        </footer>
+    </div>
+
+    <script>
+        function calculate() {
+            // 入力の取得
+            const heightInput = document.getElementById('height');
+            const timeInput = document.getElementById('time');
+            const errorContainer = document.getElementById('error-container');
+            const errorMsg = document.getElementById('error-msg');
+            const resultArea = document.getElementById('result-area');
+
+            const height = parseFloat(heightInput.value);
+            const time = parseFloat(timeInput.value);
+
+            // バリデーション
+            if (isNaN(height) || isNaN(time) || height <= 0 || time <= 0) {
+                showError("身長と50m走のタイムを正しく入力してください。");
+                return;
+            }
+
+            if (time > 25) {
+                showError(`50m走のタイムが ${time}秒 になっています。<br>ここには「8.5」のように<strong>秒数</strong>を入力してください。`);
+                return;
+            }
+
+            errorContainer.classList.add('hidden');
+
+            // 計算
+            let baseHeight = (height * 0.5) + 110 - (time * 10);
+            baseHeight = Math.round(baseHeight * 100) / 100;
+
+            // 表示更新
+            document.getElementById('base-height-display').textContent = Number.isInteger(baseHeight) ? baseHeight : baseHeight;
+
+            // テーブル生成
+            generateTable(baseHeight);
+
+            // 表示
+            resultArea.classList.remove('hidden');
+
+            setTimeout(() => {
+                document.getElementById('result-area').scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }, 100);
+        }
+
+        function showError(message) {
+            const errorContainer = document.getElementById('error-container');
+            const errorMsg = document.getElementById('error-msg');
+            const resultArea = document.getElementById('result-area');
+            
+            errorMsg.innerHTML = '<i class="fa-solid fa-circle-exclamation mr-1"></i> ' + message;
+            errorContainer.classList.remove('hidden');
+            resultArea.classList.add('hidden');
+        }
+
+        function formatVal(val) {
+            const rounded = Math.round(val * 100) / 100;
+            return Number.isInteger(rounded) ? rounded : rounded;
+        }
+
+        function generateTable(base) {
+            const tbody = document.getElementById('score-table-body');
+            tbody.innerHTML = ''; 
+
+            const scores = [
+                { score: 10, minOffset: 20, maxOffset: null, type: 'over', color: 'text-red-500' },
+                { score: 9, minOffset: 15, maxOffset: 19, type: 'range', color: 'text-orange-500' },
+                { score: 8, minOffset: 10, maxOffset: 14, type: 'range', color: 'text-orange-500' },
+                { score: 7, minOffset: 5, maxOffset: 9, type: 'range', color: 'text-orange-400' },
+                { score: 6, minOffset: 0, maxOffset: 4, type: 'range', color: 'text-blue-600', isBase: true },
+                { score: 5, minOffset: -5, maxOffset: -1, type: 'range', color: 'text-slate-600' },
+                { score: 4, minOffset: -10, maxOffset: -6, type: 'range', color: 'text-slate-600' },
+                { score: 3, minOffset: -15, maxOffset: -11, type: 'range', color: 'text-slate-600' },
+                { score: 2, minOffset: -20, maxOffset: -16, type: 'range', color: 'text-slate-600' },
+                { score: 1, minOffset: null, maxOffset: -21, type: 'under', color: 'text-slate-400' },
+            ];
+
+            scores.forEach(row => {
+                const tr = document.createElement('tr');
+                tr.className = "border-b border-slate-100 hover:bg-sky-50 transition";
+                
+                if (row.isBase) {
+                    tr.className += " bg-blue-50 border-l-4 border-blue-500";
+                }
+
+                let targetText = "";
+                if (row.type === 'over') {
+                    targetText = `${formatVal(base + row.minOffset)}cm 以上`;
+                } else if (row.type === 'under') {
+                    targetText = `${formatVal(base + row.maxOffset)}cm 以下`;
+                } else {
+                    const val1 = formatVal(base + row.minOffset);
+                    const val2 = formatVal(base + row.maxOffset);
+                    targetText = `${val1}cm 〜 ${val2}cm`;
+                }
+
+                tr.innerHTML = `
+                    <td class="p-4 text-2xl ${row.color}">${row.score}</td>
+                    <td class="p-4 text-xl md:text-2xl text-slate-800 bg-yellow-50/50">
+                        ${targetText}
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        // 画像保存機能
+        function saveAsImage() {
+            const element = document.getElementById('capture-target');
+            const btn = document.getElementById('save-btn');
+            const originalHTML = btn.innerHTML;
+
+            // ボタンをローディング表示に
+            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 作成中...';
+            btn.disabled = true;
+
+            html2canvas(element, {
+                scale: 2, // 高画質設定
+                backgroundColor: "#ffffff", // 背景色を白に指定（透過防止）
+            }).then(canvas => {
+                // ダウンロードリンクを作成
+                const link = document.createElement('a');
+                link.download = '高跳び目標計算結果.jpg';
+                link.href = canvas.toDataURL('image/jpeg', 0.9);
+                link.click();
+                
+                // 元に戻す
+                btn.innerHTML = originalHTML;
+                btn.disabled = false;
+            }).catch(err => {
+                console.error(err);
+                alert('画像の保存に失敗しました。');
+                btn.innerHTML = originalHTML;
+                btn.disabled = false;
+            });
+        }
+    </script>
+</body>
+</html>
