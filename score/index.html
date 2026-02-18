@@ -1,0 +1,478 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>マルチプレイヤースコアカウンター</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter+Tight:wght@500;700&family=Open+Sans:wght@700&display=swap');
+        
+        :root {
+            --vh: 1vh;
+            --card-panel-color: #242427;
+        }
+
+        body {
+            font-family: 'Inter Tight', sans-serif;
+            transition: background-color 0.3s, color 0.3s;
+            touch-action: manipulation;
+            user-select: none;
+            overflow: hidden;
+            height: calc(var(--vh) * 100);
+            display: flex;
+            flex-direction: column;
+        }
+
+        .score-val {
+            font-family: 'Inter Tight', sans-serif;
+            font-weight: 700;
+            font-variant-numeric: tabular-nums;
+            line-height: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            letter-spacing: -0.02em;
+            will-change: transform;
+            text-align: center;
+            z-index: 10;
+        }
+
+        /* --- Dark Mode Colors --- */
+        body.dark { 
+            background-color: #09090b; 
+            color: #f4f4f5; 
+            --card-panel-color: #09090b; 
+        }
+        .dark .score-card { background-color: #18181b; border: 1px solid #27272a; }
+        .dark .num-top { background: #2a2a2e; border-bottom: 1px solid rgba(0,0,0,0.3); }
+        .dark .num-bottom { background: #1c1c20; }
+        .dark .btn-adjust { background-color: #27272a; color: #a1a1aa; }
+        .dark .modal-content { background-color: #18181b; border: 1px solid #27272a; color: #f4f4f5; }
+        .dark .footer-text { color: rgba(255, 255, 255, 0.1); }
+        .dark .settings-input { background-color: #27272a; color: #ffffff; border: 1px solid #3f3f46; }
+
+        /* --- Light Mode Colors (Updated) --- */
+        body.light { 
+            background-color: #e4e4e7; 
+            color: #18181b; 
+            --card-panel-color: #d4d4d8; 
+        }
+        .light .score-card { 
+            background-color: #ffffff; 
+            border: 1px solid #d4d4d8; 
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+        /* パネルの色をカード本体の白(#ffffff)と差別化 */
+        .light .num-top { 
+            background: #f1f1f4; /* 少し暗いグレーにしてカード背景から浮き立たせる */
+            border-bottom: 1px solid rgba(0,0,0,0.05);
+            box-shadow: inset 0 1px 2px rgba(0,0,0,0.05);
+        }
+        .light .num-bottom { 
+            background: #e8e8ed; /* 下半分はさらに濃くして立体感を出す */
+            box-shadow: inset 0 -1px 2px rgba(0,0,0,0.02);
+        }
+        .light .btn-adjust { background-color: #f4f4f5; color: #3f3f46; border: 1px solid #e4e4e7; }
+        .light .modal-content { background-color: #ffffff; color: #18181b; border: 1px solid #d4d4d8; }
+        .light .footer-text { color: rgba(0, 0, 0, 0.3); }
+        .light .settings-input { background-color: #f4f4f5; color: #18181b; border: 1px solid #d4d4d8; }
+
+        header {
+            flex-shrink: 0;
+            padding: 0 1.25rem;
+            height: 60px;
+            display: flex;
+            align-items: center;
+            border-bottom: 1px solid rgba(128,128,128,0.1);
+        }
+
+        #playersGridContainer {
+            flex-grow: 1;
+            padding: 12px;
+            box-sizing: border-box;
+            overflow: hidden;
+            display: flex;
+        }
+
+        #playersGrid {
+            display: grid;
+            gap: 12px;
+            width: 100%;
+            height: 100%;
+        }
+
+        .score-card {
+            border-radius: 20px;
+            padding: 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            position: relative;
+            cursor: grab;
+            transition: transform 0.2s cubic-bezier(0.25, 0.1, 0.25, 1), opacity 0.2s ease, background-color 0.3s;
+        }
+
+        .flip-num {
+            display: flex;
+            flex-direction: column;
+            position: relative;
+            overflow: hidden;
+            border-radius: 12px;
+            width: 100%;
+            border: 1px solid rgba(128,128,128,0.1); /* パネルの輪郭を強調 */
+        }
+
+        .num-top, .num-bottom {
+            height: 50%;
+            width: 100%;
+            cursor: pointer;
+            transition: opacity 0.1s;
+        }
+        .num-top:active, .num-bottom:active { opacity: 0.7; }
+
+        .flip-num::after {
+            content: '';
+            position: absolute;
+            width: 100%;
+            height: 1px;
+            background: var(--card-panel-color);
+            top: 50%;
+            left: 0;
+            pointer-events: none;
+            z-index: 20;
+        }
+
+        .score-val {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            pointer-events: none;
+            white-space: nowrap;
+            width: 100%;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.8);
+            backdrop-filter: blur(10px);
+            z-index: 100;
+            align-items: center;
+            justify-content: center;
+        }
+        .modal.active { display: flex; }
+
+        .player-name-input {
+            background: transparent;
+            border: none;
+            color: inherit;
+            font-weight: 600;
+            outline: none;
+            text-align: center;
+            width: 100%;
+            opacity: 0.8;
+        }
+
+        .drag-handle {
+            position: absolute;
+            top: 6px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 24px;
+            height: 3px;
+            background: rgba(128,128,128,0.2);
+            border-radius: 2px;
+            opacity: 0.4;
+        }
+
+        .settings-input {
+            -moz-appearance: textfield;
+            text-align: center;
+        }
+        .settings-input::-webkit-outer-spin-button,
+        .settings-input::-webkit-inner-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+
+        footer {
+            flex-shrink: 0;
+            padding: 8px 1.25rem;
+            text-align: center;
+            font-size: 10px;
+            font-weight: 400;
+            letter-spacing: 0.04em;
+        }
+    </style>
+</head>
+<body class="dark">
+
+    <header class="justify-between bg-inherit">
+        <div class="flex items-center gap-2">
+            <button id="timerToggle" class="p-2 rounded-full hover:bg-white/10 transition-colors">
+                <svg id="playIcon" xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" viewBox="0 0 16 16">
+                    <path d="m11.596 8.697-6.363 3.692c-.54.313-1.233-.066-1.233-.697V4.308c0-.63.692-1.01 1.233-.696l6.363 3.692a.802.802 0 0 1 0 1.393z"/>
+                </svg>
+                <svg id="pauseIcon" class="hidden" xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" viewBox="0 0 16 16">
+                    <path d="M5.5 3.5A1.5 1.5 0 0 1 7 5v6a1.5 1.5 0 0 1-3 0V5a1.5 1.5 0 0 1 1.5-1.5zm5 0A1.5 1.5 0 0 1 12 5v6a1.5 1.5 0 0 1-3 0V5a1.5 1.5 0 0 1 1.5-1.5z"/>
+                </svg>
+            </button>
+            <span id="timerDisplay" class="text-2xl font-bold">00:00</span>
+        </div>
+        <div class="flex items-center gap-2">
+            <button id="globalReset" class="p-2 rounded-full hover:bg-white/10 opacity-70">
+                <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M21 2v6h-6"></path>
+                    <path d="M3 12a9 9 0 0 1 15-6.7L21 8"></path>
+                    <path d="M3 22v-6h6"></path>
+                    <path d="M21 12a9 9 0 0 1-15 6.7L3 16"></path>
+                </svg>
+            </button>
+            <button id="openSettings" class="p-2 rounded-full hover:bg-white/10">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" viewBox="0 0 16 16">
+                    <path d="M9.405 1.05c-.413-1.4-2.397-1.4-2.81 0l-.1.34a1.464 1.464 0 0 1-2.105.872l-.31-.17c-1.283-.698-2.686.705-1.987 1.987l.169.311c.446.82.023 1.841-.872 2.105l-.34.1c-1.4.413-1.4 2.397 0 2.81l.34.1a1.464 1.464 0 0 1 .872 2.105l-.17.31c-.698 1.283.705 2.686 1.987 1.987l.311-.169a1.464 1.464 0 0 1 2.105.872l.1.34c.413 1.4 2.397 1.4 2.81 0l.1-.34a1.464 1.464 0 0 1 2.105-.872l.31.17c1.283.698 2.686-.705 1.987-1.987l-.169-.311a1.464 1.464 0 0 1 .872-2.105l.34-.1c1.4-.413 1.4-2.397 0-2.81l-.34-.1a1.464 1.464 0 0 1-.872-2.105l.17-.31c.698-1.283-.705-2.686-1.987-1.987l-.311.169a1.464 1.464 0 0 1-2.105-.872l-.1-.34zM8 10.93a2.929 2.929 0 1 1 0-5.858 2.929 2.929 0 0 1 0 5.858z"/>
+                </svg>
+            </button>
+        </div>
+    </header>
+
+    <div id="playersGridContainer">
+        <div id="playersGrid"></div>
+    </div>
+
+    <footer class="footer-text">
+        マルチスコアカウンター　|　 ver.4.3　|　ota tools
+    </footer>
+
+    <!-- Settings Modal -->
+    <div id="settingsModal" class="modal">
+        <div class="modal-content p-8 rounded-[32px] w-80 shadow-2xl">
+            <h2 class="text-xl font-bold mb-6">設定</h2>
+            <div class="space-y-6">
+                <div class="flex items-center justify-between">
+                    <span class="font-medium">テーマ</span>
+                    <button id="themeToggle" class="w-32 py-2 font-bold rounded-lg btn-adjust text-xs transition-all active:scale-95">ダークモード</button>
+                </div>
+                <div class="flex items-center justify-between">
+                    <span class="font-medium">人数</span>
+                    <div class="flex items-center gap-3">
+                        <button onclick="adjustPlayerCount(-1)" class="w-8 h-8 rounded-full btn-adjust flex items-center justify-center font-bold">-</button>
+                        <input type="number" id="playerCountInput" class="settings-input w-12 font-bold py-1.5 rounded-lg outline-none" value="4" min="1" max="12">
+                        <button onclick="adjustPlayerCount(1)" class="w-8 h-8 rounded-full btn-adjust flex items-center justify-center font-bold">+</button>
+                    </div>
+                </div>
+                <div class="flex items-center justify-between">
+                    <span class="font-medium">初期スコア</span>
+                    <div class="flex items-center gap-3">
+                        <button onclick="adjustBaseScore(-1)" class="w-8 h-8 rounded-full btn-adjust flex items-center justify-center font-bold">-</button>
+                        <input type="number" id="baseScoreInput" class="settings-input w-12 font-bold py-1.5 rounded-lg outline-none" value="0">
+                        <button onclick="adjustBaseScore(1)" class="w-8 h-8 rounded-full btn-adjust flex items-center justify-center font-bold">+</button>
+                    </div>
+                </div>
+            </div>
+            <button id="closeSettings" class="w-full mt-8 bg-blue-600 text-white py-4 rounded-2xl font-bold">完了</button>
+        </div>
+    </div>
+
+    <script>
+        let config = { theme: 'dark', playerCount: 4, baseScore: 0, allowNegative: true };
+        let players = [];
+        let draggedIndex = null;
+        let timer = null;
+        let seconds = 0;
+
+        function getScoreScale(val, isMain) {
+            const str = Math.abs(val).toString();
+            const len = str.length + (val < 0 ? 0.6 : 0);
+            if (isMain) return len <= 1.1 ? 0.85 : len <= 2.1 ? 0.75 : 0.6;
+            return len <= 1.1 ? 0.8 : 0.65;
+        }
+
+        function calculateLayout() {
+            const container = document.getElementById('playersGridContainer');
+            const grid = document.getElementById('playersGrid');
+            if (!container || !grid) return;
+            const width = container.clientWidth;
+            const height = container.clientHeight;
+            const n = config.playerCount;
+
+            let bestCols = 1, bestRows = n, maxArea = 0;
+            for (let c = 1; c <= n; c++) {
+                const r = Math.ceil(n / c);
+                const cw = (width - (c - 1) * 12) / c;
+                const ch = (height - (r - 1) * 12) / r;
+                let area = cw * ch;
+                if (cw / ch > 1.3) area /= (cw / ch);
+                if (area > maxArea) { maxArea = area; bestCols = c; bestRows = r; }
+            }
+
+            grid.style.gridTemplateColumns = `repeat(${bestCols}, 1fr)`;
+            grid.style.gridTemplateRows = `repeat(${bestRows}, 1fr)`;
+
+            const cardH = (height - (bestRows - 1) * 12) / bestRows;
+            document.querySelectorAll('.score-card').forEach((card, idx) => {
+                const mainFlip = card.querySelector('.flip-main');
+                const subFlip = card.querySelector('.flip-sub');
+                const mainV = mainFlip.querySelector('.score-val');
+                const subV = subFlip.querySelector('.score-val');
+                
+                mainFlip.style.height = `${cardH * 0.48}px`;
+                subFlip.style.height = `${cardH * 0.16}px`;
+                mainV.style.fontSize = `${cardH * 0.32}px`;
+                subV.style.fontSize = `${cardH * 0.1}px`;
+                
+                mainV.style.transform = `translate(-50%, -50%) scaleX(${getScoreScale(players[idx].scoreMain, true)})`;
+                subV.style.transform = `translate(-50%, -50%) scaleX(${getScoreScale(players[idx].scoreSub, false)})`;
+            });
+        }
+
+        function initPlayers() {
+            players = Array.from({length: config.playerCount}, (_, i) => ({
+                id: Date.now() + i, name: `Player ${i+1}`, isDefault: true, scoreMain: config.baseScore, scoreSub: 0
+            }));
+        }
+
+        function renderPlayers() {
+            const grid = document.getElementById('playersGrid');
+            grid.innerHTML = '';
+            players.forEach((p, idx) => {
+                const card = document.createElement('div');
+                card.className = 'score-card';
+                card.draggable = true;
+                
+                card.innerHTML = `
+                    <div class="drag-handle"></div>
+                    <div class="flex items-center justify-center h-[12%]">
+                        <input type="text" class="player-name-input" value="${p.name}" 
+                               onfocus="if(players[${idx}].isDefault)this.value=''"
+                               onblur="handleNameBlur(${idx}, this)"
+                               oninput="players[${idx}].name=this.value; players[${idx}].isDefault=false;"
+                               onmousedown="event.stopPropagation()">
+                    </div>
+                    <div class="flip-num flip-sub">
+                        <div class="num-top" onclick="changeScore(${idx}, 'scoreSub', 1)"></div>
+                        <div class="num-bottom" onclick="changeScore(${idx}, 'scoreSub', -1)"></div>
+                        <span class="score-val">${p.scoreSub}</span>
+                    </div>
+                    <div class="flip-num flip-main">
+                        <div class="num-top" onclick="changeScore(${idx}, 'scoreMain', 1)"></div>
+                        <div class="num-bottom" onclick="changeScore(${idx}, 'scoreMain', -1)"></div>
+                        <span class="score-val">${p.scoreMain}</span>
+                    </div>
+                    <div class="flex gap-2 h-[12%]">
+                        <button class="btn-adjust flex-1 rounded-lg font-bold" onclick="changeScore(${idx}, 'scoreMain', -1)">-1</button>
+                        <button class="btn-adjust flex-1 rounded-lg font-bold" onclick="changeScore(${idx}, 'scoreMain', 1)">+1</button>
+                    </div>
+                `;
+
+                card.addEventListener('dragstart', () => { draggedIndex = idx; card.classList.add('dragging'); });
+                card.addEventListener('dragend', () => { draggedIndex = null; card.classList.remove('dragging'); });
+                card.addEventListener('dragover', (e) => e.preventDefault());
+                card.addEventListener('drop', () => {
+                    if (draggedIndex !== null && draggedIndex !== idx) {
+                        const temp = players[idx];
+                        players[idx] = players[draggedIndex];
+                        players[draggedIndex] = temp;
+                        renderPlayers();
+                    }
+                });
+
+                grid.appendChild(card);
+            });
+            setTimeout(calculateLayout, 0);
+        }
+
+        function handleNameBlur(idx, input) {
+            if (input.value.trim() === '') {
+                input.value = `Player ${idx + 1}`;
+                players[idx].name = input.value;
+                players[idx].isDefault = true;
+            }
+        }
+
+        function changeScore(idx, type, delta) {
+            let v = players[idx][type] + delta;
+            if (!config.allowNegative && v < 0) v = 0;
+            players[idx][type] = v;
+            
+            const card = document.getElementById('playersGrid').children[idx];
+            const mainV = card.querySelector('.flip-main .score-val');
+            const subV = card.querySelector('.flip-sub .score-val');
+            
+            if (type === 'scoreMain') {
+                mainV.textContent = v;
+                mainV.style.transform = `translate(-50%, -50%) scaleX(${getScoreScale(v, true)})`;
+            } else {
+                subV.textContent = v;
+                subV.style.transform = `translate(-50%, -50%) scaleX(${getScoreScale(v, false)})`;
+            }
+        }
+
+        function adjustPlayerCount(delta) {
+            let next = config.playerCount + delta;
+            if (next >= 1 && next <= 12) {
+                if (next > players.length) {
+                    while(players.length < next) players.push({ id: Date.now() + players.length, name: `Player ${players.length + 1}`, isDefault: true, scoreMain: parseInt(config.baseScore), scoreSub: 0 });
+                } else {
+                    players = players.slice(0, next);
+                }
+                config.playerCount = next;
+                document.getElementById('playerCountInput').value = next;
+                renderPlayers();
+            }
+        }
+
+        function adjustBaseScore(delta) {
+            config.baseScore += delta;
+            document.getElementById('baseScoreInput').value = config.baseScore;
+        }
+
+        function toggleTimer() {
+            if (timer) {
+                clearInterval(timer);
+                timer = null;
+                document.getElementById('playIcon').classList.remove('hidden');
+                document.getElementById('pauseIcon').classList.add('hidden');
+            } else {
+                timer = setInterval(() => {
+                    seconds++;
+                    const m = Math.floor(seconds / 60).toString().padStart(2, '0');
+                    const s = (seconds % 60).toString().padStart(2, '0');
+                    document.getElementById('timerDisplay').textContent = `${m}:${s}`;
+                }, 1000);
+                document.getElementById('playIcon').classList.add('hidden');
+                document.getElementById('pauseIcon').classList.remove('hidden');
+            }
+        }
+
+        document.getElementById('timerToggle').onclick = toggleTimer;
+        document.getElementById('openSettings').onclick = () => document.getElementById('settingsModal').classList.add('active');
+        document.getElementById('closeSettings').onclick = () => document.getElementById('settingsModal').classList.remove('active');
+        document.getElementById('themeToggle').onclick = () => {
+            config.theme = config.theme === 'dark' ? 'light' : 'dark';
+            document.body.className = config.theme;
+            document.getElementById('themeToggle').textContent = config.theme === 'dark' ? 'ダークモード' : 'ライトモード';
+            calculateLayout();
+        };
+
+        document.getElementById('globalReset').onclick = () => {
+            players.forEach((p, idx) => { p.scoreMain = config.baseScore; p.scoreSub = 0; });
+            renderPlayers();
+            seconds = 0;
+            document.getElementById('timerDisplay').textContent = '00:00';
+        };
+
+        window.addEventListener('resize', () => {
+            document.documentElement.style.setProperty('--vh', `${window.innerHeight * 0.01}px`);
+            calculateLayout();
+        });
+        document.documentElement.style.setProperty('--vh', `${window.innerHeight * 0.01}px`);
+
+        initPlayers();
+        renderPlayers();
+    </script>
+</body>
+</html>
