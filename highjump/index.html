@@ -80,7 +80,7 @@
                         <span class="text-2xl font-bold text-slate-600 mb-2">cm</span>
                     </div>
                     <p class="text-sm text-slate-500 mt-2 font-bold">
-                        ※ 計算式: ( 身長 × 0.5 ) + 110 - ( 50mタイム × 10 )
+                        ※ 計算式: ( 身長 × 0.5 ) + <span id="formula-constant">110</span> - ( 50mタイム × 10 )
                     </p>
                 </div>
 
@@ -109,7 +109,7 @@
                     </table>
                 </div>
                 
-                <!-- 画像に入れたクレジット（保存時のみ見えるように工夫しても良いですが、常時表示でシンプルにします） -->
+                <!-- 画像に入れたクレジット -->
                 <div class="text-right mt-2 text-slate-300 text-xs font-bold">
                     走り高跳び 目標計算機
                 </div>
@@ -123,11 +123,35 @@
         </div>
 
         <footer class="mt-12 mb-4 text-center text-xs text-slate-400 font-light" data-html2canvas-ignore>
-            走り高跳び 目標計算機 | ver.1.0 | ota tools
+            走り高跳び 目標計算機 | ver.2.3 | ota tools
         </footer>
     </div>
 
     <script>
+        // デフォルトの定数
+        let configConstant = 110;
+
+        // ページ読み込み時にURLを確認する
+        window.addEventListener('DOMContentLoaded', () => {
+            // 1. クエリパラメータの確認 (?val=120 など)
+            const urlParams = new URLSearchParams(window.location.search);
+            const valParam = urlParams.get('val');
+            
+            if (valParam && !isNaN(parseInt(valParam, 10))) {
+                configConstant = parseInt(valParam, 10);
+            } else {
+                // 2. パスの確認 (/120 など)
+                const path = window.location.pathname;
+                const match = path.match(/\/(\d+)$/);
+                if (match && match[1]) {
+                    configConstant = parseInt(match[1], 10);
+                }
+            }
+            
+            // 画面上の計算式テキストを更新
+            document.getElementById('formula-constant').textContent = configConstant;
+        });
+
         function calculate() {
             // 入力の取得
             const heightInput = document.getElementById('height');
@@ -152,12 +176,13 @@
 
             errorContainer.classList.add('hidden');
 
-            // 計算
-            let baseHeight = (height * 0.5) + 110 - (time * 10);
-            baseHeight = Math.round(baseHeight * 100) / 100;
+            // 計算 (動的な定数を使用)
+            let baseHeight = (height * 0.5) + configConstant - (time * 10);
+            // 基準の高さを四捨五入
+            baseHeight = Math.round(baseHeight);
 
             // 表示更新
-            document.getElementById('base-height-display').textContent = Number.isInteger(baseHeight) ? baseHeight : baseHeight;
+            document.getElementById('base-height-display').textContent = baseHeight;
 
             // テーブル生成
             generateTable(baseHeight);
@@ -237,21 +262,18 @@
             const btn = document.getElementById('save-btn');
             const originalHTML = btn.innerHTML;
 
-            // ボタンをローディング表示に
             btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 作成中...';
             btn.disabled = true;
 
             html2canvas(element, {
-                scale: 2, // 高画質設定
-                backgroundColor: "#ffffff", // 背景色を白に指定（透過防止）
+                scale: 2,
+                backgroundColor: "#ffffff",
             }).then(canvas => {
-                // ダウンロードリンクを作成
                 const link = document.createElement('a');
-                link.download = '高跳び目標計算結果.jpg';
+                link.download = `高跳び目標計算結果_定数${configConstant}.jpg`;
                 link.href = canvas.toDataURL('image/jpeg', 0.9);
                 link.click();
                 
-                // 元に戻す
                 btn.innerHTML = originalHTML;
                 btn.disabled = false;
             }).catch(err => {
