@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PDF to JPG Converter (Offline & Privacy First)</title>
+    <!-- Tailwind CSS for modern UI -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- PDF.js for rendering PDF -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <!-- JSZip for creating ZIP files -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <style>
+        .drop-zone {
+            border: 2px dashed #cbd5e1;
+            transition: all 0.3s ease;
+        }
+        .drop-zone.drag-over {
+            border-color: #3b82f6;
+            background-color: #eff6ff;
+        }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen font-sans text-gray-800 flex flex-col">
+
+    <div class="max-w-4xl mx-auto py-12 px-4 flex-grow">
+        <div class="text-center mb-10">
+            <h1 class="text-4xl font-bold text-gray-900 mb-2">PDFをJPGに変換</h1>
+            <p class="text-gray-600 text-lg">ブラウザ内ですべて処理。オンラインにデータは残りません。</p>
+        </div>
+
+        <!-- Main Card -->
+        <div class="bg-white rounded-2xl shadow-xl p-8 mb-8">
+            <!-- Drop Zone -->
+            <div id="dropZone" class="drop-zone rounded-xl p-12 text-center cursor-pointer mb-6 flex flex-col items-center justify-center">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-16 w-16 text-blue-500 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                </svg>
+                <p class="text-xl font-medium text-gray-700">PDFをドラッグ＆ドロップ</p>
+                <p class="text-gray-400 mt-2 text-sm">またはクリックしてファイルを選択</p>
+                <input type="file" id="fileInput" accept="application/pdf" class="hidden">
+            </div>
+
+            <!-- Progress & Status -->
+            <div id="statusContainer" class="hidden mb-6">
+                <div class="flex items-center justify-between mb-2">
+                    <span id="statusText" class="text-sm font-semibold text-blue-600">処理中...</span>
+                    <span id="progressPercent" class="text-sm text-gray-500">0%</span>
+                </div>
+                <div class="w-full bg-gray-200 rounded-full h-2.5">
+                    <div id="progressBar" class="bg-blue-600 h-2.5 rounded-full" style="width: 0%"></div>
+                </div>
+            </div>
+
+            <!-- Preview/Result Info -->
+            <div id="resultInfo" class="hidden text-center p-4 bg-green-50 rounded-lg border border-green-200">
+                <p class="text-green-700 font-medium">変換が完了しました！</p>
+                <p id="fileSummary" class="text-green-600 text-sm mt-1"></p>
+                <button id="downloadBtn" class="mt-4 bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-8 rounded-full shadow-lg transition-transform active:scale-95 flex items-center justify-center mx-auto">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
+                        <path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clip-rule="evenodd" />
+                    </svg>
+                    <span id="downloadBtnText">ダウンロード</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- Instruction Section -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 text-center text-sm text-gray-500">
+            <div class="p-4 bg-white rounded-lg shadow-sm">
+                <div class="font-bold text-gray-700 mb-1">プライバシー保護</div>
+                ファイルはサーバーに送信されず、すべてあなたのPC内で変換されます。
+            </div>
+            <div class="p-4 bg-white rounded-lg shadow-sm">
+                <div class="font-bold text-gray-700 mb-1">形式の自動選択</div>
+                1枚ならJPG、複数枚なら自動的にZIPにまとめて保存します。
+            </div>
+            <div class="p-4 bg-white rounded-lg shadow-sm">
+                <div class="font-bold text-gray-700 mb-1">超高画質変換</div>
+                解像度を3.0倍に引き上げ、低圧縮率の高品質JPGとして書き出します。
+            </div>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="py-6 text-center text-gray-400 text-xs border-t border-gray-200 bg-white">
+        PDF to JPG Converter　|　ver.1.1　|　ota tools
+    </footer>
+
+    <!-- Hidden Canvas for rendering -->
+    <canvas id="renderCanvas" class="hidden"></canvas>
+
+    <script>
+        // Set up PDF.js worker
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+        const dropZone = document.getElementById('dropZone');
+        const fileInput = document.getElementById('fileInput');
+        const statusContainer = document.getElementById('statusContainer');
+        const statusText = document.getElementById('statusText');
+        const progressBar = document.getElementById('progressBar');
+        const progressPercent = document.getElementById('progressPercent');
+        const resultInfo = document.getElementById('resultInfo');
+        const fileSummary = document.getElementById('fileSummary');
+        const downloadBtn = document.getElementById('downloadBtn');
+        const downloadBtnText = document.getElementById('downloadBtnText');
+        const renderCanvas = document.getElementById('renderCanvas');
+        const ctx = renderCanvas.getContext('2d');
+
+        let processedData = null; // Can be a Blob or a JSZip object
+        let currentFileName = "";
+        let isSinglePage = false;
+
+        // Event Listeners
+        dropZone.onclick = () => fileInput.click();
+        
+        fileInput.onchange = (e) => {
+            const file = e.target.files[0];
+            if (file) processPdf(file);
+        };
+
+        dropZone.ondragover = (e) => {
+            e.preventDefault();
+            dropZone.classList.add('drag-over');
+        };
+
+        dropZone.ondragleave = () => {
+            dropZone.classList.remove('drag-over');
+        };
+
+        dropZone.ondrop = (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('drag-over');
+            const file = e.dataTransfer.files[0];
+            if (file && file.type === 'application/pdf') {
+                processPdf(file);
+            } else {
+                showSimpleMessage("PDFファイルを選択してください。");
+            }
+        };
+
+        async function processPdf(file) {
+            // UI Reset
+            resetUI();
+            currentFileName = file.name.replace(/\.pdf$/i, "");
+            statusContainer.classList.remove('hidden');
+            
+            try {
+                const arrayBuffer = await file.arrayBuffer();
+                const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
+                const pdf = await loadingTask.promise;
+                const totalPages = pdf.numPages;
+                
+                isSinglePage = (totalPages === 1);
+                const scale = 3.0; 
+
+                if (isSinglePage) {
+                    // Single page handling
+                    updateProgress(1, 1, `高品質変換中...`);
+                    const page = await pdf.getPage(1);
+                    const viewport = page.getViewport({ scale });
+                    renderCanvas.height = viewport.height;
+                    renderCanvas.width = viewport.width;
+
+                    await page.render({
+                        canvasContext: ctx,
+                        viewport: viewport
+                    }).promise;
+
+                    processedData = await new Promise(resolve => renderCanvas.toBlob(resolve, 'image/jpeg', 0.95));
+                } else {
+                    // Multi-page handling (ZIP)
+                    const zip = new JSZip();
+                    for (let i = 1; i <= totalPages; i++) {
+                        updateProgress(i, totalPages, `ページ ${i} を高画質変換中...`);
+                        
+                        const page = await pdf.getPage(i);
+                        const viewport = page.getViewport({ scale });
+                        
+                        renderCanvas.height = viewport.height;
+                        renderCanvas.width = viewport.width;
+
+                        await page.render({
+                            canvasContext: ctx,
+                            viewport: viewport
+                        }).promise;
+
+                        const blob = await new Promise(resolve => renderCanvas.toBlob(resolve, 'image/jpeg', 0.95));
+                        const fileName = `${currentFileName}_${String(i).padStart(3, '0')}.jpg`;
+                        zip.file(fileName, blob);
+                    }
+                    processedData = zip;
+                }
+
+                showResult(totalPages);
+
+            } catch (err) {
+                console.error(err);
+                statusText.textContent = "エラーが発生しました。";
+                statusText.classList.replace('text-blue-600', 'text-red-600');
+            }
+        }
+
+        function updateProgress(current, total, text) {
+            const percent = Math.round((current / total) * 100);
+            progressBar.style.width = `${percent}%`;
+            progressPercent.textContent = `${percent}%`;
+            statusText.textContent = text;
+        }
+
+        function showResult(count) {
+            statusContainer.classList.add('hidden');
+            resultInfo.classList.remove('hidden');
+            
+            if (isSinglePage) {
+                fileSummary.textContent = "1枚の高品質画像を生成しました。";
+                downloadBtnText.textContent = "JPGをダウンロード";
+            } else {
+                fileSummary.textContent = `${count} 枚の高品質画像を生成しました。`;
+                downloadBtnText.textContent = "ZIPをダウンロード";
+            }
+            
+            downloadBtn.onclick = async () => {
+                if (!processedData) return;
+
+                let downloadBlob;
+                let finalFileName;
+
+                if (isSinglePage) {
+                    downloadBlob = processedData;
+                    finalFileName = `${currentFileName}.jpg`;
+                } else {
+                    downloadBlob = await processedData.generateAsync({ type: "blob" });
+                    finalFileName = `${currentFileName}.zip`;
+                }
+
+                const url = URL.createObjectURL(downloadBlob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = finalFileName;
+                document.body.appendChild(a);
+                a.click();
+                setTimeout(() => {
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                }, 100);
+            };
+        }
+
+        function resetUI() {
+            resultInfo.classList.add('hidden');
+            statusContainer.classList.add('hidden');
+            progressBar.style.width = '0%';
+            progressPercent.textContent = '0%';
+            statusText.classList.remove('text-red-600');
+            statusText.classList.add('text-blue-600');
+            processedData = null;
+        }
+
+        function showSimpleMessage(msg) {
+            alert(msg);
+        }
+    </script>
+</body>
+</html>
