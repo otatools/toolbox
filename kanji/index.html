@@ -58,8 +58,6 @@
             #explanation-area { padding: 0.6rem !important; }
             #explanation-area h3 { margin-bottom: 0.3rem !important; font-size: 0.9rem !important; padding-bottom: 0.1rem !important; }
             .explanation-row { margin-bottom: 0.2rem !important; }
-            .puzzle-wrapper { padding: 5px !important; }
-            #game-msg { height: 2.5rem !important; margin-top: 0.5rem !important; }
         }
         
         #game-screen {
@@ -96,7 +94,19 @@
         .cleared { background: #fffcf0 !important; border-color: #fbbf24 !important; }
         .crown-icon { position: absolute; top: -12px; right: -8px; font-size: 2.2rem; transform: rotate(15deg); z-index: 10; }
 
-        .puzzle-wrapper { position: relative; padding: 10px; }
+        /* パズルの高さをキャンバスと揃えてボタンの位置を整える */
+        .puzzle-wrapper { 
+            position: relative; 
+            width: 320px;
+            height: 320px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        @media (min-width: 640px) { 
+            .puzzle-wrapper { width: 400px; height: 400px; } 
+        }
+
         .cross-layout {
             display: grid;
             grid-template-columns: 70px 100px 70px;
@@ -210,17 +220,31 @@
             padding: 0 1rem;
         }
 
+        /* 空いたスペースを利用してPCでウィンドウに合わせて大きくする修正部分 */
+        @media (min-width: 1024px) {
+            .puzzle-wrapper { width: 500px; height: 500px; }
+            .cross-layout { grid-template-columns: 125px 170px 125px; grid-template-rows: 125px 170px 125px; gap: 40px; }
+            .char-box { width: 125px; height: 125px; font-size: 4rem; }
+            .center-box { width: 170px; height: 170px; font-size: 5rem; }
+            
+            .a-top { top: -30px; border-width: 20px 15px 0 15px; }
+            .a-left { left: -30px; border-width: 15px 0 15px 20px; }
+            .a-right { right: -30px; border-width: 15px 0 15px 20px; }
+            .a-bottom { bottom: -30px; border-width: 20px 15px 0 15px; }
+
+            #canvas-container { width: 500px; height: 500px; }
+            #canvas-hint { font-size: 420px; }
+        }
+
+        /* 候補エリアの余計なスペースを詰める修正部分 */
         #candidate-area {
-            visibility: hidden;
-            display: block;
+            display: none;
             min-height: 120px; 
             height: auto;
             margin-top: 1rem;
-            pointer-events: none;
         }
         #candidate-area.show {
-            visibility: visible;
-            pointer-events: auto;
+            display: block;
         }
     </style>
 </head>
@@ -249,7 +273,7 @@
         <div class="menu-grid mx-auto" id="menu-grid"></div>
     </div>
 
-    <div id="game-screen" class="hidden w-full flex flex-col items-center flex-grow pb-32">
+    <div id="game-screen" class="hidden w-full flex flex-col items-center flex-grow pb-32 lg:pb-8">
         <div class="game-header mb-4 mt-2">
             <button onclick="showMenu()" class="font-bold py-2 px-4 bg-white rounded-xl border-2 border-slate-200 text-sm">← 戻る</button>
             <div id="problem-title-container" class="problem-title-box">
@@ -261,8 +285,9 @@
         </div>
 
         <div id="main-container" class="flex flex-col lg:flex-row justify-center items-center lg:items-start gap-4 sm:gap-8 w-full px-4">
-            <div class="flex flex-col items-center">
-                <div class="puzzle-wrapper">
+            
+            <div class="flex flex-col items-center max-lg:contents">
+                <div class="puzzle-wrapper max-lg:order-1">
                     <div class="cross-layout">
                         <div></div><div class="char-box" id="q-top"></div><div></div>
                         <div class="char-box" id="q-left"></div>
@@ -273,13 +298,17 @@
                         <div></div><div class="char-box" id="q-bottom"></div><div></div>
                     </div>
                 </div>
-                <div id="game-msg" class="text-xl font-black h-12 sm:h-20 mt-2 sm:mt-4 text-center px-4 flex items-center justify-center"></div>
-                <button id="next-btn" onclick="nextQuestion()" class="hidden bg-blue-500 text-white px-8 py-3 rounded-full text-xl font-black shadow-lg mb-4">つぎへ進む</button>
-                <button id="skip-btn" onclick="nextQuestion()" class="hidden bg-slate-400 text-white px-8 py-3 rounded-full text-lg font-black shadow-lg mb-4">分からない（つぎへ進む）</button>
-                <button id="finish-btn" onclick="showMenu()" class="hidden bg-amber-500 text-white px-8 py-3 rounded-full text-xl font-black shadow-lg mb-4">メニューへ戻る</button>
+                
+                <div class="max-lg:order-3 flex flex-row flex-wrap items-center justify-center gap-3 w-full mt-4 px-1">
+                    <div id="game-msg" class="text-xl sm:text-2xl font-black text-center"></div>
+                    <button id="next-btn" onclick="nextQuestion()" class="hidden bg-blue-500 text-white px-6 py-3 sm:py-4 rounded-full text-lg sm:text-xl font-black shadow-lg">つぎへ進む</button>
+                    <button id="skip-btn" onclick="nextQuestion()" class="hidden bg-slate-400 text-white px-6 py-3 sm:py-4 rounded-full text-base sm:text-lg font-black shadow-lg">分からない（つぎへ進む）</button>
+                    <button id="finish-btn" onclick="showMenu()" class="hidden bg-amber-500 text-white px-6 py-3 sm:py-4 rounded-full text-lg sm:text-xl font-black shadow-lg">メニューへ戻る</button>
+                </div>
+
             </div>
 
-            <div class="flex flex-col items-center w-full max-w-[320px] sm:max-w-[400px]">
+            <div class="max-lg:order-2 flex flex-col items-center w-full max-w-[320px] sm:max-w-[500px]">
                 <div id="canvas-container">
                     <div id="canvas-hint"></div>
                     <canvas id="hw-canvas"></canvas>
@@ -307,6 +336,32 @@
         let courseData = null; let currentCourseKey = ""; let questions = []; let currentIdx = 0; let clearedQuestions = [];
         let leftHanded = localStorage.getItem('ota_v21_hand') === 'true';
 
+        // URLから表示制限数を取得
+        let stepSize = 0;
+        const match = window.location.href.match(/[\/#\?=\&](\d+)\/?$/);
+        if (match) {
+            stepSize = parseInt(match[1], 10);
+        }
+
+        // 現在のクリア数に基づいて、利用可能な問題のリストを返す
+        function getAvailableQuestions(course, saved) {
+            if (stepSize <= 0) return course.questions;
+            const allowedCount = (Math.floor(saved.length / stepSize) + 1) * stepSize;
+            return course.questions.slice(0, allowedCount);
+        }
+
+        // スマホブラウザ対策：確実に一番上までスクロールさせるための関数
+        function forceScrollTop() {
+            window.scrollTo(0, 0);
+            document.documentElement.scrollTop = 0;
+            document.body.scrollTop = 0;
+            setTimeout(() => {
+                window.scrollTo(0, 0);
+                document.documentElement.scrollTop = 0;
+                document.body.scrollTop = 0;
+            }, 10);
+        }
+
         async function loadCourseData() {
             try {
                 const response = await fetch('data.json');
@@ -321,6 +376,7 @@
             document.getElementById('menu-screen').classList.add('hidden');
             document.getElementById('game-screen').classList.add('hidden');
             renderCourseList();
+            forceScrollTop();
         }
 
         function renderCourseList() {
@@ -331,13 +387,16 @@
                 const course = courseData[key];
                 const card = document.createElement('div');
                 const saved = JSON.parse(localStorage.getItem(`ota_save_${key}`)) || [];
-                const isAllCleared = saved.length >= course.questions.length && course.questions.length > 0;
+                
+                const availableQuestions = getAvailableQuestions(course, saved);
+                const isAllCleared = saved.length >= availableQuestions.length && availableQuestions.length > 0;
+                
                 card.className = `course-card ${isAllCleared ? 'cleared' : ''}`;
                 card.innerHTML = `
                     ${isAllCleared ? '<div class="crown-icon">👑</div>' : ''}
                     <h3 class="text-xl sm:text-2xl font-black mb-1 sm:mb-2">${course.title}</h3>
-                    <p class="text-slate-400 font-bold mb-3 sm:mb-4 text-xs sm:text-sm">全 ${course.questions.length} 問</p>
-                    <div class="${isAllCleared ? 'text-amber-600' : 'text-blue-500'} font-bold text-sm sm:text-base">クリア: ${saved.length} / ${course.questions.length}</div>
+                    <p class="text-slate-400 font-bold mb-3 sm:mb-4 text-xs sm:text-sm">全 ${availableQuestions.length} 問</p>
+                    <div class="${isAllCleared ? 'text-amber-600' : 'text-blue-500'} font-bold text-sm sm:text-base">クリア: ${saved.length} / ${availableQuestions.length}</div>
                 `;
                 card.onclick = () => selectCourse(key);
                 list.appendChild(card);
@@ -346,8 +405,8 @@
 
         function selectCourse(key) {
             currentCourseKey = key;
-            questions = courseData[key].questions;
             clearedQuestions = JSON.parse(localStorage.getItem(`ota_save_${key}`)) || [];
+            questions = getAvailableQuestions(courseData[key], clearedQuestions);
             document.getElementById('current-course-title').innerText = courseData[key].title;
             showMenu();
         }
@@ -358,6 +417,7 @@
             document.getElementById('menu-screen').classList.remove('hidden');
             document.getElementById('game-screen').classList.add('hidden');
             renderMenu();
+            forceScrollTop();
         }
 
         function renderMenu() {
@@ -376,11 +436,11 @@
         }
 
         function startGame() {
-            window.scrollTo(0, 0);
             document.body.style.overflowY = "auto"; 
             document.getElementById('menu-screen').classList.add('hidden');
             document.getElementById('game-screen').classList.remove('hidden');
             loadQuestion();
+            forceScrollTop();
         }
 
         const canvas = document.getElementById('hw-canvas');
@@ -472,6 +532,10 @@
             ctx.clearRect(0,0,400,400); strokes = []; 
             document.getElementById('candidate-area').classList.remove('show'); 
             document.getElementById('game-msg').innerText = "";
+            const display = document.getElementById('center-display');
+            if (display && !display.classList.contains('correct')) {
+                display.innerText = "？";
+            }
         }
 
         async function recognize() {
@@ -498,7 +562,12 @@
                         document.getElementById('candidate-area').classList.add('show');
                         setTimeout(() => { b.scrollIntoView({ behavior: 'smooth', block: 'end' }); }, 50);
                     } else { 
-                        document.getElementById('game-msg').innerHTML = "<span class='text-slate-400'>ちがうみたい...もう一回考えてみよう</span>";
+                        document.getElementById('game-msg').innerHTML = "";
+                        if (candidates[0]) {
+                            const display = document.getElementById('center-display');
+                            display.style.position = 'relative';
+                            display.innerHTML = `${candidates[0]}<span style="position:absolute; top:50%; left:50%; transform:translate(-50%, -50%); color:#ef4444; font-size:1.8em; font-family:sans-serif; font-weight:lighter; opacity:0.4; pointer-events:none;">×</span>`;
+                        }
                     }
                 }
             } catch(e) { console.error(e); } finally { btn.disabled = false; btn.innerText = "判定する"; }
@@ -554,6 +623,11 @@
                 const titleContainer = document.getElementById('problem-title-container');
                 titleContainer.classList.add('cleared');
                 document.getElementById('problem-title').innerHTML = `<span class="crown-icon-sm">👑</span>問題 ${currentIdx+1}`;
+                
+                const newlyAvailable = getAvailableQuestions(courseData[currentCourseKey], clearedQuestions);
+                if (newlyAvailable.length > questions.length) {
+                    questions = newlyAvailable;
+                }
             }
             
             const isAllClearedNow = clearedQuestions.length === questions.length;
@@ -578,7 +652,12 @@
             }
         }
 
-        function nextQuestion() { currentIdx++; loadQuestion(); }
+        function nextQuestion() { 
+            currentIdx++; 
+            loadQuestion(); 
+            forceScrollTop();
+        }
+
         function toggleHandedness() { leftHanded = !leftHanded; localStorage.setItem('ota_v21_hand', leftHanded); applyHandedness(); }
         function applyHandedness() { 
             const container = document.getElementById('main-container');
