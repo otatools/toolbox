@@ -360,7 +360,7 @@
     </div>
 
     <footer class="w-full py-4 text-slate-400 text-[10px] sm:text-xs text-center border-t border-slate-100 bg-white/50">
-        漢字パズル | Ver 7.5.1 | ota tools
+        漢字パズル | Ver 4.8.2 | ota tools
     </footer>
 
     <script>
@@ -373,6 +373,13 @@
         const sizeMatch = window.location.href.match(/[\/#\?\&](\d+)/);
         if (sizeMatch) {
             stepSize = parseInt(sizeMatch[1], 10);
+        }
+
+        // URLから最大問題数を取得（/#max20 などに対応）
+        let maxQuestions = 0;
+        const maxMatch = window.location.href.match(/[\/#\?\&]max(\d+)/i);
+        if (maxMatch) {
+            maxQuestions = parseInt(maxMatch[1], 10);
         }
 
         // ヒント機能のパラメータとポイント取得
@@ -391,12 +398,17 @@
 
         // 現在のクリア数に基づいて、利用可能な問題のリストを返す
         function getAvailableQuestions(key, course, saved) {
-            if (stepSize <= 0) return course.questions;
+            let baseQuestions = course.questions;
+            if (maxQuestions > 0) {
+                baseQuestions = baseQuestions.slice(0, maxQuestions);
+            }
+
+            if (stepSize <= 0) return baseQuestions;
             let limit = parseInt(localStorage.getItem(`ota_limit_${key}`), 10);
             if (!limit || limit < stepSize) limit = stepSize;
             while (limit < saved.length) limit += stepSize;
-            if (limit > course.questions.length) limit = course.questions.length;
-            return course.questions.slice(0, limit);
+            if (limit > baseQuestions.length) limit = baseQuestions.length;
+            return baseQuestions.slice(0, limit);
         }
 
         // スマホブラウザ対策：確実に一番上までスクロールさせるための関数
@@ -492,7 +504,8 @@
 
             // さらに問題を増やすボタンの表示判定
             const totalQuestions = courseData[currentCourseKey].questions.length;
-            if (stepSize > 0 && clearedQuestions.length === questions.length && questions.length < totalQuestions) {
+            const maxAllowed = maxQuestions > 0 ? Math.min(maxQuestions, totalQuestions) : totalQuestions;
+            if (stepSize > 0 && clearedQuestions.length === questions.length && questions.length < maxAllowed) {
                 const addBtnWrapper = document.createElement('div');
                 addBtnWrapper.className = "col-span-full flex justify-center mt-4 mb-8";
                 addBtnWrapper.innerHTML = `<button onclick="addMoreQuestions()" class="bg-blue-500 text-white px-8 py-3 rounded-full text-lg sm:text-xl font-black shadow-lg hover:bg-blue-600 transition-colors">🔓 次の問題を解放する！</button>`;
@@ -503,11 +516,16 @@
         function addMoreQuestions() {
             let limit = parseInt(localStorage.getItem(`ota_limit_${currentCourseKey}`), 10) || stepSize;
             limit += stepSize;
-            const totalQ = courseData[currentCourseKey].questions.length;
-            if (limit > totalQ) limit = totalQ;
+            const totalQuestions = courseData[currentCourseKey].questions.length;
+            const maxAllowed = maxQuestions > 0 ? Math.min(maxQuestions, totalQuestions) : totalQuestions;
+            if (limit > maxAllowed) limit = maxAllowed;
             localStorage.setItem(`ota_limit_${currentCourseKey}`, limit);
             
-            questions = courseData[currentCourseKey].questions.slice(0, limit);
+            let baseQuestions = courseData[currentCourseKey].questions;
+            if (maxQuestions > 0) {
+                baseQuestions = baseQuestions.slice(0, maxQuestions);
+            }
+            questions = baseQuestions.slice(0, limit);
             renderMenu();
             setTimeout(() => {
                 window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
@@ -620,7 +638,7 @@
 
         function loadQuestion() {
             const q = questions[currentIdx];
-            unlockedHints = {}; // 問題が変わったらヒントの解放状態をリセット
+            unlockedHints = JSON.parse(localStorage.getItem('ota_unlocked_hints') || '{}');
             
             const titleContainer = document.getElementById('problem-title-container');
             const isCleared = clearedQuestions.includes(q.id);
