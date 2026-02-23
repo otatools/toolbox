@@ -117,7 +117,8 @@
             .cross-layout { grid-template-columns: 100px 140px 100px; grid-template-rows: 100px 140px 100px; gap: 30px; }
         }
 
-        .char-box { width: 70px; height: 70px; background: white; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 2.2rem; border: 3px solid #334155; }
+        .char-box { width: 70px; height: 70px; background: white; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 2.2rem; border: 3px solid #334155; transition: all 0.2s; }
+        .char-box:hover { opacity: 0.9; }
         @media (min-width: 640px) { .char-box { width: 100px; height: 100px; font-size: 3.5rem; } }
 
         .center-box { width: 100px; height: 100px; background: white; border: 5px solid #3b82f6; border-radius: 16px; display: flex; align-items: center; justify-content: center; font-size: 3rem; color: #3b82f6; font-weight: 900; }
@@ -246,9 +247,30 @@
         #candidate-area.show {
             display: block;
         }
+
+        /* 左右切替ボタンがヒント表示と重なるときだけずらす修正 */
+        .toggle-btn {
+            transition: transform 0.3s ease;
+        }
+        @media (min-width: 1024px) and (max-width: 1300px) {
+            body.hint-active .toggle-btn {
+                transform: translateX(-130px);
+            }
+        }
     </style>
 </head>
-<body class="sm:p-4">
+<body class="sm:p-4 relative">
+
+    <div id="global-hint-display" class="hidden fixed top-2 right-2 sm:top-4 sm:right-4 bg-white border-2 border-blue-200 text-blue-600 font-black px-3 py-1 sm:px-4 sm:py-2 rounded-full shadow-md z-[60] text-sm sm:text-base whitespace-nowrap">
+        💡ヒントP: <span id="global-hint-p-val">0</span>
+    </div>
+
+    <div id="custom-modal" class="fixed inset-0 bg-slate-900/40 z-[100] hidden flex items-center justify-center p-4">
+        <div id="modal-box" class="bg-white rounded-3xl p-6 sm:p-8 max-w-sm w-full text-center shadow-2xl transform transition-all">
+            <div id="modal-message" class="text-lg sm:text-xl font-bold text-slate-800 mb-8 leading-relaxed break-words"></div>
+            <div id="modal-buttons" class="flex justify-center gap-4"></div>
+        </div>
+    </div>
 
     <div id="course-screen" class="w-full max-w-6xl text-center py-8 sm:py-12 px-4 flex-grow">
         <h1 class="text-4xl sm:text-7xl font-black text-slate-800 mb-2 sm:mb-4">漢字クロスワード</h1>
@@ -276,8 +298,10 @@
     <div id="game-screen" class="hidden w-full flex flex-col items-center flex-grow pb-32 lg:pb-8">
         <div class="game-header mb-4 mt-2">
             <button onclick="showMenu()" class="font-bold py-2 px-4 bg-white rounded-xl border-2 border-slate-200 text-sm">← 戻る</button>
-            <div id="problem-title-container" class="problem-title-box">
-                <div id="problem-title" class="text-xl sm:text-3xl font-black text-slate-800"></div>
+            <div class="flex flex-col items-center">
+                <div id="problem-title-container" class="problem-title-box">
+                    <div id="problem-title" class="text-xl sm:text-3xl font-black text-slate-800"></div>
+                </div>
             </div>
             <div class="flex justify-end">
                 <button onclick="toggleHandedness()" class="toggle-btn font-bold py-2 px-3 bg-white rounded-xl border-2 border-slate-200 text-xs">左右切替</button>
@@ -329,25 +353,43 @@
     </div>
 
     <footer class="w-full py-4 text-slate-400 text-[10px] sm:text-xs text-center border-t border-slate-100 bg-white/50">
-        漢字パズル | Ver 6.2.1 | ota tools
+        漢字パズル | Ver 7.3.0 | ota tools
     </footer>
 
     <script>
         let courseData = null; let currentCourseKey = ""; let questions = []; let currentIdx = 0; let clearedQuestions = [];
         let leftHanded = localStorage.getItem('ota_v21_hand') === 'true';
+        let unlockedHints = {}; // 既にポイントを使ったヒントを記憶
 
-        // URLから表示制限数を取得
+        // URLから表示制限数を取得（/#10#hint や /?10&hint に対応）
         let stepSize = 0;
-        const match = window.location.href.match(/[\/#\?=\&](\d+)\/?$/);
-        if (match) {
-            stepSize = parseInt(match[1], 10);
+        const sizeMatch = window.location.href.match(/[\/#\?\&](\d+)/);
+        if (sizeMatch) {
+            stepSize = parseInt(sizeMatch[1], 10);
+        }
+
+        // ヒント機能のパラメータとポイント取得
+        const hintMode = /hint/i.test(window.location.href);
+        let hintPoints = parseInt(localStorage.getItem('ota_hint_points') || '0', 10);
+
+        function updateHintDisplay() {
+            if (!hintMode) return;
+            const disp = document.getElementById('global-hint-display');
+            if (disp) {
+                disp.classList.remove('hidden');
+                document.getElementById('global-hint-p-val').innerText = hintPoints;
+            }
+            document.body.classList.add('hint-active');
         }
 
         // 現在のクリア数に基づいて、利用可能な問題のリストを返す
-        function getAvailableQuestions(course, saved) {
+        function getAvailableQuestions(key, course, saved) {
             if (stepSize <= 0) return course.questions;
-            const allowedCount = (Math.floor(saved.length / stepSize) + 1) * stepSize;
-            return course.questions.slice(0, allowedCount);
+            let limit = parseInt(localStorage.getItem(`ota_limit_${key}`), 10);
+            if (!limit || limit < stepSize) limit = stepSize;
+            while (limit < saved.length) limit += stepSize;
+            if (limit > course.questions.length) limit = course.questions.length;
+            return course.questions.slice(0, limit);
         }
 
         // スマホブラウザ対策：確実に一番上までスクロールさせるための関数
@@ -360,6 +402,11 @@
                 document.documentElement.scrollTop = 0;
                 document.body.scrollTop = 0;
             }, 10);
+            setTimeout(() => {
+                window.scrollTo(0, 0);
+                document.documentElement.scrollTop = 0;
+                document.body.scrollTop = 0;
+            }, 50);
         }
 
         async function loadCourseData() {
@@ -388,8 +435,8 @@
                 const card = document.createElement('div');
                 const saved = JSON.parse(localStorage.getItem(`ota_save_${key}`)) || [];
                 
-                const availableQuestions = getAvailableQuestions(course, saved);
-                const isAllCleared = saved.length >= availableQuestions.length && availableQuestions.length > 0;
+                const availableQuestions = getAvailableQuestions(key, course, saved);
+                const isAllCleared = saved.length >= course.questions.length && course.questions.length > 0; // 全てのコースをクリアしたか
                 
                 card.className = `course-card ${isAllCleared ? 'cleared' : ''}`;
                 card.innerHTML = `
@@ -406,7 +453,7 @@
         function selectCourse(key) {
             currentCourseKey = key;
             clearedQuestions = JSON.parse(localStorage.getItem(`ota_save_${key}`)) || [];
-            questions = getAvailableQuestions(courseData[key], clearedQuestions);
+            questions = getAvailableQuestions(key, courseData[key], clearedQuestions);
             document.getElementById('current-course-title').innerText = courseData[key].title;
             showMenu();
         }
@@ -433,6 +480,29 @@
                 grid.appendChild(item);
             });
             document.getElementById('stat-count').innerText = `${clearedQuestions.length} / ${questions.length}`;
+
+            // さらに問題を増やすボタンの表示判定
+            const totalQuestions = courseData[currentCourseKey].questions.length;
+            if (stepSize > 0 && clearedQuestions.length === questions.length && questions.length < totalQuestions) {
+                const addBtnWrapper = document.createElement('div');
+                addBtnWrapper.className = "col-span-full flex justify-center mt-4 mb-8";
+                addBtnWrapper.innerHTML = `<button onclick="addMoreQuestions()" class="bg-blue-500 text-white px-8 py-3 rounded-full text-lg sm:text-xl font-black shadow-lg hover:bg-blue-600 transition-colors">🔓 次の問題を解放する！</button>`;
+                grid.appendChild(addBtnWrapper);
+            }
+        }
+
+        function addMoreQuestions() {
+            let limit = parseInt(localStorage.getItem(`ota_limit_${currentCourseKey}`), 10) || stepSize;
+            limit += stepSize;
+            const totalQ = courseData[currentCourseKey].questions.length;
+            if (limit > totalQ) limit = totalQ;
+            localStorage.setItem(`ota_limit_${currentCourseKey}`, limit);
+            
+            questions = courseData[currentCourseKey].questions.slice(0, limit);
+            renderMenu();
+            setTimeout(() => {
+                window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+            }, 50);
         }
 
         function startGame() {
@@ -468,6 +538,15 @@
             };
 
             const start = (e) => {
+                const display = document.getElementById('center-display');
+                if (display && !display.classList.contains('correct')) {
+                    document.getElementById('explanation-area').style.display = "none";
+                    const msgTxt = document.getElementById('game-msg').innerText;
+                    if (msgTxt.includes("ヒントポイント") || msgTxt.includes("ヒントには") || msgTxt.includes("ヒントはない")) {
+                        document.getElementById('game-msg').innerText = "";
+                    }
+                }
+
                 drawing = true;
                 const [x, y] = getPos(e);
                 [lastX, lastY] = [x, y];
@@ -494,8 +573,44 @@
             canvas.addEventListener('touchend', end);
         }
 
+        // モーダル表示関数 (isHintでデザインを変える)
+        function showModal(message, buttons, isHint = false) {
+            const modal = document.getElementById('custom-modal');
+            const modalBox = document.getElementById('modal-box');
+            
+            // ヒント表示用の特別なスタイル
+            if (isHint) {
+                modalBox.classList.remove('bg-white');
+                modalBox.classList.add('bg-[#fffcf0]', 'border-4', 'border-amber-300');
+            } else {
+                modalBox.classList.add('bg-white');
+                modalBox.classList.remove('bg-[#fffcf0]', 'border-4', 'border-amber-300');
+            }
+
+            document.getElementById('modal-message').innerHTML = message;
+            
+            const btnContainer = document.getElementById('modal-buttons');
+            btnContainer.innerHTML = '';
+            
+            buttons.forEach(btn => {
+                const b = document.createElement('button');
+                b.className = btn.type === 'confirm' 
+                    ? "bg-blue-500 text-white px-6 py-2 sm:px-8 sm:py-3 rounded-full font-black shadow-lg text-base sm:text-lg hover:bg-blue-600 transition-colors" 
+                    : "bg-slate-200 text-slate-800 px-6 py-2 sm:px-8 sm:py-3 rounded-full font-black shadow-md text-base sm:text-lg hover:bg-slate-300 transition-colors";
+                b.innerText = btn.text;
+                b.onclick = () => {
+                    modal.classList.add('hidden');
+                    if (btn.onClick) btn.onClick();
+                };
+                btnContainer.appendChild(b);
+            });
+            
+            modal.classList.remove('hidden');
+        }
+
         function loadQuestion() {
             const q = questions[currentIdx];
+            unlockedHints = {}; // 問題が変わったらヒントの解放状態をリセット
             
             const titleContainer = document.getElementById('problem-title-container');
             const isCleared = clearedQuestions.includes(q.id);
@@ -507,8 +622,19 @@
                 document.getElementById('problem-title').innerText = `問題 ${currentIdx+1}`;
             }
 
-            document.getElementById('q-top').innerText = q.top; document.getElementById('q-bottom').innerText = q.bottom;
-            document.getElementById('q-left').innerText = q.left; document.getElementById('q-right').innerText = q.right;
+            // ヒント機能のためのクリックイベント設定
+            ['top', 'bottom', 'left', 'right'].forEach(dir => {
+                const el = document.getElementById(`q-${dir}`);
+                el.innerText = q[dir];
+                if (hintMode && q[dir]) {
+                    el.style.cursor = 'pointer';
+                    el.onclick = () => showHint(dir);
+                } else {
+                    el.style.cursor = 'default';
+                    el.onclick = null;
+                }
+            });
+
             const display = document.getElementById('center-display');
             display.innerText = "？"; display.classList.remove('correct');
             document.getElementById('game-msg').innerText = ""; 
@@ -526,6 +652,81 @@
             document.getElementById('explanation-text').style.opacity = "0";
             hintEl.innerText = ""; hintEl.style.display = "none";
             clearCanvas(); applyHandedness();
+            updateHintDisplay();
+        }
+
+        function showHint(dir) {
+            if (!hintMode) return;
+            
+            const display = document.getElementById('center-display');
+            if (display.classList.contains('correct')) return;
+
+            const q = questions[currentIdx];
+            const targetChar = q[dir];
+            if (!targetChar) return;
+
+            const rows = q.description.split('\n').filter(line => line.trim() !== '');
+            let targetRow = "";
+            
+            for (const row of rows) {
+                const match = row.match(/【([^】]+)】/);
+                if (match) {
+                    const word = match[1];
+                    const kanjiPart = word.split('(')[0];
+                    if (kanjiPart.includes(targetChar)) {
+                        targetRow = row;
+                        break;
+                    }
+                }
+            }
+
+            if (!targetRow) {
+                showModal("この文字のヒントはないみたい...", [{ text: "OK", type: "cancel" }]);
+                return;
+            }
+
+            const descMatch = targetRow.match(/【[^】]+】(.*)/);
+            if (descMatch) {
+                const descText = descMatch[1];
+                if (descText.includes(q.answer)) {
+                    showModal("このヒントには答えの漢字が入っているから<br>見せられないよ", [{ text: "OK", type: "cancel" }]);
+                    return;
+                }
+
+                // すでにポイントを使って解放済みの場合は確認を出さずに直接表示
+                if (unlockedHints[dir]) {
+                    showModal(
+                        `<div class="text-amber-600 font-black mb-4 border-b-2 border-amber-200 pb-2 text-xl">💡 ヒント</div>
+                         <div class="text-left text-slate-700">${parseRuby(descText)}</div>`, 
+                        [{ text: "とじる", type: "cancel" }], 
+                        true
+                    );
+                    return;
+                }
+                
+                if (hintPoints <= 0) {
+                    showModal("ヒントポイントが足りないよ！", [{ text: "OK", type: "cancel" }]);
+                    return;
+                }
+
+                showModal("ヒントポイントを1使って<br>ヒントを表示しますか？", [
+                    { text: "いいえ", type: "cancel" },
+                    { text: "はい", type: "confirm", onClick: () => {
+                        hintPoints--;
+                        localStorage.setItem('ota_hint_points', hintPoints);
+                        updateHintDisplay();
+                        unlockedHints[dir] = true; // 解放状態を記憶
+                        
+                        // 熟語を除いた説明文のみをヒント用モーダルで表示
+                        showModal(
+                            `<div class="text-amber-600 font-black mb-4 border-b-2 border-amber-200 pb-2 text-xl">💡 ヒント</div>
+                             <div class="text-left text-slate-700">${parseRuby(descText)}</div>`, 
+                            [{ text: "とじる", type: "cancel" }], 
+                            true
+                        );
+                    }}
+                ]);
+            }
         }
 
         function clearCanvas() { 
@@ -535,6 +736,7 @@
             const display = document.getElementById('center-display');
             if (display && !display.classList.contains('correct')) {
                 display.innerText = "？";
+                document.getElementById('explanation-area').style.display = "none";
             }
         }
 
@@ -618,22 +820,39 @@
 
             const isNewClear = !clearedQuestions.includes(q.id);
             if (isNewClear) {
+                if (hintMode) {
+                    hintPoints++;
+                    localStorage.setItem('ota_hint_points', hintPoints);
+                    updateHintDisplay();
+                }
+
                 clearedQuestions.push(q.id);
                 localStorage.setItem(`ota_save_${currentCourseKey}`, JSON.stringify(clearedQuestions));
                 const titleContainer = document.getElementById('problem-title-container');
                 titleContainer.classList.add('cleared');
                 document.getElementById('problem-title').innerHTML = `<span class="crown-icon-sm">👑</span>問題 ${currentIdx+1}`;
-                
-                const newlyAvailable = getAvailableQuestions(courseData[currentCourseKey], clearedQuestions);
-                if (newlyAvailable.length > questions.length) {
-                    questions = newlyAvailable;
-                }
             }
             
-            const isAllClearedNow = clearedQuestions.length === questions.length;
-            if (isAllClearedNow) {
+            const totalQuestions = courseData[currentCourseKey].questions.length;
+            const isCompleteAll = clearedQuestions.length === totalQuestions;
+            const isCurrentStepCleared = clearedQuestions.length === questions.length;
+            
+            if (isCompleteAll) {
                 if (isNewClear) {
-                    document.getElementById('game-msg').innerHTML = "<span class='text-amber-600 font-black text-2xl sm:text-3xl animate-bounce whitespace-nowrap'>🎊 コースクリアおめでとう！ 🎊</span>";
+                    document.getElementById('game-msg').innerHTML = hintMode 
+                        ? "<span class='text-amber-600 font-black text-xl sm:text-2xl animate-bounce whitespace-nowrap'>🎊 コース完全制覇！ <span class='text-blue-500'>(ヒントP +1)</span> 🎊</span>"
+                        : "<span class='text-amber-600 font-black text-2xl sm:text-3xl animate-bounce whitespace-nowrap'>🎊 コース完全制覇おめでとう！ 🎊</span>";
+                    confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 }, colors: ['#fbbf24', '#3b82f6', '#ef4444', '#10b981'] });
+                } else {
+                    document.getElementById('game-msg').innerHTML = "<span class='text-red-500 font-black text-3xl animate-bounce'>✨ 正解！ ✨</span>";
+                }
+                document.getElementById('finish-btn').classList.remove('hidden');
+                document.getElementById('next-btn').classList.add('hidden');
+            } else if (isCurrentStepCleared) {
+                if (isNewClear) {
+                    document.getElementById('game-msg').innerHTML = hintMode 
+                        ? "<span class='text-amber-600 font-black text-xl sm:text-2xl animate-bounce whitespace-nowrap'>🎊 コースクリア！ <span class='text-blue-500'>(ヒントP +1)</span> 🎊</span>"
+                        : "<span class='text-amber-600 font-black text-2xl sm:text-3xl animate-bounce whitespace-nowrap'>🎊 コースクリアおめでとう！ 🎊</span>";
                     confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 }, colors: ['#fbbf24', '#3b82f6', '#ef4444', '#10b981'] });
                 } else {
                     document.getElementById('game-msg').innerHTML = "<span class='text-red-500 font-black text-3xl animate-bounce'>✨ 正解！ ✨</span>";
@@ -641,7 +860,11 @@
                 document.getElementById('finish-btn').classList.remove('hidden');
                 document.getElementById('next-btn').classList.add('hidden');
             } else {
-                document.getElementById('game-msg').innerHTML = "<span class='text-red-500 font-black text-3xl animate-bounce'>✨ 正解！ ✨</span>";
+                if (hintMode && isNewClear) {
+                    document.getElementById('game-msg').innerHTML = "<span class='text-red-500 font-black text-2xl sm:text-3xl animate-bounce'>✨ 正解！ <span class='text-lg text-blue-500'>(ヒントP +1)</span> ✨</span>";
+                } else {
+                    document.getElementById('game-msg').innerHTML = "<span class='text-red-500 font-black text-3xl animate-bounce'>✨ 正解！ ✨</span>";
+                }
                 if (currentIdx === questions.length - 1) {
                     document.getElementById('finish-btn').classList.remove('hidden');
                     document.getElementById('next-btn').classList.add('hidden');
@@ -668,7 +891,7 @@
             }
         }
 
-        window.onload = () => { initCanvas(); loadCourseData(); };
+        window.onload = () => { initCanvas(); loadCourseData(); updateHintDisplay(); };
         window.onresize = () => { 
             applyHandedness(); 
             adjustFontSize(); 
