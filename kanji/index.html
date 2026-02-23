@@ -257,6 +257,13 @@
                 transform: translateX(-130px);
             }
         }
+
+        /* スマホ版ではメイン画面（コース、メニュー）でヒントポイントを隠す */
+        @media (max-width: 639px) {
+            body:not(.screen-game) #global-hint-display {
+                display: none !important;
+            }
+        }
     </style>
 </head>
 <body class="sm:p-4 relative">
@@ -353,13 +360,13 @@
     </div>
 
     <footer class="w-full py-4 text-slate-400 text-[10px] sm:text-xs text-center border-t border-slate-100 bg-white/50">
-        漢字パズル | Ver 7.3.0 | ota tools
+        漢字パズル | Ver 7.5.1 | ota tools
     </footer>
 
     <script>
         let courseData = null; let currentCourseKey = ""; let questions = []; let currentIdx = 0; let clearedQuestions = [];
         let leftHanded = localStorage.getItem('ota_v21_hand') === 'true';
-        let unlockedHints = {}; // 既にポイントを使ったヒントを記憶
+        let unlockedHints = JSON.parse(localStorage.getItem('ota_unlocked_hints') || '{}');
 
         // URLから表示制限数を取得（/#10#hint や /?10&hint に対応）
         let stepSize = 0;
@@ -418,6 +425,7 @@
         }
 
         function showCourseSelect() {
+            document.body.classList.remove('screen-game');
             document.body.style.overflowY = "auto";
             document.getElementById('course-screen').classList.remove('hidden');
             document.getElementById('menu-screen').classList.add('hidden');
@@ -459,6 +467,7 @@
         }
 
         function showMenu() {
+            document.body.classList.remove('screen-game');
             document.body.style.overflowY = "auto";
             document.getElementById('course-screen').classList.add('hidden');
             document.getElementById('menu-screen').classList.remove('hidden');
@@ -506,6 +515,7 @@
         }
 
         function startGame() {
+            document.body.classList.add('screen-game');
             document.body.style.overflowY = "auto"; 
             document.getElementById('menu-screen').classList.add('hidden');
             document.getElementById('game-screen').classList.remove('hidden');
@@ -665,6 +675,8 @@
             const targetChar = q[dir];
             if (!targetChar) return;
 
+            const hintKey = q.id + '_' + dir;
+
             const rows = q.description.split('\n').filter(line => line.trim() !== '');
             let targetRow = "";
             
@@ -689,12 +701,12 @@
             if (descMatch) {
                 const descText = descMatch[1];
                 if (descText.includes(q.answer)) {
-                    showModal("このヒントには答えの漢字が入っているから<br>見せられないよ", [{ text: "OK", type: "cancel" }]);
+                    showModal("このヒントには<br>答えの漢字が入っているから<br>見せられないよ", [{ text: "OK", type: "cancel" }]);
                     return;
                 }
 
                 // すでにポイントを使って解放済みの場合は確認を出さずに直接表示
-                if (unlockedHints[dir]) {
+                if (unlockedHints[hintKey]) {
                     showModal(
                         `<div class="text-amber-600 font-black mb-4 border-b-2 border-amber-200 pb-2 text-xl">💡 ヒント</div>
                          <div class="text-left text-slate-700">${parseRuby(descText)}</div>`, 
@@ -715,7 +727,9 @@
                         hintPoints--;
                         localStorage.setItem('ota_hint_points', hintPoints);
                         updateHintDisplay();
-                        unlockedHints[dir] = true; // 解放状態を記憶
+                        
+                        unlockedHints[hintKey] = true; // 解放状態を記憶
+                        localStorage.setItem('ota_unlocked_hints', JSON.stringify(unlockedHints));
                         
                         // 熟語を除いた説明文のみをヒント用モーダルで表示
                         showModal(

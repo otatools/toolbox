@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>漢字クロスワード 設定ツール</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+JP:wght@700;900&display=block" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            background-color: #f8fafc;
+            font-family: 'Noto Serif JP', serif;
+            color: #1a1a1a;
+        }
+    </style>
+</head>
+<body class="flex flex-col items-center justify-center min-h-screen p-4">
+    
+    <div class="w-full max-w-md bg-white border-2 border-slate-200 rounded-3xl p-6 sm:p-8 shadow-lg">
+        <h1 class="text-2xl sm:text-3xl font-black text-center text-slate-800 mb-6 border-b-2 border-slate-100 pb-4">
+            ⚙️ 漢字クロスワード 設定
+        </h1>
+
+        <div class="mb-6">
+            <label class="flex items-center space-x-3 cursor-pointer mb-3">
+                <input type="checkbox" id="limit-toggle" class="w-6 h-6 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 cursor-pointer">
+                <span class="font-bold text-lg sm:text-xl text-slate-700">問題数制限モードをONにする</span>
+            </label>
+            
+            <div id="limit-settings" class="hidden ml-9 flex items-center gap-2">
+                <input type="number" id="limit-num" min="1" value="5" class="w-20 px-3 py-2 border-2 border-slate-300 rounded-xl text-center font-black text-xl text-blue-600 focus:border-blue-500 focus:outline-none transition-colors">
+                <span class="font-bold text-slate-600">問ずつ表示する</span>
+            </div>
+        </div>
+
+        <div class="mb-8">
+            <label class="flex items-center space-x-3 cursor-pointer">
+                <input type="checkbox" id="hint-toggle" class="w-6 h-6 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 cursor-pointer">
+                <span class="font-bold text-lg sm:text-xl text-slate-700">ヒント機能をONにする</span>
+            </label>
+        </div>
+
+        <div class="bg-slate-50 p-4 rounded-2xl border-2 border-slate-200 relative">
+            <p class="font-bold text-sm text-slate-500 mb-2">生成されたURL:</p>
+            <input type="text" id="generated-url" readonly class="w-full bg-white px-3 py-3 border-2 border-slate-200 rounded-xl text-sm sm:text-base font-sans focus:outline-none text-slate-700 selection:bg-blue-200">
+            
+            <button id="copy-btn" class="mt-4 w-full bg-blue-500 text-white font-black py-3 rounded-xl shadow-md hover:bg-blue-600 hover:-translate-y-0.5 transition-all active:translate-y-0 text-lg">
+                URLをコピーする
+            </button>
+        </div>
+        
+        <div id="copy-msg" class="text-green-500 font-bold text-center mt-3 h-6 opacity-0 transition-opacity duration-300">
+            ✅ コピーしました！
+        </div>
+
+    </div>
+
+    <script>
+        const baseUrl = "https://otatools.github.io/toolbox/kanji/";
+        const limitToggle = document.getElementById('limit-toggle');
+        const limitSettings = document.getElementById('limit-settings');
+        const limitNum = document.getElementById('limit-num');
+        const hintToggle = document.getElementById('hint-toggle');
+        const generatedUrl = document.getElementById('generated-url');
+        const copyBtn = document.getElementById('copy-btn');
+        const copyMsg = document.getElementById('copy-msg');
+
+        // URLを組み立てる関数
+        function updateUrl() {
+            let params = "";
+            
+            // 制限モードがONの場合
+            if (limitToggle.checked) {
+                const num = parseInt(limitNum.value, 10);
+                if (num > 0) {
+                    params += "#" + num;
+                }
+            }
+
+            // ヒントモードがONの場合
+            if (hintToggle.checked) {
+                params += "#hint";
+            }
+
+            // URLを更新
+            generatedUrl.value = baseUrl + params;
+        }
+
+        // イベントリスナーの設定
+        limitToggle.addEventListener('change', (e) => {
+            if (e.target.checked) {
+                limitSettings.classList.remove('hidden');
+            } else {
+                limitSettings.classList.add('hidden');
+            }
+            updateUrl();
+        });
+
+        limitNum.addEventListener('input', updateUrl);
+        hintToggle.addEventListener('change', updateUrl);
+
+        // コピーボタンの処理
+        copyBtn.addEventListener('click', async () => {
+            try {
+                // クリップボードにコピー
+                await navigator.clipboard.writeText(generatedUrl.value);
+                
+                // コピー完了メッセージを表示
+                copyMsg.style.opacity = '1';
+                setTimeout(() => {
+                    copyMsg.style.opacity = '0';
+                }, 2000);
+            } catch (err) {
+                // クリップボードAPIが使えないブラウザ向けのフォールバック
+                generatedUrl.select();
+                document.execCommand('copy');
+                copyMsg.style.opacity = '1';
+                setTimeout(() => {
+                    copyMsg.style.opacity = '0';
+                }, 2000);
+            }
+        });
+
+        // 初期化時に一度URLを生成しておく
+        updateUrl();
+    </script>
+</body>
+</html>
