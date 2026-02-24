@@ -260,15 +260,20 @@
 
         /* スマホ版ではメイン画面（コース、メニュー）でヒントポイントを隠す */
         @media (max-width: 639px) {
-            body:not(.screen-game) #global-hint-display {
+            body:not(.screen-game):not(.screen-minigame) #global-hint-display {
                 display: none !important;
             }
+        }
+
+        /* ミニゲーム用タイマーのスタイル */
+        #minigame-timer-bar {
+            transition: width 0.1s linear, background-color 0.3s ease;
         }
     </style>
 </head>
 <body class="sm:p-4 relative">
 
-    <div id="global-hint-display" class="hidden fixed top-2 right-2 sm:top-4 sm:right-4 bg-white border-2 border-blue-200 text-blue-600 font-black px-3 py-1 sm:px-4 sm:py-2 rounded-full shadow-md z-[60] text-sm sm:text-base whitespace-nowrap">
+    <div id="global-hint-display" onclick="showHintExplanation()" class="hidden fixed top-2 right-2 sm:top-4 sm:right-4 bg-white border-2 border-blue-200 text-blue-600 font-black px-3 py-1 sm:px-4 sm:py-2 rounded-full shadow-md z-[60] text-sm sm:text-base whitespace-nowrap cursor-pointer hover:bg-slate-50 transition-colors">
         💡ヒントP: <span id="global-hint-p-val">0</span>
     </div>
 
@@ -293,10 +298,13 @@
             <h2 id="current-course-title" class="text-lg sm:text-3xl font-black text-slate-800 text-center whitespace-nowrap"></h2>
             <div class="w-[85px]"></div> </div>
         
-        <div id="stats" class="mb-8 text-amber-600 font-black bg-[#fffef0] px-6 py-2 rounded-full border-2 border-amber-300 inline-flex items-center gap-3 text-xl shadow-sm">
-            <span class="text-2xl drop-shadow-sm">👑</span>
-            <span class="text-amber-700">獲得数:</span>
-            <span id="stat-count" class="text-2xl">0 / 0</span>
+        <div class="mb-8 flex flex-wrap justify-center items-center gap-4">
+            <div id="stats" class="text-amber-600 font-black bg-[#fffef0] px-6 py-2 rounded-full border-2 border-amber-300 inline-flex items-center gap-3 text-xl shadow-sm">
+                <span class="text-2xl drop-shadow-sm">👑</span>
+                <span class="text-amber-700">獲得数:</span>
+                <span id="stat-count" class="text-2xl">0 / 0</span>
+            </div>
+            <div id="minigame-btn-container"></div>
         </div>
 
         <div class="menu-grid mx-auto" id="menu-grid"></div>
@@ -359,6 +367,22 @@
         </div>
     </div>
 
+    <div id="minigame-screen" class="hidden w-full max-w-5xl text-center py-6 flex-grow px-4 flex flex-col items-center">
+        <div class="w-full flex justify-between items-center mb-6 max-w-2xl">
+            <button onclick="exitMinigame()" class="font-bold px-4 py-2 bg-white rounded-xl border-2 border-slate-200 text-sm hover:bg-slate-50 transition-colors">← やめる</button>
+            <div id="minigame-progress" class="text-xl sm:text-2xl font-black text-slate-800"></div>
+            <div class="w-[85px]"></div>
+        </div>
+        <div class="w-full max-w-2xl bg-slate-200 h-4 rounded-full mb-6 overflow-hidden">
+            <div id="minigame-timer-bar" class="h-full bg-blue-500" style="width: 100%;"></div>
+        </div>
+        <div class="text-slate-500 font-bold mb-2">この意味を持つ熟語はどれ？</div>
+        <div id="minigame-desc" class="w-full max-w-2xl bg-white p-6 rounded-2xl border-4 border-blue-100 text-left text-lg sm:text-xl font-bold text-slate-700 mb-8 min-h-[120px] flex items-center justify-center break-words shadow-sm">
+            </div>
+        <div id="minigame-choices" class="grid grid-cols-2 gap-4 w-full max-w-2xl">
+            </div>
+    </div>
+
     <footer class="w-full py-4 text-slate-400 text-[10px] sm:text-xs text-center border-t border-slate-100 bg-white/50">
         漢字パズル | Ver 7.5.1 | ota tools
     </footer>
@@ -368,16 +392,24 @@
         let leftHanded = localStorage.getItem('ota_v21_hand') === 'true';
         let unlockedHints = JSON.parse(localStorage.getItem('ota_unlocked_hints') || '{}');
 
-        // URLから表示制限数を取得（/#10#hint や /?10&hint に対応）
+        // ミニゲーム用変数
+        let minigameTimer = null;
+        let minigameTimeLeft = 30;
+        let minigameCurrentQ = 0;
+        let minigameTargetData = null;
+        let minigameTargetWord = "";
+        let usedMinigameIds = [];
+
+        // URLから表示制限数を取得（/#10 にのみ対応）
         let stepSize = 0;
-        const sizeMatch = window.location.href.match(/[\/#\?\&](\d+)/);
+        const sizeMatch = window.location.href.match(/#(\d+)/);
         if (sizeMatch) {
             stepSize = parseInt(sizeMatch[1], 10);
         }
 
-        // URLから最大問題数を取得（/#max20 などに対応）
+        // URLから最大問題数を取得（/?20 にのみ対応）
         let maxQuestions = 0;
-        const maxMatch = window.location.href.match(/[\/#\?\&]max(\d+)/i);
+        const maxMatch = window.location.href.match(/\?(\d+)/);
         if (maxMatch) {
             maxQuestions = parseInt(maxMatch[1], 10);
         }
@@ -394,6 +426,10 @@
                 document.getElementById('global-hint-p-val').innerText = hintPoints;
             }
             document.body.classList.add('hint-active');
+        }
+
+        function showHintExplanation() {
+            showModal("ヒントが欲しい熟語の<br>漢字を押してね！", [{ text: "OK", type: "cancel" }], true);
         }
 
         // 現在のクリア数に基づいて、利用可能な問題のリストを返す
@@ -438,10 +474,12 @@
 
         function showCourseSelect() {
             document.body.classList.remove('screen-game');
+            document.body.classList.remove('screen-minigame');
             document.body.style.overflowY = "auto";
             document.getElementById('course-screen').classList.remove('hidden');
             document.getElementById('menu-screen').classList.add('hidden');
             document.getElementById('game-screen').classList.add('hidden');
+            document.getElementById('minigame-screen').classList.add('hidden');
             renderCourseList();
             forceScrollTop();
         }
@@ -452,12 +490,12 @@
             list.innerHTML = '';
             Object.keys(courseData).forEach(key => {
                 const course = courseData[key];
-                const card = document.createElement('div');
                 const saved = JSON.parse(localStorage.getItem(`ota_save_${key}`)) || [];
                 
                 const availableQuestions = getAvailableQuestions(key, course, saved);
                 const isAllCleared = saved.length >= course.questions.length && course.questions.length > 0; // 全てのコースをクリアしたか
                 
+                const card = document.createElement('div');
                 card.className = `course-card ${isAllCleared ? 'cleared' : ''}`;
                 card.innerHTML = `
                     ${isAllCleared ? '<div class="crown-icon">👑</div>' : ''}
@@ -480,10 +518,12 @@
 
         function showMenu() {
             document.body.classList.remove('screen-game');
+            document.body.classList.remove('screen-minigame');
             document.body.style.overflowY = "auto";
             document.getElementById('course-screen').classList.add('hidden');
             document.getElementById('menu-screen').classList.remove('hidden');
             document.getElementById('game-screen').classList.add('hidden');
+            document.getElementById('minigame-screen').classList.add('hidden');
             renderMenu();
             forceScrollTop();
         }
@@ -491,6 +531,16 @@
         function renderMenu() {
             const grid = document.getElementById('menu-grid');
             grid.innerHTML = '';
+
+            // 10個クリア時にミニゲームボタンを表示 (statsの横に配置)
+            const mgBtnContainer = document.getElementById('minigame-btn-container');
+            if (clearedQuestions.length >= 10) {
+                const btnText = hintMode ? "💡 ヒントポイントをかせぐ" : "🔥 熟語チャレンジ";
+                mgBtnContainer.innerHTML = `<button onclick="startMinigameConfirm()" class="bg-amber-500 text-white px-6 py-2 rounded-full text-lg font-black shadow-lg hover:bg-amber-600 transition-colors border-2 border-amber-300">${btnText}</button>`;
+            } else {
+                mgBtnContainer.innerHTML = '';
+            }
+
             questions.forEach((q, i) => {
                 const isCleared = clearedQuestions.includes(q.id);
                 const item = document.createElement('div');
@@ -510,6 +560,218 @@
                 addBtnWrapper.className = "col-span-full flex justify-center mt-4 mb-8";
                 addBtnWrapper.innerHTML = `<button onclick="addMoreQuestions()" class="bg-blue-500 text-white px-8 py-3 rounded-full text-lg sm:text-xl font-black shadow-lg hover:bg-blue-600 transition-colors">🔓 次の問題を解放する！</button>`;
                 grid.appendChild(addBtnWrapper);
+            }
+        }
+
+        // ミニゲーム関連関数
+        function startMinigameConfirm() {
+            if (hintMode && hintPoints >= 20) {
+                showModal("20ポイント以上もっているので、<br>ここではポイントが増えないけどいいですか？", [
+                    { text: "いいえ", type: "cancel" },
+                    { text: "はい", type: "confirm", onClick: () => startMinigame() }
+                ]);
+            } else {
+                startMinigame();
+            }
+        }
+
+        function startMinigame() {
+            document.body.classList.add('screen-minigame');
+            document.getElementById('menu-screen').classList.add('hidden');
+            document.getElementById('minigame-screen').classList.remove('hidden');
+            minigameCurrentQ = 0;
+            usedMinigameIds = [];
+            loadMinigameQuestion();
+            forceScrollTop();
+        }
+
+        function loadMinigameQuestion() {
+            clearInterval(minigameTimer);
+            minigameTimeLeft = 30;
+            updateMinigameTimerBar();
+
+            document.getElementById('minigame-progress').innerText = `第 ${minigameCurrentQ + 1} 問 / 5`;
+
+            // 正解済み問題から候補を取得（使用済みを除外）
+            let pool = courseData[currentCourseKey].questions.filter(q => clearedQuestions.includes(q.id) && !usedMinigameIds.includes(q.id));
+            
+            // プールが枯渇した場合は使用済み履歴をリセット
+            if (pool.length === 0) {
+                usedMinigameIds = [];
+                pool = courseData[currentCourseKey].questions.filter(q => clearedQuestions.includes(q.id));
+            }
+
+            // ランダムに正解（ターゲット）を1つ選ぶ
+            const targetIdx = Math.floor(Math.random() * pool.length);
+            minigameTargetData = pool[targetIdx];
+            usedMinigameIds.push(minigameTargetData.id);
+
+            // 熟語と説明文の抽出（【熟語(ルビ)】を除いた説明部分、熟語はルビ除去）
+            const rows = minigameTargetData.description.split('\n').filter(line => line.trim() !== '');
+            const validRows = [];
+            for (const row of rows) {
+                const match = row.match(/【([^】]+)】(.*)/);
+                if (match) {
+                    const word = match[1].replace(/\([^)]+\)/g, ''); // ルビ除去
+                    const desc = match[2];
+                    validRows.push({ word, desc });
+                }
+            }
+            
+            let targetRow = validRows.length > 0 ? validRows[Math.floor(Math.random() * validRows.length)] : { word: minigameTargetData.answer, desc: "（説明が見つかりません）" };
+            minigameTargetWord = targetRow.word;
+
+            // ターゲットと同じ問題からダミーを最大2つ抽出
+            const choices = [minigameTargetWord];
+            const remainingTargetWords = validRows.map(v => v.word).filter(w => w !== minigameTargetWord);
+            
+            for(let i = remainingTargetWords.length - 1; i > 0; i--){
+                const r = Math.floor(Math.random() * (i + 1));
+                [remainingTargetWords[i], remainingTargetWords[r]] = [remainingTargetWords[r], remainingTargetWords[i]];
+            }
+            
+            for(let i = 0; i < 2 && i < remainingTargetWords.length; i++) {
+                choices.push(remainingTargetWords[i]);
+            }
+
+            // 別の問題（ダミーソース）を1つ選ぶ
+            let tempPool = pool.filter(q => q.id !== minigameTargetData.id);
+            if (tempPool.length === 0) {
+                // 足りなければ使用済みをリセットして再取得（ターゲット以外）
+                usedMinigameIds = [minigameTargetData.id];
+                tempPool = courseData[currentCourseKey].questions.filter(q => clearedQuestions.includes(q.id) && q.id !== minigameTargetData.id);
+            }
+
+            if (tempPool.length > 0) {
+                const dummySourceIdx = Math.floor(Math.random() * tempPool.length);
+                const dummySourceData = tempPool[dummySourceIdx];
+                usedMinigameIds.push(dummySourceData.id);
+
+                const dRows = dummySourceData.description.split('\n').filter(line => line.trim() !== '');
+                const dummyWords = [];
+                for (const row of dRows) {
+                    const match = row.match(/【([^】]+)】(.*)/);
+                    if (match) {
+                        dummyWords.push(match[1].replace(/\([^)]+\)/g, '')); // ルビ除去
+                    }
+                }
+
+                for(let i = dummyWords.length - 1; i > 0; i--){
+                    const r = Math.floor(Math.random() * (i + 1));
+                    [dummyWords[i], dummyWords[r]] = [dummyWords[r], dummyWords[i]];
+                }
+
+                for(let i = 0; i < 3 && i < dummyWords.length; i++) {
+                    choices.push(dummyWords[i]);
+                }
+            }
+
+            // 万が一6個に満たない場合
+            while(choices.length < 6) {
+                choices.push("ダミー" + (choices.length + 1));
+            }
+
+            // 選択肢をシャッフル
+            for(let i = choices.length - 1; i > 0; i--){
+                const r = Math.floor(Math.random() * (i + 1));
+                [choices[i], choices[r]] = [choices[r], choices[i]];
+            }
+            
+            let descHtml = targetRow.desc === "（説明が見つかりません）" ? targetRow.desc : parseRuby(targetRow.desc);
+            document.getElementById('minigame-desc').innerHTML = descHtml;
+
+            const choicesContainer = document.getElementById('minigame-choices');
+            choicesContainer.innerHTML = '';
+            choices.forEach(c => {
+                const btn = document.createElement('button');
+                // スマホでタップした後に色が残る現象を防ぐため lg:hover に変更し、active クラスを追加
+                btn.className = "bg-white border-4 border-slate-200 text-2xl sm:text-3xl font-black py-4 rounded-2xl lg:hover:bg-slate-50 lg:hover:border-blue-300 active:bg-slate-50 active:border-blue-300 transition-colors shadow-sm";
+                btn.innerText = c;
+                btn.onclick = function() { handleMinigameChoice(c, this); };
+                choicesContainer.appendChild(btn);
+            });
+
+            // タイマー開始
+            minigameTimer = setInterval(() => {
+                minigameTimeLeft -= 0.1;
+                updateMinigameTimerBar();
+                if (minigameTimeLeft <= 0) {
+                    clearInterval(minigameTimer);
+                    handleMinigameTimeout();
+                }
+            }, 100);
+        }
+
+        function updateMinigameTimerBar() {
+            const bar = document.getElementById('minigame-timer-bar');
+            let pct = (minigameTimeLeft / 30) * 100;
+            if (pct < 0) pct = 0;
+            bar.style.width = `${pct}%`;
+            if (pct < 30) {
+                bar.classList.replace('bg-blue-500', 'bg-red-500');
+            } else {
+                bar.classList.replace('bg-red-500', 'bg-blue-500');
+            }
+        }
+
+        function handleMinigameChoice(choice, btnElement) {
+            clearInterval(minigameTimer);
+            const buttons = document.getElementById('minigame-choices').querySelectorAll('button');
+            buttons.forEach(b => {
+                b.disabled = true;
+                b.blur(); // フォーカスを外して色が残るのを防ぐ
+            });
+
+            if (choice === minigameTargetWord) {
+                btnElement.classList.remove('bg-white', 'border-slate-200', 'lg:hover:bg-slate-50', 'lg:hover:border-blue-300', 'active:bg-slate-50', 'active:border-blue-300');
+                btnElement.classList.add('bg-green-100', 'border-green-500', 'text-green-700');
+                minigameCurrentQ++;
+                setTimeout(() => {
+                    if (minigameCurrentQ >= 5) {
+                        handleMinigameClear();
+                    } else {
+                        loadMinigameQuestion();
+                    }
+                }, 500);
+            } else {
+                btnElement.classList.remove('bg-white', 'border-slate-200', 'lg:hover:bg-slate-50', 'lg:hover:border-blue-300', 'active:bg-slate-50', 'active:border-blue-300');
+                btnElement.classList.add('bg-red-100', 'border-red-500', 'text-red-700');
+                buttons.forEach(b => {
+                    if (b.innerText === minigameTargetWord) {
+                        b.classList.remove('bg-white', 'border-slate-200', 'lg:hover:bg-slate-50', 'lg:hover:border-blue-300', 'active:bg-slate-50', 'active:border-blue-300');
+                        b.classList.add('bg-green-100', 'border-green-500', 'text-green-700');
+                    }
+                });
+                setTimeout(() => {
+                    showModal("ざんねん！ちがう熟語だよ。<br>また挑戦してね！", [{ text: "OK", type: "confirm", onClick: exitMinigame }]);
+                }, 800);
+            }
+        }
+
+        function handleMinigameTimeout() {
+            showModal("時間切れ！<br>また挑戦してね！", [{ text: "OK", type: "confirm", onClick: exitMinigame }]);
+        }
+
+        function exitMinigame() {
+            clearInterval(minigameTimer);
+            document.body.classList.remove('screen-minigame');
+            document.getElementById('minigame-screen').classList.add('hidden');
+            document.getElementById('menu-screen').classList.remove('hidden');
+            forceScrollTop();
+        }
+
+        function handleMinigameClear() {
+            if (hintMode) {
+                if (hintPoints >= 20) {
+                    showModal(`🎊 5問連続正解！ 🎊<br><br><span class="text-amber-600">${hintPoints}ポイント</span>も持っていてすごい！<br>熟語マスターだね！`, [{ text: "もどる", type: "confirm", onClick: exitMinigame }]);
+                } else {
+                    hintPoints++;
+                    localStorage.setItem('ota_hint_points', hintPoints);
+                    updateHintDisplay();
+                    showModal("🎊 5問連続正解！ 🎊<br><br>ヒントポイントを<br><span class='text-blue-600 text-2xl'>1</span> ゲットしたよ！", [{ text: "もどる", type: "confirm", onClick: exitMinigame }]);
+                }
+            } else {
+                showModal("🎊 5問連続正解！ 🎊<br><br>熟語マスターだね！", [{ text: "もどる", type: "confirm", onClick: exitMinigame }]);
             }
         }
 
@@ -734,15 +996,15 @@
                     return;
                 }
                 
-                if (hintPoints <= 0) {
+                if (hintPoints < 2) {
                     showModal("ヒントポイントが足りないよ！", [{ text: "OK", type: "cancel" }]);
                     return;
                 }
 
-                showModal("ヒントポイントを1使って<br>ヒントを表示しますか？", [
+                showModal("ヒントポイントを2使って<br>ヒントを表示しますか？", [
                     { text: "いいえ", type: "cancel" },
                     { text: "はい", type: "confirm", onClick: () => {
-                        hintPoints--;
+                        hintPoints -= 2;
                         localStorage.setItem('ota_hint_points', hintPoints);
                         updateHintDisplay();
                         
