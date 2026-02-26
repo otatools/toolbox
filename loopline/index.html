@@ -1,0 +1,843 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>大阪環状線タイピング - 駅名を入力して電車を加速させよう！</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@700;900&display=swap" rel="stylesheet">
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        :root {
+            --loop-orange: #f39700;
+        }
+
+        body {
+            background-color: #f0f0f0;
+            color: #333;
+            font-family: 'Noto Sans JP', sans-serif;
+            overflow: hidden;
+            margin: 0;
+            padding: 0;
+            height: 100vh;
+            width: 100vw;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 1;
+        }
+
+        #viewport-wrapper {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 100%;
+            height: 100%;
+        }
+
+        .game-panel {
+            background: #ffffff;
+            box-shadow: 0 15px 35px rgba(0,0,0,0.1);
+            position: relative;
+            width: 900px;
+            height: 850px;
+            display: flex;
+            flex-direction: column;
+            transform-origin: center center;
+            flex-shrink: 0;
+        }
+
+        .title-main {
+            white-space: nowrap;
+            overflow: visible;
+        }
+
+        .railway-map {
+            position: relative;
+            width: 600px;
+            height: 600px;
+            border: 28px solid var(--loop-orange);
+            border-radius: 50%;
+            margin: auto;
+            background: #fff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: inset 0 0 50px rgba(0,0,0,0.05);
+            box-sizing: border-box;
+        }
+
+        .center-display {
+            text-align: center;
+            z-index: 10;
+            width: 90%;
+        }
+
+        .map-element {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            pointer-events: none;
+        }
+
+        .train-icon {
+            width: 80px;
+            height: 80px;
+            z-index: 40;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: margin 0.1s linear;
+        }
+
+        .train-icon img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            filter: drop-shadow(0 4px 6px rgba(0,0,0,0.2));
+        }
+
+        .station-dot {
+            width: 20px;
+            height: 20px;
+            background-color: #fff;
+            border: 3px solid #333;
+            border-radius: 50%;
+            z-index: 35;
+        }
+
+        .char-next { color: #ccc; }
+        .char-correct { color: var(--loop-orange); }
+        .char-current {
+            color: #333;
+            text-decoration: underline;
+            animation: blink 0.8s infinite;
+        }
+
+        @keyframes blink {
+            50% { opacity: 0.4; }
+        }
+
+        .miss-flash {
+            color: #ef4444 !important;
+            animation: shake 0.2s ease-in-out;
+        }
+
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-5px); }
+            75% { transform: translateX(5px); }
+        }
+
+        .time-bar-container {
+            width: 100%;
+            height: 12px;
+            background: #eee;
+            border-radius: 6px;
+            overflow: hidden;
+            position: relative;
+        }
+        
+        #station-timer-bar {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: var(--loop-orange);
+            will-change: width;
+        }
+
+        .overlay {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(5px);
+        }
+
+        .total-fare-area {
+            background: rgba(0, 0, 0, 0.05);
+            padding: 10px 20px;
+            border-radius: 12px;
+            display: inline-block;
+            margin-top: 10px;
+        }
+
+        .total-fare-value {
+            font-size: 32px;
+            font-weight: 900;
+            display: baseline;
+            justify-content: center;
+        }
+
+        .fare-num-wrapper {
+            position: relative;
+            display: inline-block;
+            text-align: right;
+            min-width: 4.5ch;
+        }
+
+        .fare-unit {
+            font-size: 18px;
+            margin-left: 4px;
+        }
+
+        .ticket-style {
+            background: #fdf5e6;
+            color: #5d4a3b;
+            border: 1px solid #d2b48c;
+            padding: 15px;
+            position: relative;
+            box-shadow: 2px 2px 0px rgba(0,0,0,0.1);
+            max-width: 380px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        .vertical-text {
+            writing-mode: vertical-rl;
+            text-orientation: upright;
+            letter-spacing: 0.1em;
+        }
+
+        .time-select-btn {
+            background: rgba(255,255,255,0.2);
+            padding: 4px 12px;
+            border-radius: 999px;
+            font-size: 0.8rem;
+            border: 2px solid transparent;
+            transition: all 0.2s;
+        }
+        .time-select-btn.active {
+            background: white;
+            color: #ea580c;
+            border-color: #ea580c;
+        }
+
+        .best-score-badge {
+            background: rgba(255, 255, 255, 0.9);
+            font-size: 14px;
+            font-weight: 900;
+            padding: 4px 12px;
+            border-radius: 999px;
+            display: inline-block;
+            margin-top: 6px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.08);
+            border: 1px solid rgba(0,0,0,0.05);
+        }
+
+        .footer-credit {
+            position: absolute;
+            bottom: 12px;
+            width: 100%;
+            text-align: center;
+            font-size: 10px;
+            color: #9ca3af;
+            letter-spacing: 0.05em;
+            pointer-events: none;
+            opacity: 0.7;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="viewport-wrapper">
+        <div id="game-container" class="game-panel rounded-3xl p-8 overflow-hidden">
+            
+            <div class="flex justify-between items-center mb-4">
+                <div class="text-3xl font-black text-orange-600">
+                    <span id="timer">60秒</span>
+                </div>
+                <div class="text-xl font-bold text-gray-500">
+                    <span id="score">0周 / 0駅</span>
+                </div>
+            </div>
+
+            <div class="flex-grow flex items-center justify-center relative">
+                <div class="railway-map" id="map-circle">
+                    <div class="center-display">
+                        <div id="ruby" class="text-2xl text-gray-400 mb-2 font-bold tracking-widest">おおさか</div>
+                        <div id="kanji" class="text-8xl font-black mb-8 tracking-tighter text-gray-800">大阪</div>
+                        <div id="romaji-display" class="text-5xl font-mono uppercase tracking-widest h-14 font-bold"></div>
+                    </div>
+                    <div id="train" class="map-element train-icon">
+                        <img src="001.png" alt="🚃">
+                    </div>
+                </div>
+            </div>
+
+            <div class="mt-6 mb-4">
+                <div class="flex justify-between text-sm text-gray-400 mb-2 font-bold uppercase tracking-widest">
+                    <span>次の駅まで…</span>
+                    <span id="station-timer-text">10.0秒</span>
+                </div>
+                <div class="time-bar-container">
+                    <div id="station-timer-bar"></div>
+                </div>
+            </div>
+
+            <div class="footer-credit">
+                大阪環状線タイピング　|　ver.1.27　|　ota tools
+            </div>
+
+            <!-- スタート画面 -->
+            <div id="start-overlay" class="absolute inset-0 flex items-center justify-center bg-orange-500 z-50">
+                <div class="text-center text-white p-6 w-full max-w-lg relative h-full flex flex-col justify-center">
+                    <h1 class="text-5xl font-black mb-2 italic title-main">大阪環状線タイピング</h1>
+                    <h2 class="text-2xl font-bold mb-6">駅名を入力して電車を加速させよう！</h2>
+                    
+                    <div class="mb-8">
+                        <p class="text-sm font-bold mb-3">乗車時間を選択</p>
+                        <div class="flex justify-center gap-2">
+                            <button onclick="changeTimeLimit(60)" id="btn-60" class="time-select-btn active">60秒</button>
+                            <button onclick="changeTimeLimit(90)" id="btn-90" class="time-select-btn">90秒</button>
+                            <button onclick="changeTimeLimit(120)" id="btn-120" class="time-select-btn">120秒</button>
+                        </div>
+                    </div>
+
+                    <div class="flex gap-4 justify-center mb-6">
+                        <button onclick="prepareGame('inner')" class="bg-white text-blue-600 font-bold py-6 px-4 rounded-2xl hover:scale-105 transition shadow-xl w-1/2">
+                            <span class="block text-3xl mb-1">内回り</span>
+                            <span class="text-[10px] font-normal block mb-2 opacity-70">大阪→福島 ほうめん</span>
+                            <div class="best-score-badge text-blue-700">
+                                ベスト: <span id="best-inner">0周 0駅</span>
+                            </div>
+                        </button>
+                        
+                        <button onclick="prepareGame('outer')" class="bg-white text-orange-600 font-bold py-6 px-4 rounded-2xl hover:scale-105 transition shadow-xl w-1/2">
+                            <span class="block text-3xl mb-1">外回り</span>
+                            <span class="text-[10px] font-normal block mb-2 opacity-70">大阪→天満 ほうめん</span>
+                            <div class="best-score-badge text-orange-700">
+                                ベスト: <span id="best-outer">0周 0駅</span>
+                            </div>
+                        </button>
+                    </div>
+
+                    <div class="total-fare-area">
+                        <span class="total-fare-label">使ったお金</span>
+                        <div class="total-fare-value">
+                            <span class="fare-num-wrapper">
+                                <span id="total-fare-all">0</span>
+                            </span>
+                            <span class="fare-unit">円</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- カウントダウン -->
+            <div id="ready-overlay" class="absolute inset-0 hidden flex items-center justify-center overlay z-[60] bg-black/80">
+                <div class="text-center text-white">
+                    <div class="text-3xl font-bold mb-8 animate-pulse">発車準備が完了しました</div>
+                    <div class="bg-white text-black px-8 py-6 rounded-2xl shadow-2xl">
+                        <div class="text-lg font-bold mb-2">スペースキーを押してね</div>
+                        <div class="text-4xl font-black border-4 border-black py-2 rounded-lg">SPACE</div>
+                    </div>
+                    <div class="mt-8 text-orange-400 font-bold tracking-widest" id="ready-info"></div>
+                </div>
+            </div>
+
+            <!-- リザルト -->
+            <div id="result-overlay" class="absolute inset-0 hidden flex items-center justify-center overlay z-50 p-6">
+                <div class="text-center w-full max-w-md mx-auto">
+                    <div id="result-title" class="mb-6 text-2xl tracking-widest text-gray-800 border-b-4 border-orange-500 pb-2 font-black">ご乗車ありがとうございました</div>
+                    <div class="bg-gray-800 text-white p-6 rounded-2xl mb-6 shadow-xl">
+                        <div class="flex justify-between text-4xl mb-6 items-end">
+                            <span class="text-base opacity-50 font-bold mb-1">そうこうきょり</span>
+                            <span><span id="final-laps">0</span>周 <span id="final-stations">0</span>駅</span>
+                        </div>
+                        <div class="grid grid-cols-2 gap-x-6 gap-y-2 text-sm pt-4 border-t border-gray-700">
+                            <div class="flex justify-between"><span>正解:</span><span id="stat-correct">0</span></div>
+                            <div class="flex justify-between"><span>ミス:</span><span id="stat-miss" class="text-red-400">0</span></div>
+                            <div class="flex justify-between"><span>スピード:</span><span><span id="stat-wpm">0</span> WPM</span></div>
+                            <div class="flex justify-between"><span>苦手キー:</span><span id="stat-weak" class="text-red-400">-</span></div>
+                        </div>
+                    </div>
+                    <div id="ticket-area" class="ticket-style mb-8 shadow-xl rounded-sm">
+                        <div id="ticket-header" class="flex justify-between text-[10px] mb-4 border-b border-[#d2b48c] pb-1"><span>JR西日本</span><span>大阪環状線</span></div>
+                        <div id="ticket-main-content" class="flex items-center justify-center gap-6 py-2">
+                            <div class="flex items-center gap-4">
+                                <div id="from-station" class="text-2xl font-bold border-2 border-[#5d4a3b] p-1 vertical-text">大阪</div>
+                                <div class="text-xl font-bold">▶</div>
+                            </div>
+                            <div class="text-center">
+                                <div class="text-6xl font-black mb-1"><span id="fare">0</span>円</div>
+                                <div class="text-lg font-bold border-t border-[#5d4a3b] pt-1 mt-1">小児<span id="fare-child">0</span>円</div>
+                            </div>
+                        </div>
+                        <div class="text-[9px] mt-4 flex justify-between opacity-70"><span id="ticket-date"></span><span>実際の運賃とは異なります</span></div>
+                    </div>
+                    <button onclick="location.reload()" class="w-full bg-orange-600 text-white font-black py-5 rounded-2xl text-xl hover:bg-orange-700 transition shadow-lg">もういちど乗る</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const ROMAJI_TABLE = {
+            'あ':['a'], 'い':['i'], 'う':['u'], 'え':['e'], 'お':['o'],
+            'か':['ka'], 'き':['ki'], 'く':['ku'], 'け':['ke'], 'こ':['ko'],
+            'さ':['sa'], 'し':['si','shi'], 'す':['su'], 'せ':['se'], 'そ':['so'],
+            'た':['ta'], 'ち':['ti','chi'], 'つ':['tu','tsu'], 'て':['te'], 'と':['to'],
+            'な':['na'], 'に':['ni'], 'ぬ':['nu'], 'ね':['ne'], 'の':['no'],
+            'は':['ha'], 'ひ':['hi'], 'ふ':['hu','fu'], 'へ':['he'], 'ほ':['ho'],
+            'ま':['ma'], 'み':['mi'], 'む':['mu'], 'め':['me'], 'も':['mo'],
+            'や':['ya'], 'ゆ':['yu'], 'よ':['yo'],
+            'ら':['ra'], 'り':['ri'], 'る':['ru'], 'れ':['re'], 'ろ':['ro'],
+            'わ':['wa'], 'を':['wo'], 'ん':['n','nn'],
+            'が':['ga'], 'ぎ':['gi'], 'ぐ':['gu'], 'げ':['ge'], 'ご':['go'],
+            'ざ':['za'], 'じ':['zi','ji'], 'ず':['zu'], 'ぜ':['ze'], 'ぞ':['zo'],
+            'だ':['da'], 'ぢ':['di'], 'づ':['du'], 'で':['de'], 'ど':['do'],
+            'ば':['ba'], 'び':['bi'], 'ぶ':['bu'], 'べ':['be'], 'ぼ':['bo'],
+            'ぱ':['pa'], 'ぴ':['pi'], 'ぷ':['pu'], 'ぺ':['pe'], 'ぽ':['po'],
+            'きゃ':['kya'], 'きゅ':['kyu'], 'きょ':['kyo'],
+            'しゃ':['sya','sha'], 'しゅ':['syu','shu'], 'しょ':['syo','sho'],
+            'ちゃ':['tya','cha'], 'ちゅ':['tyu','chu'], 'ちょ':['tyo','cho'],
+            'にゃ':['nya'], 'にゅ':['nyu'], 'にょ':['nyo'],
+            'ひゃ':['hya'], 'ひゅ':['hyu'], 'ひょ':['hyo'],
+            'みゃ':['mya'], 'みゅ':['myu'], 'みょ':['myo'],
+            'りゃ':['rya'], 'りゅ':['ryo'], 'りょ':['ryo'],
+            'ぎゃ':['gya'], 'ぎゅ':['gyu'], 'ぎょ':['gyo'],
+            'じゃ':['zya','ja'], 'じゅ':['zyu','ju'], 'じょ':['zyo','jo'],
+            'びゃ':['bya'], 'びゅ':['byu'], 'びょ':['byo'],
+            'ぴゃ':['pya'], 'ぴゅ':['pu'], 'ぴょ':['pyo'],
+            'っ':['xtu','ltu','ltsu'],
+            'ぁ':['xa','la'], 'ぃ':['xi','li'], 'ぅ':['xu','lu'], 'ぇ':['xe','le'], 'ぉ':['xo','lo'],
+            'ゃ':['xya','lya'], 'ゅ':['xyu','lyu'], 'ょ':['xyo','lyo'],
+            'ー':['-']
+        };
+
+        const STATIONS_MASTER = [
+            { kanji: "大阪", ruby: "おおさか" },
+            { kanji: "天満", ruby: "てんま" },
+            { kanji: "桜ノ宮", ruby: "さくらのみや" },
+            { kanji: "京橋", ruby: "きょうばし" },
+            { kanji: "大阪城公園", ruby: "おおさかじょうこうえん" },
+            { kanji: "森ノ宮", ruby: "もりのみや" },
+            { kanji: "玉造", ruby: "たまつくり" },
+            { kanji: "鶴橋", ruby: "つるはし" },
+            { kanji: "桃谷", ruby: "ももだに" },
+            { kanji: "寺田町", ruby: "てらだちょう" },
+            { kanji: "天王寺", ruby: "てんのうじ" },
+            { kanji: "新今宮", ruby: "しんいまみや" },
+            { kanji: "今宮", ruby: "いまみや" },
+            { kanji: "芦原橋", ruby: "あしはらばし" },
+            { kanji: "大正", ruby: "たいしょう" },
+            { kanji: "弁天町", ruby: "べんてんちょう" },
+            { kanji: "西九条", ruby: "にしくじょう" },
+            { kanji: "野田", ruby: "のだ" },
+            { kanji: "福島", ruby: "ふくしま" }
+        ];
+
+        let stations = [];
+        let loopDirection = 'outer';
+        let currentStationIndex = 0;
+        let totalStationsCovered = 0; // 通過した駅数
+        let timeLimit = 60; 
+        let timeLeft = 60;
+        let isPlaying = false;
+        let isReady = false; 
+        let isWaitingForNext = false;
+        let correctCount = 0; // 正解タイプ数
+        let missCount = 0;
+        let missedTargetKeys = {}; 
+        
+        const STATION_LIMIT_SEC = 10;
+        let stationTimeRemaining = STATION_LIMIT_SEC;
+        let stationTimerRequestId = null;
+        let lastTimestamp = 0;
+
+        let currentKanaList = [];
+        let currentTargetIndex = 0;
+        let currentTypedInChar = "";
+        let confirmedRomajiList = [];
+
+        function handleResize() {
+            const container = document.getElementById('game-container');
+            const w = window.innerWidth;
+            const h = window.innerHeight;
+            const baseW = 900, baseH = 850;
+            const scale = Math.min(w / baseW, h / baseH, 1);
+            container.style.transform = `scale(${scale})`;
+            initMap();
+        }
+
+        function splitKana(text) {
+            const result = [];
+            let i = 0;
+            while (i < text.length) {
+                let char = text[i];
+                let next = text[i+1];
+                if (next && "ぁぃぅぇぉゃゅょ".includes(next)) {
+                    result.push(char + next);
+                    i += 2;
+                } else {
+                    result.push(char);
+                    i++;
+                }
+            }
+            return result;
+        }
+
+        function getMapMetrics() {
+            const mapCircle = document.getElementById('map-circle');
+            if (!mapCircle) return { radius: 250 };
+            return { radius: (mapCircle.offsetWidth - 28) / 2 };
+        }
+
+        function initMap() {
+            const metrics = getMapMetrics();
+            const mapCircle = document.getElementById('map-circle');
+            if (!mapCircle) return;
+            mapCircle.querySelectorAll('.station-dot').forEach(d => d.remove());
+            STATIONS_MASTER.forEach((_, i) => {
+                const angle = (i / STATIONS_MASTER.length) * Math.PI * 2 - Math.PI / 2;
+                const x = metrics.radius * Math.cos(angle);
+                const y = metrics.radius * Math.sin(angle);
+                const dot = document.createElement('div');
+                dot.className = 'map-element station-dot';
+                dot.style.marginLeft = `${x}px`;
+                dot.style.marginTop = `${y}px`;
+                mapCircle.appendChild(dot);
+            });
+            updateTrainPosition(0);
+        }
+
+        function updateTrainPosition(progress) {
+            const train = document.getElementById('train');
+            if (!train) return;
+            const metrics = getMapMetrics();
+            let currentIdx = currentStationIndex;
+            let nextIdx = (currentStationIndex + 1) % STATIONS_MASTER.length;
+            if (loopDirection === 'inner') {
+                currentIdx = (STATIONS_MASTER.length - currentStationIndex) % STATIONS_MASTER.length;
+                nextIdx = (STATIONS_MASTER.length - (currentStationIndex + 1)) % STATIONS_MASTER.length;
+            }
+            const startAngle = (currentIdx / STATIONS_MASTER.length) * Math.PI * 2 - Math.PI / 2;
+            let endAngle = (nextIdx / STATIONS_MASTER.length) * Math.PI * 2 - Math.PI / 2;
+            if (loopDirection === 'outer' && endAngle < startAngle) endAngle += Math.PI * 2;
+            if (loopDirection === 'inner' && endAngle > startAngle) endAngle -= Math.PI * 2;
+            const currentAngle = startAngle + (endAngle - startAngle) * progress;
+            const x = metrics.radius * Math.cos(currentAngle);
+            const y = metrics.radius * Math.sin(currentAngle);
+            train.style.marginLeft = `${x}px`;
+            train.style.marginTop = `${y}px`;
+        }
+
+        function changeTimeLimit(sec) {
+            timeLimit = sec;
+            timeLeft = sec;
+            document.getElementById('timer').innerText = `${sec}秒`;
+            [60, 90, 120].forEach(s => document.getElementById(`btn-${s}`).classList.toggle('active', s === sec));
+            updateStatsDisplay();
+        }
+
+        function updateStatsDisplay() {
+            const getBest = (dir) => {
+                const val = localStorage.getItem(`best_${dir}_${timeLimit}`) || 0;
+                return `${Math.floor(val / STATIONS_MASTER.length)}周 ${val % STATIONS_MASTER.length}駅`;
+            };
+            document.getElementById('best-inner').innerText = getBest('inner');
+            document.getElementById('best-outer').innerText = getBest('outer');
+            document.getElementById('total-fare-all').innerText = parseInt(localStorage.getItem('total_fare_all_time') || 0).toLocaleString();
+        }
+
+        function prepareGame(direction) {
+            loopDirection = direction;
+            isReady = true;
+            document.getElementById('ready-info').innerText = `${direction === 'inner' ? '内回り' : '外回り'}・${timeLimit}秒`;
+            document.getElementById('ready-overlay').classList.remove('hidden');
+        }
+
+        function startGame() {
+            isReady = false;
+            document.getElementById('ready-overlay').classList.add('hidden');
+            document.getElementById('start-overlay').style.display = 'none';
+            stations = (loopDirection === 'outer') ? [...STATIONS_MASTER] : [STATIONS_MASTER[0], ...[...STATIONS_MASTER].slice(1).reverse()];
+            isPlaying = true;
+            isWaitingForNext = false;
+            timeLeft = timeLimit;
+            correctCount = 0; missCount = 0; missedTargetKeys = {}; 
+            totalStationsCovered = 0; currentStationIndex = 0;
+            initMap();
+            updateStationDisplay();
+            startMainTimer();
+            lastTimestamp = performance.now();
+            resetStationTimer();
+        }
+
+        function startMainTimer() {
+            const id = setInterval(() => {
+                if (!isPlaying) return clearInterval(id);
+                timeLeft--;
+                document.getElementById('timer').innerText = `${timeLeft}秒`;
+                if (timeLeft <= 0) { clearInterval(id); endGame(); }
+            }, 1000);
+        }
+
+        function calculateFare(covered) {
+            // 大阪環状線の平均駅間を約1kmとして擬似計算
+            const km = covered;
+            let fare = 0;
+            if (km <= 3) fare = 150;
+            else if (km <= 6) fare = 190;
+            else if (km <= 10) fare = 200;
+            else if (km <= 15) fare = 240;
+            else fare = 240 + Math.floor((km - 15) / 5) * 40; // 15km超の暫定
+            return fare;
+        }
+
+        function endGame() {
+            isPlaying = false;
+            if (stationTimerRequestId) cancelAnimationFrame(stationTimerRequestId);
+            
+            // 走行距離: 完了した駅 + 最後の駅の通過率を計算
+            const finalProgressRatio = (STATION_LIMIT_SEC - stationTimeRemaining) / STATION_LIMIT_SEC;
+            const finalCovered = totalStationsCovered + (finalProgressRatio >= 0.99 ? 1 : 0);
+            
+            const currentFare = calculateFare(finalCovered);
+            // 子供料金: 半額、5円以下は切り捨て（JRのルール: 10円単位に切り捨て）
+            const childFare = Math.floor((currentFare / 2) / 10) * 10;
+            
+            localStorage.setItem('total_fare_all_time', parseInt(localStorage.getItem('total_fare_all_time') || 0) + currentFare);
+            
+            const bestKey = `best_${loopDirection}_${timeLimit}`;
+            if (finalCovered > parseInt(localStorage.getItem(bestKey) || 0)) localStorage.setItem(bestKey, finalCovered);
+            
+            document.getElementById('final-laps').innerText = Math.floor(finalCovered / STATIONS_MASTER.length);
+            document.getElementById('final-stations').innerText = finalCovered % STATIONS_MASTER.length;
+            document.getElementById('stat-correct').innerText = correctCount;
+            document.getElementById('stat-miss').innerText = missCount;
+            
+            // WPM計算: 正解タイプ数 ÷ 設定時間 × 60
+            const wpm = Math.round((correctCount / timeLimit) * 60);
+            document.getElementById('stat-wpm').innerText = wpm;
+            
+            const sortedMiss = Object.entries(missedTargetKeys).sort((a, b) => b[1] - a[1]);
+            document.getElementById('stat-weak').innerText = sortedMiss.length > 0 ? sortedMiss.slice(0, 3).map(m => m[0].toUpperCase()).join("") : "-";
+            document.getElementById('fare').innerText = currentFare;
+            document.getElementById('fare-child').innerText = childFare;
+            document.getElementById('ticket-date').innerText = new Date().toLocaleDateString();
+            document.getElementById('result-overlay').classList.remove('hidden');
+        }
+
+        function updateStationTimerFrame(timestamp) {
+            if (!isPlaying) return;
+            const deltaTime = (timestamp - lastTimestamp) / 1000;
+            lastTimestamp = timestamp;
+
+            if (!isWaitingForNext) {
+                stationTimeRemaining -= deltaTime;
+                const ratio = Math.max(0, stationTimeRemaining) / STATION_LIMIT_SEC;
+                document.getElementById('station-timer-bar').style.width = `${ratio * 100}%`;
+                document.getElementById('station-timer-text').innerText = `${Math.max(0, stationTimeRemaining).toFixed(1)}秒`;
+                updateTrainPosition(1.0 - ratio);
+            }
+
+            if (stationTimeRemaining <= 0 && !isWaitingForNext) {
+                goToNextStation(false); // タイムアップによる次駅移動
+            } else {
+                stationTimerRequestId = requestAnimationFrame(updateStationTimerFrame);
+            }
+        }
+
+        function resetStationTimer() {
+            if (stationTimerRequestId) cancelAnimationFrame(stationTimerRequestId);
+            stationTimeRemaining = STATION_LIMIT_SEC;
+            lastTimestamp = performance.now();
+            stationTimerRequestId = requestAnimationFrame(updateStationTimerFrame);
+        }
+
+        function updateStationDisplay() {
+            const st = stations[currentStationIndex];
+            if (!st) return;
+            document.getElementById('kanji').innerText = st.kanji;
+            document.getElementById('ruby').innerText = st.ruby;
+            currentKanaList = splitKana(st.ruby);
+            currentTargetIndex = 0;
+            currentTypedInChar = "";
+            confirmedRomajiList = [];
+            isWaitingForNext = false;
+            renderRomaji();
+        }
+
+        function getNNPatterns(index) {
+            const nextKana = currentKanaList[index + 1];
+            if (!nextKana || "あいうえおやゆよなにぬねのん".includes(nextKana[0])) {
+                return ["nn"];
+            }
+            return ["n", "nn"];
+        }
+
+        function renderRomaji(isFinished = false) {
+            const display = document.getElementById('romaji-display');
+            display.innerHTML = "";
+            confirmedRomajiList.forEach(r => {
+                const span = document.createElement('span');
+                span.className = 'char-correct';
+                span.innerText = r;
+                display.appendChild(span);
+            });
+
+            if (currentTargetIndex < currentKanaList.length && !isFinished) {
+                const kana = currentKanaList[currentTargetIndex];
+                let patterns = (kana === 'ん') ? getNNPatterns(currentTargetIndex) : (ROMAJI_TABLE[kana] || []);
+                
+                let target = patterns[0] || "";
+                if (kana === 'ん' && patterns.includes("n") && patterns.includes("nn")) {
+                    target = currentTypedInChar === "nn" ? "nn" : "n";
+                }
+
+                for (let i = 0; i < target.length; i++) {
+                    const span = document.createElement('span');
+                    if (i < currentTypedInChar.length) {
+                        span.className = 'char-correct';
+                    } else if (i === currentTypedInChar.length) {
+                        span.className = 'char-current';
+                    } else {
+                        span.className = 'char-next';
+                    }
+                    span.innerText = target[i];
+                    display.appendChild(span);
+                }
+
+                for (let i = currentTargetIndex + 1; i < currentKanaList.length; i++) {
+                    const span = document.createElement('span');
+                    span.className = 'char-next';
+                    const nextKana = currentKanaList[i];
+                    const nextPatterns = (nextKana === 'ん') ? getNNPatterns(i) : (ROMAJI_TABLE[nextKana] || []);
+                    span.innerText = nextPatterns[0] || "";
+                    display.appendChild(span);
+                }
+            }
+        }
+
+        function goToNextStation(isInputComplete) {
+            if (isInputComplete) {
+                isWaitingForNext = true;
+                totalStationsCovered++;
+                document.getElementById('score').innerText = `${Math.floor(totalStationsCovered / STATIONS_MASTER.length)}周 / ${totalStationsCovered % STATIONS_MASTER.length}駅`;
+                renderRomaji(true);
+                updateTrainPosition(1.0);
+                setTimeout(() => {
+                    if (!isPlaying) return;
+                    currentStationIndex = (currentStationIndex + 1) % stations.length;
+                    updateStationDisplay();
+                    resetStationTimer();
+                }, 500);
+            } else {
+                totalStationsCovered++;
+                document.getElementById('score').innerText = `${Math.floor(totalStationsCovered / STATIONS_MASTER.length)}周 / ${totalStationsCovered % STATIONS_MASTER.length}駅`;
+                currentStationIndex = (currentStationIndex + 1) % stations.length;
+                updateStationDisplay();
+                resetStationTimer();
+            }
+        }
+
+        window.addEventListener('keydown', (e) => {
+            if (isReady && e.code === 'Space') { startGame(); return; }
+            if (!isPlaying || isWaitingForNext) return;
+            if (e.key === 'Shift' || e.key === 'Alt' || e.key === 'Control') return;
+
+            const key = e.key.toLowerCase();
+            const kana = currentKanaList[currentTargetIndex];
+            const patterns = (kana === 'ん') ? getNNPatterns(currentTargetIndex) : (ROMAJI_TABLE[kana] || []);
+            
+            let isCorrect = false;
+
+            if (kana === 'ん' && patterns.includes("n") && patterns.includes("nn")) {
+                if (currentTypedInChar === "" && key === "n") {
+                    currentTypedInChar = "n";
+                    isCorrect = true;
+                } else if (currentTypedInChar === "n" && key === "n") {
+                    confirmedRomajiList.push("nn");
+                    currentTargetIndex++;
+                    currentTypedInChar = "";
+                    isCorrect = true;
+                } else if (currentTypedInChar === "n" && key !== "n") {
+                    confirmedRomajiList.push("n");
+                    currentTargetIndex++;
+                    currentTypedInChar = "";
+                    handleNextKey(key); 
+                    return;
+                }
+            } else {
+                for (let p of patterns) {
+                    if (p.startsWith(currentTypedInChar + key)) {
+                        isCorrect = true;
+                        currentTypedInChar += key;
+                        if (p === currentTypedInChar) {
+                            confirmedRomajiList.push(currentTypedInChar);
+                            currentTargetIndex++;
+                            currentTypedInChar = "";
+                        }
+                        break;
+                    }
+                }
+            }
+
+            if (isCorrect) {
+                correctCount++;
+                if (currentTargetIndex >= currentKanaList.length) {
+                    goToNextStation(true);
+                } else {
+                    renderRomaji();
+                }
+            } else {
+                handleMiss(key, patterns);
+            }
+        });
+
+        function handleNextKey(key) {
+            if (currentTargetIndex >= currentKanaList.length) {
+                goToNextStation(true);
+                return;
+            }
+            const kana = currentKanaList[currentTargetIndex];
+            const patterns = (kana === 'ん') ? getNNPatterns(currentTargetIndex) : (ROMAJI_TABLE[kana] || []);
+            let isCorrect = false;
+            for (let p of patterns) {
+                if (p.startsWith(key)) {
+                    isCorrect = true;
+                    currentTypedInChar = key;
+                    if (p === key) {
+                        confirmedRomajiList.push(key);
+                        currentTargetIndex++;
+                        currentTypedInChar = "";
+                    }
+                    break;
+                }
+            }
+            if (isCorrect) {
+                correctCount++;
+                if (currentTargetIndex >= currentKanaList.length) {
+                    goToNextStation(true);
+                } else {
+                    renderRomaji();
+                }
+            } else {
+                handleMiss(key, patterns);
+            }
+        }
+
+        function handleMiss(key, patterns) {
+            missCount++;
+            const targetChar = (patterns[0] || "")[currentTypedInChar.length] || "?";
+            missedTargetKeys[targetChar] = (missedTargetKeys[targetChar] || 0) + 1;
+            const display = document.getElementById('romaji-display');
+            if (display) {
+                display.classList.remove('miss-flash');
+                void display.offsetWidth;
+                display.classList.add('miss-flash');
+            }
+        }
+
+        window.addEventListener('resize', handleResize);
+        window.onload = () => {
+            handleResize();
+            updateStatsDisplay();
+        };
+    </script>
+</body>
+</html>
