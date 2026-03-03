@@ -23,6 +23,7 @@
             ⚙️ 漢字クロスワード 設定
         </h1>
 
+        <!-- 1. 問題数制限モード (#) -->
         <div class="mb-6">
             <label class="flex items-center space-x-3 cursor-pointer mb-3">
                 <input type="checkbox" id="limit-toggle" class="w-6 h-6 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 cursor-pointer">
@@ -35,6 +36,21 @@
             </div>
         </div>
 
+        <!-- 2. 最大問題数制限モード (?) -->
+        <div class="mb-6">
+            <label class="flex items-center space-x-3 cursor-pointer mb-3">
+                <input type="checkbox" id="max-limit-toggle" class="w-6 h-6 text-indigo-600 bg-gray-100 border-gray-300 rounded focus:ring-indigo-500 cursor-pointer">
+                <span class="font-bold text-lg sm:text-xl text-slate-700">最大問題数制限モードをONにする</span>
+            </label>
+            
+            <div id="max-limit-settings" class="hidden ml-9 flex items-center gap-2">
+                <span class="font-bold text-slate-600">合計</span>
+                <input type="number" id="max-limit-num" min="1" value="20" class="w-20 px-3 py-2 border-2 border-slate-300 rounded-xl text-center font-black text-xl text-indigo-600 focus:border-indigo-500 focus:outline-none transition-colors">
+                <span class="font-bold text-slate-600">問で終了する</span>
+            </div>
+        </div>
+
+        <!-- 3. ヒント機能 -->
         <div class="mb-8">
             <label class="flex items-center space-x-3 cursor-pointer">
                 <input type="checkbox" id="hint-toggle" class="w-6 h-6 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 cursor-pointer">
@@ -42,6 +58,7 @@
             </label>
         </div>
 
+        <!-- 生成されたURLエリア -->
         <div class="bg-slate-50 p-4 rounded-2xl border-2 border-slate-200 relative">
             <p class="font-bold text-sm text-slate-500 mb-2">生成されたURL:</p>
             <input type="text" id="generated-url" readonly class="w-full bg-white px-3 py-3 border-2 border-slate-200 rounded-xl text-sm sm:text-base font-sans focus:outline-none text-slate-700 selection:bg-blue-200">
@@ -59,9 +76,16 @@
 
     <script>
         const baseUrl = "https://otatools.github.io/toolbox/kanji/";
+        
+        // Elements
         const limitToggle = document.getElementById('limit-toggle');
         const limitSettings = document.getElementById('limit-settings');
         const limitNum = document.getElementById('limit-num');
+
+        const maxLimitToggle = document.getElementById('max-limit-toggle');
+        const maxLimitSettings = document.getElementById('max-limit-settings');
+        const maxLimitNum = document.getElementById('max-limit-num');
+
         const hintToggle = document.getElementById('hint-toggle');
         const generatedUrl = document.getElementById('generated-url');
         const copyBtn = document.getElementById('copy-btn');
@@ -69,26 +93,38 @@
 
         // URLを組み立てる関数
         function updateUrl() {
-            let params = "";
+            let path = "";
+            let query = "";
+            let hash = "";
             
-            // 制限モードがONの場合
-            if (limitToggle.checked) {
-                const num = parseInt(limitNum.value, 10);
-                if (num > 0) {
-                    params += "#" + num;
+            // 最大問題数制限 (Query Parameter: ?)
+            if (maxLimitToggle.checked) {
+                const maxNum = parseInt(maxLimitNum.value, 10);
+                if (!isNaN(maxNum) && maxNum > 0) {
+                    query = "?" + maxNum;
                 }
             }
 
-            // ヒントモードがONの場合
-            if (hintToggle.checked) {
-                params += "#hint";
+            // 問題数制限 (Hash: #)
+            if (limitToggle.checked) {
+                const num = parseInt(limitNum.value, 10);
+                if (!isNaN(num) && num > 0) {
+                    hash += "#" + num;
+                }
             }
 
-            // URLを更新
-            generatedUrl.value = baseUrl + params;
+            // ヒントモード (Hash: #hint)
+            if (hintToggle.checked) {
+                // すでに数値のハッシュがある場合は連結方法を検討する必要がありますが、
+                // 元の仕様に合わせて単純に追記します
+                hash += "#hint";
+            }
+
+            // URLを更新 (baseUrl + ?params + #hash)
+            generatedUrl.value = baseUrl + query + hash;
         }
 
-        // イベントリスナーの設定
+        // イベントリスナーの設定: 問題数制限
         limitToggle.addEventListener('change', (e) => {
             if (e.target.checked) {
                 limitSettings.classList.remove('hidden');
@@ -97,8 +133,20 @@
             }
             updateUrl();
         });
-
         limitNum.addEventListener('input', updateUrl);
+
+        // イベントリスナーの設定: 最大問題数制限
+        maxLimitToggle.addEventListener('change', (e) => {
+            if (e.target.checked) {
+                maxLimitSettings.classList.remove('hidden');
+            } else {
+                maxLimitSettings.classList.add('hidden');
+            }
+            updateUrl();
+        });
+        maxLimitNum.addEventListener('input', updateUrl);
+
+        // ヒント
         hintToggle.addEventListener('change', updateUrl);
 
         // コピーボタンの処理
@@ -106,22 +154,21 @@
             try {
                 // クリップボードにコピー
                 await navigator.clipboard.writeText(generatedUrl.value);
-                
-                // コピー完了メッセージを表示
-                copyMsg.style.opacity = '1';
-                setTimeout(() => {
-                    copyMsg.style.opacity = '0';
-                }, 2000);
+                showCopyMessage();
             } catch (err) {
-                // クリップボードAPIが使えないブラウザ向けのフォールバック
+                // フォールバック
                 generatedUrl.select();
                 document.execCommand('copy');
-                copyMsg.style.opacity = '1';
-                setTimeout(() => {
-                    copyMsg.style.opacity = '0';
-                }, 2000);
+                showCopyMessage();
             }
         });
+
+        function showCopyMessage() {
+            copyMsg.style.opacity = '1';
+            setTimeout(() => {
+                copyMsg.style.opacity = '0';
+            }, 2000);
+        }
 
         // 初期化時に一度URLを生成しておく
         updateUrl();
