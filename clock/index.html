@@ -3,256 +3,311 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>高度なシンプル時計</title>
+    <title>デジタル時計 - 漆黒モード</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <!-- 11種類のフォントを読み込み -->
+    <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Hina+Mincho&family=Klee+One:wght@600&family=RocknRoll+One&family=Yomogi&family=Sawarabi+Mincho&family=Sawarabi+Gothic&family=Kaisei+Tokumin:wght@700&family=M+PLUS+Rounded+1c:wght@700&family=Yuji+Syuku&family=Noto+Sans+JP:wght@700&display=swap" rel="stylesheet">
     <style>
-        /* 厳選した等幅性の高い日本語対応フォントをインポート */
-        @import url('https://fonts.googleapis.com/css2?family=DotGothic16&family=M+PLUS+1+Code:wght@700&family=Noto+Sans+JP:wght@900&family=Noto+Serif+JP:wght@900&family=IBM+Plex+Sans+JP:wght@700&family=Zen+Antique+Soft&family=Kaisei+Decol:wght@700&display=swap');
-        
+        :root {
+            --bg-color: #f3f4f6;
+            --text-color: #1f2937;
+            --panel-bg: rgba(255, 255, 255, 0.9);
+            --select-bg: #f3f4f6;
+            --select-text: #1f2937;
+            --accent-color: #3b82f6;
+            --btn-active-border: #3b82f6;
+        }
+        .dark {
+            --bg-color: #000000; /* 完全な漆黒に変更 */
+            --text-color: #ffffff;
+            --panel-bg: rgba(20, 20, 20, 0.95);
+            --select-bg: #2d2d2d;
+            --select-text: #ffffff;
+            --accent-color: #3b82f6;
+            --btn-active-border: #3b82f6;
+        }
         body {
-            transition: background-color 0.3s ease, color 0.3s ease;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            transition: background-color 0.5s ease, color 0.5s ease;
+            overflow: hidden;
+            height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0;
+            font-family: 'Noto Sans JP', sans-serif;
         }
-
-        /* 物理的に位置を固定するスタイル */
-        .digit-box {
-            display: inline-block;
-            text-align: center;
-            /* 1文字の幅を厳密に固定 */
-            width: 0.65em; 
-        }
-        
-        .separator-box {
-            display: inline-block;
-            text-align: center;
-            width: 0.3em;
-        }
-
-        /* フォント定義 */
-        .font-mplus { font-family: 'M PLUS 1 Code', monospace; }
-        .font-dot { font-family: 'DotGothic16', sans-serif; }
-        .font-ibm { font-family: 'IBM Plex Sans JP', sans-serif; }
-        .font-sans { font-family: 'Noto Sans JP', sans-serif; }
-        .font-serif { font-family: 'Noto Serif JP', serif; }
-        .font-antique { font-family: 'Zen Antique Soft', serif; }
-        .font-kaisei { font-family: 'Kaisei Decol', serif; }
-
-        body.dark { background-color: #020617; color: #f8fafc; }
-        body.light { background-color: #f8fafc; color: #0f172a; }
-
         .settings-panel {
+            background-color: var(--panel-bg);
+            box-shadow: -10px 0 30px rgba(0, 0, 0, 0.5);
+            border-left: 1px solid rgba(255, 255, 255, 0.1);
+            color: var(--text-color);
+        }
+        #clock {
+            transition: font-size 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275), font-family 0.4s ease;
+            line-height: 1.1;
+            white-space: nowrap;
+        }
+        .hidden-panel {
             transform: translateX(100%);
-            transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            opacity: 0;
+            pointer-events: none;
         }
-        .settings-panel.open {
+        .show-panel {
             transform: translateX(0);
+            opacity: 1;
+            pointer-events: auto;
         }
-
-        input[type=range] {
-            accent-color: #2563eb;
+        input[type="range"] {
+            accent-color: var(--accent-color);
+        }
+        /* セレクトボックスの色の修正 */
+        select {
+            cursor: pointer;
+            appearance: none;
+            background-color: var(--select-bg) !important;
+            color: var(--select-text) !important;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='white'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 0.75rem center;
+            background-size: 1rem;
+        }
+        .light select {
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='black'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'/%3E%3C/svg%3E");
+        }
+        /* オプション要素の色も明示的に指定 */
+        select option {
+            background-color: var(--select-bg);
+            color: var(--select-text);
+        }
+        .theme-btn-active {
+            border: 3px solid var(--btn-active-border) !important;
+            font-weight: 900 !important;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
         }
     </style>
 </head>
-<body class="light flex flex-col items-center justify-center min-h-screen overflow-hidden">
+<body class="light">
 
-    <!-- 設定ボタン -->
-    <button id="settingsBtn" class="absolute top-6 right-6 p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-800 transition-all z-50 hover:rotate-90">
-        <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+    <!-- メイン表示 -->
+    <div class="text-center select-none">
+        <div id="clock-container" class="flex flex-col items-center">
+            <div id="ampm" class="mb-4 text-3xl font-medium tracking-[0.2em] opacity-60"></div>
+            <div id="clock" class="font-bold tracking-tight">00:00:00</div>
+            <div id="date" class="mt-10 text-2xl opacity-40 tracking-[0.1em]"></div>
+        </div>
+    </div>
+
+    <!-- 設定トグルボタン -->
+    <button id="settings-toggle" class="fixed top-8 right-8 p-3 rounded-2xl hover:bg-gray-200/50 dark:hover:bg-gray-700/50 transition-all z-50 group active:scale-90">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 group-hover:rotate-45 transition-transform duration-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
         </svg>
     </button>
 
     <!-- 設定パネル -->
-    <div id="settingsPanel" class="settings-panel fixed top-0 right-0 h-full w-80 bg-white dark:bg-slate-900 shadow-2xl z-40 p-8 overflow-y-auto border-l border-gray-200 dark:border-slate-800 text-slate-800 dark:text-slate-100">
-        <h2 class="text-2xl font-bold mb-6 border-b pb-2">時計設定</h2>
-        
-        <div class="space-y-6">
-            <!-- テーマ -->
+    <div id="settings-panel" class="settings-panel fixed top-0 right-0 h-full w-85 p-8 transition-all duration-500 z-40 hidden-panel overflow-y-auto backdrop-blur-xl">
+        <h2 class="text-2xl font-bold mb-10 tracking-tight">時計設定</h2>
+
+        <div class="space-y-8">
+            <!-- テーマ選択 -->
             <div>
-                <label class="block text-sm font-bold mb-2">背景テーマ</label>
-                <div class="flex gap-2">
-                    <button id="themeLight" class="flex-1 py-2 border-2 rounded-md dark:border-slate-700 hover:bg-gray-100 dark:hover:bg-slate-800 transition-colors">ライト</button>
-                    <button id="themeDark" class="flex-1 py-2 border-2 rounded-md dark:border-slate-700 hover:bg-gray-100 dark:hover:bg-slate-800 transition-colors">ダーク</button>
+                <label class="block text-xs font-black uppercase tracking-widest mb-4 opacity-40">背景モード</label>
+                <div class="flex gap-3">
+                    <button id="btn-light" class="flex-1 py-3 rounded-xl bg-white text-gray-800 border border-gray-300 transition-all active:scale-95">Light</button>
+                    <button id="btn-dark" class="flex-1 py-3 rounded-xl bg-black text-white border border-gray-800 transition-all active:scale-95">Dark</button>
                 </div>
             </div>
 
-            <!-- 時間表記 -->
+            <!-- 時間形式 -->
             <div>
-                <label class="block text-sm font-bold mb-2">時間表記</label>
-                <select id="timeFormat" class="w-full p-2 border-2 rounded-md dark:bg-slate-800 dark:border-slate-700">
-                    <option value="24h">24時間表記</option>
-                    <option value="12h">12時間表記</option>
+                <label class="block text-xs font-black uppercase tracking-widest mb-4 opacity-40">表示形式</label>
+                <select id="time-format" class="w-full p-4 rounded-xl border-none outline-none focus:ring-2 ring-blue-500/50 transition-all">
+                    <option value="24">24時間表示</option>
+                    <option value="12">12時間表示</option>
                 </select>
             </div>
 
-            <!-- 午前/午後のスタイル -->
-            <div id="ampmContainer">
-                <label class="block text-sm font-bold mb-2">午前/午後の種類</label>
-                <select id="ampmStyle" class="w-full p-2 border-2 rounded-md dark:bg-slate-800 dark:border-slate-700">
-                    <option value="jp">午前 / 午後</option>
+            <!-- AM/PM設定 -->
+            <div id="ampm-lang-container">
+                <label class="block text-xs font-black uppercase tracking-widest mb-4 opacity-40">午前・午後のラベル</label>
+                <select id="ampm-lang" class="w-full p-4 rounded-xl border-none outline-none focus:ring-2 ring-blue-500/50 transition-all">
                     <option value="en">AM / PM</option>
+                    <option value="ja">午前 / 午後</option>
                 </select>
             </div>
 
-            <!-- フォント -->
+            <!-- フォント選択 (並び替え済み) -->
             <div>
-                <label class="block text-sm font-bold mb-2">フォント（固定幅表示）</label>
-                <select id="fontFamily" class="w-full p-2 border-2 rounded-md dark:bg-slate-800 dark:border-slate-700">
-                    <option value="mplus">M PLUS 1 Code</option>
-                    <option value="dot">ドットゴシック</option>
-                    <option value="ibm">IBM Plex JP</option>
-                    <option value="antique">アンティーク</option>
-                    <option value="kaisei">解星デコル</option>
-                    <option value="sans">Noto Sans JP</option>
-                    <option value="serif">Noto Serif JP</option>
+                <label class="block text-xs font-black uppercase tracking-widest mb-4 opacity-40">フォント・スタイル</label>
+                <select id="font-family" class="w-full p-4 rounded-xl border-none outline-none focus:ring-2 ring-blue-500/50 transition-all">
+                    <option value="'Noto Sans JP', sans-serif">標準 (Noto Sans)</option>
+                    <option value="'Share Tech Mono', monospace">デジタル (Share Tech Mono)</option>
+                    <option value="'Yomogi', cursive">手書きペン字 (Yomogi)</option>
+                    <option value="'M PLUS Rounded 1c', sans-serif">丸文字 (M PLUS)</option>
+                    <option value="'Klee One', cursive">筆文字・草書 (Klee)</option>
+                    <option value="'Yuji Syuku', serif">筆文字 (Yuji)</option>
+                    <option value="'Hina Mincho', serif">エレガント明朝 (Hina Mincho)</option>
+                    <option value="'Sawarabi Mincho', serif">繊細明朝 (Sawarabi Mincho)</option>
+                    <option value="'Kaisei Tokumin', serif">和風明朝 (Kaisei)</option>
+                    <option value="'RocknRoll One', sans-serif">インパクト (RocknRoll)</option>
+                    <option value="'Sawarabi Gothic', sans-serif">スリム (Sawarabi Gothic)</option>
                 </select>
             </div>
 
-            <!-- 文字サイズ -->
+            <!-- サイズ調整 -->
             <div>
-                <label class="block text-sm font-bold mb-2">表示サイズ</label>
-                <input type="range" id="clockSize" min="5" max="35" step="1" class="w-full">
-            </div>
-
-            <!-- 日付表示 -->
-            <div class="flex items-center justify-between">
-                <label class="text-sm font-bold">日付を表示する</label>
-                <input type="checkbox" id="showDate" class="w-6 h-6 rounded border-gray-300">
+                <label class="block text-xs font-black uppercase tracking-widest mb-4 opacity-40">表示サイズ: <span id="size-val">10</span>rem</label>
+                <input type="range" id="font-size" min="3" max="25" step="0.5" value="10" class="w-full h-1.5 bg-gray-300 dark:bg-gray-700 rounded-lg appearance-none cursor-pointer">
             </div>
         </div>
 
-        <button id="closeSettings" class="mt-8 w-full py-3 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 transition-colors shadow-lg">設定を閉じる</button>
-    </div>
-
-    <!-- メイン時計表示エリア -->
-    <div class="text-center select-none w-full px-4 flex flex-col items-center justify-center">
-        <!-- 日付 -->
-        <div id="dateDisplay" class="font-bold opacity-60 mb-6 text-center"></div>
-        
-        <!-- 時計（各文字をボックス化してガタつきを防止） -->
-        <div id="clockDisplay" class="font-bold leading-none whitespace-nowrap flex justify-center items-baseline">
-            <span class="digit-box" id="h1">0</span><span class="digit-box" id="h2">0</span>
-            <span class="separator-box">:</span>
-            <span class="digit-box" id="m1">0</span><span class="digit-box" id="m2">0</span>
-            <span class="separator-box">:</span>
-            <span class="digit-box" id="s1">0</span><span class="digit-box" id="s2">0</span>
-        </div>
-        
-        <!-- 午前午後 -->
-        <div id="periodDisplay" class="font-bold mt-6"></div>
+        <button id="close-settings" class="w-full mt-10 py-4 bg-blue-600 hover:bg-blue-500 text-white rounded-2xl transition-all font-bold shadow-xl shadow-blue-500/30 active:scale-95">
+            設定を適用して閉じる
+        </button>
     </div>
 
     <script>
-        // 設定の状態管理
-        let config = {
+        let settings = {
             theme: 'light',
-            format: '24h',
-            ampmStyle: 'jp',
-            font: 'mplus',
-            size: 18,
-            showDate: true
+            timeFormat: '24',
+            ampmLang: 'en',
+            fontFamily: "'Noto Sans JP', sans-serif",
+            fontSize: '10'
         };
 
-        // LocalStorageから読み込み
-        const savedConfig = localStorage.getItem('clock_settings_v6');
-        if (savedConfig) {
-            config = { ...config, ...JSON.parse(savedConfig) };
-        }
+        const clockEl = document.getElementById('clock');
+        const ampmEl = document.getElementById('ampm');
+        const dateEl = document.getElementById('date');
+        const settingsToggle = document.getElementById('settings-toggle');
+        const settingsPanel = document.getElementById('settings-panel');
+        const closeSettings = document.getElementById('close-settings');
+        
+        const themeLightBtn = document.getElementById('btn-light');
+        const themeDarkBtn = document.getElementById('btn-dark');
+        const timeFormatSelect = document.getElementById('time-format');
+        const ampmLangSelect = document.getElementById('ampm-lang');
+        const ampmContainer = document.getElementById('ampm-lang-container');
+        const fontFamilySelect = document.getElementById('font-family');
+        const fontSizeInput = document.getElementById('font-size');
+        const sizeValText = document.getElementById('size-val');
 
-        const elements = {
-            body: document.body,
-            clockContainer: document.getElementById('clockDisplay'),
-            date: document.getElementById('dateDisplay'),
-            period: document.getElementById('periodDisplay'),
-            panel: document.getElementById('settingsPanel'),
-            btnSettings: document.getElementById('settingsBtn'),
-            btnClose: document.getElementById('closeSettings'),
-            digits: {
-                h1: document.getElementById('h1'), h2: document.getElementById('h2'),
-                m1: document.getElementById('m1'), m2: document.getElementById('m2'),
-                s1: document.getElementById('s1'), s2: document.getElementById('s2')
+        function loadSettings() {
+            const saved = localStorage.getItem('clockSettings_v12');
+            if (saved) {
+                settings = { ...settings, ...JSON.parse(saved) };
             }
-        };
-
-        const inputs = {
-            themeLight: document.getElementById('themeLight'),
-            themeDark: document.getElementById('themeDark'),
-            timeFormat: document.getElementById('timeFormat'),
-            ampmStyle: document.getElementById('ampmStyle'),
-            fontFamily: document.getElementById('fontFamily'),
-            clockSize: document.getElementById('clockSize'),
-            showDate: document.getElementById('showDate')
-        };
-
-        function saveConfig() {
-            localStorage.setItem('clock_settings_v6', JSON.stringify(config));
+            applySettings();
         }
 
-        function applyConfig() {
-            elements.body.className = `flex flex-col items-center justify-center min-h-screen overflow-hidden ${config.theme}`;
-            
-            const fontClass = `font-${config.font}`;
-            elements.clockContainer.className = `${fontClass} font-bold leading-none whitespace-nowrap flex justify-center items-baseline`;
-            elements.date.className = `${fontClass} font-bold opacity-60 mb-6 text-center`;
-            elements.period.className = `${fontClass} font-bold mt-6 text-center`;
-            
-            elements.clockContainer.style.fontSize = `${config.size}vw`;
-            elements.date.style.fontSize = `${config.size * 0.18}vw`;
-            elements.period.style.fontSize = `${config.size * 0.22}vw`;
+        function saveSettings() {
+            localStorage.setItem('clockSettings_v12', JSON.stringify(settings));
+        }
 
-            elements.date.style.display = config.showDate ? 'block' : 'none';
-            document.getElementById('ampmContainer').style.display = config.format === '12h' ? 'block' : 'none';
+        function applySettings() {
+            document.body.className = settings.theme;
+            
+            if (settings.theme === 'light') {
+                themeLightBtn.classList.add('theme-btn-active');
+                themeDarkBtn.classList.remove('theme-btn-active');
+            } else {
+                themeDarkBtn.classList.add('theme-btn-active');
+                themeLightBtn.classList.remove('theme-btn-active');
+            }
 
-            inputs.timeFormat.value = config.format;
-            inputs.ampmStyle.value = config.ampmStyle;
-            inputs.fontFamily.value = config.font;
-            inputs.clockSize.value = config.size;
-            inputs.showDate.checked = config.showDate;
+            timeFormatSelect.value = settings.timeFormat;
+            ampmContainer.style.display = settings.timeFormat === '12' ? 'block' : 'none';
+            ampmLangSelect.value = settings.ampmLang;
+            fontFamilySelect.value = settings.fontFamily;
+            clockEl.style.fontFamily = settings.fontFamily;
+            fontSizeInput.value = settings.fontSize;
+            sizeValText.innerText = settings.fontSize;
+            clockEl.style.fontSize = settings.fontSize + 'rem';
         }
 
         function updateClock() {
             const now = new Date();
-            
-            const dateOptions = { weekday: 'short', year: 'numeric', month: '2-digit', day: '2-digit' };
-            elements.date.textContent = now.toLocaleDateString('ja-JP', dateOptions);
-
             let hours = now.getHours();
             const minutes = String(now.getMinutes()).padStart(2, '0');
             const seconds = String(now.getSeconds()).padStart(2, '0');
+            
             let ampmText = '';
-
-            if (config.format === '12h') {
-                const isPm = hours >= 12;
-                ampmText = config.ampmStyle === 'jp' ? (isPm ? '午後' : '午前') : (isPm ? 'PM' : 'AM');
+            if (settings.timeFormat === '12') {
+                const isPM = hours >= 12;
+                if (settings.ampmLang === 'ja') {
+                    ampmText = isPM ? '午後' : '午前';
+                } else {
+                    ampmText = isPM ? 'PM' : 'AM';
+                }
                 hours = hours % 12 || 12;
+                ampmEl.innerText = ampmText;
+            } else {
+                ampmEl.innerText = '';
             }
             
-            const hStr = String(hours).padStart(2, '0');
+            const displayHours = String(hours).padStart(2, '0');
+            clockEl.innerText = `${displayHours}:${minutes}:${seconds}`;
             
-            // 各桁を個別に更新（幅が固定されているためずれません）
-            elements.digits.h1.textContent = hStr[0];
-            elements.digits.h2.textContent = hStr[1];
-            elements.digits.m1.textContent = minutes[0];
-            elements.digits.m2.textContent = minutes[1];
-            elements.digits.s1.textContent = seconds[0];
-            elements.digits.s2.textContent = seconds[1];
-            
-            elements.period.textContent = ampmText;
+            const year = now.getFullYear();
+            const month = now.getMonth() + 1;
+            const day = now.getDate();
+            const weekDays = ['日', '月', '火', '水', '木', '金', '土'];
+            const dayOfWeek = weekDays[now.getDay()];
+            dateEl.innerText = `${year}年${month}月${day}日 (${dayOfWeek})`;
         }
 
-        elements.btnSettings.addEventListener('click', () => elements.panel.classList.add('open'));
-        elements.btnClose.addEventListener('click', () => elements.panel.classList.remove('open'));
+        settingsToggle.addEventListener('click', () => {
+            settingsPanel.classList.toggle('hidden-panel');
+            settingsPanel.classList.toggle('show-panel');
+        });
 
-        inputs.themeLight.addEventListener('click', () => { config.theme = 'light'; applyConfig(); saveConfig(); });
-        inputs.themeDark.addEventListener('click', () => { config.theme = 'dark'; applyConfig(); saveConfig(); });
-        inputs.timeFormat.addEventListener('change', (e) => { config.format = e.target.value; applyConfig(); saveConfig(); });
-        inputs.ampmStyle.addEventListener('change', (e) => { config.ampmStyle = e.target.value; applyConfig(); saveConfig(); });
-        inputs.fontFamily.addEventListener('change', (e) => { config.font = e.target.value; applyConfig(); saveConfig(); });
-        inputs.clockSize.addEventListener('input', (e) => { config.size = e.target.value; applyConfig(); saveConfig(); });
-        inputs.showDate.addEventListener('change', (e) => { config.showDate = e.target.checked; applyConfig(); saveConfig(); });
+        closeSettings.addEventListener('click', () => {
+            settingsPanel.classList.add('hidden-panel');
+            settingsPanel.classList.remove('show-panel');
+        });
 
-        setInterval(updateClock, 200); 
-        applyConfig();
+        themeLightBtn.addEventListener('click', () => {
+            settings.theme = 'light';
+            applySettings();
+            saveSettings();
+        });
+
+        themeDarkBtn.addEventListener('click', () => {
+            settings.theme = 'dark';
+            applySettings();
+            saveSettings();
+        });
+
+        timeFormatSelect.addEventListener('change', (e) => {
+            settings.timeFormat = e.target.value;
+            applySettings();
+            saveSettings();
+            updateClock();
+        });
+
+        ampmLangSelect.addEventListener('change', (e) => {
+            settings.ampmLang = e.target.value;
+            saveSettings();
+            updateClock();
+        });
+
+        fontFamilySelect.addEventListener('change', (e) => {
+            settings.fontFamily = e.target.value;
+            applySettings();
+            saveSettings();
+        });
+
+        fontSizeInput.addEventListener('input', (e) => {
+            settings.fontSize = e.target.value;
+            applySettings();
+            saveSettings();
+        });
+
+        loadSettings();
+        setInterval(updateClock, 1000);
         updateClock();
     </script>
 </body>
