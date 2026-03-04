@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>デジタル時計 - 漆黒モード</title>
+    <title>デジタル時計</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -20,7 +20,7 @@
             --btn-active-border: #3b82f6;
         }
         .dark {
-            --bg-color: #000000; /* 完全な漆黒に変更 */
+            --bg-color: #000000; /* 完全な漆黒 */
             --text-color: #ffffff;
             --panel-bg: rgba(20, 20, 20, 0.95);
             --select-bg: #2d2d2d;
@@ -46,10 +46,19 @@
             border-left: 1px solid rgba(255, 255, 255, 0.1);
             color: var(--text-color);
         }
+        #clock-container {
+            width: 100vw;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 2rem;
+        }
         #clock {
-            transition: font-size 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275), font-family 0.4s ease;
-            line-height: 1.1;
+            transition: font-family 0.4s ease;
+            line-height: 1;
             white-space: nowrap;
+            display: inline-block;
         }
         .hidden-panel {
             transform: translateX(100%);
@@ -64,7 +73,7 @@
         input[type="range"] {
             accent-color: var(--accent-color);
         }
-        /* セレクトボックスの色の修正 */
+        /* セレクトボックスのスタイル調整 */
         select {
             cursor: pointer;
             appearance: none;
@@ -78,7 +87,6 @@
         .light select {
             background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='black'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'/%3E%3C/svg%3E");
         }
-        /* オプション要素の色も明示的に指定 */
         select option {
             background-color: var(--select-bg);
             color: var(--select-text);
@@ -88,16 +96,56 @@
             font-weight: 900 !important;
             box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
         }
+        /* チェックボックスのカスタムスタイル */
+        .checkbox-container {
+            display: flex;
+            align-items: center;
+            cursor: pointer;
+            user-select: none;
+        }
+        .checkbox-container input {
+            display: none;
+        }
+        .checkmark {
+            height: 24px;
+            width: 24px;
+            background-color: #eee;
+            border-radius: 6px;
+            margin-right: 12px;
+            position: relative;
+            transition: all 0.2s;
+        }
+        .dark .checkmark {
+            background-color: #374151;
+        }
+        .checkbox-container input:checked ~ .checkmark {
+            background-color: var(--accent-color);
+        }
+        .checkmark:after {
+            content: "";
+            position: absolute;
+            display: none;
+            left: 9px;
+            top: 5px;
+            width: 6px;
+            height: 11px;
+            border: solid white;
+            border-width: 0 2px 2px 0;
+            transform: rotate(45deg);
+        }
+        .checkbox-container input:checked ~ .checkmark:after {
+            display: block;
+        }
     </style>
 </head>
 <body class="light">
 
     <!-- メイン表示 -->
     <div class="text-center select-none">
-        <div id="clock-container" class="flex flex-col items-center">
-            <div id="ampm" class="mb-4 text-3xl font-medium tracking-[0.2em] opacity-60"></div>
+        <div id="clock-container">
+            <div id="ampm" class="text-3xl font-medium tracking-[0.2em] opacity-60 mb-[2vh]"></div>
             <div id="clock" class="font-bold tracking-tight">00:00:00</div>
-            <div id="date" class="mt-10 text-2xl opacity-40 tracking-[0.1em]"></div>
+            <div id="date" class="mt-[5vh] text-2xl opacity-40 tracking-[0.1em]"></div>
         </div>
     </div>
 
@@ -140,7 +188,17 @@
                 </select>
             </div>
 
-            <!-- フォント選択 (並び替え済み) -->
+            <!-- 日付表示設定 -->
+            <div>
+                <label class="block text-xs font-black uppercase tracking-widest mb-4 opacity-40">表示オプション</label>
+                <label class="checkbox-container">
+                    <input type="checkbox" id="show-date" checked>
+                    <span class="checkmark"></span>
+                    <span class="text-sm font-bold">日付を表示する</span>
+                </label>
+            </div>
+
+            <!-- フォント選択 -->
             <div>
                 <label class="block text-xs font-black uppercase tracking-widest mb-4 opacity-40">フォント・スタイル</label>
                 <select id="font-family" class="w-full p-4 rounded-xl border-none outline-none focus:ring-2 ring-blue-500/50 transition-all">
@@ -158,10 +216,10 @@
                 </select>
             </div>
 
-            <!-- サイズ調整 -->
+            <!-- サイズ調整 (スケール調整) -->
             <div>
-                <label class="block text-xs font-black uppercase tracking-widest mb-4 opacity-40">表示サイズ: <span id="size-val">10</span>rem</label>
-                <input type="range" id="font-size" min="3" max="25" step="0.5" value="10" class="w-full h-1.5 bg-gray-300 dark:bg-gray-700 rounded-lg appearance-none cursor-pointer">
+                <label class="block text-xs font-black uppercase tracking-widest mb-4 opacity-40">表示サイズ調整: <span id="size-val">1.0</span>x</label>
+                <input type="range" id="font-size" min="0.2" max="2.0" step="0.05" value="1.0" class="w-full h-1.5 bg-gray-300 dark:bg-gray-700 rounded-lg appearance-none cursor-pointer">
             </div>
         </div>
 
@@ -175,8 +233,9 @@
             theme: 'light',
             timeFormat: '24',
             ampmLang: 'en',
+            showDate: true,
             fontFamily: "'Noto Sans JP', sans-serif",
-            fontSize: '10'
+            fontSizeScale: 1.0
         };
 
         const clockEl = document.getElementById('clock');
@@ -191,20 +250,38 @@
         const timeFormatSelect = document.getElementById('time-format');
         const ampmLangSelect = document.getElementById('ampm-lang');
         const ampmContainer = document.getElementById('ampm-lang-container');
+        const showDateCheckbox = document.getElementById('show-date');
         const fontFamilySelect = document.getElementById('font-family');
         const fontSizeInput = document.getElementById('font-size');
         const sizeValText = document.getElementById('size-val');
 
         function loadSettings() {
-            const saved = localStorage.getItem('clockSettings_v12');
+            const saved = localStorage.getItem('clockSettings_v14');
             if (saved) {
-                settings = { ...settings, ...JSON.parse(saved) };
+                const parsed = JSON.parse(saved);
+                settings = { ...settings, ...parsed };
             }
             applySettings();
         }
 
         function saveSettings() {
-            localStorage.setItem('clockSettings_v12', JSON.stringify(settings));
+            localStorage.setItem('clockSettings_v14', JSON.stringify(settings));
+        }
+
+        // ウィンドウサイズに合わせてフォントサイズを計算
+        function resizeClock() {
+            const vw = window.innerWidth;
+            const vh = window.innerHeight;
+            
+            // 画面幅に対して文字が収まるベースサイズを計算
+            let baseSize = Math.min(vw / 6, vh / 3);
+            
+            const finalSize = baseSize * settings.fontSizeScale;
+            clockEl.style.fontSize = `${finalSize}px`;
+            
+            // 日付とAM/PMのサイズも連動させる
+            dateEl.style.fontSize = `${finalSize * 0.15}px`;
+            ampmEl.style.fontSize = `${finalSize * 0.18}px`;
         }
 
         function applySettings() {
@@ -221,11 +298,16 @@
             timeFormatSelect.value = settings.timeFormat;
             ampmContainer.style.display = settings.timeFormat === '12' ? 'block' : 'none';
             ampmLangSelect.value = settings.ampmLang;
+            
+            showDateCheckbox.checked = settings.showDate;
+            dateEl.style.display = settings.showDate ? 'block' : 'none';
+
             fontFamilySelect.value = settings.fontFamily;
             clockEl.style.fontFamily = settings.fontFamily;
-            fontSizeInput.value = settings.fontSize;
-            sizeValText.innerText = settings.fontSize;
-            clockEl.style.fontSize = settings.fontSize + 'rem';
+            fontSizeInput.value = settings.fontSizeScale;
+            sizeValText.innerText = settings.fontSizeScale.toFixed(2);
+            
+            resizeClock();
         }
 
         function updateClock() {
@@ -251,12 +333,14 @@
             const displayHours = String(hours).padStart(2, '0');
             clockEl.innerText = `${displayHours}:${minutes}:${seconds}`;
             
-            const year = now.getFullYear();
-            const month = now.getMonth() + 1;
-            const day = now.getDate();
-            const weekDays = ['日', '月', '火', '水', '木', '金', '土'];
-            const dayOfWeek = weekDays[now.getDay()];
-            dateEl.innerText = `${year}年${month}月${day}日 (${dayOfWeek})`;
+            if (settings.showDate) {
+                const year = now.getFullYear();
+                const month = now.getMonth() + 1;
+                const day = now.getDate();
+                const weekDays = ['日', '月', '火', '水', '木', '金', '土'];
+                const dayOfWeek = weekDays[now.getDay()];
+                dateEl.innerText = `${year}年${month}月${day}日 (${dayOfWeek})`;
+            }
         }
 
         settingsToggle.addEventListener('click', () => {
@@ -294,6 +378,13 @@
             updateClock();
         });
 
+        showDateCheckbox.addEventListener('change', (e) => {
+            settings.showDate = e.target.checked;
+            applySettings();
+            saveSettings();
+            updateClock();
+        });
+
         fontFamilySelect.addEventListener('change', (e) => {
             settings.fontFamily = e.target.value;
             applySettings();
@@ -301,10 +392,12 @@
         });
 
         fontSizeInput.addEventListener('input', (e) => {
-            settings.fontSize = e.target.value;
+            settings.fontSizeScale = parseFloat(e.target.value);
             applySettings();
             saveSettings();
         });
+
+        window.addEventListener('resize', resizeClock);
 
         loadSettings();
         setInterval(updateClock, 1000);
