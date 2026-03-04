@@ -26,7 +26,8 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            opacity: 1;
+            opacity: 0; /* サイズ調整前のチラつきを防ぐために最初は透明にする */
+            transition: opacity 0.2s ease; /* ふわっと表示させる */
         }
 
         #viewport-wrapper {
@@ -238,23 +239,170 @@
             pointer-events: none;
             opacity: 0.7;
         }
+
+        /* 小さい輝くチケットのスタイル */
+        .ticket-style-small {
+            background: #fdf5e6;
+            color: #5d4a3b;
+            border: 2px solid #ffcc00;
+            padding: 10px 15px;
+            position: relative;
+            box-shadow: 0 0 15px rgba(255, 215, 0, 0.8);
+            max-width: 260px;
+            margin-left: auto;
+            margin-right: auto;
+            overflow: hidden;
+            animation: pulse-glow 2s infinite alternate;
+        }
+
+        @keyframes pulse-glow {
+            from { box-shadow: 0 0 10px rgba(255, 215, 0, 0.6); border-color: #e6b800; }
+            to { box-shadow: 0 0 20px rgba(255, 215, 0, 1); border-color: #ffd700; }
+        }
+
+        .ticket-style-small::after {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: linear-gradient(
+                to right,
+                rgba(255, 255, 255, 0) 0%,
+                rgba(255, 255, 255, 0.8) 50%,
+                rgba(255, 255, 255, 0) 100%
+            );
+            transform: rotate(30deg);
+            animation: ticket-shine-effect 3s infinite linear;
+            pointer-events: none;
+        }
+
+        @keyframes ticket-shine-effect {
+            0% { transform: translateX(-100%) rotate(30deg); }
+            100% { transform: translateX(100%) rotate(30deg); }
+        }
+
+        /* --- カウントダウン・もどるボタン用スタイル --- */
+        @keyframes popIn {
+            0% { transform: scale(0.5); opacity: 0; }
+            70% { transform: scale(1.1); opacity: 1; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+        .animate-pop {
+            animation: popIn 0.3s ease-out forwards;
+        }
+
+        /* --- シャッター演出用スタイル --- */
+        .shutter-panel {
+            position: absolute;
+            left: 0;
+            width: 100%;
+            height: 50%;
+            background-color: #000;
+            z-index: 5;
+            transition: transform 0.6s cubic-bezier(0.86, 0, 0.07, 1);
+        }
+        .shutter-top {
+            top: 0;
+        }
+        .shutter-bottom {
+            bottom: 0;
+        }
+        .shutter-open .shutter-top {
+            transform: translateY(-100%);
+        }
+        .shutter-open .shutter-bottom {
+            transform: translateY(100%);
+        }
+        
+        .back-btn {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background-color: #fff;
+            border: 2px solid #ccc;
+            border-radius: 8px;
+            padding: 8px 16px;
+            font-weight: bold;
+            color: #333;
+            cursor: pointer;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            transition: all 0.2s;
+            z-index: 100;
+        }
+        .back-btn:hover {
+            background-color: #f9f9f9;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 8px rgba(0,0,0,0.15);
+        }
+        .back-btn:active {
+            transform: translateY(0);
+        }
+
+        /* --- ふわっと消えるテキスト用スタイル --- */
+        @keyframes floatUpAndFade {
+            0% { transform: translateY(0) scale(1); opacity: 1; }
+            100% { transform: translateY(-40px) scale(1.2); opacity: 0; }
+        }
+        .float-anim {
+            animation: floatUpAndFade 1s ease-out forwards;
+            position: absolute;
+            font-weight: 900;
+            pointer-events: none;
+            z-index: 100;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+
+        /* --- シュンと出てシュンと消えるアニメーション --- */
+        @keyframes shunAnim {
+            0% { transform: scale(0.5); opacity: 0; }
+            20% { transform: scale(1.1); opacity: 1; }
+            30% { transform: scale(1); opacity: 1; }
+            80% { transform: scale(1); opacity: 1; }
+            100% { transform: scale(0.8); opacity: 0; }
+        }
+        .shun-anim {
+            animation: shunAnim 0.6s ease-in-out forwards;
+            display: inline-block;
+        }
     </style>
 </head>
 <body>
 
     <div id="viewport-wrapper">
-        <div id="game-container" class="game-panel rounded-3xl p-8 overflow-hidden">
+        <button id="back-button" class="back-btn" style="display: none;" onclick="returnToTitle()">◀ もどる</button>
+
+        <div id="countdown-screen" style="display: none; position: absolute; inset: 0; z-index: 200; flex-direction: column; align-items: center; justify-content: center; overflow: hidden;">
+        </div>
+
+        <div id="game-container" class="game-panel rounded-3xl p-8 overflow-hidden relative">
             
-            <div class="flex justify-between items-center mb-4">
-                <div class="text-3xl font-black text-orange-600">
-                    <span id="timer">60秒</span>
+            <div class="absolute top-8 left-8 flex flex-col items-start z-20">
+                <div class="text-3xl font-black text-orange-600 transition-all duration-300 mb-4" id="timer">
+                    60秒
                 </div>
-                <div class="text-xl font-bold text-gray-500">
-                    <span id="score">0周 / 0駅</span>
+                <div id="machine-gauge-container" class="hidden flex flex-row items-end gap-3 h-64">
+                    <div class="h-full w-6 bg-gray-200 rounded-full overflow-hidden relative shadow-inner flex flex-col justify-end border border-gray-300">
+                        <div id="machine-gauge-bar" class="w-full bg-red-500 transition-all duration-300" style="height: 0%;"></div>
+                    </div>
+                    <div class="flex flex-col justify-end h-full pb-1">
+                        <div id="machine-gauge-text" class="text-base text-gray-500 font-bold">0/5</div>
+                    </div>
                 </div>
             </div>
 
-            <div class="flex-grow flex items-center justify-center relative">
+            <div class="absolute top-8 right-8 flex flex-col items-end z-20 gap-3">
+                <div class="text-xl font-bold text-gray-500">
+                    <span id="score">0周 / 0駅</span>
+                </div>
+                <div class="text-base font-bold text-gray-600 bg-gray-50 px-4 py-2 rounded-2xl shadow-inner border border-gray-200 text-right">
+                    <div class="text-[10px] text-gray-400 mb-1">現在の運賃</div>
+                    <div><span id="current-fare-display" class="text-3xl font-black text-gray-800">0</span><span class="text-sm ml-1">円</span></div>
+                </div>
+            </div>
+
+            <div class="flex-grow flex items-center justify-center relative mt-16">
                 <div class="railway-map" id="map-circle">
                     <div class="center-display">
                         <div id="ruby" class="text-2xl text-gray-400 mb-2 font-bold tracking-widest">おおさか</div>
@@ -267,55 +415,61 @@
                 </div>
             </div>
 
-            <div class="mt-6 mb-4">
+            <div class="mt-6 mb-4 relative">
                 <div class="flex justify-between text-sm text-gray-400 mb-2 font-bold uppercase tracking-widest">
                     <span>次の駅まで…</span>
                     <span id="station-timer-text">10.0秒</span>
                 </div>
-                <div class="time-bar-container">
+                <div class="time-bar-container mb-2">
                     <div id="station-timer-bar"></div>
                 </div>
             </div>
 
             <div class="footer-credit">
-                大阪環状線タイピング　|　ver.1.27　|　ota tools
+                大阪環状線タイピング　|　ver.1.28　|　ota tools
             </div>
 
-            <!-- スタート画面 -->
             <div id="start-overlay" class="absolute inset-0 flex items-center justify-center bg-orange-500 z-50">
-                <div class="text-center text-white p-6 w-full max-w-lg relative h-full flex flex-col justify-center">
-                    <h1 class="text-5xl font-black mb-2 italic title-main">大阪環状線タイピング</h1>
-                    <h2 class="text-2xl font-bold mb-6">駅名を入力して電車を加速させよう！</h2>
+                <button onclick="openShop()" class="absolute bottom-6 right-6 bg-white text-orange-500 font-bold py-3 px-5 rounded-2xl hover:scale-105 transition shadow-2xl flex flex-col items-center border-4 border-orange-200 z-50">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 mb-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M19 21V10a2 2 0 00-2-2H7a2 2 0 00-2 2v11m0 0h14M3 21h18M5 8h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v1a2 2 0 002 2z" />
+                    </svg>
+                    <span class="text-xs text-black">ショップ</span>
+                </button>
+
+                <div class="text-center text-white p-6 w-full max-w-2xl relative h-full flex flex-col justify-center">
+                    <h1 class="text-6xl font-black mb-4 italic title-main">大阪環状線タイピング</h1>
+                    <h2 class="text-3xl font-bold mb-8">駅名を入力して電車を加速させよう！</h2>
                     
-                    <div class="mb-8">
-                        <p class="text-sm font-bold mb-3">乗車時間を選択</p>
-                        <div class="flex justify-center gap-2">
+                    <div class="mb-10">
+                        <p class="text-lg font-bold mb-4">乗車時間を選択</p>
+                        <div class="flex justify-center gap-4">
                             <button onclick="changeTimeLimit(60)" id="btn-60" class="time-select-btn active">60秒</button>
                             <button onclick="changeTimeLimit(90)" id="btn-90" class="time-select-btn">90秒</button>
                             <button onclick="changeTimeLimit(120)" id="btn-120" class="time-select-btn">120秒</button>
                         </div>
                     </div>
 
-                    <div class="flex gap-4 justify-center mb-6">
-                        <button onclick="prepareGame('inner')" class="bg-white text-blue-600 font-bold py-6 px-4 rounded-2xl hover:scale-105 transition shadow-xl w-1/2">
-                            <span class="block text-3xl mb-1">内回り</span>
-                            <span class="text-[10px] font-normal block mb-2 opacity-70">大阪→福島 ほうめん</span>
+                    <div class="flex gap-6 justify-center mb-8">
+                        <button onclick="prepareGame('inner')" class="bg-white text-blue-600 font-bold py-8 px-4 rounded-3xl hover:scale-105 transition shadow-xl w-1/2">
+                            <span class="block text-4xl mb-2">内回り</span>
+                            <span class="text-sm font-normal block mb-4 opacity-70">大阪→福島 ほうめん</span>
                             <div class="best-score-badge text-blue-700">
                                 ベスト: <span id="best-inner">0周 0駅</span>
                             </div>
                         </button>
                         
-                        <button onclick="prepareGame('outer')" class="bg-white text-orange-600 font-bold py-6 px-4 rounded-2xl hover:scale-105 transition shadow-xl w-1/2">
-                            <span class="block text-3xl mb-1">外回り</span>
-                            <span class="text-[10px] font-normal block mb-2 opacity-70">大阪→天満 ほうめん</span>
+                        <button onclick="prepareGame('outer')" class="bg-white text-orange-600 font-bold py-8 px-4 rounded-3xl hover:scale-105 transition shadow-xl w-1/2">
+                            <span class="block text-4xl mb-2">外回り</span>
+                            <span class="text-sm font-normal block mb-4 opacity-70">大阪→天満 ほうめん</span>
                             <div class="best-score-badge text-orange-700">
                                 ベスト: <span id="best-outer">0周 0駅</span>
                             </div>
                         </button>
                     </div>
 
-                    <div class="total-fare-area">
-                        <span class="total-fare-label">使ったお金</span>
+                    <div class="total-fare-area mb-4 transition-colors duration-300" id="total-fare-area">
+                        <span class="total-fare-label font-bold text-lg">もらった切符の合計</span>
                         <div class="total-fare-value">
                             <span class="fare-num-wrapper">
                                 <span id="total-fare-all">0</span>
@@ -323,10 +477,63 @@
                             <span class="fare-unit">円</span>
                         </div>
                     </div>
+
+                    <div id="best-ticket-area" class="mt-4 hidden">
+                        <div class="text-[12px] font-bold mb-2 text-white drop-shadow-md text-center"><span id="best-ticket-time-label">60秒</span> の歴代最高チケット</div>
+                        <div class="ticket-style-small rounded-sm text-left text-gray-800">
+                            <div class="flex justify-between text-[9px] mb-2 border-b border-[#d2b48c] pb-1"><span>JR西日本</span><span>大阪環状線</span></div>
+                            <div class="flex items-center justify-center gap-4 py-1">
+                                <div class="flex items-center gap-3">
+                                    <div class="text-xl font-bold border-2 border-[#5d4a3b] p-1 vertical-text">大阪</div>
+                                    <div class="text-lg font-bold">▶</div>
+                                </div>
+                                <div class="text-center">
+                                    <div class="text-4xl font-black mb-1 text-gray-800"><span id="best-fare-display">0</span><span class="text-xl font-bold">円</span></div>
+                                    <div class="text-sm font-bold border-t border-[#5d4a3b] pt-1 mt-1">小児<span id="best-fare-child-display">0</span>円</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
                 </div>
             </div>
 
-            <!-- カウントダウン -->
+            <div id="shop-overlay" class="absolute inset-0 hidden flex items-center justify-center overlay z-[70] bg-black/60 p-6">
+                <div class="bg-white rounded-3xl w-full max-w-3xl h-full max-h-[700px] flex flex-col shadow-2xl overflow-hidden relative">
+                    <div class="bg-green-600 text-white p-4 flex justify-between items-center">
+                        <h2 class="text-2xl font-bold">🛒 ショップ・設定</h2>
+                        <div class="text-xl font-bold">所持金: <span id="shop-money">0</span>円</div>
+                        <button onclick="closeShop()" class="text-white hover:text-gray-200 text-4xl font-bold leading-none">&times;</button>
+                    </div>
+                    
+                    <div class="hidden flex border-b-2 border-gray-200">
+                        <button onclick="switchTab('train')" id="tab-train" class="flex-1 py-3 font-bold text-green-600 border-b-4 border-green-600 transition">車両</button>
+                        <button onclick="switchTab('station')" id="tab-station" class="flex-1 py-3 font-bold text-gray-400 border-b-4 border-transparent transition">駅 (BGM)</button>
+                    </div>
+
+                    <div id="shop-tab-train" class="p-6 overflow-y-auto flex-grow">
+                        <p class="text-sm text-gray-500 mb-4 font-bold text-center">持っている切符（お金）で新しい車両を買って装備できます。</p>
+                        <div id="shop-train-list" class="flex flex-wrap gap-4 justify-center pb-4"></div>
+                    </div>
+
+                    <div id="shop-tab-station" class="p-6 overflow-y-auto flex-grow hidden">
+                        <p class="text-sm text-gray-500 mb-4 font-bold text-center">購入した駅で時間切れになると、リザルト画面でそのBGMが流れます。</p>
+                        <div id="shop-bgm-list" class="grid grid-cols-2 gap-4"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="confirm-overlay" class="absolute inset-0 hidden flex items-center justify-center overlay z-[80] bg-black/60 p-6">
+                <div class="bg-white rounded-3xl p-6 w-full max-w-sm text-center shadow-2xl flex flex-col items-center">
+                    <div class="text-xl font-bold mb-2 text-gray-800" id="confirm-msg">○○を購入しますか？</div>
+                    <div class="text-2xl font-black text-orange-600 mb-6" id="confirm-price">0円</div>
+                    <div class="flex gap-4 w-full">
+                        <button id="confirm-yes-btn" class="flex-1 bg-blue-500 text-white font-bold py-3 rounded-xl hover:bg-blue-600 transition shadow">はい</button>
+                        <button onclick="closeConfirm()" class="flex-1 bg-gray-200 text-gray-700 font-bold py-3 rounded-xl hover:bg-gray-300 transition shadow">いいえ</button>
+                    </div>
+                </div>
+            </div>
+
             <div id="ready-overlay" class="absolute inset-0 hidden flex items-center justify-center overlay z-[60] bg-black/80">
                 <div class="text-center text-white">
                     <div class="text-3xl font-bold mb-8 animate-pulse">発車準備が完了しました</div>
@@ -338,13 +545,16 @@
                 </div>
             </div>
 
-            <!-- リザルト -->
             <div id="result-overlay" class="absolute inset-0 hidden flex items-center justify-center overlay z-50 p-6">
                 <div class="text-center w-full max-w-md mx-auto">
-                    <div id="result-title" class="mb-6 text-2xl tracking-widest text-gray-800 border-b-4 border-orange-500 pb-2 font-black">ご乗車ありがとうございました</div>
-                    <div class="bg-gray-800 text-white p-6 rounded-2xl mb-6 shadow-xl">
-                        <div class="flex justify-between text-4xl mb-6 items-end">
-                            <span class="text-base opacity-50 font-bold mb-1">そうこうきょり</span>
+                    <div id="result-title" class="mb-4 text-2xl tracking-widest text-gray-800 border-b-4 border-orange-500 pb-2 font-black">ご乗車ありがとうございました</div>
+                    
+                    <div class="bg-gray-800 text-white p-5 rounded-2xl mb-4 shadow-xl">
+                        <div class="text-center text-xl font-bold mb-3 text-orange-400 border-b border-gray-700 pb-2">
+                            <span id="final-station-name"></span>に到着しました
+                        </div>
+                        <div class="flex justify-between text-3xl mb-4 items-end">
+                            <span class="text-sm opacity-50 font-bold mb-1">そうこうきょり</span>
                             <span><span id="final-laps">0</span>周 <span id="final-stations">0</span>駅</span>
                         </div>
                         <div class="grid grid-cols-2 gap-x-6 gap-y-2 text-sm pt-4 border-t border-gray-700">
@@ -354,7 +564,13 @@
                             <div class="flex justify-between"><span>苦手キー:</span><span id="stat-weak" class="text-red-400">-</span></div>
                         </div>
                     </div>
-                    <div id="ticket-area" class="ticket-style mb-8 shadow-xl rounded-sm">
+
+                    <div class="text-sm font-bold text-gray-700 mb-3 leading-relaxed">
+                        お客様のおかげでたくさん加速することができました。<br>
+                        ご乗車いただいた分の切符をプレゼントいたします。
+                    </div>
+
+                    <div id="ticket-area" class="ticket-style mb-6 shadow-xl rounded-sm">
                         <div id="ticket-header" class="flex justify-between text-[10px] mb-4 border-b border-[#d2b48c] pb-1"><span>JR西日本</span><span>大阪環状線</span></div>
                         <div id="ticket-main-content" class="flex items-center justify-center gap-6 py-2">
                             <div class="flex items-center gap-4">
@@ -368,7 +584,7 @@
                         </div>
                         <div class="text-[9px] mt-4 flex justify-between opacity-70"><span id="ticket-date"></span><span>実際の運賃とは異なります</span></div>
                     </div>
-                    <button onclick="location.reload()" class="w-full bg-orange-600 text-white font-black py-5 rounded-2xl text-xl hover:bg-orange-700 transition shadow-lg">もういちど乗る</button>
+                    <button onclick="location.reload()" class="w-full bg-orange-600 text-white font-black py-4 rounded-2xl text-xl hover:bg-orange-700 transition shadow-lg">もういちど乗る</button>
                 </div>
             </div>
         </div>
@@ -433,13 +649,13 @@
         let stations = [];
         let loopDirection = 'outer';
         let currentStationIndex = 0;
-        let totalStationsCovered = 0; // 通過した駅数
+        let totalStationsCovered = 0; 
         let timeLimit = 60; 
         let timeLeft = 60;
         let isPlaying = false;
         let isReady = false; 
         let isWaitingForNext = false;
-        let correctCount = 0; // 正解タイプ数
+        let correctCount = 0; 
         let missCount = 0;
         let missedTargetKeys = {}; 
         
@@ -450,8 +666,52 @@
 
         let currentKanaList = [];
         let currentTargetIndex = 0;
-        let currentTypedInChar = "";
+        let currentTypedInChar = []; 
+        currentTypedInChar = "";
         let confirmedRomajiList = [];
+
+        let purchasedTrains = JSON.parse(localStorage.getItem('purchasedTrains')) || ['001'];
+        let equippedTrain = localStorage.getItem('equippedTrain') || '001';
+        let bgmLevels = JSON.parse(localStorage.getItem('bgmLevels')) || Array(19).fill(0);
+        let consecutiveNoMissStations = 0;
+        let consecutiveNoMissTypes = 0;
+        let stationMissCount = 0;
+        let sampleAudio = null;
+        let resultAudio = null;
+        let currentTotalMoney = parseInt(localStorage.getItem('total_fare_all_time') || 0);
+        let isTimerPaused = false; 
+
+        // デバッグモード
+        const debugMoneyMatch = window.location.search.match(/[?&]money=?(\d+)/);
+        if (debugMoneyMatch) {
+            const addMoney = parseInt(debugMoneyMatch[1], 10);
+            currentTotalMoney += addMoney;
+            localStorage.setItem('total_fare_all_time', currentTotalMoney);
+            window.history.replaceState(null, null, window.location.pathname);
+        }
+
+        // --- フローティングテキスト関数 ---
+        function showFloatingText(targetId, text, colorClass) {
+            const target = document.getElementById(targetId);
+            if (!target) return;
+            
+            const rect = target.getBoundingClientRect();
+            const container = document.getElementById('game-container');
+            const containerRect = container.getBoundingClientRect();
+            
+            const floatEl = document.createElement('div');
+            floatEl.className = `float-anim ${colorClass}`;
+            floatEl.innerText = text;
+            
+            floatEl.style.left = (rect.right - containerRect.left + 10) + 'px';
+            floatEl.style.top = (rect.top - containerRect.top) + 'px';
+            
+            container.appendChild(floatEl);
+            
+            setTimeout(() => {
+                floatEl.remove();
+            }, 1000);
+        }
 
         function handleResize() {
             const container = document.getElementById('game-container');
@@ -502,6 +762,9 @@
                 mapCircle.appendChild(dot);
             });
             updateTrainPosition(0);
+            
+            const trainIcon = document.querySelector('#train img');
+            if (trainIcon) trainIcon.src = equippedTrain + '.png';
         }
 
         function updateTrainPosition(progress) {
@@ -540,7 +803,218 @@
             };
             document.getElementById('best-inner').innerText = getBest('inner');
             document.getElementById('best-outer').innerText = getBest('outer');
-            document.getElementById('total-fare-all').innerText = parseInt(localStorage.getItem('total_fare_all_time') || 0).toLocaleString();
+            
+            currentTotalMoney = parseInt(localStorage.getItem('total_fare_all_time') || 0);
+            document.getElementById('total-fare-all').innerText = currentTotalMoney.toLocaleString();
+            
+            const currentBestFare = parseInt(localStorage.getItem(`best_fare_${timeLimit}`) || 0);
+            const currentBestChildFare = Math.floor((currentBestFare / 2) / 10) * 10;
+            
+            document.getElementById('best-ticket-time-label').innerText = `${timeLimit}秒`;
+            document.getElementById('best-fare-display').innerText = currentBestFare.toLocaleString();
+            document.getElementById('best-fare-child-display').innerText = currentBestChildFare.toLocaleString();
+
+            const bestTicketArea = document.getElementById('best-ticket-area');
+            if (currentBestFare > 0) {
+                bestTicketArea.classList.remove('hidden');
+            } else {
+                bestTicketArea.classList.add('hidden');
+            }
+        }
+
+        function updateCurrentFareDisplay() {
+            const currentFare = calculateFare(totalStationsCovered + 1);
+            const fareDisplay = document.getElementById('current-fare-display');
+            if (fareDisplay) fareDisplay.innerText = currentFare.toLocaleString();
+        }
+
+        function openConfirm(msg, price, onConfirm) {
+            document.getElementById('confirm-msg').innerText = msg + 'を購入しますか？';
+            document.getElementById('confirm-price').innerText = price.toLocaleString() + '円';
+            document.getElementById('confirm-yes-btn').onclick = () => {
+                onConfirm();
+                closeConfirm();
+            };
+            document.getElementById('confirm-overlay').classList.remove('hidden');
+        }
+
+        function closeConfirm() {
+            document.getElementById('confirm-overlay').classList.add('hidden');
+        }
+
+        function switchTab(tabName) {
+            if (tabName === 'train') {
+                document.getElementById('shop-tab-train').classList.remove('hidden');
+                document.getElementById('shop-tab-station').classList.add('hidden');
+                document.getElementById('tab-train').classList.replace('text-gray-400', 'text-green-600');
+                document.getElementById('tab-train').classList.replace('border-transparent', 'border-green-600');
+                document.getElementById('tab-station').classList.replace('text-green-600', 'text-gray-400');
+                document.getElementById('tab-station').classList.replace('border-green-600', 'border-transparent');
+            } else {
+                document.getElementById('shop-tab-train').classList.add('hidden');
+                document.getElementById('shop-tab-station').classList.remove('hidden');
+                document.getElementById('tab-station').classList.replace('text-gray-400', 'text-green-600');
+                document.getElementById('tab-station').classList.replace('border-transparent', 'border-green-600');
+                document.getElementById('tab-train').classList.replace('text-green-600', 'text-gray-400');
+                document.getElementById('tab-train').classList.replace('border-green-600', 'border-transparent');
+            }
+        }
+
+        function openShop() {
+            switchTab('train');
+            updateShop();
+            document.getElementById('shop-overlay').classList.remove('hidden');
+        }
+
+        function closeShop() {
+            stopBgmSample();
+            document.getElementById('shop-overlay').classList.add('hidden');
+        }
+
+        function updateShop() {
+            currentTotalMoney = parseInt(localStorage.getItem('total_fare_all_time') || 0);
+            document.getElementById('shop-money').innerText = currentTotalMoney.toLocaleString();
+            
+            const trainList = document.getElementById('shop-train-list');
+            const bgmList = document.getElementById('shop-bgm-list');
+            
+            let shopTrains = [
+                { id: '001', name: 'いつもの車両', desc: 'ノーマルな車両です。', price: 0 },
+                { id: '002', name: 'スキップマシン', desc: '5駅連続ミスなしで次駅を自動通過！', price: 10000 },
+                { id: '003', name: 'タイム延長マシン', desc: '50字連続ミスなし毎に2秒加算！', price: 20000 }
+            ];
+            
+            trainList.innerHTML = shopTrains.map(t => {
+                const isPurchased = purchasedTrains.includes(t.id) || t.id === '001';
+                const isEquipped = equippedTrain === t.id;
+                let btnHtml = '';
+
+                if (isEquipped) {
+                    btnHtml = `<button class="w-full font-bold py-3 rounded-xl bg-orange-500 text-white shadow-md cursor-default">装備中</button>`;
+                } else if (isPurchased) {
+                    btnHtml = `<button onclick="equipTrain('${t.id}')" class="w-full font-bold py-3 rounded-xl bg-gray-200 text-gray-700 hover:bg-gray-300 shadow-sm transition">装備する</button>`;
+                } else {
+                    let canBuy = currentTotalMoney >= t.price;
+                    btnHtml = `<button onclick="openConfirm('${t.name}', ${t.price}, () => buyTrain('${t.id}', ${t.price}))" class="w-full font-bold py-3 rounded-xl transition ${canBuy ? 'bg-green-500 text-white hover:bg-green-600 shadow-md' : 'bg-gray-200 text-gray-400 cursor-not-allowed'}" ${!canBuy ? 'disabled' : ''}>${t.price.toLocaleString()}円</button>`;
+                }
+
+                return `
+                    <div class="border-2 rounded-xl p-4 flex-shrink-0 w-64 text-center ${isEquipped ? 'border-orange-500 bg-orange-50' : 'shadow-sm'}">
+                        <img src="${t.id}.png" alt="train" class="h-16 mx-auto mb-3 drop-shadow">
+                        <h4 class="font-black text-lg text-gray-800">${t.name}</h4>
+                        <p class="text-[11px] font-bold text-gray-500 mb-4 h-8 flex items-center justify-center leading-tight">${t.desc}</p>
+                        ${btnHtml}
+                    </div>
+                `;
+            }).join('');
+            
+            let bgmPrice = 3000;
+            bgmList.innerHTML = STATIONS_MASTER.map((st, i) => {
+                let isPurchased = bgmLevels[i] > 0;
+                let canBuy = !isPurchased && currentTotalMoney >= bgmPrice;
+                let btnClass = isPurchased ? 'bg-gray-700 text-white hover:bg-gray-800 shadow' : (canBuy ? 'bg-blue-500 text-white hover:bg-blue-600 shadow' : 'bg-gray-200 text-gray-400 cursor-not-allowed');
+                
+                return `
+                <div class="border-2 rounded-xl p-3 flex justify-between items-center shadow-sm ${isPurchased ? 'border-blue-200 bg-blue-50/50' : 'border-gray-100'}">
+                    <div class="flex-grow">
+                        <div class="font-bold text-gray-800">${st.kanji}</div>
+                        <div class="text-[10px] text-gray-500 font-bold mt-1">時間切れでBGM再生</div>
+                    </div>
+                    <div class="flex flex-col gap-2 items-end">
+                        ${isPurchased ? 
+                            `<button onclick="playBgmSample(${i})" class="px-4 py-2 text-sm font-bold rounded-lg transition ${btnClass}">▶ 試聴</button>` 
+                            : 
+                            `<button onclick="openConfirm('${st.kanji}駅のBGM', ${bgmPrice}, () => buyBgm(${i}, ${bgmPrice}))" ${!canBuy ? 'disabled' : ''} class="px-4 py-2 text-sm font-bold rounded-lg transition ${btnClass}">${bgmPrice.toLocaleString()}円</button>`
+                        }
+                    </div>
+                </div>
+                `;
+            }).join('');
+        }
+
+        function buyTrain(id, price) {
+            currentTotalMoney = parseInt(localStorage.getItem('total_fare_all_time') || 0);
+            if (currentTotalMoney >= price) {
+                currentTotalMoney -= price;
+                localStorage.setItem('total_fare_all_time', currentTotalMoney);
+                purchasedTrains.push(id);
+                localStorage.setItem('purchasedTrains', JSON.stringify(purchasedTrains));
+                updateShop();
+                updateStatsDisplay();
+            }
+        }
+
+        function equipTrain(id) {
+            equippedTrain = id;
+            localStorage.setItem('equippedTrain', id);
+            updateShop(); 
+            
+            const trainIcon = document.querySelector('#train img');
+            if (trainIcon) trainIcon.src = id + '.png';
+        }
+
+        function buyBgm(index, price) {
+            currentTotalMoney = parseInt(localStorage.getItem('total_fare_all_time') || 0);
+            if (currentTotalMoney >= price && bgmLevels[index] === 0) {
+                currentTotalMoney -= price;
+                localStorage.setItem('total_fare_all_time', currentTotalMoney);
+                bgmLevels[index] = 1;
+                localStorage.setItem('bgmLevels', JSON.stringify(bgmLevels));
+                updateShop();
+                updateStatsDisplay();
+            }
+        }
+
+        function playBgmSample(index) {
+            if (sampleAudio) {
+                sampleAudio.pause();
+                sampleAudio.currentTime = 0;
+            }
+            sampleAudio = new Audio(String(index + 1).padStart(2, '0') + '.mp3');
+            sampleAudio.play().catch(e => console.log('BGM再生エラー(ファイルがない等)', e));
+        }
+
+        function stopBgmSample() {
+            if (sampleAudio) {
+                sampleAudio.pause();
+                sampleAudio = null;
+            }
+        }
+
+        function updateMachineGauge() {
+            const container = document.getElementById('machine-gauge-container');
+            const bar = document.getElementById('machine-gauge-bar');
+            const text = document.getElementById('machine-gauge-text');
+            
+            if (equippedTrain === '002') {
+                container.classList.remove('hidden');
+                let ratio = Math.min((consecutiveNoMissStations / 5) * 100, 100);
+                bar.style.height = ratio + '%';
+                if (ratio >= 100) {
+                    bar.classList.remove('bg-red-500');
+                    bar.classList.add('bg-green-500');
+                    text.innerText = 'READY!';
+                } else {
+                    bar.classList.remove('bg-green-500');
+                    bar.classList.add('bg-red-500');
+                    text.innerText = `${consecutiveNoMissStations}/5`;
+                }
+            } else if (equippedTrain === '003') {
+                container.classList.remove('hidden');
+                let ratio = Math.min((consecutiveNoMissTypes / 50) * 100, 100);
+                bar.style.height = ratio + '%';
+                if (ratio >= 100) {
+                    bar.classList.remove('bg-red-500');
+                    bar.classList.add('bg-green-500');
+                    text.innerText = 'EXTEND!';
+                } else {
+                    bar.classList.remove('bg-green-500');
+                    bar.classList.add('bg-red-500');
+                    text.innerText = `${consecutiveNoMissTypes}/50`;
+                }
+            } else {
+                container.classList.add('hidden');
+            }
         }
 
         function prepareGame(direction) {
@@ -548,6 +1022,7 @@
             isReady = true;
             document.getElementById('ready-info').innerText = `${direction === 'inner' ? '内回り' : '外回り'}・${timeLimit}秒`;
             document.getElementById('ready-overlay').classList.remove('hidden');
+            showBackButton(); 
         }
 
         function startGame() {
@@ -557,9 +1032,17 @@
             stations = (loopDirection === 'outer') ? [...STATIONS_MASTER] : [STATIONS_MASTER[0], ...[...STATIONS_MASTER].slice(1).reverse()];
             isPlaying = true;
             isWaitingForNext = false;
+            isTimerPaused = false; 
             timeLeft = timeLimit;
             correctCount = 0; missCount = 0; missedTargetKeys = {}; 
             totalStationsCovered = 0; currentStationIndex = 0;
+            
+            consecutiveNoMissStations = 0;
+            consecutiveNoMissTypes = 0;
+            stationMissCount = 0;
+            updateMachineGauge();
+            updateCurrentFareDisplay();
+
             initMap();
             updateStationDisplay();
             startMainTimer();
@@ -570,6 +1053,7 @@
         function startMainTimer() {
             const id = setInterval(() => {
                 if (!isPlaying) return clearInterval(id);
+                if (isTimerPaused) return; 
                 timeLeft--;
                 document.getElementById('timer').innerText = `${timeLeft}秒`;
                 if (timeLeft <= 0) { clearInterval(id); endGame(); }
@@ -577,14 +1061,13 @@
         }
 
         function calculateFare(covered) {
-            // 大阪環状線の平均駅間を約1kmとして擬似計算
             const km = covered;
             let fare = 0;
             if (km <= 3) fare = 150;
             else if (km <= 6) fare = 190;
             else if (km <= 10) fare = 200;
             else if (km <= 15) fare = 240;
-            else fare = 240 + Math.floor((km - 15) / 5) * 40; // 15km超の暫定
+            else fare = 240 + Math.floor((km - 15) / 5) * 40; 
             return fare;
         }
 
@@ -592,25 +1075,34 @@
             isPlaying = false;
             if (stationTimerRequestId) cancelAnimationFrame(stationTimerRequestId);
             
-            // 走行距離: 完了した駅 + 最後の駅の通過率を計算
-            const finalProgressRatio = (STATION_LIMIT_SEC - stationTimeRemaining) / STATION_LIMIT_SEC;
-            const finalCovered = totalStationsCovered + (finalProgressRatio >= 0.99 ? 1 : 0);
+            if (bgmLevels[currentStationIndex] > 0) {
+                resultAudio = new Audio(String(currentStationIndex + 1).padStart(2, '0') + '.mp3');
+                resultAudio.play().catch(e => console.log('BGM再生エラー', e));
+            }
+            
+            const finalCovered = totalStationsCovered + 1;
             
             const currentFare = calculateFare(finalCovered);
-            // 子供料金: 半額、5円以下は切り捨て（JRのルール: 10円単位に切り捨て）
             const childFare = Math.floor((currentFare / 2) / 10) * 10;
             
             localStorage.setItem('total_fare_all_time', parseInt(localStorage.getItem('total_fare_all_time') || 0) + currentFare);
             
+            const bestFareKey = `best_fare_${timeLimit}`;
+            const currentBestFare = parseInt(localStorage.getItem(bestFareKey) || 0);
+            if (currentFare > currentBestFare) {
+                localStorage.setItem(bestFareKey, currentFare);
+            }
+            
             const bestKey = `best_${loopDirection}_${timeLimit}`;
             if (finalCovered > parseInt(localStorage.getItem(bestKey) || 0)) localStorage.setItem(bestKey, finalCovered);
             
+            document.getElementById('final-station-name').innerText = stations[currentStationIndex].kanji + "駅";
+
             document.getElementById('final-laps').innerText = Math.floor(finalCovered / STATIONS_MASTER.length);
             document.getElementById('final-stations').innerText = finalCovered % STATIONS_MASTER.length;
             document.getElementById('stat-correct').innerText = correctCount;
             document.getElementById('stat-miss').innerText = missCount;
             
-            // WPM計算: 正解タイプ数 ÷ 設定時間 × 60
             const wpm = Math.round((correctCount / timeLimit) * 60);
             document.getElementById('stat-wpm').innerText = wpm;
             
@@ -627,6 +1119,11 @@
             const deltaTime = (timestamp - lastTimestamp) / 1000;
             lastTimestamp = timestamp;
 
+            if (isTimerPaused) {
+                stationTimerRequestId = requestAnimationFrame(updateStationTimerFrame);
+                return;
+            }
+
             if (!isWaitingForNext) {
                 stationTimeRemaining -= deltaTime;
                 const ratio = Math.max(0, stationTimeRemaining) / STATION_LIMIT_SEC;
@@ -636,7 +1133,7 @@
             }
 
             if (stationTimeRemaining <= 0 && !isWaitingForNext) {
-                goToNextStation(false); // タイムアップによる次駅移動
+                goToNextStation(false); 
             } else {
                 stationTimerRequestId = requestAnimationFrame(updateStationTimerFrame);
             }
@@ -715,9 +1212,18 @@
 
         function goToNextStation(isInputComplete) {
             if (isInputComplete) {
+                if (stationMissCount === 0) {
+                    consecutiveNoMissStations++;
+                } else if (stationMissCount > 0) {
+                    consecutiveNoMissStations = 0;
+                }
+                stationMissCount = 0;
+                updateMachineGauge();
+
                 isWaitingForNext = true;
                 totalStationsCovered++;
                 document.getElementById('score').innerText = `${Math.floor(totalStationsCovered / STATIONS_MASTER.length)}周 / ${totalStationsCovered % STATIONS_MASTER.length}駅`;
+                updateCurrentFareDisplay();
                 renderRomaji(true);
                 updateTrainPosition(1.0);
                 setTimeout(() => {
@@ -725,10 +1231,39 @@
                     currentStationIndex = (currentStationIndex + 1) % stations.length;
                     updateStationDisplay();
                     resetStationTimer();
+
+                    if (equippedTrain === '002' && consecutiveNoMissStations >= 5) {
+                        isTimerPaused = true; 
+                        setTimeout(() => {
+                            if (!isPlaying) return;
+                            const display = document.getElementById('romaji-display');
+                            display.innerHTML = '<span class="text-blue-500 font-bold text-3xl tracking-tighter shun-anim">電車が通過します</span>';
+                            stationMissCount = -1; 
+                            
+                            consecutiveNoMissStations = 0;
+                            const bar = document.getElementById('machine-gauge-bar');
+                            if(bar) bar.style.transition = 'none';
+                            updateMachineGauge();
+                            setTimeout(() => {
+                                if(bar) bar.style.transition = '';
+                            }, 50);
+
+                            setTimeout(() => {
+                                isTimerPaused = false; 
+                                if (isPlaying) goToNextStation(true);
+                            }, 600);
+                        }, 200);
+                    }
+
                 }, 500);
             } else {
+                stationMissCount = 0;
+                consecutiveNoMissStations = 0;
+                updateMachineGauge();
+
                 totalStationsCovered++;
                 document.getElementById('score').innerText = `${Math.floor(totalStationsCovered / STATIONS_MASTER.length)}周 / ${totalStationsCovered % STATIONS_MASTER.length}駅`;
+                updateCurrentFareDisplay();
                 currentStationIndex = (currentStationIndex + 1) % stations.length;
                 updateStationDisplay();
                 resetStationTimer();
@@ -736,8 +1271,12 @@
         }
 
         window.addEventListener('keydown', (e) => {
-            if (isReady && e.code === 'Space') { startGame(); return; }
-            if (!isPlaying || isWaitingForNext) return;
+            if (isReady && e.code === 'Space') { 
+                isReady = false; 
+                startCountdown(startGame);
+                return; 
+            }
+            if (!isPlaying || isWaitingForNext || isTimerPaused) return; 
             if (e.key === 'Shift' || e.key === 'Alt' || e.key === 'Control') return;
 
             const key = e.key.toLowerCase();
@@ -779,6 +1318,34 @@
 
             if (isCorrect) {
                 correctCount++;
+                
+                if (equippedTrain === '003') {
+                    consecutiveNoMissTypes++;
+                    if (consecutiveNoMissTypes >= 50) {
+                        updateMachineGauge();
+                        timeLeft += 2;
+                        document.getElementById('timer').innerText = `${timeLeft}秒`;
+                        const timerEl = document.getElementById('timer');
+                        timerEl.classList.add('text-green-500', 'scale-125');
+                        setTimeout(() => timerEl.classList.remove('text-green-500', 'scale-125'), 300);
+
+                        showFloatingText('timer', '+2秒', 'text-green-500 text-3xl drop-shadow-md');
+
+                        setTimeout(() => {
+                            if (!isPlaying) return;
+                            consecutiveNoMissTypes = 0;
+                            const bar = document.getElementById('machine-gauge-bar');
+                            if(bar) bar.style.transition = 'none';
+                            updateMachineGauge();
+                            setTimeout(() => {
+                                if(bar) bar.style.transition = '';
+                            }, 50);
+                        }, 300);
+                    } else {
+                        updateMachineGauge();
+                    }
+                }
+
                 if (currentTargetIndex >= currentKanaList.length) {
                     goToNextStation(true);
                 } else {
@@ -811,6 +1378,34 @@
             }
             if (isCorrect) {
                 correctCount++;
+                
+                if (equippedTrain === '003') {
+                    consecutiveNoMissTypes++;
+                    if (consecutiveNoMissTypes >= 50) {
+                        updateMachineGauge();
+                        timeLeft += 2;
+                        document.getElementById('timer').innerText = `${timeLeft}秒`;
+                        const timerEl = document.getElementById('timer');
+                        timerEl.classList.add('text-green-500', 'scale-125');
+                        setTimeout(() => timerEl.classList.remove('text-green-500', 'scale-125'), 300);
+
+                        showFloatingText('timer', '+2秒', 'text-green-500 text-3xl drop-shadow-md');
+
+                        setTimeout(() => {
+                            if (!isPlaying) return;
+                            consecutiveNoMissTypes = 0;
+                            const bar = document.getElementById('machine-gauge-bar');
+                            if(bar) bar.style.transition = 'none';
+                            updateMachineGauge();
+                            setTimeout(() => {
+                                if(bar) bar.style.transition = '';
+                            }, 50);
+                        }, 300);
+                    } else {
+                        updateMachineGauge();
+                    }
+                }
+
                 if (currentTargetIndex >= currentKanaList.length) {
                     goToNextStation(true);
                 } else {
@@ -823,6 +1418,12 @@
 
         function handleMiss(key, patterns) {
             missCount++;
+            
+            stationMissCount++;
+            consecutiveNoMissStations = 0;
+            consecutiveNoMissTypes = 0;
+            updateMachineGauge();
+
             const targetChar = (patterns[0] || "")[currentTypedInChar.length] || "?";
             missedTargetKeys[targetChar] = (missedTargetKeys[targetChar] || 0) + 1;
             const display = document.getElementById('romaji-display');
@@ -833,10 +1434,90 @@
             }
         }
 
+        let countdownTimeouts = [];
+
+        function returnToTitle() {
+            if (sampleAudio) stopBgmSample();
+            if (resultAudio) {
+                resultAudio.pause();
+                resultAudio = null;
+            }
+
+            countdownTimeouts.forEach(clearTimeout);
+            countdownTimeouts = [];
+            location.reload(); 
+        }
+
+        function showBackButton() {
+            document.getElementById('back-button').style.display = 'block';
+        }
+
+        function startCountdown(onGameStartCallback) {
+            let countdownScreen = document.getElementById('countdown-screen');
+            if (!countdownScreen) return; 
+
+            document.getElementById('ready-overlay').classList.add('hidden');
+
+            document.getElementById('start-overlay').style.display = 'none';
+            stations = (loopDirection === 'outer') ? [...STATIONS_MASTER] : [STATIONS_MASTER[0], ...[...STATIONS_MASTER].slice(1).reverse()];
+            currentStationIndex = 0;
+            initMap();
+            updateStationDisplay();
+
+            countdownScreen.innerHTML = `
+                <div class="shutter-panel shutter-top"></div>
+                <div class="shutter-panel shutter-bottom"></div>
+                <div id="door-close-text" class="text-4xl md:text-6xl font-bold opacity-0 transition-opacity duration-500 absolute text-white" style="text-shadow: 2px 2px 4px rgba(0,0,0,0.8); z-index: 10;">ドアが閉まります</div>
+                <div id="depart-text" class="text-5xl md:text-8xl font-black text-green-400 opacity-0 absolute tracking-widest w-full text-center" style="text-shadow: 4px 4px 8px rgba(0,0,0,0.8); z-index: 20;">出発進行！</div>
+            `;
+            
+            countdownScreen.style.display = 'flex';
+            countdownScreen.style.flexDirection = 'column';
+            countdownScreen.style.justifyContent = 'center';
+            countdownScreen.style.alignItems = 'center';
+
+            if (window.countdownTimeout) {
+                clearTimeout(window.countdownTimeout);
+            }
+
+            const doorText = document.getElementById('door-close-text');
+            const departText = document.getElementById('depart-text');
+
+            setTimeout(() => {
+                doorText.style.opacity = '1';
+            }, 100);
+            
+            setTimeout(() => {
+                doorText.style.opacity = '0';
+            }, 1200);
+
+            setTimeout(() => {
+                departText.style.opacity = '1';
+                departText.classList.add('animate-pop'); 
+                
+                setTimeout(() => {
+                    countdownScreen.classList.add('shutter-open');
+                    departText.style.transition = 'opacity 0.4s ease';
+                    departText.style.opacity = '0';
+                }, 1000);
+
+                window.countdownTimeout = setTimeout(() => {
+                    countdownScreen.style.display = 'none';
+                    countdownScreen.classList.remove('shutter-open');
+                    if (typeof onGameStartCallback === 'function') {
+                        onGameStartCallback(); 
+                    }
+                }, 1600);
+            }, 2500);
+        }
+
         window.addEventListener('resize', handleResize);
+        
+        handleResize();
+
         window.onload = () => {
-            handleResize();
             updateStatsDisplay();
+            document.body.style.opacity = '1'; 
         };
     </script>
 </body>
