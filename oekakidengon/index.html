@@ -1,0 +1,676 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>お絵かき伝言ゲーム</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Kosugi+Maru&family=Noto+Sans+JP:wght@400;900&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --wb-bg: #ffffff;
+        }
+        body {
+            font-family: 'Noto Sans JP', 'Kosugi Maru', sans-serif;
+            background-color: #353b48;
+            color: #2f3640;
+            overflow: hidden; 
+            height: 100vh;
+            width: 100vw;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .whiteboard-frame {
+            background: #dcdde1;
+            padding: 12px;
+            border-radius: 8px;
+            box-shadow: 
+                inset 0 2px 5px rgba(0,0,0,0.2),
+                0 20px 50px rgba(0,0,0,0.5);
+            border: 4px solid #7f8c8d;
+        }
+        .whiteboard-surface {
+            background-color: var(--wb-bg);
+            border-radius: 4px;
+            height: 100%;
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        .wb-tray {
+            height: 12px;
+            background: #bdc3c7;
+            border-radius: 0 0 10px 10px;
+            width: 90%;
+            margin: 0 auto;
+            border: 2px solid #95a5a6;
+            border-top: none;
+        }
+
+        .canvas-container {
+            width: 100%;
+            max-width: 450px;
+            margin: 0 auto;
+            position: relative;
+            transition: all 0.3s ease;
+        }
+        .mode-sketch { aspect-ratio: 1 / 1; }
+        .mode-word { 
+            aspect-ratio: 16 / 6; 
+            background-color: #fff;
+        }
+
+        canvas {
+            width: 100%;
+            height: 100%;
+            background: #fff;
+            border: 2px solid #cbd5e1;
+            border-radius: 8px;
+            touch-action: none;
+            cursor: crosshair;
+        }
+
+        /* Reveal transitions */
+        .reveal-stage {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+        }
+        .reveal-card {
+            position: absolute;
+            transition: all 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+            width: 300px;
+            background: white;
+            border: 4px solid #2f3640;
+            border-radius: 12px;
+            padding: 12px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+            opacity: 0;
+            pointer-events: none;
+        }
+        
+        #reveal-arrow {
+            position: absolute;
+            z-index: 35;
+            font-size: 3rem;
+            color: #2f3640;
+            font-weight: 900;
+            transition: all 0.5s ease;
+            opacity: 0;
+            transform: scale(0.5);
+        }
+        #reveal-arrow.active {
+            opacity: 1;
+            transform: scale(1.2);
+        }
+        
+        .pos-out-left { transform: translateX(-200%) scale(0.7); opacity: 0; }
+        .pos-left { transform: translateX(-55%) scale(1); opacity: 1; z-index: 30; }
+        .pos-right { transform: translateX(55%) scale(1); opacity: 1; z-index: 20; }
+        .pos-out-right { transform: translateX(200%) scale(0.7); opacity: 0; }
+        
+        .pos-finale-left { transform: translateX(-65%) scale(1); opacity: 1; z-index: 30; }
+        .pos-finale-right { transform: translateX(65%) scale(1); opacity: 1; z-index: 20; }
+        .pos-center { transform: translateX(0) scale(1.1); opacity: 1; z-index: 40; }
+        .pos-hidden { opacity: 0; transform: scale(0.5); pointer-events: none; }
+
+        #curtain {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            z-index: 100;
+            pointer-events: none;
+        }
+        .curtain-half {
+            flex: 1;
+            background: #c0392b;
+            transition: transform 0.8s cubic-bezier(0.65, 0, 0.35, 1);
+            box-shadow: 0 0 20px rgba(0,0,0,0.5);
+        }
+        .curtain-left { transform: translateX(-100%); }
+        .curtain-right { transform: translateX(100%); }
+        #curtain.active .curtain-left { transform: translateX(0); }
+        #curtain.active .curtain-right { transform: translateX(0); }
+
+        .marker-text { font-family: 'Kosugi Maru', cursive; }
+        .vertical-text { writing-mode: vertical-rl; text-orientation: upright; }
+
+        .custom-scroll::-webkit-scrollbar { width: 8px; }
+        .custom-scroll::-webkit-scrollbar-track { background: transparent; }
+        .custom-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+
+        .finish-gradient {
+            background: radial-gradient(circle at center, #f8fafc 0%, #e2e8f0 100%);
+        }
+        .shiny-btn {
+            background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+            position: relative;
+            overflow: hidden;
+            transition: all 0.3s ease;
+        }
+        .shiny-btn::after {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: linear-gradient(45deg, transparent, rgba(255,255,255,0.1), transparent);
+            transform: rotate(45deg);
+            transition: 0.5s;
+        }
+        .shiny-btn:hover::after { left: 100%; }
+        .shiny-btn:hover { transform: translateY(-4px); box-shadow: 0 12px 24px rgba(37, 99, 235, 0.3); }
+
+        .difficulty-radio:checked + label {
+            background-color: #2f3640;
+            color: white;
+            border-color: #2f3640;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="app" class="w-full max-w-[1200px] h-full max-h-[600px] p-2 flex flex-col items-center">
+        <div class="whiteboard-frame w-full h-full flex flex-col">
+            <div class="whiteboard-surface flex-grow relative">
+                
+                <div id="curtain">
+                    <div class="curtain-half curtain-left"></div>
+                    <div class="curtain-half curtain-right"></div>
+                </div>
+
+                <!-- 1. セットアップ -->
+                <div id="setup-screen" class="absolute inset-0 flex flex-col items-center justify-start p-6 bg-white z-50 overflow-y-auto custom-scroll">
+                    <h1 class="text-5xl font-black marker-text border-b-4 border-blue-500 mb-8 text-gray-800 shrink-0">お絵かき伝言ゲーム</h1>
+                    
+                    <div class="w-full max-w-2xl space-y-8">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div class="bg-gray-50 p-4 rounded-2xl border-2 border-gray-100">
+                                <label class="block text-xs font-black text-gray-400 uppercase tracking-widest mb-3">プレイ人数</label>
+                                <select id="player-count-select" onchange="updateNameInputs()" class="w-full bg-white border-2 border-blue-500 rounded-xl px-4 py-2 font-black text-xl outline-none text-gray-800">
+                                    <option value="3">3人</option>
+                                    <option value="4" selected>4人</option>
+                                    <option value="5">5人</option>
+                                    <option value="6">6人</option>
+                                    <option value="7">7人</option>
+                                    <option value="8">8人</option>
+                                </select>
+                            </div>
+
+                            <div class="bg-gray-50 p-4 rounded-2xl border-2 border-gray-100">
+                                <label class="block text-xs font-black text-gray-400 uppercase tracking-widest mb-3">お題の難易度</label>
+                                <div class="flex bg-white p-1 rounded-xl border-2 border-gray-200">
+                                    <input type="radio" name="difficulty" id="diff-easy" value="easy" class="hidden difficulty-radio">
+                                    <label for="diff-easy" class="flex-1 text-center py-2 rounded-lg font-bold cursor-pointer transition-all text-sm border border-transparent">かんたん</label>
+                                    
+                                    <input type="radio" name="difficulty" id="diff-normal" value="normal" class="hidden difficulty-radio" checked>
+                                    <label for="diff-normal" class="flex-1 text-center py-2 rounded-lg font-bold cursor-pointer transition-all text-sm border border-transparent">ふつう</label>
+                                    
+                                    <input type="radio" name="difficulty" id="diff-hard" value="hard" class="hidden difficulty-radio">
+                                    <label for="diff-hard" class="flex-1 text-center py-2 rounded-lg font-bold cursor-pointer transition-all text-sm border border-transparent">むずかしい</label>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="space-y-3">
+                            <label class="block text-xs font-black text-gray-400 uppercase tracking-widest">メンバーの名前 (自動保存されます)</label>
+                            <div class="grid grid-cols-2 gap-3" id="name-inputs"></div>
+                        </div>
+
+                        <div class="flex justify-center pt-4 pb-8">
+                            <button onclick="startGame()" class="shiny-btn text-white px-16 py-5 rounded-2xl font-black text-2xl shadow-lg active:scale-95 transition-all w-full md:w-auto">
+                                ゲームを開始する
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 2. パス画面 -->
+                <div id="pass-screen" class="hidden absolute inset-0 flex flex-col items-center justify-center p-4 bg-blue-50/90 z-40">
+                    <div class="bg-white p-10 rounded-full shadow-xl border-4 border-blue-500 mb-6 animate-pulse">
+                        <span class="text-4xl font-black text-blue-500 uppercase tracking-widest">つぎのひと</span>
+                    </div>
+                    <h2 id="next-player-name" class="text-6xl font-black marker-text text-gray-800 mb-8"></h2>
+                    <button onclick="startTurn()" class="bg-gray-800 text-white px-12 py-5 rounded-2xl font-black text-2xl hover:bg-black transition-colors shadow-xl">
+                        かきはじめる
+                    </button>
+                </div>
+
+                <!-- 3. メインゲーム -->
+                <div id="game-screen" class="hidden h-full flex flex-col">
+                    <div class="flex justify-between items-center px-6 py-3 border-b-2 border-gray-100 bg-gray-50/30">
+                        <div class="flex items-center space-x-4">
+                            <span id="step-counter" class="bg-gray-800 text-white px-3 py-1 rounded text-xs font-bold uppercase">第 1 ターン</span>
+                            <span id="player-indicator" class="text-xl font-black marker-text text-gray-700">なまえ</span>
+                        </div>
+                        <div class="flex items-center space-x-6">
+                            <div class="flex flex-col items-end">
+                                <span id="timer" class="text-3xl font-mono font-black text-gray-800 leading-none">60</span>
+                            </div>
+                            <button onclick="submitStep()" class="bg-emerald-600 hover:bg-emerald-700 text-white px-8 py-2 rounded-xl font-black text-lg shadow-md transition-all active:scale-95">
+                                できた！
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="flex-grow flex min-h-0">
+                        <div class="w-1/3 p-4 border-r-2 border-dashed border-gray-200 flex flex-col justify-center">
+                            <div id="info-content" class="text-center space-y-4">
+                                <p id="info-label" class="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]"></p>
+                                <div id="info-word-box" class="hidden">
+                                    <h3 id="target-word" class="text-4xl font-black marker-text break-all text-blue-600 underline underline-offset-8"></h3>
+                                </div>
+                                <div id="info-sketch-box" class="hidden h-full">
+                                    <div class="bg-white border-2 border-gray-100 rounded-2xl p-2 flex items-center justify-center shadow-inner">
+                                        <img id="prev-sketch" class="max-w-full max-h-[250px] object-contain">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="w-2/3 p-4 flex flex-col items-center justify-center bg-gray-50/50">
+                            <div class="text-center mb-2">
+                                <p id="action-instruction" class="text-[10px] font-black text-blue-500 uppercase tracking-widest"></p>
+                            </div>
+                            <div id="canvas-wrapper" class="canvas-container shadow-2xl">
+                                <canvas id="drawing-canvas"></canvas>
+                                <div class="absolute -right-14 top-0 flex flex-col space-y-3 bg-white p-2 rounded-2xl border border-gray-200 shadow-lg">
+                                    <button onclick="setStrokeColor('#2f3640')" class="w-8 h-8 rounded-full bg-[#2f3640] border-2 border-white shadow-sm hover:scale-110 transition-transform"></button>
+                                    <button onclick="setStrokeColor('#e84118')" class="w-8 h-8 rounded-full bg-[#e84118] border-2 border-white shadow-sm hover:scale-110 transition-transform"></button>
+                                    <button onclick="setStrokeColor('#0097e6')" class="w-8 h-8 rounded-full bg-[#0097e6] border-2 border-white shadow-sm hover:scale-110 transition-transform"></button>
+                                    <div class="h-[1px] bg-gray-200 mx-1"></div>
+                                    <button onclick="clearCanvas()" class="text-[11px] font-black text-gray-400 hover:text-red-500 vertical-text py-2 transition-colors">全部消す</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 完了待機画面 -->
+                <div id="finish-screen" class="hidden absolute inset-0 flex flex-col items-center justify-center p-4 z-50 finish-gradient">
+                    <div class="text-center mb-10 space-y-4">
+                        <div class="inline-block px-4 py-1 bg-gray-800 text-white rounded font-black text-xs tracking-widest uppercase mb-4">Game Set</div>
+                        <h2 class="text-6xl font-black marker-text text-gray-800 tracking-tight">おつかれさまでした！</h2>
+                        <p class="text-gray-400 font-bold tracking-widest">すべての記録が整いました。</p>
+                    </div>
+                    <button onclick="startReview()" class="shiny-btn text-white px-16 py-6 rounded-2xl font-black text-3xl shadow-2xl active:scale-95 transition-all">
+                        全員の結果をみる
+                    </button>
+                </div>
+
+                <!-- 4. 結果発表 -->
+                <div id="reveal-screen" class="hidden h-full flex flex-col relative bg-white">
+                    <div class="text-center py-3 bg-gray-50 border-b border-gray-200">
+                        <h2 class="text-xl font-black marker-text text-gray-400 tracking-widest" id="reveal-title">結果発表</h2>
+                    </div>
+                    <div id="reveal-stage" class="reveal-stage flex-grow">
+                        <div id="reveal-arrow" class="marker-text">⇨</div>
+                        <button id="restart-btn" onclick="location.reload()" class="hidden absolute bottom-12 left-1/2 -translate-x-1/2 z-[60] px-12 py-5 bg-gray-800 text-white rounded-full font-black text-2xl shadow-2xl hover:bg-black transition-all active:scale-95">
+                            もう一度あそぶ
+                        </button>
+                    </div>
+                    <div class="h-24 border-t border-gray-100 bg-gray-50 flex items-center justify-end px-12 z-50">
+                        <button id="next-reveal-btn" onclick="handleRevealNext()" class="px-10 py-4 rounded-full bg-blue-600 text-white font-black text-xl shadow-lg hover:bg-blue-700 active:scale-95 transition-all">
+                            つぎへ →
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 5. 全記録一覧 -->
+                <div id="summary-screen" class="hidden absolute inset-0 flex flex-col bg-gray-100 z-[100]">
+                    <div class="flex justify-between items-center p-6 bg-white border-b shadow-sm">
+                        <h2 class="text-2xl font-black marker-text">みんなの全記録</h2>
+                        <button onclick="document.getElementById('summary-screen').classList.add('hidden')" class="bg-gray-100 hover:bg-gray-200 w-10 h-10 rounded-full flex items-center justify-center text-gray-400 hover:text-gray-800 font-bold text-xl transition-all">✕</button>
+                    </div>
+                    <div id="summary-list" class="flex-grow overflow-y-auto custom-scroll p-8 space-y-12 bg-gray-100">
+                    </div>
+                </div>
+
+            </div>
+        </div>
+        <div class="wb-tray shadow-lg"></div>
+    </div>
+
+    <script>
+        const STORAGE_KEY = 'telestrations_player_names';
+        const WORD_LISTS = {
+   easy: [
+"りんご","バナナ","すいか","いちご","みかん",
+"ねこ","いぬ","うさぎ","ぞう","さかな",
+"くるま","ふね","ロケット","めがね","ぼうし",
+"テレビ","スマホ","えんぴつ","ノート","かさ",
+"すし","パン","ドーナツ","ケーキ","アイスクリーム",
+"ひまわり","さくら","ゆきだるま","おばけ","ハート"
+],
+
+normal: [
+"パンダ","ライオン","きりん","ペンギン","イルカ",
+"カニ","タコ","クラゲ","ちょうちょ","カブトムシ",
+"バス","でんしゃ","ひこうき","ヘリコプター","じてんしゃ",
+"ロボット","ドラゴン","UFO","おしろ","クリスマスツリー",
+"かぼちゃ","ハンバーガー","ピザ","ラーメン","カレーライス",
+"たいこ","ピアノ","ギター","ヘッドホン","ドローン"
+],
+
+hard: [
+"サンタクロース","にんじゃ","かいぞく","まほうつかい","おひめさま",
+"王さま","宇宙飛行士","けいさつかん","しょうぼうし","おすもうさん",
+"恐竜","ティラノサウルス","トリケラトプス","ユニコーン","フェニックス",
+"スフィンクス","東京タワー","スカイツリー","かんらんしゃ","ジェットコースター",
+"しんかんせん","せんすいかん","たつまき","かみなり","ブラックホール",
+"ロケット発射台","宇宙ステーション","戦車","おみこし","かぶと"
+]
+     };
+        
+        let players = [];
+        let book = { steps: [] };
+        let currentPlayerIdx = 0;
+        let isDrawing = false;
+        let canvas, ctx;
+        let timerInterval;
+        
+        let revealPhase = 'start'; 
+        let currentHistoryIdx = 0;
+
+        // Load saved names from localStorage
+        function getSavedNames() {
+            const saved = localStorage.getItem(STORAGE_KEY);
+            return saved ? JSON.parse(saved) : [];
+        }
+
+        function saveNames() {
+            const inputs = document.querySelectorAll('.player-name');
+            const names = Array.from(inputs).map(inp => inp.value);
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(names));
+        }
+
+        function handleFocus(input) {
+            // If the value is a default name like "プレイヤー 1", clear it
+            if (/^プレイヤー \d+$/.test(input.value)) {
+                input.value = '';
+            } else {
+                // Otherwise just select all for easy editing
+                input.select();
+            }
+        }
+
+        function updateNameInputs() {
+            const count = parseInt(document.getElementById('player-count-select').value);
+            const container = document.getElementById('name-inputs');
+            const savedNames = getSavedNames();
+            
+            // Get current values to preserve them while resizing if possible
+            const currentInputs = Array.from(document.querySelectorAll('.player-name')).map(input => input.value);
+            
+            container.innerHTML = '';
+            for (let i = 0; i < count; i++) {
+                // Priority: Current typing > Saved data > Default
+                const val = currentInputs[i] || savedNames[i] || `プレイヤー ${i + 1}`;
+                container.innerHTML += `
+                    <div class="bg-gray-50 p-2 rounded-xl border border-gray-200 flex items-center space-x-3 transition-all focus-within:border-blue-300">
+                        <span class="font-black text-gray-300 w-4">${i + 1}</span>
+                        <input type="text" 
+                               class="player-name w-full bg-transparent border-b-2 border-gray-100 focus:border-blue-500 outline-none font-bold text-lg text-gray-700" 
+                               value="${val}" 
+                               onfocus="handleFocus(this)"
+                               onblur="saveNames()">
+                    </div>`;
+            }
+        }
+        
+        // Initial setup
+        updateNameInputs();
+
+        function shuffle(array) {
+            for (let i = array.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [array[i], array[j]] = [array[j], array[i]];
+            }
+            return array;
+        }
+
+        function startGame() {
+            const inputs = document.querySelectorAll('.player-name');
+            const rawPlayers = Array.from(inputs).map(inp => inp.value.trim() || "名無し");
+            
+            // Save names before starting
+            saveNames();
+            
+            // Randomize order
+            players = shuffle([...rawPlayers]);
+            
+            const diff = document.querySelector('input[name="difficulty"]:checked').value;
+            const currentList = WORD_LISTS[diff];
+            const commonWord = currentList[Math.floor(Math.random() * currentList.length)];
+            
+            book = { steps: [{ type: 'initial_word', value: commonWord, author: "スタート" }] };
+            currentPlayerIdx = 0;
+            showPassScreen();
+        }
+
+        function showPassScreen() {
+            document.querySelectorAll('.whiteboard-surface > div').forEach(d => d.classList.add('hidden'));
+            document.getElementById('pass-screen').classList.remove('hidden');
+            document.getElementById('next-player-name').innerText = players[currentPlayerIdx];
+        }
+
+        function startTurn() {
+            document.getElementById('pass-screen').classList.add('hidden');
+            document.getElementById('game-screen').classList.remove('hidden');
+            
+            const lastStep = book.steps[book.steps.length - 1];
+            document.getElementById('player-indicator').innerText = players[currentPlayerIdx];
+            document.getElementById('step-counter').innerText = `第 ${currentPlayerIdx + 1} ターン`;
+            document.getElementById('info-word-box').classList.add('hidden');
+            document.getElementById('info-sketch-box').classList.add('hidden');
+
+            const wrapper = document.getElementById('canvas-wrapper');
+            wrapper.classList.remove('mode-sketch', 'mode-word');
+
+            if (lastStep.type === 'initial_word' || lastStep.type === 'word') {
+                document.getElementById('info-label').innerText = "THE WORD";
+                if (lastStep.type === 'initial_word') {
+                    document.getElementById('info-word-box').classList.remove('hidden');
+                    document.getElementById('target-word').innerText = lastStep.value;
+                } else {
+                    document.getElementById('info-sketch-box').classList.remove('hidden');
+                    document.getElementById('prev-sketch').src = lastStep.value;
+                }
+                document.getElementById('action-instruction').innerText = "イラストを描いてください";
+                wrapper.classList.add('mode-sketch');
+            } else {
+                document.getElementById('info-label').innerText = "PREVIOUS SKETCH";
+                document.getElementById('info-sketch-box').classList.remove('hidden');
+                document.getElementById('prev-sketch').src = lastStep.value;
+                document.getElementById('action-instruction').innerText = "「答え」を推測してください";
+                wrapper.classList.add('mode-word');
+            }
+            
+            setTimeout(initCanvas, 50);
+            startTimer();
+        }
+
+        function initCanvas() {
+            canvas = document.getElementById('drawing-canvas');
+            ctx = canvas.getContext('2d');
+            const rect = canvas.getBoundingClientRect();
+            canvas.width = rect.width * 2;
+            canvas.height = rect.height * 2;
+            ctx.scale(2, 2);
+            ctx.strokeStyle = '#2f3640';
+            ctx.lineWidth = 4;
+            ctx.lineCap = 'round';
+            ctx.lineJoin = 'round';
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            const getPos = (e) => {
+                const r = canvas.getBoundingClientRect();
+                const clientX = (e.touches ? e.touches[0].clientX : e.clientX);
+                const clientY = (e.touches ? e.touches[0].clientY : e.clientY);
+                return { x: clientX - r.left, y: clientY - r.top };
+            };
+            canvas.onmousedown = (e) => { isDrawing = true; const p = getPos(e); ctx.beginPath(); ctx.moveTo(p.x, p.y); };
+            canvas.onmousemove = (e) => { if (isDrawing) { const p = getPos(e); ctx.lineTo(p.x, p.y); ctx.stroke(); } };
+            window.onmouseup = () => isDrawing = false;
+            canvas.ontouchstart = (e) => { e.preventDefault(); isDrawing = true; const p = getPos(e); ctx.beginPath(); ctx.moveTo(p.x, p.y); };
+            canvas.ontouchmove = (e) => { e.preventDefault(); if (isDrawing) { const p = getPos(e); ctx.lineTo(p.x, p.y); ctx.stroke(); } };
+            canvas.ontouchend = () => isDrawing = false;
+        }
+
+        function setStrokeColor(color) { ctx.strokeStyle = color; }
+        function clearCanvas() { 
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+        }
+
+        function startTimer() {
+            let time = 60;
+            const el = document.getElementById('timer');
+            el.innerText = time;
+            el.classList.remove('text-red-600');
+            clearInterval(timerInterval);
+            timerInterval = setInterval(() => {
+                time--; el.innerText = time;
+                if(time <= 10) el.classList.add('text-red-600');
+                if(time <= 0) { clearInterval(timerInterval); submitStep(); }
+            }, 1000);
+        }
+
+        function submitStep() {
+            clearInterval(timerInterval);
+            const lastStep = book.steps[book.steps.length - 1];
+            const content = canvas.toDataURL(); 
+            const nextType = (lastStep.type === 'initial_word' || lastStep.type === 'word') ? 'sketch' : 'word';
+            book.steps.push({ type: nextType, value: content, author: players[currentPlayerIdx] });
+            currentPlayerIdx++;
+            if (currentPlayerIdx >= players.length) {
+                document.querySelectorAll('.whiteboard-surface > div').forEach(d => d.classList.add('hidden'));
+                document.getElementById('finish-screen').classList.remove('hidden');
+            } else {
+                showPassScreen();
+            }
+        }
+
+        function createCardElement(step, i) {
+            const card = document.createElement('div');
+            const role = i === 0 ? "最初のお題" : (step.type === 'word' ? "答え" : "イラスト");
+            const authorInfo = i === 0 ? "お題" : `かいた人: ${step.author}`;
+            const isWord = (step.type === 'initial_word' || step.type === 'word');
+            const cardStyle = isWord ? 'aspect-[16/6]' : 'aspect-square';
+
+            card.innerHTML = `
+                <div class="mb-2 flex justify-between items-center border-b pb-1">
+                    <span class="text-[10px] font-bold bg-gray-100 px-2 py-0.5 rounded text-gray-500">${role}</span>
+                    <span class="text-[10px] font-bold marker-text text-gray-400">${authorInfo}</span>
+                </div>
+                <div class="${cardStyle} flex items-center justify-center bg-white rounded-lg overflow-hidden">
+                    ${step.type === 'initial_word' 
+                        ? `<p class="text-3xl font-black marker-text text-center px-4 text-gray-800 underline decoration-blue-500 decoration-4 underline-offset-4">${step.value}</p>` 
+                        : `<img src="${step.value}" class="w-full h-full object-contain">`}
+                </div>
+            `;
+            return card;
+        }
+
+        function startReview() {
+            document.querySelectorAll('.whiteboard-surface > div').forEach(d => d.classList.add('hidden'));
+            document.getElementById('reveal-screen').classList.remove('hidden');
+            const stage = document.getElementById('reveal-stage');
+            stage.querySelectorAll('.reveal-card').forEach(c => c.remove());
+            book.steps.forEach((step, i) => {
+                const card = createCardElement(step, i);
+                card.id = `reveal-card-${i}`;
+                card.className = "reveal-card pos-out-left"; 
+                stage.appendChild(card);
+            });
+            const list = document.getElementById('summary-list');
+            list.innerHTML = '';
+            book.steps.forEach((step, i) => {
+                const card = createCardElement(step, i);
+                card.className = "bg-white border-4 border-gray-800 rounded-2xl p-6 shadow-xl max-w-md mx-auto transform hover:rotate-1 transition-transform";
+                list.appendChild(card);
+                if (i < book.steps.length -1) {
+                    const arrow = document.createElement('div');
+                    arrow.className = "text-center text-4xl text-gray-300 py-4";
+                    arrow.innerText = "⬇";
+                    list.appendChild(arrow);
+                }
+            });
+            revealPhase = 'start';
+            document.getElementById('restart-btn').classList.add('hidden');
+            updateReviewUI();
+        }
+
+        function updateReviewUI() {
+            const total = book.steps.length;
+            const stageTitle = document.getElementById('reveal-title');
+            const btn = document.getElementById('next-reveal-btn');
+            const arrow = document.getElementById('reveal-arrow');
+            const restartBtn = document.getElementById('restart-btn');
+
+            book.steps.forEach((_, i) => {
+                const card = document.getElementById(`reveal-card-${i}`);
+                if (revealPhase === 'start') {
+                    card.className = (i === total - 1) ? "reveal-card pos-center" : "reveal-card pos-out-left";
+                    arrow.classList.remove('active');
+                } else if (revealPhase === 'history') {
+                    arrow.classList.remove('active');
+                    if (i === currentHistoryIdx) card.className = "reveal-card pos-left";
+                    else if (i === currentHistoryIdx + 1) card.className = "reveal-card pos-right";
+                    else if (i > currentHistoryIdx + 1) card.className = "reveal-card pos-out-right";
+                    else card.className = "reveal-card pos-out-left";
+                } else if (revealPhase === 'finale') {
+                    if (i === 0) card.className = "reveal-card pos-finale-left";
+                    else if (i === total - 1) card.className = "reveal-card pos-finale-right";
+                    else card.className = "reveal-card pos-hidden";
+                    arrow.classList.add('active');
+                }
+            });
+
+            if (revealPhase === 'start') {
+                stageTitle.innerText = "最終結果は...";
+                btn.innerText = "振り返る →";
+            } else if (revealPhase === 'history') {
+                stageTitle.innerText = "答え合わせの軌跡";
+                btn.innerText = (currentHistoryIdx === 0) ? "お題と最終結果を比較" : "つぎへ →";
+            } else if (revealPhase === 'finale') {
+                stageTitle.innerText = "運命のビフォー・アフター";
+                btn.innerText = "全記録を見る";
+                restartBtn.classList.remove('hidden'); 
+            }
+        }
+
+        function handleRevealNext() {
+            const total = book.steps.length;
+            if (revealPhase === 'start') {
+                revealPhase = 'history';
+                currentHistoryIdx = total - 2; 
+                updateReviewUI();
+            } else if (revealPhase === 'history') {
+                if (currentHistoryIdx > 0) {
+                    currentHistoryIdx--;
+                    updateReviewUI();
+                } else {
+                    const curtain = document.getElementById('curtain');
+                    curtain.classList.add('active');
+                    setTimeout(() => {
+                        revealPhase = 'finale';
+                        updateReviewUI();
+                        setTimeout(() => curtain.classList.remove('active'), 500);
+                    }, 800);
+                }
+            } else {
+                document.getElementById('summary-screen').classList.remove('hidden');
+            }
+        }
+    </script>
+</body>
+</html>
