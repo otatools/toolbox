@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>お絵かき伝言ゲーム - 演出完全版</title>
+    <title>お絵かき伝言ゲーム</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -84,6 +84,10 @@
         canvas { touch-action: none; cursor: crosshair; display: block; }
         .tool-btn { transition: all 0.2s; border: 2px solid transparent; }
         .tool-btn.active { border-color: #2563eb; background-color: #eff6ff; transform: scale(1.05); }
+        /* 修正：色ボタンの選択状態スタイル */
+        .color-btn { transition: all 0.2s; border-width: 2px; border-color: white; }
+        .color-btn.active { transform: scale(1.2); ring: 3px; ring-color: #2563eb; outline: 3px solid #2563eb; outline-offset: 2px; }
+
         .marker-text { font-family: 'Kosugi Maru', cursive; }
 
         @media (max-width: 768px) {
@@ -205,7 +209,7 @@
                     </div>
                     
                     <div class="mt-8 text-xs text-gray-400 opacity-60 tracking-wider">
-                        お絵かき伝言ゲーム　|　ver3.9　|　ota tools
+                        お絵かき伝言ゲーム　|　ver4.0　|　ota tools
                     </div>
                 </div>
 
@@ -270,9 +274,13 @@
                             </button>
 
                             <hr class="w-8 border-slate-200">
-                            <button onclick="setStrokeColor('#2f3640')" class="w-8 h-8 rounded-full bg-[#2f3640] border-2 border-white shadow-md"></button>
-                            <button onclick="setStrokeColor('#e84118')" class="w-8 h-8 rounded-full bg-[#e84118] border-2 border-white shadow-md"></button>
-                            <button onclick="setStrokeColor('#0097e6')" class="w-8 h-8 rounded-full bg-[#0097e6] border-2 border-white shadow-md"></button>
+                            <button id="color-#2f3640" onclick="setStrokeColor('#2f3640')" class="color-btn w-8 h-8 rounded-full bg-[#2f3640] shadow-md active" title="黒"></button>
+                            <button id="color-#e84118" onclick="setStrokeColor('#e84118')" class="color-btn w-8 h-8 rounded-full bg-[#e84118] shadow-md" title="赤"></button>
+                            <button id="color-#0097e6" onclick="setStrokeColor('#0097e6')" class="color-btn w-8 h-8 rounded-full bg-[#0097e6] shadow-md" title="青"></button>
+                            <button id="color-#fbc531" onclick="setStrokeColor('#fbc531')" class="color-btn w-8 h-8 rounded-full bg-[#fbc531] shadow-md" title="黄"></button>
+                            <button id="color-#44bd32" onclick="setStrokeColor('#44bd32')" class="color-btn w-8 h-8 rounded-full bg-[#44bd32] shadow-md" title="緑"></button>
+                            <button id="color-#9c88ff" onclick="setStrokeColor('#9c88ff')" class="color-btn w-8 h-8 rounded-full bg-[#9c88ff] shadow-md" title="紫"></button>
+
                             <div class="flex-grow"></div>
                             <button onclick="clearCanvas()" class="w-14 h-14 p-1 bg-transparent rounded-xl hover:bg-red-50 text-gray-400 hover:text-red-500 transition-colors">
                                 <svg version="1.1" viewBox="0 0 300 300" class="icon-svg">
@@ -578,8 +586,24 @@ hard: [
             currentTool = t;
             document.querySelectorAll('.tool-btn').forEach(b => b.classList.remove('active'));
             document.getElementById(`tool-${t}`).classList.add('active');
+            // 修正：消しゴムの時は色選択の枠線を消す
+            if (t === 'eraser') {
+                document.querySelectorAll('.color-btn').forEach(b => b.classList.remove('active'));
+            } else {
+                // ペンに戻った時は現在の色の枠線を復活させる
+                const colorBtn = document.getElementById(`color-${currentColor}`);
+                if (colorBtn) colorBtn.classList.add('active');
+            }
         }
-        function setStrokeColor(c) { currentColor = c; setTool('pen'); }
+        
+        // 修正：色選択時の UI 更新
+        function setStrokeColor(c) { 
+            currentColor = c; 
+            setTool('pen'); 
+            document.querySelectorAll('.color-btn').forEach(b => b.classList.remove('active'));
+            const activeBtn = document.getElementById(`color-${c}`);
+            if (activeBtn) activeBtn.classList.add('active');
+        }
         
         function clearCanvas() { 
             if(ctx) {
