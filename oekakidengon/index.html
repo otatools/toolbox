@@ -25,6 +25,7 @@
             justify-content: center;
             touch-action: none;
             margin: 0;
+            position: fixed;
         }
         .whiteboard-frame {
             background: #dcdde1;
@@ -32,8 +33,8 @@
             border-radius: 12px;
             box-shadow: 0 10px 30px rgba(0,0,0,0.5);
             border: 4px solid #7f8c8d;
-            height: 96dvh;
-            width: 96vw;
+            height: 98dvh;
+            width: 98vw;
             max-width: 1600px;
             display: flex;
             flex-direction: column;
@@ -71,7 +72,7 @@
             min-height: 0;
             background: #f1f2f6;
             border-radius: 12px;
-            padding: 15px;
+            padding: 10px;
         }
         #canvas-wrapper-inner {
             background: white;
@@ -80,6 +81,7 @@
             box-shadow: 0 8px 16px rgba(0,0,0,0.15);
             position: relative;
             overflow: hidden;
+            touch-action: none;
         }
         canvas { touch-action: none; cursor: crosshair; display: block; }
         .tool-btn { transition: all 0.2s; border: 2px solid transparent; }
@@ -89,11 +91,31 @@
 
         .marker-text { font-family: 'Kosugi Maru', cursive; }
 
+        /* スマホ向けレスポンシブ調整 */
         @media (max-width: 768px) {
-            .content-area { flex-direction: column; }
-            .side-panel-left { width: 100%; height: auto; }
-            .side-panel-right { width: 100%; height: auto; flex-direction: row; justify-content: center; padding: 4px; gap: 8px; }
+            .whiteboard-frame { height: 100dvh; width: 100vw; border-radius: 0; border: none; padding: 4px; }
+            .content-area { flex-direction: column; padding: 5px; gap: 5px; }
+            /* パネルの高さを100pxから拡張し、お題を見やすく修正 */
+            .side-panel-left { width: 100%; height: 180px; flex-shrink: 0; }
+            .side-panel-right { 
+                width: 100%; 
+                height: 60px; 
+                flex-direction: row !important; 
+                justify-content: center; 
+                align-items: center;
+                padding: 0 10px; 
+                gap: 10px; 
+                flex-shrink: 0;
+            }
             .side-panel-right hr { display: none; }
+            .side-panel-right .flex-grow { display: none; }
+            .tool-btn { width: 44px; height: 44px; padding: 4px; }
+            .color-btn { width: 28px; height: 28px; }
+            #info-word-display { font-size: 1.5rem; }
+            #info-footer-msg { display: none; } 
+            .canvas-container-outer { padding: 5px; flex-grow: 1; }
+            /* 画像自体の表示サイズを最大化 */
+            #info-image-display { width: 100%; height: 100%; object-fit: contain; }
         }
 
         #reveal-stage {
@@ -107,7 +129,8 @@
         }
         .reveal-card {
             position: absolute;
-            width: 340px;
+            width: 90%;
+            max-width: 340px;
             background: white;
             border: 4px solid #d1d5db;
             border-radius: 16px;
@@ -119,8 +142,14 @@
         .reveal-card img { max-width: 100%; height: auto; border-radius: 8px; border: 1px solid #eee; }
 
         .pos-center-origin { opacity: 1; transform: translate(0, 0) scale(1.0); z-index: 50; border-color: #3b82f6; box-shadow: 0 20px 40px rgba(59,130,246,0.3); }
-        .pos-center { opacity: 1; transform: translate(-180px, 0) scale(1.0); z-index: 50; border-color: #3b82f6; box-shadow: 0 20px 40px rgba(59,130,246,0.2); }
-        .pos-right { opacity: 1; transform: translate(180px, 0) scale(0.95); z-index: 40; border-color: #d1d5db; }
+        .pos-center { opacity: 1; transform: translate(-20%, 0) scale(1.0); z-index: 50; border-color: #3b82f6; box-shadow: 0 20px 40px rgba(59,130,246,0.2); }
+        .pos-right { opacity: 1; transform: translate(60%, 0) scale(0.9); z-index: 40; border-color: #d1d5db; }
+        
+        @media (max-width: 640px) {
+            .pos-center { transform: translate(-10%, 0) scale(0.9); }
+            .pos-right { transform: translate(40%, 0) scale(0.8); }
+        }
+
         .pos-left { opacity: 0; transform: translate(-500px, 0) scale(0.8); z-index: 10; }
         .pos-hidden-left { opacity: 0; transform: translate(-500px, 0) scale(0.8); z-index: 10; }
         .pos-hidden-right { opacity: 0; transform: translate(500px, 0) scale(0.8); z-index: 10; }
@@ -155,7 +184,6 @@
         
         .icon-svg { width: 100%; height: 100%; display: block; }
         .icon-st0 { fill:none; stroke:currentColor; stroke-width:8; stroke-linecap:round; stroke-linejoin:round; stroke-miterlimit:10; }
-        .icon-st1 { fill:currentColor; }
     </style>
 </head>
 <body>
@@ -180,8 +208,6 @@
                                     <option value="4" selected>4人</option>
                                     <option value="5">5人</option>
                                     <option value="6">6人</option>
-                                    <option value="7">7人</option>
-                                    <option value="8">8人</option>
                                 </select>
                             </div>
                             <div class="bg-gray-50 p-3 rounded-xl border text-center">
@@ -203,9 +229,8 @@
                         <div id="name-inputs" class="grid grid-cols-2 gap-2 max-h-[30vh] overflow-y-auto p-1"></div>
                         <button onclick="startGame()" class="w-full bg-blue-600 text-white py-5 rounded-xl font-black text-2xl shadow-lg active:scale-95 transition-all">はじめる！</button>
                     </div>
-                    
                     <div class="mt-8 text-xs text-gray-400 opacity-60 tracking-wider">
-                        お絵かき伝言ゲーム　|　ver5.0　|　ota tools
+                        お絵かき伝言ゲーム　|　ver6.0　|　ota tools
                     </div>
                 </div>
 
@@ -233,23 +258,23 @@
                     <div class="content-area">
                         <div class="side-panel-left bg-slate-50 rounded-xl flex flex-col p-4 border shadow-inner overflow-hidden">
                             <p id="info-header" class="text-[10px] font-black text-gray-400 mb-2 uppercase tracking-widest text-center"></p>
-                            <div class="bg-white p-4 rounded-xl border shadow-sm flex-grow flex items-center justify-center overflow-hidden">
-                                <div id="info-word-display" class="hidden text-3xl font-black marker-text text-blue-600 text-center"></div>
+                            <div class="bg-white p-2 md:p-4 rounded-xl border shadow-sm flex-grow flex items-center justify-center overflow-hidden">
+                                <div id="info-word-display" class="hidden text-2xl md:text-3xl font-black marker-text text-blue-600 text-center"></div>
                                 <img id="info-image-display" class="hidden max-w-full max-h-full object-contain" alt="おだい画像">
                             </div>
-                            <div id="info-footer-msg" class="mt-4 p-3 rounded-lg border text-center">
-                                <p class="text-xs font-black"></p>
+                            <div id="info-footer-msg" class="mt-2 md:mt-4 p-2 md:p-3 rounded-lg border text-center">
+                                <p class="text-[10px] md:text-xs font-black"></p>
                             </div>
                         </div>
 
                         <div class="canvas-container-outer" id="canvas-container">
-                            <div id="mode-label" class="mb-3 text-xs font-black bg-white px-4 py-1.5 rounded-full shadow-sm border-2"></div>
+                            <div id="mode-label" class="mb-2 md:mb-3 text-[10px] md:text-xs font-black bg-white px-4 py-1.5 rounded-full shadow-sm border-2"></div>
                             <div id="canvas-wrapper-inner">
                                 <canvas id="drawing-canvas"></canvas>
                             </div>
                         </div>
 
-                        <div id="toolbar" class="side-panel-right flex flex-col items-center space-y-4 py-4 bg-slate-50 rounded-xl border shadow-inner">
+                        <div id="toolbar" class="side-panel-right flex flex-col items-center space-y-4 py-4 bg-slate-50 rounded-xl border shadow-inner overflow-x-auto">
                             <button id="tool-pen" onclick="setTool('pen')" class="tool-btn w-14 h-14 p-1 bg-white rounded-xl shadow-sm active">
                                 <svg version="1.1" viewBox="0 0 300 300" class="icon-svg">
                                     <g>
@@ -327,7 +352,7 @@
                     <div class="flex flex-col md:flex-row items-center justify-center gap-8 w-full max-w-4xl">
                         <div class="flex-1 space-y-4">
                             <p class="text-sm font-black text-blue-500 tracking-widest">最初のお題</p>
-                            <div id="first-word-result" class="text-4xl md:text-5xl font-black marker-text p-8 bg-blue-50 rounded-3xl border-4 border-blue-200 text-blue-600"></div>
+                            <div id="first-word-result" class="text-3xl md:text-5xl font-black marker-text p-8 bg-blue-50 rounded-3xl border-4 border-blue-200 text-blue-600"></div>
                         </div>
                         <div class="text-4xl font-black text-gray-300">➜</div>
                         <div class="flex-1 space-y-4">
@@ -418,7 +443,6 @@ hard: [
         let players = [], book = { steps: [] }, currentPlayerIdx = 0;
         let isDrawing = false, canvas, ctx, timerInterval;
         let currentTool = 'pen', currentColor = '#2f3640', lastX = 0, lastY = 0;
-        
         let reviewSteps = [];
         let currentRevealIdx = 0;
 
@@ -437,17 +461,10 @@ hard: [
             const shuffleType = document.getElementById('shuffle-select').value;
             players = (shuffleType === 'shuffle') ? [...names].sort(() => Math.random() - 0.5) : [...names];
             const diff = document.getElementById('difficulty-select').value;
-            
             let availableWords = WORD_LISTS[diff].filter(w => !USED_WORDS.includes(w));
-            
-            if (availableWords.length === 0) {
-                USED_WORDS = [];
-                availableWords = WORD_LISTS[diff];
-            }
-
+            if (availableWords.length === 0) { USED_WORDS = []; availableWords = WORD_LISTS[diff]; }
             const word = availableWords[Math.floor(Math.random() * availableWords.length)];
             USED_WORDS.push(word); 
-            
             book = { steps: [{ type: 'word', value: word, author: "さいしょのおだい", originalIdx: 0 }] };
             currentPlayerIdx = 0;
             showPassScreen();
@@ -461,16 +478,14 @@ hard: [
 
         function startTurn() {
             document.getElementById('pass-screen').classList.add('hidden');
-            const gameScreen = document.getElementById('game-screen');
-            gameScreen.classList.remove('hidden');
-            
+            document.getElementById('game-screen').classList.remove('hidden');
             const lastStep = book.steps[book.steps.length - 1];
             document.getElementById('player-indicator').innerText = players[currentPlayerIdx];
             document.getElementById('step-counter-label').innerText = `${currentPlayerIdx + 1}人目 / 全${players.length}人`;
             
-            const infoHeader = document.getElementById('info-header');
             const infoWord = document.getElementById('info-word-display');
             const infoImage = document.getElementById('info-image-display');
+            const infoHeader = document.getElementById('info-header');
             const infoFooter = document.getElementById('info-footer-msg');
             const modeLabel = document.getElementById('mode-label');
 
@@ -479,12 +494,11 @@ hard: [
             if (lastStep.type === 'sketch') {
                 infoWord.classList.add('hidden');
                 infoImage.classList.remove('hidden');
-                infoImage.src = lastStep.value;
+                infoImage.src = lastStep.value; 
                 infoHeader.innerText = "まえの人の絵";
-                infoFooter.className = "mt-4 p-3 rounded-lg border border-orange-100 bg-orange-50 text-center text-orange-600";
                 infoFooter.querySelector('p').innerText = "なにが描いてあるか、キャンバスに「文字」で書いてね！";
                 modeLabel.innerText = "回答欄（文字を大きく書いてね）";
-                modeLabel.className = "mb-3 text-xs font-black text-orange-600 bg-white px-4 py-1.5 rounded-full shadow-sm border-2 border-orange-200";
+                modeLabel.className = "mb-2 md:mb-3 text-[10px] md:text-xs font-black text-orange-600 bg-white px-4 py-1.5 rounded-full shadow-sm border-2 border-orange-200";
             } else {
                 if (lastStep.type === 'word') {
                     infoImage.classList.add('hidden');
@@ -493,14 +507,13 @@ hard: [
                 } else {
                     infoWord.classList.add('hidden');
                     infoImage.classList.remove('hidden');
-                    infoImage.src = lastStep.value;
+                    infoImage.src = lastStep.value; 
                 }
-                
+
                 infoHeader.innerText = lastStep.author === "さいしょのおだい" ? "最初のおだい" : "まえの人の回答";
-                infoFooter.className = "mt-4 p-3 rounded-lg border border-blue-100 bg-blue-50 text-center text-blue-600";
                 infoFooter.querySelector('p').innerText = "この言葉を絵にしてね！";
                 modeLabel.innerText = "キャンバス（絵を描いてね）";
-                modeLabel.className = "mb-3 text-xs font-black text-blue-600 bg-white px-4 py-1.5 rounded-full shadow-sm border-2 border-blue-200";
+                modeLabel.className = "mb-2 md:mb-3 text-[10px] md:text-xs font-black text-blue-600 bg-white px-4 py-1.5 rounded-full shadow-sm border-2 border-blue-200";
             }
 
             requestAnimationFrame(() => {
@@ -509,35 +522,28 @@ hard: [
             });
         }
 
-        window.addEventListener('resize', () => {
-            if (!document.getElementById('game-screen').classList.contains('hidden')) {
-                adjustCanvasSize();
-            }
-        });
-
         function adjustCanvasSize() {
             const container = document.getElementById('canvas-container');
             const wrapper = document.getElementById('canvas-wrapper-inner');
             const modeLabel = document.getElementById('mode-label');
+            const isMobile = window.innerWidth <= 768;
             
-            const padding = 40;
-            const labelHeight = modeLabel.offsetHeight + 20;
+            const padding = isMobile ? 10 : 40;
+            const labelHeight = modeLabel.offsetHeight + 10;
             const availableW = container.clientWidth - padding;
             const availableH = container.clientHeight - padding - labelHeight;
-
-            const baseSize = Math.min(availableW, availableH);
             
             const lastStep = book.steps[book.steps.length - 1];
-            const isTextStep = lastStep.type === 'sketch';
-
-            if (isTextStep) {
-                wrapper.style.width = `${baseSize}px`;
-                wrapper.style.height = `${baseSize / 3}px`;
+            
+            if (lastStep.type === 'sketch') {
+                const baseWidth = Math.min(availableW, 600); 
+                wrapper.style.width = `${baseWidth}px`;
+                wrapper.style.height = `${baseWidth / 3}px`;
             } else {
+                const baseSize = Math.max(Math.min(availableW, availableH), 100);
                 wrapper.style.width = `${baseSize}px`;
                 wrapper.style.height = `${baseSize}px`;
             }
-
             initCanvas();
         }
 
@@ -559,10 +565,7 @@ hard: [
                 const rect = canvas.getBoundingClientRect();
                 let clientX = e.touches ? e.touches[0].clientX : e.clientX;
                 let clientY = e.touches ? e.touches[0].clientY : e.clientY;
-                return { 
-                    x: (clientX - rect.left) * (w / rect.width), 
-                    y: (clientY - rect.top) * (h / rect.height) 
-                };
+                return { x: (clientX - rect.left) * (w / rect.width), y: (clientY - rect.top) * (h / rect.height) };
             };
             const start = (e) => { isDrawing = true; const p = getPos(e); lastX = p.x; lastY = p.y; };
             const draw = (e) => {
@@ -577,7 +580,7 @@ hard: [
                 } else {
                     ctx.globalCompositeOperation = 'source-over';
                     ctx.strokeStyle = currentColor;
-                    ctx.lineWidth = 6;
+                    ctx.lineWidth = window.innerWidth <= 768 ? 4 : 6;
                 }
                 ctx.stroke();
                 lastX = p.x; lastY = p.y;
@@ -596,18 +599,13 @@ hard: [
             document.getElementById(`tool-${t}`).classList.add('active');
         }
         function setStrokeColor(c) { 
-            currentColor = c; 
-            setTool('pen'); 
+            currentColor = c; setTool('pen'); 
             document.querySelectorAll('.color-btn').forEach(b => b.classList.remove('active'));
             const activeBtn = document.getElementById(`color-${c}`);
             if (activeBtn) activeBtn.classList.add('active');
         }
         function clearCanvas() { 
-            if(ctx) {
-                ctx.globalCompositeOperation = 'source-over';
-                ctx.fillStyle = '#ffffff';
-                ctx.fillRect(0, 0, canvas.width, canvas.height);
-            } 
+            if(ctx) { ctx.globalCompositeOperation = 'source-over'; ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, canvas.width, canvas.height); } 
         }
 
         function startTimer() {
@@ -616,8 +614,7 @@ hard: [
             el.innerText = t;
             clearInterval(timerInterval);
             timerInterval = setInterval(() => {
-                t--;
-                el.innerText = t;
+                t--; el.innerText = t;
                 if(t <= 0) { clearInterval(timerInterval); submitStep(); }
             }, 1000);
         }
@@ -626,31 +623,23 @@ hard: [
             clearInterval(timerInterval);
             const lastStep = book.steps[book.steps.length - 1];
             const content = canvas.toDataURL('image/png');
-            
             book.steps.push({ 
                 type: lastStep.type === 'sketch' ? 'word_image' : 'sketch', 
                 value: content, 
                 author: players[currentPlayerIdx],
                 originalIdx: book.steps.length
             });
-
             currentPlayerIdx++;
             if (currentPlayerIdx >= players.length) {
                 document.querySelectorAll('.whiteboard-surface > div:not(#curtain)').forEach(d => d.classList.add('hidden'));
                 document.getElementById('finish-screen').classList.remove('hidden');
-            } else {
-                showPassScreen();
-            }
+            } else { showPassScreen(); }
         }
 
         function triggerReviewSequence() {
             const curtain = document.getElementById('curtain');
             curtain.classList.add('curtain-closed');
-            
-            setTimeout(() => {
-                startReview();
-                curtain.classList.remove('curtain-closed');
-            }, 1000);
+            setTimeout(() => { startReview(); curtain.classList.remove('curtain-closed'); }, 1000);
         }
 
         function startReview() {
@@ -659,24 +648,13 @@ hard: [
             reviewSteps = [...book.steps].reverse();
             const stage = document.getElementById('reveal-stage');
             stage.innerHTML = '';
-            
             reviewSteps.forEach((step, i) => {
                 const card = document.createElement('div');
                 card.id = `reveal-card-${i}`;
                 card.className = "reveal-card pos-hidden-left";
-                let contentHtml = '';
-                if (step.type === 'word') {
-                    contentHtml = `<div class="text-4xl font-black text-center py-10 text-blue-600">${step.value}</div>`;
-                } else {
-                    contentHtml = `<img src="${step.value}" alt="step">`;
-                }
+                let contentHtml = step.type === 'word' ? `<div class="text-3xl font-black text-center py-10 text-blue-600">${step.value}</div>` : `<img src="${step.value}" alt="step">`;
                 let label = step.author === "さいしょのおだい" ? 'START おだい' : `${step.originalIdx}人目：${step.author}`;
-                card.innerHTML = `
-                    <div class="text-[10px] font-bold text-gray-400 mb-2 uppercase tracking-tighter">${label}</div>
-                    <div class="bg-gray-50 rounded-lg overflow-hidden border">
-                        ${contentHtml}
-                    </div>
-                `;
+                card.innerHTML = `<div class="text-[10px] font-bold text-gray-400 mb-2 uppercase tracking-tighter">${label}</div><div class="bg-gray-50 rounded-lg overflow-hidden border">${contentHtml}</div>`;
                 stage.appendChild(card);
             });
             currentRevealIdx = 0;
@@ -688,27 +666,19 @@ hard: [
             const titleEl = document.getElementById('reveal-title');
             const btn = document.getElementById('next-reveal-btn');
             const counter = document.getElementById('reveal-counter');
-
             reviewSteps.forEach((_, i) => {
                 const card = document.getElementById(`reveal-card-${i}`);
                 if (!card) return;
-
                 if (currentRevealIdx === 0) {
                     if (i === 0) card.className = "reveal-card pos-center-origin";
                     else card.className = "reveal-card pos-hidden-left";
                     titleEl.innerText = "最終的な結果は...";
                 } else {
-                    if (i === currentRevealIdx) {
-                        card.className = "reveal-card pos-center";
-                    } else if (i === currentRevealIdx - 1) {
-                        card.className = "reveal-card pos-right";
-                    } else if (i < currentRevealIdx - 1) {
-                        card.className = "reveal-card pos-hidden-right";
-                    } else {
-                        card.className = "reveal-card pos-hidden-left";
-                    }
-                    const step = reviewSteps[currentRevealIdx];
-                    titleEl.innerText = step.author === "さいしょのおだい" ? "最初のお題はこれだった！" : "その前は...";
+                    if (i === currentRevealIdx) card.className = "reveal-card pos-center";
+                    else if (i === currentRevealIdx - 1) card.className = "reveal-card pos-right";
+                    else if (i < currentRevealIdx - 1) card.className = "reveal-card pos-hidden-right";
+                    else card.className = "reveal-card pos-hidden-left";
+                    titleEl.innerText = reviewSteps[currentRevealIdx].author === "さいしょのおだい" ? "最初のお題はこれだった！" : "その前は...";
                 }
             });
             counter.innerText = `${currentRevealIdx + 1} / ${total}`;
@@ -716,12 +686,8 @@ hard: [
         }
 
         function handleRevealNext() {
-            if (currentRevealIdx < reviewSteps.length - 1) {
-                currentRevealIdx++;
-                updateRevealDisplay();
-            } else {
-                showResultComparison();
-            }
+            if (currentRevealIdx < reviewSteps.length - 1) { currentRevealIdx++; updateRevealDisplay(); }
+            else { showResultComparison(); }
         }
 
         function showResultComparison() {
@@ -733,15 +699,9 @@ hard: [
                 document.getElementById('first-word-result').innerText = book.steps[0].value;
                 const lastImageEl = document.getElementById('last-image-result');
                 const lastStep = book.steps[book.steps.length - 1];
-                if (lastStep.type === 'sketch' || lastStep.type === 'word_image') {
-                    lastImageEl.src = lastStep.value;
-                    lastImageEl.classList.remove('hidden');
-                } else {
-                    lastImageEl.classList.add('hidden');
-                }
-                setTimeout(() => {
-                    curtain.classList.remove('curtain-closed');
-                }, 300);
+                if (lastStep.type === 'sketch' || lastStep.type === 'word_image') { lastImageEl.src = lastStep.value; lastImageEl.classList.remove('hidden'); }
+                else { lastImageEl.classList.add('hidden'); }
+                setTimeout(() => { curtain.classList.remove('curtain-closed'); }, 300);
             }, 800);
         }
 
@@ -753,18 +713,14 @@ hard: [
                 const item = document.createElement('div');
                 item.className = "bg-white p-5 rounded-2xl border shadow-sm flex flex-col w-full max-w-sm fade-in-up";
                 item.style.animationDelay = `${index * 0.1}s`;
-                let contentHtml = step.type === 'word' ? 
-                    `<div class="text-3xl font-black text-center text-blue-600 my-6">${step.value}</div>` : 
-                    `<img src="${step.value}" class="w-full h-auto rounded-xl border bg-gray-50 mt-2">`;
+                let contentHtml = step.type === 'word' ? `<div class="text-2xl font-black text-center text-blue-600 my-6">${step.value}</div>` : `<img src="${step.value}" class="w-full h-auto rounded-xl border bg-gray-50 mt-2">`;
                 let label = step.author === "さいしょのおだい" ? 'おだい' : `${step.originalIdx}人目：${step.author}`;
-                let labelColor = step.author === "さいしょのおだい" ? 'text-blue-500' : 'text-gray-500';
-                item.innerHTML = `<div class="text-xs font-black ${labelColor} mb-2 border-b pb-2 tracking-wider">${label}</div>${contentHtml}`;
+                item.innerHTML = `<div class="text-xs font-black text-gray-500 mb-2 border-b pb-2 tracking-wider">${label}</div>${contentHtml}`;
                 list.appendChild(item);
                 if (index < book.steps.length - 1) {
                     const arrow = document.createElement('div');
                     arrow.className = "flex justify-center py-2 fade-in-up";
-                    arrow.style.animationDelay = `${index * 0.1 + 0.05}s`;
-                    arrow.innerHTML = `<div class="bg-gray-200 rounded-full w-10 h-10 flex items-center justify-center text-gray-500 font-bold shadow-inner">↓</div>`;
+                    arrow.innerHTML = `<div class="bg-gray-200 rounded-full w-8 h-8 flex items-center justify-center text-gray-500 font-bold shadow-inner">↓</div>`;
                     list.appendChild(arrow);
                 }
             });
@@ -774,6 +730,10 @@ hard: [
             document.querySelectorAll('.whiteboard-surface > div:not(#curtain)').forEach(d => d.classList.add('hidden'));
             document.getElementById('setup-screen').classList.remove('hidden');
         }
+
+        window.addEventListener('resize', () => {
+            if (!document.getElementById('game-screen').classList.contains('hidden')) { adjustCanvasSize(); }
+        });
     </script>
 </body>
 </html>
