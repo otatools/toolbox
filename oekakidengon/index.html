@@ -83,7 +83,7 @@
             overflow: hidden;
             touch-action: none;
         }
-        canvas { touch-action: none; cursor: crosshair; display: block; }
+        canvas { touch-action: none; cursor: crosshair; display: block; width: 100% !important; height: 100% !important; }
         .tool-btn { transition: all 0.2s; border: 2px solid transparent; }
         .tool-btn.active { border-color: #2563eb; background-color: #eff6ff; transform: scale(1.05); }
         .color-btn { transition: all 0.2s; border-width: 2px; border-color: white; }
@@ -113,8 +113,8 @@
             #info-word-display { font-size: 1.5rem; }
             #info-footer-msg { display: none; } 
             .canvas-container-outer { padding: 5px; flex-grow: 1; }
-            /* ここを修正：スマホでお題画像が小さくならないように強制拡大 */
-            #info-image-display { width: 100% !important; height: 100% !important; object-fit: contain; }
+            /* スマホで前の絵を画面いっぱいに表示 */
+            #info-image-display { width: 100% !important; height: 100% !important; max-width: 100% !important; max-height: 100% !important; object-fit: contain; }
         }
 
         #reveal-stage {
@@ -138,7 +138,7 @@
             transition: all 0.7s cubic-bezier(0.34, 1.56, 0.64, 1);
             opacity: 0;
         }
-        .reveal-card img { max-width: 100%; height: auto; border-radius: 8px; border: 1px solid #eee; }
+        .reveal-card img { width: 100% !important; height: auto !important; border-radius: 8px; border: 1px solid #eee; }
 
         .pos-center-origin { opacity: 1; transform: translate(0, 0) scale(1.0); z-index: 50; border-color: #3b82f6; box-shadow: 0 20px 40px rgba(59,130,246,0.3); }
         .pos-center { opacity: 1; transform: translate(-20%, 0) scale(1.0); z-index: 50; border-color: #3b82f6; box-shadow: 0 20px 40px rgba(59,130,246,0.2); }
@@ -229,7 +229,7 @@
                         <button onclick="startGame()" class="w-full bg-blue-600 text-white py-5 rounded-xl font-black text-2xl shadow-lg active:scale-95 transition-all">はじめる！</button>
                     </div>
                     <div class="mt-8 text-xs text-gray-400 opacity-60 tracking-wider">
-                        お絵かき伝言ゲーム　|　ver6.2　|　ota tools
+                        お絵かき伝言ゲーム　|　ver6.3　|　ota tools
                     </div>
                 </div>
 
@@ -259,7 +259,7 @@
                             <p id="info-header" class="text-[10px] font-black text-gray-400 mb-2 uppercase tracking-widest text-center"></p>
                             <div class="bg-white p-2 md:p-4 rounded-xl border shadow-sm flex-grow flex items-center justify-center overflow-hidden">
                                 <div id="info-word-display" class="hidden text-2xl md:text-3xl font-black marker-text text-blue-600 text-center"></div>
-                                <img id="info-image-display" class="hidden max-w-full max-h-full object-contain" alt="おだい画像">
+                                <img id="info-image-display" class="hidden" alt="おだい画像">
                             </div>
                             <div id="info-footer-msg" class="mt-2 md:mt-4 p-2 md:p-3 rounded-lg border text-center">
                                 <p class="text-[10px] md:text-xs font-black"></p>
@@ -550,11 +550,19 @@ hard: [
             canvas = document.getElementById('drawing-canvas');
             ctx = canvas.getContext('2d', { desynchronized: true });
             const wrapper = canvas.parentNode;
+            
+            // 重要：高DPR（スマホ）でのボケ・ズレを防止
             const dpr = window.devicePixelRatio || 1;
-            const w = wrapper.clientWidth, h = wrapper.clientHeight;
+            const w = wrapper.clientWidth;
+            const h = wrapper.clientHeight;
+            
+            // キャンバス自体のピクセルサイズをセット
             canvas.width = w * dpr;
             canvas.height = h * dpr;
+            
+            // 表示サイズをCSSで制御（重要：!importantはCSS側に記述済み）
             ctx.scale(dpr, dpr);
+            
             ctx.lineCap = 'round';
             ctx.lineJoin = 'round';
             ctx.fillStyle = '#ffffff';
@@ -564,7 +572,11 @@ hard: [
                 const rect = canvas.getBoundingClientRect();
                 let clientX = e.touches ? e.touches[0].clientX : e.clientX;
                 let clientY = e.touches ? e.touches[0].clientY : e.clientY;
-                return { x: (clientX - rect.left) * (w / rect.width), y: (clientY - rect.top) * (h / rect.height) };
+                // ブラウザ上の表示位置とCanvas内部座標を正しくマッピング
+                return { 
+                    x: (clientX - rect.left) * (w / rect.width), 
+                    y: (clientY - rect.top) * (h / rect.height) 
+                };
             };
             const start = (e) => { isDrawing = true; const p = getPos(e); lastX = p.x; lastY = p.y; };
             const draw = (e) => {
@@ -579,8 +591,8 @@ hard: [
                 } else {
                     ctx.globalCompositeOperation = 'source-over';
                     ctx.strokeStyle = currentColor;
-                    /* スマホ時のペンの太さを3に修正（PCは6） */
-                    ctx.lineWidth = window.innerWidth <= 768 ? 3 : 6;
+                    // スマホ実機で最適な太さになるよう調整（dprに依存させない固定的な書き心地）
+                    ctx.lineWidth = window.innerWidth <= 768 ? 4 : 6;
                 }
                 ctx.stroke();
                 lastX = p.x; lastY = p.y;
@@ -622,6 +634,7 @@ hard: [
         function submitStep() {
             clearInterval(timerInterval);
             const lastStep = book.steps[book.steps.length - 1];
+            // 画像保存（Canvasの内容をそのまま出力）
             const content = canvas.toDataURL('image/png');
             book.steps.push({ 
                 type: lastStep.type === 'sketch' ? 'word_image' : 'sketch', 
