@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>たてわり班編成名簿作成システム</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700;900&display=swap');
+
+        body {
+            font-family: 'Noto Sans JP', sans-serif;
+            background-color: #f0f4f8;
+            margin: 0;
+            padding: 0;
+        }
+
+        /* アニメーション */
+        .step-card { display: none; }
+        .step-card.active { display: block; animation: fadeIn 0.4s ease-out; }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        /* A4 プレビュー表示 */
+        .a4-page {
+            width: 210mm; 
+            height: 297mm;
+            padding: 12mm 15mm;
+            margin: 0 auto 30px auto;
+            background: #ffffff !important;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            position: relative;
+            box-sizing: border-box;
+            color: #000 !important;
+            border: 1px solid #e2e8f0;
+            display: flex;
+            flex-direction: column;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+        }
+
+        /* テーブルスタイル */
+        .row-male { background-color: #ffffff !important; }
+        .row-female { background-color: #fff1f2 !important; -webkit-print-color-adjust: exact; }
+        
+        table { 
+            border-collapse: collapse; 
+            width: 100%; 
+            table-layout: fixed; 
+            border: 1.5px solid #000; 
+        }
+        table th { 
+            background: #f8fafc !important; 
+            border: 1px solid #000; 
+            font-size: 10px; 
+            padding: 4px 0;
+            font-weight: 700;
+            -webkit-print-color-adjust: exact;
+        }
+        table td {
+            color: #000 !important;
+            border: 1px solid #000;
+            height: 23px; 
+            font-size: 11px;
+            text-align: center;
+            vertical-align: middle;
+        }
+
+        /* 班の枠組みデザイン */
+        .group-container {
+            margin-bottom: 8mm;
+            border: 2px solid #000;
+            border-radius: 12px;
+            overflow: hidden; /* 角丸を適用するために必須 */
+            background-color: #fff;
+        }
+
+        .group-header {
+            background: #f1f5f9 !important;
+            color: #000 !important;
+            padding: 8px 16px;
+            border-bottom: 2px solid #000;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            -webkit-print-color-adjust: exact;
+        }
+
+        .sub-group-column {
+            padding: 8px;
+        }
+
+        /* 印刷設定 */
+        @media print {
+            html, body {
+                margin: 0 !important;
+                padding: 0 !important;
+                height: auto !important;
+            }
+
+            .no-print { 
+                display: none !important; 
+                visibility: hidden !important;
+            }
+
+            #step3 {
+                margin: 0 !important;
+                padding: 0 !important;
+            }
+
+            #pages-container {
+                display: block !important;
+                background: none !important;
+                padding: 0 !important;
+                margin: 0 !important;
+            }
+
+            .a4-page { 
+                box-shadow: none !important; 
+                margin: 0 !important; 
+                padding: 12mm 15mm !important;
+                border: none !important;
+                width: 210mm !important;
+                height: 297mm !important;
+                page-break-after: always !important;
+                page-break-before: avoid !important;
+                display: flex !important;
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+            }
+
+            .group-container {
+                border: 2px solid #000 !important;
+                border-radius: 12px !important;
+                overflow: hidden !important;
+            }
+
+            .row-female { background-color: #fff1f2 !important; }
+            .row-female td { background-color: #fff1f2 !important; }
+            .group-header { background-color: #f1f5f9 !important; }
+
+            @page {
+                size: A4 portrait;
+                margin: 0;
+            }
+        }
+    </style>
+</head>
+<body class="min-h-screen">
+
+    <!-- Header Section (操作パネル) -->
+    <div class="no-print bg-white border-b border-slate-200 sticky top-0 z-50">
+        <div class="max-w-6xl mx-auto px-6 py-4 flex justify-between items-center">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center text-white shadow-lg">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"></path></svg>
+                </div>
+                <h1 class="text-xl font-black text-slate-900 tracking-tight">たてわり班編成システム</h1>
+            </div>
+            <div id="print-controls" class="hidden flex gap-3 items-center">
+                 <div class="flex items-center gap-2 bg-slate-100 px-3 py-2 rounded-xl border border-slate-200">
+                    <span class="text-xs font-bold text-slate-600">表示班数/頁:</span>
+                    <input type="number" id="groups-per-page" min="1" max="5" value="2" onchange="updatePageLayout()" class="w-12 text-center font-bold bg-white border border-slate-300 rounded-md py-1">
+                 </div>
+                 <button onclick="exportToExcel()" class="bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2.5 rounded-xl font-bold shadow-md transition-all flex items-center gap-2">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path></svg>
+                    Excel出力
+                 </button>
+                 <button onclick="window.print()" class="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2.5 rounded-xl font-bold shadow-md transition-all">
+                    印刷 / PDF保存
+                 </button>
+            </div>
+        </div>
+    </div>
+
+    <div class="max-w-5xl mx-auto py-10 px-6 no-print" id="setup-container">
+        <!-- Step 1: 人数入力 -->
+        <div id="step1" class="step-card active">
+            <div class="mb-10">
+                <h2 class="text-3xl font-black text-slate-900 mb-2">クラス人数の登録</h2>
+                <p class="text-slate-500 font-medium">各学年・クラスごとの人数を入力してください。</p>
+            </div>
+            <div id="grade-config-container" class="grid grid-cols-1 md:grid-cols-2 gap-6"></div>
+            <div class="flex justify-end mt-12">
+                <button onclick="nextStep(2)" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-5 px-16 rounded-2xl shadow-xl transition-all transform hover:-translate-y-1">
+                    構成設定へ進む
+                </button>
+            </div>
+        </div>
+
+        <!-- Step 2: 構成設定 -->
+        <div id="step2" class="step-card">
+            <div class="mb-10 text-center">
+                <h2 class="text-3xl font-black text-slate-900 mb-2">班の構成を決める</h2>
+            </div>
+            <div class="max-w-2xl mx-auto">
+                <div class="grid grid-cols-1 gap-6 mb-10">
+                    <div class="bg-white p-8 rounded-3xl shadow-sm border border-slate-100">
+                        <h3 class="font-bold text-slate-800 mb-4">全体の班の数</h3>
+                        <input type="number" id="group-count" min="1" value="6" class="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-6 py-6 text-4xl font-black text-center focus:bg-white focus:border-indigo-500 transition-all outline-none">
+                    </div>
+                    <div class="bg-white p-8 rounded-3xl shadow-sm border border-slate-100">
+                        <h3 class="font-bold text-slate-800 mb-4">小グループ分け (A, B, C...)</h3>
+                        <select id="subgroup-count" class="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-6 py-5 text-xl font-bold text-slate-700 focus:bg-white focus:border-indigo-500 transition-all outline-none appearance-none">
+                            <option value="1">1つ (Aのみ)</option>
+                            <option value="2">2つ (A, B)</option>
+                            <option value="3" selected>3つ (A, B, C)</option>
+                            <option value="4">4つ (A, B, C, D)</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="flex justify-between items-center">
+                    <button onclick="prevStep(1)" class="text-slate-400 font-bold hover:text-slate-600">← 戻る</button>
+                    <button onclick="generateGroups()" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-5 px-16 rounded-2xl shadow-xl transition-all">名簿を作成する</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Step 3: 結果表示 -->
+    <div id="step3" class="step-card">
+        <div id="pages-container" class="flex flex-col items-center bg-slate-400 py-10 min-h-screen">
+            <!-- ページ挿入 -->
+        </div>
+    </div>
+
+    <script>
+        let currentGroupsData = [];
+
+        window.onload = () => {
+            const container = document.getElementById('grade-config-container');
+            for (let g = 1; g <= 6; g++) {
+                const gradeDiv = document.createElement('div');
+                gradeDiv.className = 'grade-card bg-white border border-slate-100 p-6 rounded-3xl shadow-sm';
+                gradeDiv.innerHTML = `
+                    <div class="flex items-center justify-between mb-6">
+                        <div class="flex items-center gap-3">
+                            <div class="w-10 h-10 bg-slate-900 text-white rounded-2xl flex items-center justify-center font-black text-lg">${g}</div>
+                            <h3 class="font-black text-lg text-slate-800">年生</h3>
+                        </div>
+                        <input type="number" min="1" max="10" value="1" id="class-count-${g}" onchange="updateClassInputs(${g}, this.value)" class="w-12 bg-slate-50 border border-slate-200 rounded-lg py-1 px-1 text-center font-bold text-slate-800">
+                    </div>
+                    <div id="grade-${g}-classes" class="grid grid-cols-1 gap-3"></div>
+                `;
+                container.appendChild(gradeDiv);
+                updateClassInputs(g, 1);
+            }
+        };
+
+        function updateClassInputs(grade, count) {
+            const container = document.getElementById(`grade-${grade}-classes`);
+            container.innerHTML = '';
+            for (let c = 1; c <= count; c++) {
+                const div = document.createElement('div');
+                div.className = 'flex items-center gap-3 bg-slate-50/50 p-3 rounded-2xl';
+                div.innerHTML = `
+                    <span class="text-[10px] font-black w-8 text-slate-400 text-center">${c}組</span>
+                    <div class="flex-1 grid grid-cols-2 gap-2">
+                        <input type="number" min="0" value="0" id="m-${grade}-${c}" placeholder="男" class="w-full bg-white border border-slate-200 rounded-xl py-2 text-center text-sm font-bold">
+                        <input type="number" min="0" value="0" id="f-${grade}-${c}" placeholder="女" class="w-full bg-rose-50/30 border border-rose-100 rounded-xl py-2 text-center text-sm font-bold text-rose-700">
+                    </div>
+                `;
+                container.appendChild(div);
+            }
+        }
+
+        function nextStep(step) {
+            document.querySelectorAll('.step-card').forEach(el => el.classList.remove('active'));
+            document.getElementById(`step${step}`).classList.add('active');
+            const controls = document.getElementById('print-controls');
+            const setup = document.getElementById('setup-container');
+            if (step === 3) { controls.classList.remove('hidden'); setup.classList.add('hidden'); }
+            else { controls.classList.add('hidden'); setup.classList.remove('hidden'); }
+            window.scrollTo({ top: 0 });
+        }
+
+        function prevStep(step) { nextStep(step); }
+
+        function generateGroups() {
+            const groupCount = parseInt(document.getElementById('group-count').value) || 1;
+            const subCount = parseInt(document.getElementById('subgroup-count').value) || 1;
+            const totalSubgroupsCount = groupCount * subCount;
+
+            let boys = []; let girls = [];
+            for (let g = 1; g <= 6; g++) {
+                const classCount = parseInt(document.getElementById(`class-count-${g}`).value);
+                for (let c = 1; c <= classCount; c++) {
+                    const mCount = parseInt(document.getElementById(`m-${g}-${c}`).value) || 0;
+                    const fCount = parseInt(document.getElementById(`f-${g}-${c}`).value) || 0;
+                    for(let i=0; i<mCount; i++) boys.push({grade: g, class: c, gender: '男'});
+                    for(let i=0; i<fCount; i++) girls.push({grade: g, class: c, gender: '女'});
+                }
+            }
+            if (boys.length + girls.length === 0) return alert("人数を入力してください");
+
+            const flatSubs = Array.from({length: totalSubgroupsCount}, (_, i) => ({ 
+                id: i, members: [], mc: 0, fc: 0, 
+                maxMc: i < (boys.length % totalSubgroupsCount) ? Math.floor(boys.length/totalSubgroupsCount) + 1 : Math.floor(boys.length/totalSubgroupsCount),
+                maxFc: (totalSubgroupsCount - 1 - i) < (girls.length % totalSubgroupsCount) ? Math.floor(girls.length/totalSubgroupsCount) + 1 : Math.floor(girls.length/totalSubgroupsCount),
+                gCounts: {1:0,2:0,3:0,4:0,5:0,6:0},
+                gClassMap: {1:null, 2:null, 3:null, 4:null, 5:null, 6:null}
+            }));
+
+            const distribute = (pool) => {
+                pool.sort((a,b) => (a.grade - b.grade) || (a.class - b.class)).forEach(student => {
+                    const isM = student.gender === '男';
+                    const candidates = flatSubs.filter(s => isM ? (s.mc < s.maxMc) : (s.fc < s.maxFc));
+                    candidates.sort((a, b) => {
+                        const aMatch = (a.gClassMap[student.grade] === null || a.gClassMap[student.grade] === student.class);
+                        const bMatch = (b.gClassMap[student.grade] === null || b.gClassMap[student.grade] === student.class);
+                        if (aMatch !== bMatch) return aMatch ? -1 : 1;
+                        if (a.gCounts[student.grade] !== b.gCounts[student.grade]) return a.gCounts[student.grade] - b.gCounts[student.grade];
+                        return a.members.length - b.members.length;
+                    });
+                    const target = candidates[0];
+                    if (target) {
+                        target.members.push(student);
+                        target.gCounts[student.grade]++;
+                        target.gClassMap[student.grade] = student.class;
+                        if (isM) target.mc++; else target.fc++;
+                    }
+                });
+            };
+            distribute(boys); distribute(girls);
+
+            const groups = Array.from({length: groupCount}, (_, i) => ({ id: i + 1, subs: [], total: 0, mc: 0, fc: 0 }));
+            let sIdx = 0;
+            for (let i = 0; i < subCount; i++) {
+                const char = String.fromCharCode(65 + i);
+                for (let j = 0; j < groupCount; j++) {
+                    const s = flatSubs[sIdx++];
+                    s.label = `${groups[j].id}-${char}`;
+                    groups[j].subs.push(s);
+                    groups[j].total += s.members.length;
+                    groups[j].mc += s.mc;
+                    groups[j].fc += s.fc;
+                }
+            }
+            
+            currentGroupsData = groups;
+            updatePageLayout();
+            nextStep(3);
+        }
+
+        function updatePageLayout() {
+            const perPage = parseInt(document.getElementById('groups-per-page').value) || 2;
+            renderPages(currentGroupsData, perPage);
+        }
+
+        function renderPages(groups, perPage) {
+            const container = document.getElementById('pages-container');
+            container.innerHTML = '';
+            for (let i = 0; i < groups.length; i += perPage) {
+                const pageIdx = Math.floor(i / perPage) + 1;
+                const pageGroups = groups.slice(i, i + perPage);
+                const pageEl = createPageElement(pageIdx);
+                const pageContent = pageEl.querySelector('.page-content');
+                pageGroups.forEach(group => { pageContent.appendChild(createGroupElement(group)); });
+                container.appendChild(pageEl);
+            }
+        }
+
+        function createPageElement(idx) {
+            const div = document.createElement('div');
+            div.className = 'a4-page';
+            div.innerHTML = `
+                <div class="flex justify-between items-end mb-8 border-b-[3.5px] border-slate-900 pb-3">
+                    <h2 class="text-2xl font-black text-slate-900 tracking-tight">たてわり班編成名簿</h2>
+                    <div class="text-right"><p class="text-lg font-black text-slate-900">NO. ${idx}</p></div>
+                </div>
+                <div class="page-content space-y-2 flex-1"></div>
+            `;
+            return div;
+        }
+
+        function createGroupElement(group) {
+            const div = document.createElement('div');
+            div.className = 'group-container';
+            div.innerHTML = `
+                <div class="group-header">
+                    <span class="text-lg font-black tracking-widest">${group.id} 班</span>
+                    <span class="text-[11px] font-bold">合計: ${group.total}名 (男:${group.mc} 女:${group.fc})</span>
+                </div>
+                <div class="flex divide-x-[2px] divide-slate-900">
+                    ${group.subs.sort((a,b)=>a.label.localeCompare(b.label)).map(sub => `
+                        <div class="flex-1 sub-group-column">
+                            <div class="flex items-center justify-between bg-slate-50 border border-slate-300 rounded mb-1.5 py-1 px-2">
+                                <span class="font-black text-[12px] text-slate-800">${sub.label}</span>
+                                <div class="flex gap-1.5 text-[9px] font-bold text-slate-500">
+                                    <span>合計:${sub.members.length}名 (男:${sub.mc} 女:${sub.fc})</span>
+                                </div>
+                            </div>
+                            <table>
+                                <thead><tr><th style="width:16%">年</th><th style="width:16%">組</th><th style="width:15%"></th><th>名前</th></tr></thead>
+                                <tbody>
+                                    ${sub.members.sort((a,b)=>a.grade - b.grade).map(m => `
+                                        <tr class="${m.gender === '男' ? 'row-male' : 'row-female'}">
+                                            <td>${m.grade}</td><td>${m.class}</td><td>${m.gender[0]}</td><td></td>
+                                        </tr>
+                                    `).join('')}
+                                </tbody>
+                            </table>
+                        </div>
+                    `).join('')}
+                </div>
+            `;
+            return div;
+        }
+
+        function exportToExcel() {
+            if (!currentGroupsData.length) return;
+            const wb = XLSX.utils.book_new();
+            
+            currentGroupsData.forEach(group => {
+                const sheetData = [];
+                sheetData.push([`${group.id}班 合計: ${group.total}名 (男:${group.mc} 女:${group.fc})`]);
+                sheetData.push([]);
+                
+                group.subs.forEach(sub => {
+                    sheetData.push([`小グループ: ${sub.label}`, `合計:${sub.members.length} (男:${sub.mc} 女:${sub.fc})`]);
+                    sheetData.push(['学年', '組', '性別', '氏名']);
+                    sub.members.sort((a,b)=>a.grade - b.grade).forEach(m => {
+                        sheetData.push([m.grade, m.class, m.gender, '']);
+                    });
+                    sheetData.push([]);
+                });
+
+                const ws = XLSX.utils.aoa_to_sheet(sheetData);
+                XLSX.utils.book_append_sheet(wb, ws, `${group.id}班`);
+            });
+
+            XLSX.writeFile(wb, `たてわり班編成名簿_${new Date().toLocaleDateString()}.xlsx`);
+        }
+    </script>
+</body>
+</html>
