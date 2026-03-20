@@ -3,7 +3,32 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>都道府県名当てゲーム</title>
+    <title>都道府県マスター</title>
+    <meta name="description" content="都道府県を覚えるために大阪市の現役小学校教員が制作した、都道府県名アプリです。ota toolsのアプリの１つです。">
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "SoftwareApplication",
+      "name": "ota tools",
+      "operatingSystem": "Web",
+      "applicationCategory": "EducationalApplication",
+      "offers": {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "JPY"
+      },
+      "author": {
+        "@type": "Person",
+        "name": "太田圭一"
+      },
+      "description": "大阪市の現役小学校教員が制作した、授業や家庭で使える無料の教育・学習用アプリです。",
+      "audience": {
+        "@type": "Audience",
+        "audienceType": "小学校教員, 児童, 保護者"
+      }
+    }
+    </script>
+
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@700;900&display=swap');
@@ -112,7 +137,7 @@
                 <h1 class="text-3xl md:text-4xl font-black text-transparent bg-clip-text bg-gradient-to-r from-rose-500 to-orange-500 mb-1 drop-shadow-sm pb-1">
                     都道府県マスター
                 </h1>
-                <p class="text-gray-500 font-bold text-sm md:text-base">10問正解するまで終わらない！速さと正確さが勝負！</p>
+                <p class="text-gray-500 font-bold text-sm md:text-base">10問正解するまで終わらない！速さと正確さでハイスコアを目指せ！</p>
             </div>
 
             <div class="grid grid-cols-2 gap-2 md:gap-3 shrink-0">
@@ -146,13 +171,9 @@
                     コレクションを見る！
                 </button>
             </div>
-            
-            <div class="mt-4 text-center pb-2 shrink-0">
-                <button onclick="clearAllData()" class="text-gray-400 text-xs font-bold underline hover:text-red-400">データをぜんぶ消す</button>
-            </div>
 
             <div class="mt-8 pb-2 text-center text-[10px] text-gray-400 font-bold shrink-0">
-                都道府県マスター　|　ver3.0　|　ota tools
+                都道府県マスター　|　ver3.1　|　ota tools
             </div>
         </div>
     </div>
@@ -435,29 +456,35 @@ function showCollection() {
 function getPrefLevel(prefId) {
     const stats = JSON.parse(localStorage.getItem('mapGameStats') || '{}');
     if (!stats[prefId]) return 0;
-    // 正解数からミス数を引いてレベルを算出（間違えると色が薄くなる）
-    const level = stats[prefId].correct - stats[prefId].miss;
+    
+    let level = 0;
+    // 今回のアップデートからlevelプロパティを使用（過去データとの互換性を保つ）
+    if (stats[prefId].level !== undefined) {
+        level = stats[prefId].level;
+    } else {
+        level = Math.max(0, stats[prefId].correct - stats[prefId].miss);
+    }
+    
     return Math.max(0, Math.min(10, level));
 }
 
 function saveStats(prefId, isCorrect) {
     let stats = JSON.parse(localStorage.getItem('mapGameStats') || '{}');
-    if (!stats[prefId]) stats[prefId] = { correct: 0, miss: 0 };
+    if (!stats[prefId]) stats[prefId] = { correct: 0, miss: 0, level: 0 };
+    
+    // 過去の保存データでlevelプロパティがない場合の初期化
+    if (stats[prefId].level === undefined) {
+        stats[prefId].level = Math.max(0, stats[prefId].correct - stats[prefId].miss);
+    }
+
     if (isCorrect) {
         stats[prefId].correct++;
+        stats[prefId].level++; // 正解でレベルアップ
     } else {
         stats[prefId].miss++;
+        stats[prefId].level = Math.max(0, stats[prefId].level - 1); // 0未満にはならないようにする
     }
     localStorage.setItem('mapGameStats', JSON.stringify(stats));
-}
-
-function clearAllData() {
-    if(confirm('ハイスコアとコレクションのデータをぜんぶ消します。本当によろしいですか？')) {
-        localStorage.removeItem('mapGameHighScores');
-        localStorage.removeItem('mapGameStats');
-        updateTitleHighScores();
-        alert('データを消しました！');
-    }
 }
 
 function renderCollectionMap() {
