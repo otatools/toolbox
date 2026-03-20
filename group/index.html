@@ -160,9 +160,19 @@
         }
     </style>
 </head>
-<body class="min-h-screen">
+<body class="min-h-screen relative">
 
-    <!-- Header Section (操作パネル) -->
+    <div id="loading-overlay" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] hidden items-center justify-center">
+        <div class="bg-white p-10 rounded-3xl shadow-2xl flex flex-col items-center max-w-sm text-center">
+            <div class="relative w-16 h-16 mb-6">
+                <div class="absolute inset-0 rounded-full border-4 border-slate-100"></div>
+                <div class="absolute inset-0 rounded-full border-4 border-indigo-600 border-t-transparent animate-spin"></div>
+            </div>
+            <h3 class="text-xl font-black text-slate-800 mb-2">最適な編成を計算中</h3>
+            <p class="text-slate-500 text-sm font-medium leading-relaxed">数万回の配置シミュレーションを行い<br>条件をクリアする組み合わせを探しています...</p>
+        </div>
+    </div>
+
     <div class="no-print bg-white border-b border-slate-200 sticky top-0 z-50">
         <div class="max-w-6xl mx-auto px-6 py-4 flex justify-between items-center">
             <div class="flex items-center gap-3">
@@ -172,6 +182,10 @@
                 <h1 class="text-xl font-black text-slate-900 tracking-tight">たてわり班編成ツール</h1>
             </div>
             <div id="print-controls" class="hidden flex gap-3 items-center">
+                 <button onclick="prevStep(2)" class="text-slate-500 hover:text-slate-700 font-bold px-3 py-2 transition-all flex items-center gap-1">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
+                    戻る
+                 </button>
                  <div class="flex items-center gap-2 bg-slate-100 px-3 py-2 rounded-xl border border-slate-200">
                     <span class="text-xs font-bold text-slate-600">表示班数/頁:</span>
                     <input type="number" id="groups-per-page" min="1" max="5" value="2" onchange="updatePageLayout()" class="w-12 text-center font-bold bg-white border border-slate-300 rounded-md py-1">
@@ -188,7 +202,6 @@
     </div>
 
     <div class="max-w-5xl mx-auto py-10 px-6 no-print" id="setup-container">
-        <!-- Step 1: 人数入力 -->
         <div id="step1" class="step-card active">
             <div class="mb-10">
                 <h2 class="text-3xl font-black text-slate-900 mb-2">クラス人数の登録</h2>
@@ -202,7 +215,6 @@
             </div>
         </div>
 
-        <!-- Step 2: 構成設定 -->
         <div id="step2" class="step-card">
             <div class="mb-10 text-center">
                 <h2 class="text-3xl font-black text-slate-900 mb-2">班の構成を決める</h2>
@@ -225,16 +237,18 @@
                 </div>
                 <div class="flex justify-between items-center">
                     <button onclick="prevStep(1)" class="text-slate-400 font-bold hover:text-slate-600">← 戻る</button>
-                    <button onclick="generateGroups()" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-5 px-16 rounded-2xl shadow-xl transition-all">名簿を作成する</button>
+                    <button onclick="startGeneration()" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-5 px-16 rounded-2xl shadow-xl transition-all">名簿を作成する</button>
                 </div>
             </div>
         </div>
+        
+        <div class="mt-16 text-center text-sm text-slate-400 font-medium">
+            たてわり班編成ツール　|　ver.3.0　|　ota tools
+        </div>
     </div>
 
-    <!-- Step 3: 結果表示 -->
     <div id="step3" class="step-card">
         <div id="pages-container" class="flex flex-col items-center bg-slate-400 py-10 min-h-screen">
-            <!-- ページ挿入 -->
         </div>
     </div>
 
@@ -308,67 +322,391 @@
 
         function prevStep(step) { nextStep(step); }
 
+        function startGeneration() {
+            const overlay = document.getElementById('loading-overlay');
+            overlay.classList.remove('hidden');
+            overlay.classList.add('flex');
+            
+            requestAnimationFrame(() => {
+                requestAnimationFrame(() => {
+                    setTimeout(() => {
+                        generateGroups();
+                        overlay.classList.remove('flex');
+                        overlay.classList.add('hidden');
+                    }, 50);
+                });
+            });
+        }
+
         function generateGroups() {
             const groupCount = parseInt(document.getElementById('group-count').value) || 1;
             const subCount = parseInt(document.getElementById('subgroup-count').value) || 1;
-            const totalSubgroupsCount = groupCount * subCount;
+            const N = groupCount * subCount;
 
             let boys = []; let girls = [];
+            let byGradeClass = {};
+            for(let g=1; g<=6; g++) byGradeClass[g] = {};
+
             for (let g = 1; g <= 6; g++) {
                 const classCount = parseInt(document.getElementById(`class-count-${g}`).value);
                 for (let c = 1; c <= classCount; c++) {
                     const mCount = parseInt(document.getElementById(`m-${g}-${c}`).value) || 0;
                     const fCount = parseInt(document.getElementById(`f-${g}-${c}`).value) || 0;
-                    for(let i=0; i<mCount; i++) boys.push({grade: g, class: c, gender: '男'});
-                    for(let i=0; i<fCount; i++) girls.push({grade: g, class: c, gender: '女'});
-                }
-            }
-            if (boys.length + girls.length === 0) return alert("人数を入力してください");
-
-            const flatSubs = Array.from({length: totalSubgroupsCount}, (_, i) => ({ 
-                id: i, members: [], mc: 0, fc: 0, 
-                maxMc: i < (boys.length % totalSubgroupsCount) ? Math.floor(boys.length/totalSubgroupsCount) + 1 : Math.floor(boys.length/totalSubgroupsCount),
-                maxFc: (totalSubgroupsCount - 1 - i) < (girls.length % totalSubgroupsCount) ? Math.floor(girls.length/totalSubgroupsCount) + 1 : Math.floor(girls.length/totalSubgroupsCount),
-                gCounts: {1:0,2:0,3:0,4:0,5:0,6:0},
-                gClassMap: {1:null, 2:null, 3:null, 4:null, 5:null, 6:null}
-            }));
-
-            const distribute = (pool) => {
-                pool.sort((a,b) => (a.grade - b.grade) || (a.class - b.class)).forEach(student => {
-                    const isM = student.gender === '男';
-                    const candidates = flatSubs.filter(s => isM ? (s.mc < s.maxMc) : (s.fc < s.maxFc));
-                    candidates.sort((a, b) => {
-                        const aMatch = (a.gClassMap[student.grade] === null || a.gClassMap[student.grade] === student.class);
-                        const bMatch = (b.gClassMap[student.grade] === null || b.gClassMap[student.grade] === student.class);
-                        if (aMatch !== bMatch) return aMatch ? -1 : 1;
-                        if (a.gCounts[student.grade] !== b.gCounts[student.grade]) return a.gCounts[student.grade] - b.gCounts[student.grade];
-                        return a.members.length - b.members.length;
-                    });
-                    const target = candidates[0];
-                    if (target) {
-                        target.members.push(student);
-                        target.gCounts[student.grade]++;
-                        target.gClassMap[student.grade] = student.class;
-                        if (isM) target.mc++; else target.fc++;
+                    
+                    if (!byGradeClass[g][c]) byGradeClass[g][c] = { boys: [], girls: [] };
+                    
+                    for(let i=0; i<mCount; i++) {
+                        let student = {grade: g, class: c, gender: '男'};
+                        boys.push(student);
+                        byGradeClass[g][c].boys.push(student);
                     }
-                });
-            };
-            distribute(boys); distribute(girls);
-
-            const groups = Array.from({length: groupCount}, (_, i) => ({ id: i + 1, subs: [], total: 0, mc: 0, fc: 0 }));
-            let sIdx = 0;
-            for (let i = 0; i < subCount; i++) {
-                const char = String.fromCharCode(65 + i);
-                for (let j = 0; j < groupCount; j++) {
-                    const s = flatSubs[sIdx++];
-                    s.label = `${groups[j].id}-${char}`;
-                    groups[j].subs.push(s);
-                    groups[j].total += s.members.length;
-                    groups[j].mc += s.mc;
-                    groups[j].fc += s.fc;
+                    for(let i=0; i<fCount; i++) {
+                        let student = {grade: g, class: c, gender: '女'};
+                        girls.push(student);
+                        byGradeClass[g][c].girls.push(student);
+                    }
                 }
             }
             
+            let allStudents = [...boys, ...girls];
+            if (allStudents.length === 0) {
+                alert("人数を入力してください");
+                return;
+            }
+
+            // --- 制約の目標値計算 ---
+            const targetTotalMin = Math.floor(allStudents.length / N);
+            const targetTotalMax = Math.ceil(allStudents.length / N);
+            const targetBoysMin = Math.floor(boys.length / N);
+            const targetBoysMax = Math.ceil(boys.length / N);
+            const targetGirlsMin = Math.floor(girls.length / N);
+            const targetGirlsMax = Math.ceil(girls.length / N);
+            const targetGroupTotalMin = Math.floor(allStudents.length / groupCount);
+            const targetGroupTotalMax = Math.ceil(allStudents.length / groupCount);
+
+            let globalGradeTotals = {1:0, 2:0, 3:0, 4:0, 5:0, 6:0};
+            let targetGradeMin = {1:0, 2:0, 3:0, 4:0, 5:0, 6:0};
+            let targetGradeMax = {1:0, 2:0, 3:0, 4:0, 5:0, 6:0};
+            let globalGradeClassesCount = {1:0, 2:0, 3:0, 4:0, 5:0, 6:0};
+
+            for(let g=1; g<=6; g++) {
+                let count = allStudents.filter(s => s.grade === g).length;
+                globalGradeTotals[g] = count;
+                targetGradeMin[g] = Math.floor(count / N);
+                targetGradeMax[g] = Math.ceil(count / N);
+                globalGradeClassesCount[g] = Object.keys(byGradeClass[g] || {}).length;
+            }
+
+            // --- 小集団（サブグループ）の初期化 ---
+            let subgroups = Array.from({length: N}, (_, i) => ({
+                id: i,
+                groupId: i % groupCount,
+                members: [],
+                gClassMap: {1:null, 2:null, 3:null, 4:null, 5:null, 6:null},
+                total: 0, mc: 0, fc: 0,
+                gCounts: {1:0, 2:0, 3:0, 4:0, 5:0, 6:0}
+            }));
+
+            // --- 1. 初期配置 ---
+            for (let g = 1; g <= 6; g++) {
+                let classes = Object.keys(byGradeClass[g]).map(Number);
+                if (classes.length === 0) continue;
+                
+                let classCounts = {};
+                let totalGradeStudents = 0;
+                classes.forEach(c => {
+                    let count = byGradeClass[g][c].boys.length + byGradeClass[g][c].girls.length;
+                    classCounts[c] = count;
+                    totalGradeStudents += count;
+                });
+
+                let assignedSubs = {};
+                let remainingSubs = N;
+                let remainders = [];
+
+                classes.forEach(c => {
+                    let exact = N * (classCounts[c] / totalGradeStudents);
+                    let intPart = Math.floor(exact);
+                    assignedSubs[c] = intPart;
+                    remainingSubs -= intPart;
+                    remainders.push({c: c, rem: exact - intPart});
+                });
+
+                remainders.sort((a,b) => b.rem - a.rem);
+                for(let i=0; i<remainingSubs; i++) {
+                    assignedSubs[remainders[i].c]++;
+                }
+
+                let classAssignmentArray = [];
+                classes.forEach(c => {
+                    for(let i=0; i<assignedSubs[c]; i++) {
+                        classAssignmentArray.push(c);
+                    }
+                });
+                classAssignmentArray.sort(() => Math.random() - 0.5); 
+
+                for (let i = 0; i < N; i++) {
+                    subgroups[i].gClassMap[g] = classAssignmentArray[i];
+                }
+                
+                for (let c of classes) {
+                    let subsForClass = subgroups.filter(sub => sub.gClassMap[g] === c);
+                    if (subsForClass.length === 0) subsForClass = subgroups;
+                    
+                    let bc = [...byGradeClass[g][c].boys].sort(() => Math.random() - 0.5);
+                    let gc_arr = [...byGradeClass[g][c].girls].sort(() => Math.random() - 0.5);
+                    let students = [];
+                    
+                    while(bc.length || gc_arr.length) {
+                        if(bc.length) students.push(bc.pop());
+                        if(gc_arr.length) students.push(gc_arr.pop());
+                    }
+                    
+                    students.forEach((s) => {
+                        subsForClass.sort((a, b) => {
+                            let aCount = a.members.filter(m => m.grade === g).length;
+                            let bCount = b.members.filter(m => m.grade === g).length;
+                            return aCount - bCount;
+                        });
+                        subsForClass[0].members.push(s);
+                    });
+                }
+            }
+
+            const updateSubgroupStats = (s) => {
+                s.total = s.members.length;
+                s.mc = 0; s.fc = 0;
+                s.gCounts = {1:0, 2:0, 3:0, 4:0, 5:0, 6:0};
+                for(let i=0; i<s.members.length; i++) {
+                    let m = s.members[i];
+                    if(m.gender === '男') s.mc++; else s.fc++;
+                    s.gCounts[m.grade]++;
+                }
+            };
+            subgroups.forEach(updateSubgroupStats);
+
+            // --- コスト（ペナルティ）計算関数 ---
+            function calcCost(subs) {
+                let cost = 0;
+                let groupTotals = new Int32Array(groupCount);
+                let groupClassMasks = Array.from({length: groupCount}, () => new Int32Array(7));
+                
+                for (let i = 0; i < N; i++) {
+                    let s = subs[i];
+                    let gId = s.groupId;
+                    groupTotals[gId] += s.total;
+                    
+                    if (s.total < targetTotalMin) cost += (targetTotalMin - s.total) * 2000;
+                    else if (s.total > targetTotalMax) cost += (s.total - targetTotalMax) * 2000;
+                    
+                    if (s.mc < targetBoysMin) cost += (targetBoysMin - s.mc) * 1000;
+                    else if (s.mc > targetBoysMax) cost += (s.mc - targetBoysMax) * 1000;
+                    
+                    if (s.fc < targetGirlsMin) cost += (targetGirlsMin - s.fc) * 1000;
+                    else if (s.fc > targetGirlsMax) cost += (s.fc - targetGirlsMax) * 1000;
+
+                    for (let g = 1; g <= 6; g++) {
+                        if (globalGradeTotals[g] > 0) {
+                            let gc = s.gCounts[g];
+                            if (gc < targetGradeMin[g]) cost += (targetGradeMin[g] - gc) * 5000;
+                            else if (gc > targetGradeMax[g]) cost += (gc - targetGradeMax[g]) * 5000;
+                            
+                            if (globalGradeTotals[g] >= N && gc === 0) cost += 10000;
+                            
+                            let c = s.gClassMap[g];
+                            if (c !== null) {
+                                groupClassMasks[gId][g] |= (1 << c);
+                            }
+
+                            if (gc > 1) {
+                                let mCount = 0, fCount = 0;
+                                for(let k=0; k<s.members.length; k++) {
+                                    if(s.members[k].grade === g) {
+                                        if(s.members[k].gender === '男') mCount++;
+                                        else fCount++;
+                                    }
+                                }
+
+                                if (c !== null) {
+                                    let totalM = byGradeClass[g][c].boys.length;
+                                    let totalF = byGradeClass[g][c].girls.length;
+                                    
+                                    if (totalM > totalF && fCount > 1) {
+                                        cost += 5000; 
+                                    } else if (totalF > totalM && mCount > 1) {
+                                        cost += 5000; 
+                                    }
+                                }
+
+                                if (mCount === 0 || fCount === 0) {
+                                    cost += 500; 
+                                } else {
+                                    cost += Math.abs(mCount - fCount) * 50; 
+                                }
+                            }
+                        }
+                    }
+                }
+
+                for (let i = 0; i < groupCount; i++) {
+                    if (groupTotals[i] < targetGroupTotalMin) cost += (targetGroupTotalMin - groupTotals[i]) * 1500;
+                    else if (groupTotals[i] > targetGroupTotalMax) cost += (groupTotals[i] - targetGroupTotalMax) * 1500;
+                    
+                    for (let g = 1; g <= 6; g++) {
+                        if (globalGradeTotals[g] > 0) {
+                            let mask = groupClassMasks[i][g];
+                            let uniqueClassCount = 0;
+                            while(mask) { uniqueClassCount += mask & 1; mask >>= 1; }
+                            
+                            let maxPossible = Math.min(globalGradeClassesCount[g], subCount);
+                            if (maxPossible > uniqueClassCount) cost += (maxPossible - uniqueClassCount) * 200;
+                        }
+                    }
+                }
+                return cost;
+            }
+
+            // --- 2. 焼きなまし法による最適化（ローカルサーチ） ---
+            let currentCost = calcCost(subgroups);
+            let bestCost = currentCost;
+            let bestLayout = subgroups.map(s => ({...s, members: [...s.members], gClassMap: {...s.gClassMap}}));
+
+            let T = 100.0;
+            let coolingRate = 0.9998;
+            const ITERATIONS = 80000;
+            
+            for (let iter = 0; iter < ITERATIONS; iter++) {
+                if (currentCost === 0) break; 
+                
+                let moveType = Math.random();
+                if (moveType < 0.4) {
+                    let g = Math.floor(Math.random() * 6) + 1;
+                    let classes = Object.keys(byGradeClass[g]).map(Number);
+                    if (classes.length === 0) continue;
+                    let c = classes[Math.floor(Math.random() * classes.length)];
+                    
+                    let validSubs = subgroups.filter(s => s.gClassMap[g] === c);
+                    if (validSubs.length < 2) continue;
+                    
+                    let sub1 = validSubs[Math.floor(Math.random() * validSubs.length)];
+                    let sub2 = validSubs[Math.floor(Math.random() * validSubs.length)];
+                    if (sub1 === sub2) continue;
+                    
+                    let gStudents = sub1.members.filter(m => m.grade === g);
+                    if (gStudents.length === 0) continue;
+                    
+                    let studentToMove = gStudents[Math.floor(Math.random() * gStudents.length)];
+                    let idx = sub1.members.indexOf(studentToMove);
+                    
+                    sub1.members.splice(idx, 1);
+                    sub2.members.push(studentToMove);
+                    updateSubgroupStats(sub1); updateSubgroupStats(sub2);
+                    
+                    let newCost = calcCost(subgroups);
+                    if (newCost <= currentCost || Math.random() < Math.exp((currentCost - newCost) / T)) {
+                        currentCost = newCost;
+                        if (currentCost < bestCost) {
+                            bestCost = currentCost;
+                            bestLayout = subgroups.map(s => ({...s, members: [...s.members], gClassMap: {...s.gClassMap}}));
+                        }
+                    } else { 
+                        sub2.members.pop();
+                        sub1.members.push(studentToMove);
+                        updateSubgroupStats(sub1); updateSubgroupStats(sub2);
+                    }
+                } else if (moveType < 0.8) {
+                    let g = Math.floor(Math.random() * 6) + 1;
+                    let sub1Idx = Math.floor(Math.random() * N);
+                    let sub2Idx = Math.floor(Math.random() * N);
+                    if (sub1Idx === sub2Idx) continue;
+                    
+                    let sub1 = subgroups[sub1Idx];
+                    let sub2 = subgroups[sub2Idx];
+                    
+                    let s1 = sub1.members.filter(m => m.grade === g);
+                    let s2 = sub2.members.filter(m => m.grade === g);
+                    
+                    sub1.members = sub1.members.filter(m => m.grade !== g);
+                    sub2.members = sub2.members.filter(m => m.grade !== g);
+                    
+                    sub1.members.push(...s2);
+                    sub2.members.push(...s1);
+                    
+                    let tempC = sub1.gClassMap[g];
+                    sub1.gClassMap[g] = sub2.gClassMap[g];
+                    sub2.gClassMap[g] = tempC;
+                    
+                    updateSubgroupStats(sub1); updateSubgroupStats(sub2);
+                    
+                    let newCost = calcCost(subgroups);
+                    if (newCost <= currentCost || Math.random() < Math.exp((currentCost - newCost) / T)) {
+                        currentCost = newCost;
+                        if (currentCost < bestCost) {
+                            bestCost = currentCost;
+                            bestLayout = subgroups.map(s => ({...s, members: [...s.members], gClassMap: {...s.gClassMap}}));
+                        }
+                    } else { 
+                        sub1.members = sub1.members.filter(m => m.grade !== g);
+                        sub2.members = sub2.members.filter(m => m.grade !== g);
+                        sub1.members.push(...s1);
+                        sub2.members.push(...s2);
+                        sub2.gClassMap[g] = sub1.gClassMap[g];
+                        sub1.gClassMap[g] = tempC;
+                        updateSubgroupStats(sub1); updateSubgroupStats(sub2);
+                    }
+                } else {
+                    let sub1Idx = Math.floor(Math.random() * N);
+                    let sub2Idx = Math.floor(Math.random() * N);
+                    if (sub1Idx === sub2Idx) continue;
+                    
+                    let sub1 = subgroups[sub1Idx];
+                    let sub2 = subgroups[sub2Idx];
+                    if (sub1.groupId === sub2.groupId) continue;
+                    
+                    let tempGroup = sub1.groupId;
+                    sub1.groupId = sub2.groupId;
+                    sub2.groupId = tempGroup;
+                    
+                    let newCost = calcCost(subgroups);
+                    if (newCost <= currentCost || Math.random() < Math.exp((currentCost - newCost) / T)) {
+                        currentCost = newCost;
+                        if (currentCost < bestCost) {
+                            bestCost = currentCost;
+                            bestLayout = subgroups.map(s => ({...s, members: [...s.members], gClassMap: {...s.gClassMap}}));
+                        }
+                    } else { 
+                        sub2.groupId = sub1.groupId;
+                        sub1.groupId = tempGroup;
+                    }
+                }
+                T *= coolingRate;
+            }
+
+            // --- 出力データの構築 ---
+            const groups = Array.from({length: groupCount}, (_, i) => ({ id: i + 1, subs: [], total: 0, mc: 0, fc: 0 }));
+            
+            let subsByGroup = {};
+            for(let i=0; i<groupCount; i++) subsByGroup[i] = [];
+            bestLayout.forEach(s => {
+                subsByGroup[s.groupId].push(s);
+            });
+
+            for(let i=0; i<groupCount; i++) {
+                let sList = subsByGroup[i];
+                sList.forEach((s, idx) => {
+                    const char = String.fromCharCode(65 + idx);
+                    s.label = `${groups[i].id}-${char}`;
+                    groups[i].subs.push(s);
+                    groups[i].total += s.members.length;
+                    
+                    let finalMc = 0; let finalFc = 0;
+                    s.members.forEach(m => { if(m.gender === '男') finalMc++; else finalFc++; });
+                    s.mc = finalMc; s.fc = finalFc;
+                    groups[i].mc += finalMc;
+                    groups[i].fc += finalFc;
+                });
+            }
+
             currentGroupsData = groups;
             updatePageLayout();
             nextStep(3);
@@ -400,7 +738,6 @@
                     <h2 class="text-2xl font-black text-slate-900 tracking-tight">たてわり班編成名簿</h2>
                     <div class="text-right"><p class="text-lg font-black text-slate-900">NO. ${idx}</p></div>
                 </div>
-                <!-- space-y-2を削除し、隙間は班側のマージンで制御するように修正 -->
                 <div class="page-content flex-1"></div>
             `;
             return div;
@@ -444,24 +781,74 @@
             if (!currentGroupsData.length) return;
             const wb = XLSX.utils.book_new();
             
+            const sheetData = [];
+            
+            // 空行
+            sheetData.push([]);
+            sheetData.push([]);
+            
+            // 班名の行
+            const header1 = [''];
             currentGroupsData.forEach(group => {
-                const sheetData = [];
-                sheetData.push([`${group.id}班 合計: ${group.total}名 (男:${group.mc} 女:${group.fc})`]);
-                sheetData.push([]);
-                
-                group.subs.forEach(sub => {
-                    sheetData.push([`小グループ: ${sub.label}`, `合計:${sub.members.length} (男:${sub.mc} 女:${sub.fc})`]);
-                    sheetData.push(['学年', '組', '性別', '氏名']);
-                    sub.members.sort((a,b)=>a.grade - b.grade).forEach(m => {
-                        sheetData.push([m.grade, m.class, m.gender, '']);
-                    });
-                    sheetData.push([]);
+                header1.push(`${group.id}班`);
+                for (let i = 1; i < group.subs.length; i++) {
+                    header1.push(''); 
+                }
+            });
+            sheetData.push(header1);
+            
+            // 小グループ名の行
+            const header2 = [''];
+            currentGroupsData.forEach(group => {
+                group.subs.sort((a,b)=>a.label.localeCompare(b.label)).forEach(sub => {
+                    header2.push(sub.label);
                 });
-
-                const ws = XLSX.utils.aoa_to_sheet(sheetData);
-                XLSX.utils.book_append_sheet(wb, ws, `${group.id}班`);
+            });
+            sheetData.push(header2);
+            
+            // 存在するクラス一覧を取得
+            const classes = [];
+            for (let g = 1; g <= 6; g++) {
+                const classCount = parseInt(document.getElementById(`class-count-${g}`).value) || 0;
+                for (let c = 1; c <= classCount; c++) {
+                    classes.push({ grade: g, class: c, label: `${g}-${c}` });
+                }
+            }
+            
+            // 各クラスごとに出力
+            classes.forEach(cls => {
+                const allSubs = [];
+                let maxRows = 2; // 手書きしやすいように最低2行確保する
+                
+                currentGroupsData.forEach(group => {
+                    group.subs.sort((a,b)=>a.label.localeCompare(b.label)).forEach(sub => {
+                        const membersInClass = sub.members.filter(m => m.grade === cls.grade && m.class === cls.class);
+                        membersInClass.sort((a,b) => a.gender.localeCompare(b.gender));
+                        allSubs.push(membersInClass);
+                        if (membersInClass.length > maxRows) {
+                            maxRows = membersInClass.length;
+                        }
+                    });
+                });
+                
+                for (let r = 0; r < maxRows; r++) {
+                    const row = [];
+                    row.push(r === 0 ? cls.label : '');
+                    
+                    allSubs.forEach(members => {
+                        if (r < members.length) {
+                            row.push(members[r].gender); 
+                        } else {
+                            row.push('');
+                        }
+                    });
+                    sheetData.push(row);
+                }
             });
 
+            const ws = XLSX.utils.aoa_to_sheet(sheetData);
+            
+            XLSX.utils.book_append_sheet(wb, ws, `編成名簿`);
             XLSX.writeFile(wb, `たてわり班編成名簿_${new Date().toLocaleDateString()}.xlsx`);
         }
     </script>
