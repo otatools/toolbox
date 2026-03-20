@@ -229,7 +229,7 @@
                         <button onclick="startGame()" class="w-full bg-blue-600 text-white py-5 rounded-xl font-black text-2xl shadow-lg active:scale-95 transition-all">はじめる！</button>
                     </div>
                     <div class="mt-8 text-xs text-gray-400 opacity-60 tracking-wider">
-                        お絵かき伝言ゲーム　|　ver6.3　|　ota tools
+                        お絵かき伝言ゲーム　|　ver6.4　|　ota tools
                     </div>
                 </div>
 
@@ -570,15 +570,36 @@ hard: [
 
             const getPos = (e) => {
                 const rect = canvas.getBoundingClientRect();
-                let clientX = e.touches ? e.touches[0].clientX : e.clientX;
-                let clientY = e.touches ? e.touches[0].clientY : e.clientY;
+                let clientX = e.touches && e.touches.length > 0 ? e.touches[0].clientX : e.clientX;
+                let clientY = e.touches && e.touches.length > 0 ? e.touches[0].clientY : e.clientY;
                 // ブラウザ上の表示位置とCanvas内部座標を正しくマッピング
                 return { 
                     x: (clientX - rect.left) * (w / rect.width), 
                     y: (clientY - rect.top) * (h / rect.height) 
                 };
             };
-            const start = (e) => { isDrawing = true; const p = getPos(e); lastX = p.x; lastY = p.y; };
+            
+            const start = (e) => { 
+                isDrawing = true; 
+                const p = getPos(e); 
+                lastX = p.x; 
+                lastY = p.y; 
+                
+                // 点を描画するための処理を追加
+                ctx.beginPath();
+                ctx.moveTo(lastX, lastY);
+                ctx.lineTo(lastX, lastY);
+                if (currentTool === 'eraser') {
+                    ctx.globalCompositeOperation = 'destination-out';
+                    ctx.lineWidth = 30;
+                } else {
+                    ctx.globalCompositeOperation = 'source-over';
+                    ctx.strokeStyle = currentColor;
+                    ctx.lineWidth = window.innerWidth <= 768 ? 4 : 6;
+                }
+                ctx.stroke();
+            };
+            
             const draw = (e) => {
                 if (!isDrawing) return;
                 const p = getPos(e);
@@ -597,12 +618,21 @@ hard: [
                 ctx.stroke();
                 lastX = p.x; lastY = p.y;
             };
-            canvas.onmousedown = start;
-            canvas.onmousemove = draw;
-            window.onmouseup = () => isDrawing = false;
-            canvas.ontouchstart = (e) => { e.preventDefault(); start(e); };
-            canvas.ontouchmove = (e) => { e.preventDefault(); draw(e); };
-            canvas.ontouchend = () => isDrawing = false;
+
+            // PCのタッチパネル等にも対応するため Pointer Event を追加
+            if (window.PointerEvent) {
+                canvas.onpointerdown = (e) => { e.preventDefault(); start(e); };
+                canvas.onpointermove = (e) => { e.preventDefault(); draw(e); };
+                window.onpointerup = () => isDrawing = false;
+                window.onpointercancel = () => isDrawing = false;
+            } else {
+                canvas.onmousedown = start;
+                canvas.onmousemove = draw;
+                window.onmouseup = () => isDrawing = false;
+                canvas.ontouchstart = (e) => { e.preventDefault(); start(e); };
+                canvas.ontouchmove = (e) => { e.preventDefault(); draw(e); };
+                canvas.ontouchend = () => isDrawing = false;
+            }
         }
 
         function setTool(t) {
