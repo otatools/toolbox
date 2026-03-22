@@ -1,0 +1,668 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>回路パズル - ステージメーカー</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    .grid-cell { transition: background-color 0.2s, transform 0.1s; }
+    .grid-cell:active { transform: scale(0.95); }
+    .svg-piece { transition: transform 0.2s ease-in-out; }
+    .powered-glow { filter: drop-shadow(0 0 5px #fbbf24); }
+    .custom-scrollbar::-webkit-scrollbar { width: 8px; }
+    .custom-scrollbar::-webkit-scrollbar-track { background: #f1f5f9; border-radius: 4px; }
+    .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+    
+    /* エディタ用の視覚表現 */
+    .bg-fixed-part { background-color: #f1f5f9; } /* スレート100 */
+    .bg-puzzle-part { background-color: #e0f2fe; } /* スカイ100 */
+  </style>
+</head>
+<body class="bg-slate-900 text-slate-800 font-sans h-screen w-screen overflow-hidden flex p-2 md:p-4 gap-2 md:gap-4">
+
+  <!-- ==============================================
+       左側：盤面エリア
+  =============================================== -->
+  <div class="flex-1 bg-white rounded-2xl md:rounded-3xl shadow-xl border-4 border-slate-700 flex flex-col p-3 md:p-4 min-w-0">
+    <div class="flex justify-between items-center mb-3 shrink-0">
+      <h1 class="text-xl md:text-2xl font-black text-slate-700 flex items-center gap-2">
+        <svg class="w-6 h-6 md:w-8 md:h-8 text-blue-500" fill="currentColor" viewBox="0 0 20 20"><path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z"></path></svg>
+        ステージメーカー
+      </h1>
+      <div id="sim-status" class="text-sm font-bold px-3 py-1 rounded-full bg-slate-100 text-slate-500 hidden">
+        シミュレーション中...
+      </div>
+    </div>
+    
+    <div id="board-wrapper" class="flex-1 bg-slate-100 rounded-xl md:rounded-2xl border-4 border-slate-200 shadow-inner flex items-center justify-center p-2 relative overflow-hidden min-h-0">
+      <div id="board-container" class="grid gap-1 relative mx-auto"></div>
+    </div>
+    
+    <div class="mt-3 flex items-center justify-center gap-4 text-xs font-bold text-slate-500 shrink-0">
+      <div class="flex items-center gap-1"><div class="w-4 h-4 bg-slate-200 border border-slate-300 rounded"></div> 固定パーツ</div>
+      <div class="flex items-center gap-1"><div class="w-4 h-4 bg-sky-100 border border-sky-300 rounded"></div> パズル用パーツ</div>
+    </div>
+  </div>
+
+  <!-- ==============================================
+       右側：ツール・設定エリア
+  =============================================== -->
+  <div class="w-72 md:w-80 lg:w-96 bg-white rounded-2xl md:rounded-3xl shadow-xl border-4 border-slate-700 flex flex-col overflow-hidden shrink-0">
+    <div class="p-4 overflow-y-auto custom-scrollbar flex-1 flex flex-col gap-6">
+      
+      <!-- サイズ設定 -->
+      <div class="space-y-2">
+        <h2 class="text-sm font-bold text-slate-500 border-b-2 border-slate-100 pb-1">盤面サイズ</h2>
+        <div class="flex gap-2">
+          <div class="flex-1 flex flex-col">
+            <label class="text-[10px] text-slate-400 font-bold">ヨコ (Cols)</label>
+            <input type="number" id="input-cols" value="5" min="3" max="10" class="border-2 border-slate-300 rounded-lg px-2 py-1 text-center font-bold outline-none focus:border-blue-500">
+          </div>
+          <div class="flex-1 flex flex-col">
+            <label class="text-[10px] text-slate-400 font-bold">タテ (Rows)</label>
+            <input type="number" id="input-rows" value="5" min="3" max="10" class="border-2 border-slate-300 rounded-lg px-2 py-1 text-center font-bold outline-none focus:border-blue-500">
+          </div>
+          <div class="flex items-end">
+            <button id="btn-resize" class="bg-slate-700 hover:bg-slate-800 text-white font-bold py-1.5 px-3 rounded-lg text-sm transition-colors">適用</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- モード選択 -->
+      <div class="space-y-2">
+        <h2 class="text-sm font-bold text-slate-500 border-b-2 border-slate-100 pb-1">配置モード</h2>
+        <div class="flex gap-2 p-1 bg-slate-100 rounded-xl">
+          <button id="mode-fixed" class="flex-1 py-2 rounded-lg text-xs md:text-sm font-bold transition-all bg-white shadow-sm border-2 border-slate-300 text-slate-700">
+            初期固定パーツ
+          </button>
+          <button id="mode-puzzle" class="flex-1 py-2 rounded-lg text-xs md:text-sm font-bold transition-all text-slate-500 border-2 border-transparent hover:bg-slate-200">
+            パズル用パーツ
+          </button>
+        </div>
+        <p class="text-[10px] text-slate-400 leading-tight">※「初期固定」は最初から置かれます。「パズル用」はコード生成時に盤面から消え、使用可能パーツとして計算されます。</p>
+      </div>
+
+      <!-- ツールパレット -->
+      <div class="space-y-2">
+        <h2 class="text-sm font-bold text-slate-500 border-b-2 border-slate-100 pb-1">パーツパレット</h2>
+        <div id="palette-container" class="grid grid-cols-3 gap-2">
+          <!-- JSで生成 -->
+        </div>
+        <p class="text-[10px] text-slate-400 text-center">※盤面のパーツをクリックすると回転します。</p>
+      </div>
+
+      <!-- アクションボタン -->
+      <div class="space-y-3 pt-2 border-t-2 border-slate-100">
+        <button id="btn-test" class="w-full bg-yellow-400 hover:bg-yellow-500 text-yellow-900 font-black py-3 rounded-xl shadow-[0_4px_0_#b45309] active:translate-y-[4px] active:shadow-none transition-all flex items-center justify-center gap-2">
+          <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z"></path></svg>
+          通電テスト
+        </button>
+        <button id="btn-generate" class="w-full bg-blue-500 hover:bg-blue-600 text-white font-black py-3 rounded-xl shadow-[0_4px_0_#1e3a8a] active:translate-y-[4px] active:shadow-none transition-all flex items-center justify-center gap-2">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"></path></svg>
+          コードを生成する
+        </button>
+        <button id="btn-reset" class="w-full bg-red-500 hover:bg-red-600 text-white font-black py-2 rounded-xl shadow-[0_4px_0_#b91c1c] active:translate-y-[4px] active:shadow-none transition-all flex items-center justify-center gap-2 text-sm mt-2" data-confirm="false">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+          <span id="text-reset">盤面をすべて消す</span>
+        </button>
+      </div>
+
+      <!-- 出力エリア -->
+      <div class="flex-1 flex flex-col min-h-[150px]">
+        <div class="flex justify-between items-center mb-1">
+          <h2 class="text-sm font-bold text-slate-500">出力コード</h2>
+          <button id="btn-copy" class="text-xs bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold py-1 px-2 rounded transition-colors">コピー</button>
+        </div>
+        <textarea id="code-output" class="flex-1 w-full bg-slate-800 text-green-400 font-mono text-[10px] md:text-xs p-3 rounded-xl border-2 border-slate-600 outline-none resize-none custom-scrollbar" readonly placeholder="「コードを生成する」を押すと、ここにゲーム本編用のコードが表示されます。"></textarea>
+      </div>
+      
+    </div>
+  </div>
+
+  <!-- トースト通知用のコンテナ -->
+  <div id="toast-container" class="fixed bottom-6 left-1/2 transform -translate-x-1/2 flex flex-col gap-2 z-50 pointer-events-none"></div>
+
+  <script>
+    /* =========================================
+       通知（トースト）システム
+    ========================================= */
+    function showToast(message, type = 'info') {
+      const container = document.getElementById('toast-container');
+      const toast = document.createElement('div');
+      
+      let bgColor = 'bg-slate-800';
+      if(type === 'success') bgColor = 'bg-green-600';
+      if(type === 'error') bgColor = 'bg-red-600';
+      if(type === 'warning') bgColor = 'bg-yellow-600';
+
+      toast.className = `${bgColor} text-white px-6 py-3 rounded-xl shadow-2xl text-sm font-bold opacity-0 transition-opacity duration-300 text-center border-2 border-white/20`;
+      toast.innerText = message;
+      
+      container.appendChild(toast);
+      
+      // アニメーションでフェードイン
+      requestAnimationFrame(() => {
+        toast.classList.remove('opacity-0');
+      });
+      
+      // 数秒後にフェードアウトして削除
+      setTimeout(() => {
+        toast.classList.add('opacity-0');
+        setTimeout(() => toast.remove(), 300);
+      }, 4000);
+    }
+
+    /* =========================================
+       共通データ・SVG定義
+    ========================================= */
+    const ROUTING = {
+      'straight': [[0, 2]],
+      'corner': [[0, 1]],
+      't_shape': [[0, 1, 3]],
+      'cross': [[0, 1, 2, 3]],
+      'bridge': [[0, 2], [1, 3]],
+      'led': [[0, 2]],
+      'led_corner': [[0, 1]],
+      'battery': [[0], [2]]
+    };
+
+    function getExitPorts(type, rotation, enterPort) {
+      if (!ROUTING[type]) return [];
+      const rotSteps = (rotation / 90) % 4;
+      const internalEnter = (enterPort - rotSteps + 4) % 4;
+      let exits = [];
+      for (let group of ROUTING[type]) {
+        if (group.includes(internalEnter)) {
+          for (let p of group) {
+            if (p !== internalEnter) exits.push((p + rotSteps) % 4);
+          }
+          break;
+        }
+      }
+      return exits;
+    }
+
+    function getSvgIcon(type, rotation, powered, poweredPorts = []) {
+      if (type === 'empty') return '';
+      const isPortPowered = (internalPort) => {
+        if (poweredPorts.length === 0) return powered; 
+        const absolutePort = (internalPort + (rotation / 90)) % 4;
+        return poweredPorts.includes(absolutePort);
+      };
+      const strokeW = 10;
+      let svgContent = '';
+      let addClass = powered ? 'powered-glow' : '';
+
+      switch (type) {
+        case 'straight':
+          const swC = powered ? '#fbbf24' : '#64748b';
+          svgContent = `<line x1="32" y1="0" x2="32" y2="64" stroke="${swC}" stroke-width="${strokeW}" />`; break;
+        case 'corner':
+          const cwC = powered ? '#fbbf24' : '#64748b';
+          svgContent = `<path d="M 32 0 Q 32 32 64 32" stroke="${cwC}" stroke-width="${strokeW}" fill="none" stroke-linecap="square"/>`; break;
+        case 't_shape':
+          const twC = powered ? '#fbbf24' : '#64748b';
+          svgContent = `
+            <line x1="32" y1="0" x2="32" y2="32" stroke="${twC}" stroke-width="${strokeW}" />
+            <line x1="0" y1="32" x2="64" y2="32" stroke="${twC}" stroke-width="${strokeW}" />
+            <circle cx="32" cy="32" r="${strokeW/2}" fill="${twC}" />
+          `; break;
+        case 'cross':
+          const crwC = powered ? '#fbbf24' : '#64748b';
+          svgContent = `
+            <line x1="32" y1="0" x2="32" y2="64" stroke="${crwC}" stroke-width="${strokeW}" />
+            <line x1="0" y1="32" x2="64" y2="32" stroke="${crwC}" stroke-width="${strokeW}" />
+          `; break;
+        case 'bridge':
+          const vPowered = isPortPowered(0) || isPortPowered(2);
+          const vColor = vPowered ? '#fbbf24' : '#64748b';
+          const hPowered = isPortPowered(1) || isPortPowered(3);
+          const hColor = hPowered ? '#fbbf24' : '#64748b';
+          if (!vPowered && !hPowered) addClass = ''; else addClass = 'powered-glow';
+          svgContent = `
+            <line x1="32" y1="0" x2="32" y2="64" stroke="${vColor}" stroke-width="${strokeW}" />
+            <path d="M 0 32 L 20 32 A 12 12 0 0 1 44 32 L 64 32" stroke="#ffffff" stroke-width="${strokeW + 6}" fill="none" />
+            <path d="M 0 32 L 20 32 A 12 12 0 0 1 44 32 L 64 32" stroke="${hColor}" stroke-width="${strokeW}" fill="none" />
+          `; break;
+        case 'battery':
+          const plusWireColor = powered ? '#fbbf24' : '#64748b';
+          const minusWireColor = powered ? '#fbbf24' : '#64748b';
+          svgContent = `
+            <line x1="32" y1="0" x2="32" y2="12" stroke="${plusWireColor}" stroke-width="${strokeW}" />
+            <line x1="32" y1="52" x2="32" y2="64" stroke="${minusWireColor}" stroke-width="${strokeW}" />
+            <rect x="24" y="8" width="16" height="4" fill="#94a3b8" />
+            <rect x="12" y="12" width="40" height="40" rx="6" fill="#3b82f6" />
+            <path d="M 12 18 Q 12 12 18 12 L 46 12 Q 52 12 52 18 L 52 32 L 12 32 Z" fill="#ef4444" />
+            <text x="32" y="27" fill="white" font-size="16" text-anchor="middle" font-weight="bold">+</text>
+            <text x="32" y="49" fill="white" font-size="20" text-anchor="middle" font-weight="bold">-</text>
+          `; break;
+        case 'led':
+          const lwC = powered ? '#fbbf24' : '#64748b';
+          const lLight = powered ? '#fef08a' : '#94a3b8';
+          const lStroke = powered ? '#eab308' : '#cbd5e1';
+          svgContent = `
+            <line x1="32" y1="0" x2="32" y2="20" stroke="${lwC}" stroke-width="${strokeW}" />
+            <line x1="32" y1="44" x2="32" y2="64" stroke="${lwC}" stroke-width="${strokeW}" />
+            <circle cx="32" cy="32" r="16" fill="${lLight}" stroke="${lStroke}" stroke-width="4" />
+          `; break;
+        case 'led_corner':
+          const lcwC = powered ? '#fbbf24' : '#64748b';
+          const lcLight = powered ? '#fef08a' : '#94a3b8';
+          const lcStroke = powered ? '#eab308' : '#cbd5e1';
+          svgContent = `
+            <line x1="32" y1="0" x2="32" y2="20" stroke="${lcwC}" stroke-width="${strokeW}" />
+            <line x1="44" y1="32" x2="64" y2="32" stroke="${lcwC}" stroke-width="${strokeW}" />
+            <circle cx="32" cy="32" r="16" fill="${lcLight}" stroke="${lcStroke}" stroke-width="4" />
+          `; break;
+      }
+      return `<svg viewBox="0 0 64 64" class="w-full h-full svg-piece ${addClass}" style="transform: rotate(${rotation}deg);">${svgContent}</svg>`;
+    }
+
+    const TOOLS = [
+      { id: 'eraser', name: '消す' },
+      { id: 'straight', name: '直線' },
+      { id: 'corner', name: '曲がり角' },
+      { id: 't_shape', name: 'T字' },
+      { id: 'cross', name: '十字' },
+      { id: 'bridge', name: '立体交差' },
+      { id: 'led', name: '直線の電球' },
+      { id: 'led_corner', name: '曲が角電球' },
+      { id: 'battery', name: '電池' }
+    ];
+
+    /* =========================================
+       エディタ状態管理
+    ========================================= */
+    let state = {
+      cols: 5, rows: 5,
+      board: [],
+      selectedTool: 'straight',
+      isFixedMode: true,
+      isSimulating: false
+    };
+
+    function initBoard() {
+      state.board = [];
+      for (let y = 0; y < state.rows; y++) {
+        let row = [];
+        for (let x = 0; x < state.cols; x++) {
+          row.push({ type: 'empty', rotation: 0, fixed: true, powered: false, poweredPorts: [] });
+        }
+        state.board.push(row);
+      }
+      renderBoard();
+    }
+
+    function clearPower() {
+      for (let y = 0; y < state.rows; y++) {
+        for (let x = 0; x < state.cols; x++) {
+          state.board[y][x].powered = false;
+          state.board[y][x].poweredPorts = [];
+        }
+      }
+    }
+
+    /* =========================================
+       描画ロジック
+    ========================================= */
+    function renderPalette() {
+      const container = document.getElementById('palette-container');
+      container.innerHTML = '';
+      TOOLS.forEach(tool => {
+        const isSelected = state.selectedTool === tool.id;
+        const btn = document.createElement('button');
+        btn.className = `flex flex-col items-center gap-1 p-2 rounded-xl border-2 transition-all ${isSelected ? 'border-blue-500 bg-blue-50 ring-2 ring-blue-200 shadow-sm scale-105' : 'border-slate-200 bg-white hover:bg-slate-50'}`;
+        btn.onclick = () => { state.selectedTool = tool.id; renderPalette(); };
+        
+        let iconHtml = tool.id === 'eraser' 
+          ? `<svg class="w-8 h-8 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>`
+          : `<div class="w-8 h-8 pointer-events-none">${getSvgIcon(tool.id, 0, false, [])}</div>`;
+          
+        btn.innerHTML = `
+          ${iconHtml}
+          <span class="text-[10px] font-bold ${isSelected ? 'text-blue-600' : 'text-slate-500'}">${tool.name}</span>
+        `;
+        container.appendChild(btn);
+      });
+    }
+
+    function resizeBoardContainer() {
+      const wrapper = document.getElementById('board-wrapper');
+      const container = document.getElementById('board-container');
+      if (!wrapper || !container) return;
+      
+      const padding = 16;
+      const w = wrapper.clientWidth - padding;
+      const h = wrapper.clientHeight - padding;
+      
+      const aspect = state.cols / state.rows;
+      let targetW, targetH;
+      
+      if (w / aspect <= h) {
+        targetW = w; targetH = w / aspect;
+      } else {
+        targetH = h; targetW = h * aspect;
+      }
+      
+      container.style.width = `${targetW}px`;
+      container.style.height = `${targetH}px`;
+      container.style.gridTemplateColumns = `repeat(${state.cols}, 1fr)`;
+      container.style.gridTemplateRows = `repeat(${state.rows}, 1fr)`;
+    }
+    window.addEventListener('resize', resizeBoardContainer);
+
+    function renderBoard() {
+      const container = document.getElementById('board-container');
+      container.innerHTML = '';
+      
+      for (let y = 0; y < state.rows; y++) {
+        for (let x = 0; x < state.cols; x++) {
+          const cellData = state.board[y][x];
+          const cell = document.createElement('div');
+          
+          let bgClass = 'bg-slate-200 border-slate-300';
+          if (cellData.type !== 'empty') {
+            bgClass = cellData.fixed ? 'bg-fixed-part border-slate-300' : 'bg-puzzle-part border-sky-300 shadow-sm';
+          }
+          
+          cell.className = `grid-cell rounded-md md:rounded-xl relative flex items-center justify-center overflow-hidden border-2 ${bgClass} cursor-pointer`;
+          if(!state.isSimulating) cell.classList.add('hover:opacity-80');
+          cell.dataset.x = x; cell.dataset.y = y;
+          cell.innerHTML = getSvgIcon(cellData.type, cellData.rotation, cellData.powered, cellData.poweredPorts);
+          
+          cell.onclick = () => handleCellClick(x, y);
+          container.appendChild(cell);
+        }
+      }
+      resizeBoardContainer();
+    }
+
+    function handleCellClick(x, y) {
+      if (state.isSimulating) {
+        state.isSimulating = false;
+        document.getElementById('sim-status').classList.add('hidden');
+        clearPower();
+        renderBoard();
+        return;
+      }
+      
+      clearPower();
+      const cell = state.board[y][x];
+      
+      if (state.selectedTool === 'eraser') {
+        state.board[y][x] = { type: 'empty', rotation: 0, fixed: true, powered: false, poweredPorts: [] };
+      } else {
+        if (cell.type === state.selectedTool) {
+          state.board[y][x].rotation = (cell.rotation + 90) % 360;
+          state.board[y][x].fixed = state.isFixedMode;
+        } else {
+          state.board[y][x] = { type: state.selectedTool, rotation: 0, fixed: state.isFixedMode, powered: false, poweredPorts: [] };
+        }
+      }
+      renderBoard();
+    }
+
+    /* =========================================
+       UIイベント登録
+    ========================================= */
+    document.getElementById('btn-resize').onclick = () => {
+      const c = parseInt(document.getElementById('input-cols').value);
+      const r = parseInt(document.getElementById('input-rows').value);
+      if (c >= 3 && c <= 10 && r >= 3 && r <= 10) {
+        state.cols = c; state.rows = r;
+        initBoard();
+        showToast(`盤面サイズを ${c} × ${r} に変更しました`, 'success');
+      } else {
+        showToast("サイズは3〜10の間で指定してください", 'error');
+      }
+    };
+
+    const btnModeFixed = document.getElementById('mode-fixed');
+    const btnModePuzzle = document.getElementById('mode-puzzle');
+    
+    function updateModeUI() {
+      if (state.isFixedMode) {
+        btnModeFixed.className = "flex-1 py-2 rounded-lg text-xs md:text-sm font-bold transition-all bg-white shadow-sm border-2 border-slate-300 text-slate-700";
+        btnModePuzzle.className = "flex-1 py-2 rounded-lg text-xs md:text-sm font-bold transition-all text-slate-500 border-2 border-transparent hover:bg-slate-200";
+      } else {
+        btnModePuzzle.className = "flex-1 py-2 rounded-lg text-xs md:text-sm font-bold transition-all bg-white shadow-sm border-2 border-sky-400 text-sky-600";
+        btnModeFixed.className = "flex-1 py-2 rounded-lg text-xs md:text-sm font-bold transition-all text-slate-500 border-2 border-transparent hover:bg-slate-200";
+      }
+    }
+    
+    btnModeFixed.onclick = () => { state.isFixedMode = true; updateModeUI(); };
+    btnModePuzzle.onclick = () => { state.isFixedMode = false; updateModeUI(); };
+
+    // リセットボタンの処理
+    document.getElementById('btn-reset').onclick = () => {
+      const btn = document.getElementById('btn-reset');
+      const textSpan = document.getElementById('text-reset');
+      
+      if (btn.dataset.confirm === 'true') {
+        // 本当にリセット実行
+        initBoard();
+        clearPower();
+        showToast("盤面をすべて消去しました", "success");
+        
+        // ボタン状態を戻す
+        btn.dataset.confirm = 'false';
+        textSpan.innerText = '盤面をすべて消す';
+        btn.classList.remove('bg-red-700', 'shadow-[0_4px_0_#7f1d1d]');
+        btn.classList.add('bg-red-500', 'hover:bg-red-600', 'shadow-[0_4px_0_#b91c1c]');
+      } else {
+        // 確認状態にする
+        btn.dataset.confirm = 'true';
+        textSpan.innerText = '本当によろしいですか？';
+        btn.classList.remove('bg-red-500', 'hover:bg-red-600', 'shadow-[0_4px_0_#b91c1c]');
+        btn.classList.add('bg-red-700', 'shadow-[0_4px_0_#7f1d1d]');
+        
+        // 3秒後に元に戻す
+        setTimeout(() => {
+          if (btn.dataset.confirm === 'true') {
+            btn.dataset.confirm = 'false';
+            textSpan.innerText = '盤面をすべて消す';
+            btn.classList.remove('bg-red-700', 'shadow-[0_4px_0_#7f1d1d]');
+            btn.classList.add('bg-red-500', 'hover:bg-red-600', 'shadow-[0_4px_0_#b91c1c]');
+          }
+        }, 3000);
+      }
+    };
+
+    /* =========================================
+       シミュレーション (通電テスト)
+    ========================================= */
+    const DX = [0, 1, 0, -1], DY = [-1, 0, 1, 0];
+    
+    document.getElementById('btn-test').onclick = () => {
+      if (state.isSimulating) return;
+      clearPower();
+      renderBoard();
+      
+      let batteryNode = null;
+      for (let y = 0; y < state.rows; y++) {
+        for (let x = 0; x < state.cols; x++) {
+          if (state.board[y][x].type === 'battery') { batteryNode = { x, y }; break; }
+        }
+      }
+      if (!batteryNode) {
+        showToast("⚠️ 電池が配置されていません！", 'error');
+        return;
+      }
+
+      state.isSimulating = true;
+      document.getElementById('sim-status').classList.remove('hidden');
+
+      let visited = Array.from({ length: state.rows }, () => Array(state.cols).fill(null).map(() => []));
+      let reachedMinus = false;
+      let pathCells = [];
+      
+      const startCell = state.board[batteryNode.y][batteryNode.x];
+      const plusDir = (0 + startCell.rotation / 90) % 4; 
+
+      function dfs(x, y, fromDir) {
+        const currentCell = state.board[y][x];
+        const enterPort = (fromDir + 2) % 4;
+
+        if (currentCell.type === 'battery') {
+          const targetMinusPort = (2 + currentCell.rotation / 90) % 4;
+          if (enterPort === targetMinusPort) { reachedMinus = true; pathCells.push({ x, y, isGoal: true }); }
+          return; 
+        }
+
+        if (visited[y][x].includes(enterPort)) return;
+
+        const exits = getExitPorts(currentCell.type, currentCell.rotation, enterPort);
+        if (exits.length === 0) return; 
+
+        visited[y][x].push(enterPort);
+        exits.forEach(e => visited[y][x].push(e));
+        pathCells.push({ x, y, type: currentCell.type, enterPort, exits });
+
+        for (let exitPort of exits) {
+          const nx = x + DX[exitPort];
+          const ny = y + DY[exitPort];
+          if (nx >= 0 && nx < state.cols && ny >= 0 && ny < state.rows) {
+            if (state.board[ny][nx].type !== 'empty') dfs(nx, ny, exitPort);
+          }
+        }
+      }
+
+      pathCells.push({ x: batteryNode.x, y: batteryNode.y, type: 'battery', isStart: true });
+      visited[batteryNode.y][batteryNode.x].push(plusDir);
+
+      const nx = batteryNode.x + DX[plusDir], ny = batteryNode.y + DY[plusDir];
+      if (nx >= 0 && nx < state.cols && ny >= 0 && ny < state.rows) {
+        if (state.board[ny][nx].type !== 'empty') dfs(nx, ny, plusDir);
+      }
+
+      let step = 0;
+      const interval = setInterval(() => {
+        if (!state.isSimulating) { clearInterval(interval); return; }
+        
+        if (step < pathCells.length) {
+          const cell = pathCells[step];
+          if (!cell.isGoal) {
+            if (cell.isStart) {
+              state.board[cell.y][cell.x].powered = true;
+            } else {
+              if (!state.board[cell.y][cell.x].poweredPorts) state.board[cell.y][cell.x].poweredPorts = [];
+              state.board[cell.y][cell.x].poweredPorts.push(cell.enterPort, ...cell.exits);
+              state.board[cell.y][cell.x].powered = true; 
+            }
+          }
+          renderBoard();
+          step++;
+        } else {
+          clearInterval(interval);
+          
+          let allPowered = true;
+          for (let y = 0; y < state.rows; y++) {
+            for (let x = 0; x < state.cols; x++) {
+              const c = state.board[y][x];
+              if (c.type !== 'empty' && !c.powered) {
+                allPowered = false; break;
+              }
+            }
+          }
+          
+          setTimeout(() => {
+            if (reachedMinus && allPowered) {
+              showToast("✅ テスト成功！すべてのパーツに電気が通りました。", 'success');
+            } else {
+              showToast("❌ テスト失敗。電気が通っていないパーツがあるか、ゴールに届いていません。", 'error');
+            }
+          }, 100);
+        }
+      }, 100);
+    };
+
+    /* =========================================
+       コード生成処理
+    ========================================= */
+    document.getElementById('btn-generate').onclick = () => {
+      const outputBoard = [];
+      const inventory = {};
+      let hasPuzzleParts = false;
+      
+      for (let y = 0; y < state.rows; y++) {
+        const row = [];
+        for (let x = 0; x < state.cols; x++) {
+          const cell = state.board[y][x];
+          if (cell.type === 'empty') {
+            row.push({ type: 'empty' });
+          } else if (cell.fixed) {
+            row.push({ type: cell.type, fixed: true, rotation: cell.rotation });
+          } else {
+            inventory[cell.type] = (inventory[cell.type] || 0) + 1;
+            row.push({ type: 'empty' });
+            hasPuzzleParts = true;
+          }
+        }
+        outputBoard.push(row);
+      }
+      
+      if (!hasPuzzleParts) {
+        showToast("⚠️ 「パズル用パーツ」がひとつも配置されていません。プレイヤーが動かせるパーツを配置してください。", 'warning');
+      }
+
+      let code = `{\n`;
+      code += `  cols: ${state.cols}, rows: ${state.rows},\n`;
+      code += `  board: [\n`;
+      outputBoard.forEach(row => {
+        const rowStr = "    [" + row.map(c => {
+          let s = `{type:'${c.type}'`;
+          if (c.fixed) s += `, fixed:true`;
+          if (c.rotation) s += `, rotation:${c.rotation}`;
+          s += `}`;
+          return s;
+        }).join(", ") + "]";
+        code += rowStr + ",\n";
+      });
+      code += `  ],\n`;
+      
+      const invStr = Object.keys(inventory).length > 0 
+        ? Object.entries(inventory).map(([k,v]) => `'${k}': ${v}`).join(", ")
+        : "";
+      code += `  inventory: { ${invStr} }\n`;
+      code += `}`;
+      
+      const textarea = document.getElementById('code-output');
+      textarea.value = code;
+      
+      textarea.classList.remove('bg-slate-800');
+      textarea.classList.add('bg-blue-900');
+      setTimeout(() => {
+        textarea.classList.remove('bg-blue-900');
+        textarea.classList.add('bg-slate-800');
+      }, 300);
+    };
+
+    document.getElementById('btn-copy').onclick = () => {
+      const textarea = document.getElementById('code-output');
+      if (!textarea.value) return;
+      textarea.select();
+      document.execCommand('copy');
+      
+      showToast("コードをコピーしました！", 'success');
+      
+      const btn = document.getElementById('btn-copy');
+      const origText = btn.innerText;
+      btn.innerText = 'コピー済';
+      btn.classList.add('bg-green-300', 'text-green-800');
+      setTimeout(() => {
+        btn.innerText = origText;
+        btn.classList.remove('bg-green-300', 'text-green-800');
+      }, 1500);
+    };
+
+    /* =========================================
+       初期化
+    ========================================= */
+    renderPalette();
+    initBoard();
+    updateModeUI();
+
+  </script>
+</body>
+</html>

@@ -1,0 +1,1103 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>回路パズル - Circuit Logic Game</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    /* ========== ベース・盤面スタイル ========== */
+    .grid-cell {
+      transition: background-color 0.2s, transform 0.1s;
+    }
+    .grid-cell:active {
+      transform: scale(0.95);
+    }
+    .svg-piece {
+      transition: transform 0.2s ease-in-out;
+    }
+    .powered-glow {
+      filter: drop-shadow(0 0 5px #fbbf24);
+    }
+    .modal-overlay {
+      background-color: rgba(15, 23, 42, 0.7);
+      backdrop-filter: blur(4px);
+    }
+    
+    /* ========== おもちゃ風ボタン（汎用） ========== */
+    .btn-toy {
+      transition: all 0.1s cubic-bezier(0.4, 0, 0.2, 1);
+      box-shadow: 0 6px 0 0 rgba(0,0,0,0.15);
+    }
+    .btn-toy:active {
+      transform: translateY(6px);
+      box-shadow: 0 0px 0 0 rgba(0,0,0,0.15);
+    }
+    .btn-toy-yellow { box-shadow: 0 6px 0 0 #b45309; }
+    .btn-toy-yellow:active { box-shadow: 0 0px 0 0 #b45309; }
+    .btn-toy-blue { box-shadow: 0 6px 0 0 #1e40af; }
+    .btn-toy-blue:active { box-shadow: 0 0px 0 0 #1e40af; }
+    .btn-toy-gray { box-shadow: 0 6px 0 0 #94a3b8; }
+    .btn-toy-gray:active { box-shadow: 0 0px 0 0 #94a3b8; }
+
+    /* ========== トップページ専用リッチスタイル ========== */
+    .circuit-pattern {
+      background-color: #38bdf8;
+      background-image: 
+        radial-gradient(circle at center, rgba(255,255,255,0.8) 10%, transparent 10%),
+        linear-gradient(90deg, rgba(255,255,255,0.2) 2px, transparent 2px),
+        linear-gradient(rgba(255,255,255,0.2) 2px, transparent 2px);
+      background-size: 40px 40px, 40px 40px, 40px 40px;
+      background-position: 0 0, 19px 19px, 19px 19px;
+    }
+
+    .text-outline-blue {
+      text-shadow: 
+        -3px -3px 0 #1e3a8a, 3px -3px 0 #1e3a8a,
+        -3px  3px 0 #1e3a8a, 3px  3px 0 #1e3a8a,
+        -4px  0   0 #1e3a8a, 4px  0   0 #1e3a8a,
+         0   -4px 0 #1e3a8a, 0    4px 0 #1e3a8a;
+    }
+
+    /* アニメーション */
+    @keyframes float {
+      0%, 100% { transform: translateY(0px) rotate(0deg); }
+      50% { transform: translateY(-10px) rotate(5deg); }
+    }
+    .animate-float { animation: float 4s ease-in-out infinite; }
+    .animate-float-delay { animation: float 4s ease-in-out infinite; animation-delay: 2s; }
+
+    @keyframes shine-sweep {
+      0% { transform: translateX(-150%) skewX(-15deg); }
+      100% { transform: translateX(200%) skewX(-15deg); }
+    }
+    .hover-shine-sweep:hover .shine-effect {
+      animation: shine-sweep 0.8s ease-in-out;
+    }
+
+    /* スクロールバー */
+    .custom-scrollbar::-webkit-scrollbar { width: 8px; }
+    .custom-scrollbar::-webkit-scrollbar-track { background: rgba(255,255,255,0.2); border-radius: 4px; }
+    .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.5); border-radius: 4px; }
+  </style>
+</head>
+<body class="bg-slate-900 text-gray-800 font-sans h-screen w-screen overflow-hidden flex flex-col items-center justify-center p-2 md:p-4">
+
+  <div class="w-full max-w-5xl h-full flex flex-col bg-white rounded-2xl md:rounded-3xl shadow-[0_0_40px_rgba(56,189,248,0.5)] border-4 md:border-8 border-slate-700 overflow-hidden relative">
+
+    <div id="view-home" class="absolute inset-0 flex flex-col circuit-pattern z-10 overflow-y-auto custom-scrollbar">
+      <div class="flex flex-col items-center justify-center w-full px-4 py-8 my-auto">
+        <div class="relative mb-8 md:mb-12 text-center z-20">
+          <svg class="absolute -top-8 -left-12 md:-top-12 md:-left-16 w-16 h-16 md:w-24 md:h-24 text-yellow-300 opacity-80 animate-float" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2a7 7 0 00-7 7c0 2.38 1.19 4.47 3 5.74V17a1 1 0 001 1h6a1 1 0 001-1v-2.26c1.81-1.27 3-3.36 3-5.74a7 7 0 00-7-7zM9 21a1 1 0 001 1h4a1 1 0 001-1v-1H9v1z"></path></svg>
+          <svg class="absolute -bottom-4 -right-8 md:-bottom-6 md:-right-12 w-14 h-14 md:w-20 md:h-20 text-orange-400 opacity-90 animate-float-delay" fill="currentColor" viewBox="0 0 24 24"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"></path></svg>
+          <h1 class="text-5xl md:text-6xl lg:text-7xl font-black text-yellow-400 tracking-widest relative inline-block transform -rotate-2 text-outline-blue drop-shadow-[0_8px_0_#1e3a8a] leading-tight px-4">
+            回路パズル
+          </h1>
+        </div>
+        <div id="level-list" class="grid grid-cols-1 sm:grid-cols-2 gap-4 md:gap-6 w-full max-w-3xl z-20"></div>
+      </div>
+      <div class="w-full text-center pb-2 md:pb-4 text-sky-900/50 font-extrabold text-[10px] md:text-xs z-20 tracking-wider shrink-0">
+        回路パズル　|　ver1.3　|　ota tools
+      </div>
+    </div>
+
+    <div id="view-stages" class="absolute inset-0 flex flex-col bg-sky-50 hidden z-10">
+      <div class="bg-blue-600 text-white p-3 md:p-4 text-center border-b-4 border-blue-800 relative shrink-0 shadow-md">
+        <button id="btn-back-home" class="absolute left-3 top-1/2 -translate-y-1/2 bg-blue-500 hover:bg-blue-400 p-2 md:p-3 rounded-xl border-2 border-blue-400 transition-colors font-bold flex items-center gap-1 shadow-sm z-20">
+          <svg class="w-5 h-5 md:w-6 md:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M15 19l-7-7 7-7"></path></svg>
+        </button>
+        <h2 id="stage-select-title" class="text-2xl md:text-3xl font-black tracking-widest drop-shadow-md text-yellow-300 text-outline-blue" style="text-shadow: -2px -2px 0 #1e3a8a, 2px -2px 0 #1e3a8a, -2px 2px 0 #1e3a8a, 2px 2px 0 #1e3a8a;">レベル 1</h2>
+      </div>
+      <div class="flex-1 flex items-center justify-center p-4 md:p-8 overflow-y-auto circuit-pattern" style="background-color: #e0f2fe; background-image: radial-gradient(circle at center, rgba(56,189,248,0.3) 10%, transparent 10%), linear-gradient(90deg, rgba(56,189,248,0.1) 2px, transparent 2px), linear-gradient(rgba(56,189,248,0.1) 2px, transparent 2px);">
+        <div class="bg-white/90 backdrop-blur-sm p-6 md:p-8 rounded-2xl md:rounded-3xl border-4 border-white shadow-xl w-full max-w-4xl">
+          <div id="stage-grid" class="grid grid-cols-5 gap-3 md:gap-6 w-full"></div>
+        </div>
+      </div>
+    </div>
+
+    <div id="view-puzzle" class="absolute inset-0 flex flex-col hidden z-10 bg-white">
+      <div class="bg-slate-800 text-white p-2 md:p-3 text-center border-b-4 border-slate-900 shrink-0 flex items-center justify-between px-4 md:px-6">
+        <button id="btn-back-stages" class="bg-slate-700 hover:bg-slate-600 p-2 rounded-xl transition-colors font-bold flex items-center gap-1 text-sm md:text-base border-2 border-slate-600 z-20">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M15 19l-7-7 7-7"></path></svg>
+          やめる
+        </button>
+        <div class="flex-1">
+          <h1 id="puzzle-title" class="text-xl md:text-2xl font-black tracking-widest text-yellow-400">レベル1 - 1</h1>
+          <p class="text-slate-300 font-bold mt-1 text-xs md:text-sm">パーツをすべてつかって、電池の(＋)から電球を通って(－)につなげよう！</p>
+        </div>
+        <div class="w-20 md:w-24"></div>
+      </div>
+
+      <div class="flex-1 flex flex-col md:flex-row gap-2 md:gap-6 p-2 md:p-6 bg-slate-50 min-h-0 h-full">
+        <div class="flex-[1.2] md:flex-1 flex items-center justify-center min-h-0 min-w-0 relative">
+          <div id="board-wrapper" class="w-full h-full flex items-center justify-center p-2 md:p-4 bg-white rounded-xl md:rounded-2xl shadow-inner border-4 border-slate-200">
+            <div id="board-container" class="grid gap-1 md:gap-1.5 mx-auto relative"></div>
+          </div>
+        </div>
+
+        <div class="w-full md:w-80 flex-1 md:flex-none flex flex-col shrink-0 h-auto md:h-full overflow-hidden bg-white rounded-xl md:rounded-2xl border-4 border-slate-200 shadow-sm p-2 md:p-4">
+          <h2 class="text-sm md:text-lg font-extrabold mb-1 md:mb-3 text-blue-600 flex items-center justify-center gap-1 md:gap-2 border-b-2 border-blue-100 pb-1 md:pb-2 shrink-0">
+            <svg class="w-5 h-5 md:w-6 md:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M11 4a2 2 0 114 0v1a1 1 0 001 1h3a1 1 0 011 1v3a1 1 0 01-1 1h-1a2 2 0 100 4h1a1 1 0 011 1v3a1 1 0 01-1 1h-3a1 1 0 01-1-1v-1a2 2 0 10-4 0v1a1 1 0 01-1 1H7a1 1 0 01-1-1v-3a1 1 0 00-1-1H4a2 2 0 110-4h1a1 1 0 001-1V7a1 1 0 011-1h3a1 1 0 001-1V4z"></path></svg>
+            つかえるパーツ
+          </h2>
+          <div id="inventory-container" class="grid grid-cols-4 md:grid-cols-3 gap-2 md:gap-3 overflow-y-auto custom-scrollbar p-1 md:p-2 flex-1 min-h-[80px] content-start"></div>
+          
+          <div id="switch-area" class="shrink-0 flex items-center justify-center w-full"></div>
+          
+          <div class="pt-2 md:pt-3 border-t-2 border-slate-100 shrink-0 flex flex-row md:flex-col gap-2 md:gap-3">
+            <button id="tool-eraser" class="w-1/2 md:w-full py-2 md:py-3 px-2 md:px-4 rounded-xl md:rounded-2xl flex items-center justify-center gap-1 md:gap-2 border-4 border-slate-300 hover:bg-slate-100 transition-colors text-slate-600 font-extrabold text-sm md:text-base">
+              <svg class="w-5 h-5 md:w-6 md:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+              はずす
+            </button>
+            <button id="btn-reset-confirm" class="w-1/2 md:w-full bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold py-2 md:py-3.5 rounded-xl md:rounded-2xl text-sm md:text-base btn-toy btn-toy-gray flex items-center justify-center gap-1 md:gap-2">
+              <svg class="w-5 h-5 md:w-6 md:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+              やりなおす
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="modal-confirm" class="fixed inset-0 modal-overlay flex items-center justify-center hidden z-50 p-4">
+    <div class="bg-white p-6 md:p-8 rounded-2xl md:rounded-3xl shadow-2xl text-center border-8 border-slate-300 w-full max-w-sm">
+      <h2 class="text-xl md:text-2xl font-black text-slate-700 mb-6">さいしょから やりなおす？</h2>
+      <div class="flex gap-4 justify-center">
+        <button id="btn-confirm-cancel" class="flex-1 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold py-3 md:py-4 rounded-xl btn-toy btn-toy-gray text-base md:text-lg">いいえ</button>
+        <button id="btn-confirm-ok" class="flex-1 bg-red-500 hover:bg-red-600 text-white font-bold py-3 md:py-4 rounded-xl btn-toy flex items-center justify-center gap-1 text-base md:text-lg" style="box-shadow: 0 6px 0 0 #b91c1c;">はい</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="modal-clear" class="fixed inset-0 modal-overlay flex items-center justify-center hidden z-50 p-4">
+    <div class="bg-white p-8 md:p-10 rounded-2xl md:rounded-3xl shadow-2xl text-center border-8 border-yellow-400 w-full max-w-md">
+      <svg class="w-20 h-20 md:w-24 md:h-24 mx-auto text-yellow-400 drop-shadow-md mb-4" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"></path></svg>
+      <h2 class="text-3xl md:text-4xl font-black text-orange-500 mb-2 drop-shadow-sm">やったね！</h2>
+      <p class="text-slate-600 font-bold text-base md:text-lg mb-8">でんきが みごとに つながったよ！</p>
+      <div class="flex flex-col gap-3 md:gap-4">
+        <button id="btn-next-stage" class="w-full bg-blue-500 text-white font-black py-3 md:py-4 rounded-xl hover:bg-blue-600 btn-toy btn-toy-blue text-lg md:text-xl shadow-md">
+          つぎのもんだいへ
+        </button>
+        <button id="btn-back-stages-from-clear" class="w-full bg-slate-200 text-slate-700 font-bold py-3 md:py-3.5 rounded-xl hover:bg-slate-300 btn-toy btn-toy-gray text-base md:text-lg">
+          もんだいをえらぶ
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div id="modal-fail" class="fixed inset-0 modal-overlay flex items-center justify-center hidden z-50 p-4">
+    <div class="bg-white p-6 md:p-8 rounded-2xl md:rounded-3xl shadow-2xl text-center border-8 border-slate-300 w-full max-w-sm">
+      <svg class="w-16 h-16 md:w-20 md:h-20 mx-auto text-slate-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+      <h2 class="text-xl md:text-2xl font-black text-slate-700 mb-4">もういちど かんがえてみよう</h2>
+      <p class="text-slate-600 font-bold text-sm md:text-base mb-6">
+        ゴールまで つながらなかったり、<br>でんきが とおっていない パーツがあるみたい。
+      </p>
+      <button id="btn-fail-ok" class="w-full bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold py-3 md:py-4 rounded-xl btn-toy btn-toy-gray text-base md:text-lg">
+        やりなおす
+      </button>
+    </div>
+  </div>
+
+  <script>
+    const ROUTING = {
+      'straight': [[0, 2]],
+      'corner': [[0, 1]],
+      't_shape': [[0, 1, 3]],
+      'cross': [[0, 1, 2, 3]],
+      'bridge': [[0, 2], [1, 3]],
+      'led': [[0, 2]],
+      'led_corner': [[0, 1]],
+      'battery': [[0], [2]]
+    };
+
+    function getExitPorts(type, rotation, enterPort) {
+      if (!ROUTING[type]) return [];
+      const rotSteps = (rotation / 90) % 4;
+      const internalEnter = (enterPort - rotSteps + 4) % 4;
+      
+      let exits = [];
+      for (let group of ROUTING[type]) {
+        if (group.includes(internalEnter)) {
+          for (let p of group) {
+            if (p !== internalEnter) exits.push((p + rotSteps) % 4);
+          }
+          break;
+        }
+      }
+      return exits;
+    }
+
+    /* =========================================
+       ゲームデータと状態管理
+    ========================================= */
+    const STAGE_DATA = {
+      1: {
+        stages: {
+1:{
+  cols: 5, rows: 5,
+  board: [
+    [{type:'empty'}, {type:'empty'}, {type:'empty'}, {type:'empty'}, {type:'empty'}],
+    [{type:'empty'}, {type:'empty'}, {type:'led', fixed:true, rotation:90}, {type:'empty'}, {type:'empty'}],
+    [{type:'empty'}, {type:'empty'}, {type:'empty'}, {type:'empty'}, {type:'empty'}],
+    [{type:'empty'}, {type:'empty'}, {type:'battery', fixed:true, rotation:90}, {type:'empty'}, {type:'empty'}],
+    [{type:'empty'}, {type:'empty'}, {type:'empty'}, {type:'empty'}, {type:'empty'}],
+  ],
+  inventory: { 'corner': 4, 'straight': 2 }
+},
+2:{
+  cols: 5, rows: 5,
+  board: [
+    [{type:'empty'}, {type:'empty'}, {type:'empty'}, {type:'empty'}, {type:'empty'}],
+    [{type:'empty'}, {type:'empty'}, {type:'led', fixed:true, rotation:90}, {type:'empty'}, {type:'empty'}],
+    [{type:'empty'}, {type:'battery', fixed:true}, {type:'empty'}, {type:'empty'}, {type:'empty'}],
+    [{type:'empty'}, {type:'empty'}, {type:'empty'}, {type:'empty'}, {type:'empty'}],
+    [{type:'empty'}, {type:'empty'}, {type:'empty'}, {type:'empty'}, {type:'empty'}],
+  ],
+  inventory: { 'corner': 4, 'straight': 2 }
+},
+ 3:{
+  cols: 5, rows: 5,
+  board: [
+    [{type:'empty'}, {type:'empty'}, {type:'empty'}, {type:'empty'}, {type:'empty'}],
+    [{type:'empty'}, {type:'empty'}, {type:'battery', fixed:true, rotation:270}, {type:'empty'}, {type:'empty'}],
+    [{type:'empty'}, {type:'empty'}, {type:'empty'}, {type:'empty'}, {type:'empty'}],
+    [{type:'empty'}, {type:'empty'}, {type:'empty'}, {type:'led_corner', fixed:true, rotation:270}, {type:'empty'}],
+    [{type:'empty'}, {type:'empty'}, {type:'empty'}, {type:'empty'}, {type:'empty'}],
+  ],
+  inventory: { 'corner': 3, 'straight': 3 }
+},
+ 4:{
+  cols: 5, rows: 5,
+  board: [
+    [{type:'empty'}, {type:'empty'}, {type:'empty'}, {type:'empty'}, {type:'empty'}],
+    [{type:'empty'}, {type:'empty'}, {type:'led', fixed:true, rotation:90}, {type:'empty'}, {type:'empty'}],
+    [{type:'empty'}, {type:'empty'}, {type:'empty'}, {type:'battery', fixed:true, rotation:180}, {type:'empty'}],
+    [{type:'empty'}, {type:'led_corner', fixed:true}, {type:'empty'}, {type:'empty'}, {type:'empty'}],
+    [{type:'empty'}, {type:'empty'}, {type:'empty'}, {type:'empty'}, {type:'empty'}],
+  ],
+  inventory: { 'corner': 3, 'straight': 2 }
+},
+ 5:{
+  cols: 5, rows: 5,
+  board: [
+    [{type:'empty'}, {type:'empty'}, {type:'empty'}, {type:'empty'}, {type:'empty'}],
+    [{type:'empty'}, {type:'empty'}, {type:'empty'}, {type:'empty'}, {type:'empty'}],
+    [{type:'empty'}, {type:'empty'}, {type:'led', fixed:true, rotation:90}, {type:'empty'}, {type:'empty'}],
+    [{type:'empty'}, {type:'empty'}, {type:'battery', fixed:true, rotation:90}, {type:'empty'}, {type:'empty'}],
+    [{type:'empty'}, {type:'empty'}, {type:'empty'}, {type:'empty'}, {type:'empty'}],
+  ],
+  inventory: { 'corner': 4, 'straight': 4 }
+},
+ 6:{
+  cols: 5, rows: 5,
+  board: [
+    [{type:'empty'}, {type:'empty'}, {type:'empty'}, {type:'empty'}, {type:'empty'}],
+    [{type:'empty'}, {type:'empty'}, {type:'empty'}, {type:'led_corner', fixed:true, rotation:180}, {type:'empty'}],
+    [{type:'straight', fixed:true}, {type:'empty'}, {type:'empty'}, {type:'empty'}, {type:'empty'}],
+    [{type:'empty'}, {type:'empty'}, {type:'battery', fixed:true, rotation:90}, {type:'empty'}, {type:'empty'}],
+    [{type:'empty'}, {type:'empty'}, {type:'empty'}, {type:'empty'}, {type:'empty'}],
+  ],
+  inventory: { 'corner': 3, 'straight': 4 }
+},
+ 7:{
+  cols: 5, rows: 5,
+  board: [
+    [{type:'led_corner', fixed:true, rotation:90}, {type:'empty'}, {type:'empty'}, {type:'empty'}, {type:'empty'}],
+    [{type:'empty'}, {type:'empty'}, {type:'empty'}, {type:'empty'}, {type:'empty'}],
+    [{type:'empty'}, {type:'empty'}, {type:'empty'}, {type:'empty'}, {type:'empty'}],
+    [{type:'empty'}, {type:'empty'}, {type:'battery', fixed:true, rotation:90}, {type:'empty'}, {type:'empty'}],
+    [{type:'empty'}, {type:'empty'}, {type:'empty'}, {type:'empty'}, {type:'empty'}],
+  ],
+  inventory: { 'straight': 5, 'corner': 5 }
+},
+ 8:{
+  cols: 5, rows: 5,
+  board: [
+    [{type:'empty'}, {type:'empty'}, {type:'empty'}, {type:'empty'}, {type:'empty'}],
+    [{type:'empty'}, {type:'empty'}, {type:'empty'}, {type:'empty'}, {type:'empty'}],
+    [{type:'empty'}, {type:'led_corner', fixed:true, rotation:90}, {type:'empty'}, {type:'empty'}, {type:'empty'}],
+    [{type:'empty'}, {type:'empty'}, {type:'battery', fixed:true, rotation:90}, {type:'empty'}, {type:'empty'}],
+    [{type:'empty'}, {type:'empty'}, {type:'empty'}, {type:'empty'}, {type:'led_corner', fixed:true, rotation:270}],
+  ],
+  inventory: { 'straight': 3, 'corner': 4 }
+},
+ 9:{
+  cols: 5, rows: 5,
+  board: [
+    [{type:'empty'}, {type:'empty'}, {type:'empty'}, {type:'empty'}, {type:'empty'}],
+    [{type:'empty'}, {type:'empty'}, {type:'empty'}, {type:'empty'}, {type:'empty'}],
+    [{type:'led_corner', fixed:true, rotation:90}, {type:'empty'}, {type:'empty'}, {type:'empty'}, {type:'led', fixed:true}],
+    [{type:'empty'}, {type:'empty'}, {type:'battery', fixed:true, rotation:90}, {type:'empty'}, {type:'empty'}],
+    [{type:'empty'}, {type:'empty'}, {type:'empty'}, {type:'empty'}, {type:'empty'}],
+  ],
+  inventory: { 'corner': 5, 'straight': 4 }
+},
+ 10:{
+  cols: 5, rows: 5,
+  board: [
+    [{type:'led_corner', fixed:true, rotation:90}, {type:'empty'}, {type:'empty'}, {type:'empty'}, {type:'led_corner', fixed:true, rotation:180}],
+    [{type:'empty'}, {type:'empty'}, {type:'straight', fixed:true, rotation:180}, {type:'empty'}, {type:'empty'}],
+    [{type:'empty'}, {type:'empty'}, {type:'empty'}, {type:'empty'}, {type:'empty'}],
+    [{type:'empty'}, {type:'empty'}, {type:'battery', fixed:true, rotation:90}, {type:'empty'}, {type:'empty'}],
+    [{type:'empty'}, {type:'empty'}, {type:'empty'}, {type:'empty'}, {type:'empty'}],
+  ],
+  inventory: { 'straight': 8, 'corner': 6 }
+}
+        }
+      },
+
+      2: { stages: {
+ 1:{
+  cols: 5, rows: 5,
+  board: [
+    [{type:'empty'}, {type:'empty'}, {type:'empty'}, {type:'empty'}, {type:'empty'}],
+    [{type:'empty'}, {type:'empty'}, {type:'empty'}, {type:'empty'}, {type:'empty'}],
+    [{type:'led', fixed:true}, {type:'empty'}, {type:'empty'}, {type:'empty'}, {type:'empty'}],
+    [{type:'empty'}, {type:'empty'}, {type:'empty'}, {type:'led_corner', fixed:true}, {type:'empty'}],
+    [{type:'empty'}, {type:'empty'}, {type:'battery', fixed:true, rotation:90}, {type:'empty'}, {type:'empty'}],
+  ],
+  inventory: { 'corner': 5, 'straight': 8 }
+},
+ 2:{
+  cols: 5, rows: 5,
+  board: [
+    [{type:'empty'}, {type:'empty'}, {type:'empty'}, {type:'empty'}, {type:'empty'}],
+    [{type:'empty'}, {type:'empty'}, {type:'empty'}, {type:'led_corner', fixed:true, rotation:180}, {type:'empty'}],
+    [{type:'empty'}, {type:'led_corner', fixed:true}, {type:'bridge', fixed:true}, {type:'empty'}, {type:'empty'}],
+    [{type:'empty'}, {type:'empty'}, {type:'empty'}, {type:'empty'}, {type:'empty'}],
+    [{type:'empty'}, {type:'empty'}, {type:'battery', fixed:true, rotation:90}, {type:'empty'}, {type:'empty'}],
+  ],
+  inventory: { 'corner': 8, 'straight': 3 }
+},
+ 3:{
+  cols: 5, rows: 5,
+  board: [
+    [{type:'empty'}, {type:'empty'}, {type:'empty'}, {type:'empty'}, {type:'empty'}],
+    [{type:'empty'}, {type:'led_corner', fixed:true, rotation:90}, {type:'empty'}, {type:'empty'}, {type:'empty'}],
+    [{type:'empty'}, {type:'empty'}, {type:'empty'}, {type:'led', fixed:true, rotation:270}, {type:'empty'}],
+    [{type:'empty'}, {type:'empty'}, {type:'empty'}, {type:'empty'}, {type:'empty'}],
+    [{type:'empty'}, {type:'empty'}, {type:'empty'}, {type:'empty'}, {type:'empty'}],
+  ],
+  inventory: { 'corner': 7, 'bridge': 1, 'straight': 2, 'battery': 1 }
+},
+ 4:{
+  cols: 5, rows: 5,
+  board: [
+    [{type:'empty'}, {type:'empty'}, {type:'corner', fixed:true, rotation:90}, {type:'straight', fixed:true, rotation:90}, {type:'corner', fixed:true, rotation:180}],
+    [{type:'empty'}, {type:'empty'}, {type:'empty'}, {type:'corner', fixed:true, rotation:180}, {type:'straight', fixed:true}],
+    [{type:'empty'}, {type:'corner', fixed:true, rotation:90}, {type:'empty'}, {type:'straight', fixed:true}, {type:'straight', fixed:true}],
+    [{type:'empty'}, {type:'straight', fixed:true}, {type:'corner', fixed:true}, {type:'corner', fixed:true, rotation:270}, {type:'battery', fixed:true}],
+    [{type:'empty'}, {type:'corner', fixed:true}, {type:'straight', fixed:true, rotation:90}, {type:'straight', fixed:true, rotation:90}, {type:'corner', fixed:true, rotation:270}],
+  ],
+  inventory: { 'led_corner': 2 }
+},
+ 5:{
+  cols: 5, rows: 5,
+  board: [
+    [{type:'empty'}, {type:'empty'}, {type:'empty'}, {type:'empty'}, {type:'empty'}],
+    [{type:'empty'}, {type:'led_corner', fixed:true, rotation:270}, {type:'empty'}, {type:'empty'}, {type:'empty'}],
+    [{type:'empty'}, {type:'empty'}, {type:'led_corner', fixed:true, rotation:90}, {type:'empty'}, {type:'empty'}],
+    [{type:'empty'}, {type:'empty'}, {type:'empty'}, {type:'battery', fixed:true}, {type:'empty'}],
+    [{type:'empty'}, {type:'empty'}, {type:'empty'}, {type:'empty'}, {type:'empty'}],
+  ],
+  inventory: { 'corner': 8, 'straight': 7 }
+}, 6:{
+  cols: 5, rows: 5,
+  board: [
+    [{type:'empty'}, {type:'empty'}, {type:'empty'}, {type:'empty'}, {type:'empty'}],
+    [{type:'empty'}, {type:'empty'}, {type:'led_corner', fixed:true, rotation:270}, {type:'led_corner', fixed:true}, {type:'empty'}],
+    [{type:'empty'}, {type:'empty'}, {type:'battery', fixed:true, rotation:90}, {type:'empty'}, {type:'empty'}],
+    [{type:'empty'}, {type:'empty'}, {type:'led', fixed:true, rotation:90}, {type:'empty'}, {type:'empty'}],
+    [{type:'empty'}, {type:'empty'}, {type:'empty'}, {type:'empty'}, {type:'empty'}],
+  ],
+  inventory: { 'corner': 10, 'straight': 2, 'bridge': 1 }
+},
+ 7:{
+  cols: 5, rows: 5,
+  board: [
+    [{type:'empty'}, {type:'empty'}, {type:'empty'}, {type:'empty'}, {type:'empty'}],
+    [{type:'empty'}, {type:'led', fixed:true, rotation:180}, {type:'empty'}, {type:'empty'}, {type:'empty'}],
+    [{type:'empty'}, {type:'empty'}, {type:'bridge', fixed:true}, {type:'empty'}, {type:'empty'}],
+    [{type:'empty'}, {type:'empty'}, {type:'empty'}, {type:'empty'}, {type:'battery', fixed:true}],
+    [{type:'empty'}, {type:'empty'}, {type:'empty'}, {type:'empty'}, {type:'empty'}],
+  ],
+  inventory: { 'corner': 10, 'straight': 2, 'bridge': 1 }
+},
+ 8:{
+  cols: 5, rows: 5,
+  board: [
+    [{type:'empty'}, {type:'empty'}, {type:'empty'}, {type:'empty'}, {type:'empty'}],
+    [{type:'empty'}, {type:'bridge', fixed:true}, {type:'empty'}, {type:'empty'}, {type:'led_corner', fixed:true, rotation:180}],
+    [{type:'empty'}, {type:'empty'}, {type:'empty'}, {type:'bridge', fixed:true}, {type:'empty'}],
+    [{type:'led_corner', fixed:true}, {type:'empty'}, {type:'empty'}, {type:'empty'}, {type:'empty'}],
+    [{type:'empty'}, {type:'empty'}, {type:'battery', fixed:true, rotation:90}, {type:'empty'}, {type:'empty'}],
+  ],
+  inventory: { 'corner': 10, 'straight': 3 }
+},
+ 9:{
+  cols: 5, rows: 5,
+  board: [
+    [{type:'empty'}, {type:'empty'}, {type:'battery', fixed:true, rotation:90}, {type:'empty'}, {type:'empty'}],
+    [{type:'empty'}, {type:'empty'}, {type:'empty'}, {type:'led', fixed:true, rotation:180}, {type:'empty'}],
+    [{type:'empty'}, {type:'empty'}, {type:'bridge', fixed:true}, {type:'empty'}, {type:'empty'}],
+    [{type:'empty'}, {type:'led_corner', fixed:true}, {type:'empty'}, {type:'empty'}, {type:'empty'}],
+    [{type:'empty'}, {type:'empty'}, {type:'empty'}, {type:'empty'}, {type:'empty'}],
+  ],
+  inventory: { 'corner': 9, 'bridge': 1 }
+},
+ 10:{
+  cols: 5, rows: 5,
+  board: [
+    [{type:'empty'}, {type:'led', fixed:true, rotation:270}, {type:'empty'}, {type:'empty'}, {type:'empty'}],
+    [{type:'empty'}, {type:'empty'}, {type:'empty'}, {type:'empty'}, {type:'empty'}],
+    [{type:'empty'}, {type:'battery', fixed:true, rotation:90}, {type:'bridge', fixed:true}, {type:'empty'}, {type:'empty'}],
+    [{type:'empty'}, {type:'empty'}, {type:'empty'}, {type:'led', fixed:true, rotation:270}, {type:'empty'}],
+    [{type:'empty'}, {type:'led_corner', fixed:true}, {type:'empty'}, {type:'empty'}, {type:'empty'}],
+  ],
+  inventory: { 'corner': 7, 'straight': 3, 'bridge': 1 }
+}} },
+
+      3: { stages: {
+ 1:{
+  cols: 5, rows: 5,
+  board: [
+    [{type:'empty'}, {type:'empty'}, {type:'empty'}, {type:'empty'}, {type:'empty'}],
+    [{type:'empty'}, {type:'empty'}, {type:'led', fixed:true}, {type:'led', fixed:true}, {type:'empty'}],
+    [{type:'empty'}, {type:'empty'}, {type:'empty'}, {type:'empty'}, {type:'empty'}],
+    [{type:'empty'}, {type:'battery', fixed:true, rotation:90}, {type:'empty'}, {type:'empty'}, {type:'empty'}],
+    [{type:'empty'}, {type:'empty'}, {type:'empty'}, {type:'empty'}, {type:'empty'}],
+  ],
+  inventory: { 'corner': 4, 'straight': 5, 't_shape': 2 }
+},
+ 2:{
+  cols: 5, rows: 5,
+  board: [
+    [{type:'empty'}, {type:'empty'}, {type:'empty'}, {type:'empty'}, {type:'empty'}],
+    [{type:'empty'}, {type:'empty'}, {type:'empty'}, {type:'empty'}, {type:'empty'}],
+    [{type:'empty'}, {type:'led', fixed:true}, {type:'battery', fixed:true}, {type:'led', fixed:true, rotation:180}, {type:'empty'}],
+    [{type:'empty'}, {type:'empty'}, {type:'empty'}, {type:'empty'}, {type:'empty'}],
+    [{type:'empty'}, {type:'empty'}, {type:'empty'}, {type:'empty'}, {type:'empty'}],
+  ],
+  inventory: { 'corner': 4, 't_shape': 2 }
+},
+ 3:{
+  cols: 5, rows: 5,
+  board: [
+    [{type:'empty'}, {type:'empty'}, {type:'empty'}, {type:'empty'}, {type:'empty'}],
+    [{type:'led', fixed:true, rotation:180}, {type:'led', fixed:true, rotation:180}, {type:'led', fixed:true, rotation:180}, {type:'empty'}, {type:'empty'}],
+    [{type:'empty'}, {type:'empty'}, {type:'empty'}, {type:'empty'}, {type:'empty'}],
+    [{type:'empty'}, {type:'battery', fixed:true}, {type:'empty'}, {type:'empty'}, {type:'empty'}],
+    [{type:'empty'}, {type:'empty'}, {type:'empty'}, {type:'empty'}, {type:'empty'}],
+  ],
+  inventory: { 'corner': 6, 't_shape': 2, 'straight': 4, 'cross': 1 }
+},
+ 4:{
+  cols: 5, rows: 5,
+  board: [
+    [{type:'led_corner', fixed:true, rotation:90}, {type:'empty'}, {type:'empty'}, {type:'empty'}, {type:'led_corner', fixed:true, rotation:180}],
+    [{type:'empty'}, {type:'empty'}, {type:'empty'}, {type:'empty'}, {type:'empty'}],
+    [{type:'empty'}, {type:'led', fixed:true, rotation:180}, {type:'battery', fixed:true}, {type:'empty'}, {type:'empty'}],
+    [{type:'empty'}, {type:'empty'}, {type:'empty'}, {type:'empty'}, {type:'empty'}],
+    [{type:'empty'}, {type:'empty'}, {type:'empty'}, {type:'empty'}, {type:'empty'}],
+  ],
+  inventory: { 'straight': 2, 'corner': 6, 't_shape': 2, 'bridge': 2 }
+},
+ 5:{
+  cols: 5, rows: 5,
+  board: [
+    [{type:'empty'}, {type:'empty'}, {type:'empty'}, {type:'led_corner', fixed:true, rotation:180}, {type:'empty'}],
+    [{type:'led', fixed:true, rotation:180}, {type:'led', fixed:true, rotation:180}, {type:'empty'}, {type:'empty'}, {type:'empty'}],
+    [{type:'empty'}, {type:'empty'}, {type:'empty'}, {type:'empty'}, {type:'empty'}],
+    [{type:'battery', fixed:true}, {type:'empty'}, {type:'empty'}, {type:'led', fixed:true, rotation:180}, {type:'led', fixed:true, rotation:180}],
+    [{type:'empty'}, {type:'empty'}, {type:'empty'}, {type:'empty'}, {type:'empty'}],
+  ],
+  inventory: { 'corner': 6, 't_shape': 4, 'straight': 4, 'bridge': 1 }
+},
+ 6:{
+  cols: 5, rows: 5,
+  board: [
+    [{type:'empty'}, {type:'empty'}, {type:'empty'}, {type:'empty'}, {type:'led_corner', fixed:true, rotation:180}],
+    [{type:'empty'}, {type:'empty'}, {type:'empty'}, {type:'empty'}, {type:'empty'}],
+    [{type:'led_corner', fixed:true, rotation:90}, {type:'empty'}, {type:'empty'}, {type:'empty'}, {type:'led', fixed:true}],
+    [{type:'empty'}, {type:'empty'}, {type:'empty'}, {type:'empty'}, {type:'empty'}],
+    [{type:'empty'}, {type:'battery', fixed:true, rotation:90}, {type:'empty'}, {type:'empty'}, {type:'empty'}],
+  ],
+  inventory: { 'corner': 5, 'straight': 7, 'bridge': 1, 't_shape': 2 }
+},
+ 7:{
+  cols: 5, rows: 5,
+  board: [
+    [{type:'led_corner', fixed:true, rotation:90}, {type:'empty'}, {type:'empty'}, {type:'empty'}, {type:'empty'}],
+    [{type:'empty'}, {type:'empty'}, {type:'empty'}, {type:'empty'}, {type:'empty'}],
+    [{type:'empty'}, {type:'led', fixed:true}, {type:'empty'}, {type:'led', fixed:true}, {type:'battery', fixed:true}],
+    [{type:'empty'}, {type:'empty'}, {type:'empty'}, {type:'empty'}, {type:'empty'}],
+    [{type:'led_corner', fixed:true}, {type:'empty'}, {type:'empty'}, {type:'empty'}, {type:'empty'}],
+  ],
+  inventory: { 't_shape': 2, 'straight': 6, 'corner': 7, 'bridge': 2 }
+},
+ 8:{
+  cols: 5, rows: 5,
+  board: [
+    [{type:'led_corner', fixed:true, rotation:90}, {type:'empty'}, {type:'empty'}, {type:'empty'}, {type:'empty'}],
+    [{type:'empty'}, {type:'empty'}, {type:'empty'}, {type:'empty'}, {type:'empty'}],
+    [{type:'empty'}, {type:'empty'}, {type:'battery', fixed:true, rotation:90}, {type:'empty'}, {type:'empty'}],
+    [{type:'empty'}, {type:'empty'}, {type:'empty'}, {type:'empty'}, {type:'empty'}],
+    [{type:'led_corner', fixed:true}, {type:'empty'}, {type:'empty'}, {type:'empty'}, {type:'led_corner', fixed:true, rotation:270}],
+  ],
+  inventory: { 'straight': 11, 'corner': 3, 't_shape': 2, 'cross': 1 }
+},
+ 9:{
+  cols: 5, rows: 5,
+  board: [
+    [{type:'empty'}, {type:'empty'}, {type:'empty'}, {type:'led', fixed:true, rotation:90}, {type:'empty'}],
+    [{type:'empty'}, {type:'empty'}, {type:'empty'}, {type:'empty'}, {type:'empty'}],
+    [{type:'empty'}, {type:'empty'}, {type:'empty'}, {type:'empty'}, {type:'empty'}],
+    [{type:'empty'}, {type:'empty'}, {type:'led', fixed:true, rotation:90}, {type:'empty'}, {type:'battery', fixed:true}],
+    [{type:'empty'}, {type:'empty'}, {type:'led', fixed:true, rotation:90}, {type:'empty'}, {type:'empty'}],
+  ],
+  inventory: { 'corner': 10, 'bridge': 1, 'straight': 4, 't_shape': 2 }
+},
+ 10:{
+  cols: 5, rows: 5,
+  board: [
+    [{type:'empty'}, {type:'empty'}, {type:'empty'}, {type:'empty'}, {type:'led_corner', fixed:true, rotation:180}],
+    [{type:'empty'}, {type:'empty'}, {type:'led', fixed:true, rotation:270}, {type:'empty'}, {type:'empty'}],
+    [{type:'empty'}, {type:'battery', fixed:true}, {type:'empty'}, {type:'empty'}, {type:'empty'}],
+    [{type:'empty'}, {type:'empty'}, {type:'empty'}, {type:'led', fixed:true, rotation:270}, {type:'empty'}],
+    [{type:'led_corner', fixed:true}, {type:'empty'}, {type:'empty'}, {type:'empty'}, {type:'empty'}],
+  ],
+  inventory: { 'corner': 5, 't_shape': 4, 'straight': 4, 'bridge': 2 }
+}} }
+    };
+
+
+    let userProgress = {}; 
+    let state = {
+      currentLevel: 1, currentStage: 1, board: [], inventory: {},
+      selectedTool: 'corner', isSimulating: false, circuitCompleted: false,
+      config: { cols: 5, rows: 5 }
+    };
+
+    const DIR = { TOP: 0, RIGHT: 1, BOTTOM: 2, LEFT: 3 };
+    const DX = [0, 1, 0, -1], DY = [-1, 0, 1, 0];
+
+    function switchView(viewName) {
+      ['view-home', 'view-stages', 'view-puzzle', 'modal-clear', 'modal-confirm', 'modal-fail'].forEach(id => {
+        document.getElementById(id).classList.add('hidden');
+      });
+
+      if (viewName === 'home') {
+        document.getElementById('view-home').classList.remove('hidden');
+        renderHome();
+      } else if (viewName === 'stages') {
+        document.getElementById('view-stages').classList.remove('hidden');
+        renderStages();
+      } else if (viewName === 'puzzle') {
+        document.getElementById('view-puzzle').classList.remove('hidden');
+        setTimeout(resizeBoard, 10);
+      }
+    }
+
+    function renderHome() {
+      const list = document.getElementById('level-list');
+      list.innerHTML = '';
+      Object.keys(STAGE_DATA).forEach(level => {
+        let clearedCount = 0;
+        for (let i = 1; i <= 10; i++) if (userProgress[`${level}-${i}`]) clearedCount++;
+        let isAllCleared = clearedCount === 10;
+
+        const btn = document.createElement('button');
+        btn.addEventListener('click', () => { state.currentLevel = level; switchView('stages'); });
+        
+        if (isAllCleared) {
+          btn.className = `w-full relative group transition-all duration-200 active:scale-95 hover-shine-sweep`;
+          btn.innerHTML = `
+            <div class="absolute inset-0 bg-yellow-600 rounded-xl md:rounded-2xl translate-y-2 shadow-md"></div>
+            <div class="relative bg-gradient-to-br from-yellow-200 via-yellow-400 to-orange-400 border-[3px] border-yellow-200 rounded-xl md:rounded-2xl p-3 md:p-4 flex items-center justify-between overflow-hidden shadow-inner">
+              <div class="absolute inset-0 bg-white opacity-30 shine-effect pointer-events-none transform -translate-x-full"></div>
+              <div class="flex items-center gap-3 md:gap-4 z-10">
+                <div class="w-12 h-12 md:w-16 md:h-16 bg-white rounded-full flex items-center justify-center border-[4px] border-yellow-500 shadow-sm shrink-0">
+                  <svg class="w-6 h-6 md:w-8 md:h-8 text-yellow-500" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"></path></svg>
+                </div>
+                <div class="text-left">
+                  <h3 class="text-xl md:text-2xl font-black text-yellow-900 drop-shadow-sm tracking-widest leading-none">レベル ${level}</h3>
+                  <p class="font-bold text-yellow-800 text-[10px] md:text-xs bg-yellow-100/50 inline-block px-2 py-0.5 rounded mt-1.5 md:mt-2 border border-yellow-500/30">すべてクリア！</p>
+                </div>
+              </div>
+            </div>
+          `;
+        } else {
+          const progressPercent = (clearedCount / 10) * 100;
+          btn.className = `w-full relative group transition-all duration-200 active:scale-95`;
+          btn.innerHTML = `
+            <div class="absolute inset-0 bg-blue-800 rounded-xl md:rounded-2xl translate-y-2 shadow-md"></div>
+            <div class="relative bg-gradient-to-b from-blue-400 to-blue-600 border-[3px] border-blue-300 rounded-xl md:rounded-2xl p-3 md:p-4 flex items-center justify-between overflow-hidden shadow-inner">
+              <div class="flex items-center gap-3 md:gap-4 z-10 w-full">
+                <div class="w-12 h-12 md:w-16 md:h-16 bg-blue-800 rounded-full flex items-center justify-center border-[4px] border-blue-300 shadow-inner text-white text-2xl md:text-3xl font-black shrink-0">
+                  ${level}
+                </div>
+                <div class="text-left w-full">
+                  <h3 class="text-xl md:text-2xl font-black text-white drop-shadow-md tracking-widest leading-none">レベル ${level}</h3>
+                  <div class="mt-2 flex items-center gap-2 pr-2">
+                    <div class="flex-1 h-2.5 md:h-3 bg-blue-900 rounded-full overflow-hidden shadow-inner border border-blue-800">
+                      <div class="h-full bg-gradient-to-r from-yellow-300 to-yellow-400 rounded-full transition-all duration-500 ease-out" style="width: ${progressPercent}%;"></div>
+                    </div>
+                    <span class="text-[10px] md:text-xs font-black text-yellow-300 shrink-0 w-8 text-right">${clearedCount}/10</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          `;
+        }
+        list.appendChild(btn);
+      });
+    }
+
+    function renderStages() {
+      document.getElementById('stage-select-title').innerText = `レベル ${state.currentLevel}`;
+      const grid = document.getElementById('stage-grid');
+      grid.innerHTML = '';
+
+      for (let i = 1; i <= 10; i++) {
+        const isCleared = userProgress[`${state.currentLevel}-${i}`];
+        const btn = document.createElement('button');
+        if (isCleared) {
+          btn.className = "aspect-square rounded-xl md:rounded-2xl flex flex-col items-center justify-center font-black text-3xl md:text-4xl transition-all bg-gradient-to-b from-yellow-200 to-yellow-400 text-yellow-900 border-[3px] border-white shadow-[0_6px_0_#b45309] active:translate-y-[6px] active:shadow-none relative";
+          btn.innerHTML = `${i}<svg class="w-7 h-7 md:w-8 md:h-8 text-orange-500 absolute -top-2 -right-2 drop-shadow-md" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"></path></svg>`;
+        } else {
+          btn.className = "aspect-square rounded-xl md:rounded-2xl flex flex-col items-center justify-center font-black text-3xl md:text-4xl transition-all bg-white hover:bg-sky-50 text-sky-600 border-[3px] border-sky-200 shadow-[0_6px_0_#bae6fd] active:translate-y-[6px] active:shadow-none";
+          btn.innerHTML = `${i}`;
+        }
+        btn.onclick = () => loadPuzzle(state.currentLevel, i);
+        grid.appendChild(btn);
+      }
+    }
+
+    function loadPuzzle(level, stageNum) {
+      state.currentLevel = level;
+      state.currentStage = stageNum;
+      document.getElementById('puzzle-title').innerText = `レベル ${level} - ${stageNum}`;
+
+      let stageData = STAGE_DATA[level].stages[stageNum];
+      if (!stageData) stageData = STAGE_DATA[1].stages[1];
+
+      state.config.cols = stageData.cols;
+      state.config.rows = stageData.rows;
+      state.board = JSON.parse(JSON.stringify(stageData.board));
+      state.inventory = { ...stageData.inventory };
+      
+      for (let y = 0; y < state.config.rows; y++) {
+        for (let x = 0; x < state.config.cols; x++) {
+          state.board[y][x].rotation = state.board[y][x].rotation || 0;
+          state.board[y][x].powered = false;
+          state.board[y][x].poweredPorts = [];
+        }
+      }
+      
+      state.isSimulating = false;
+      state.circuitCompleted = false;
+      state.selectedTool = Object.keys(state.inventory)[0] || 'eraser';
+      
+      switchView('puzzle');
+      renderPuzzle();
+    }
+
+    function initGame() { loadPuzzle(state.currentLevel, state.currentStage); }
+
+    function resizeBoard() {
+      const wrapper = document.getElementById('board-wrapper');
+      const container = document.getElementById('board-container');
+      if (!wrapper || !container || document.getElementById('view-puzzle').classList.contains('hidden')) return;
+      const w = wrapper.clientWidth - 32, h = wrapper.clientHeight - 32;
+      const size = Math.floor(Math.min(w, h));
+      container.style.width = `${size}px`;
+      container.style.height = `${size}px`;
+    }
+    window.addEventListener('resize', resizeBoard);
+
+    function getSvgIcon(type, rotation, powered, poweredPorts = []) {
+      if (type === 'empty') return '';
+      
+      const isPortPowered = (internalPort) => {
+        if (poweredPorts.length === 0) return powered; 
+        const absolutePort = (internalPort + (rotation / 90)) % 4;
+        return poweredPorts.includes(absolutePort);
+      };
+
+      const strokeW = 10;
+      let svgContent = '';
+      let addClass = powered ? 'powered-glow' : '';
+
+      switch (type) {
+        case 'straight':
+          const swC = powered ? '#fbbf24' : '#64748b';
+          svgContent = `<line x1="32" y1="0" x2="32" y2="64" stroke="${swC}" stroke-width="${strokeW}" />`; 
+          break;
+        case 'corner':
+          const cwC = powered ? '#fbbf24' : '#64748b';
+          svgContent = `<path d="M 32 0 Q 32 32 64 32" stroke="${cwC}" stroke-width="${strokeW}" fill="none" stroke-linecap="square"/>`; 
+          break;
+        case 't_shape':
+          const twC = powered ? '#fbbf24' : '#64748b';
+          svgContent = `
+            <line x1="32" y1="0" x2="32" y2="32" stroke="${twC}" stroke-width="${strokeW}" />
+            <line x1="0" y1="32" x2="64" y2="32" stroke="${twC}" stroke-width="${strokeW}" />
+            <circle cx="32" cy="32" r="${strokeW/2}" fill="${twC}" />
+          `;
+          break;
+        case 'cross':
+          const crwC = powered ? '#fbbf24' : '#64748b';
+          svgContent = `
+            <line x1="32" y1="0" x2="32" y2="64" stroke="${crwC}" stroke-width="${strokeW}" />
+            <line x1="0" y1="32" x2="64" y2="32" stroke="${crwC}" stroke-width="${strokeW}" />
+          `;
+          break;
+        case 'bridge':
+          const vPowered = isPortPowered(0) || isPortPowered(2);
+          const vColor = vPowered ? '#fbbf24' : '#64748b';
+          const hPowered = isPortPowered(1) || isPortPowered(3);
+          const hColor = hPowered ? '#fbbf24' : '#64748b';
+          
+          if (!vPowered && !hPowered) addClass = ''; 
+          else addClass = 'powered-glow';
+
+          svgContent = `
+            <line x1="32" y1="0" x2="32" y2="64" stroke="${vColor}" stroke-width="${strokeW}" />
+            <path d="M 0 32 L 20 32 A 12 12 0 0 1 44 32 L 64 32" stroke="#ffffff" stroke-width="${strokeW + 6}" fill="none" />
+            <path d="M 0 32 L 20 32 A 12 12 0 0 1 44 32 L 64 32" stroke="${hColor}" stroke-width="${strokeW}" fill="none" />
+          `;
+          break;
+        case 'battery':
+          const plusWireColor = powered ? '#fbbf24' : '#64748b';
+          const minusWireColor = state.circuitCompleted ? '#fbbf24' : '#64748b';
+          svgContent = `
+            <line x1="32" y1="0" x2="32" y2="12" stroke="${plusWireColor}" stroke-width="${strokeW}" />
+            <line x1="32" y1="52" x2="32" y2="64" stroke="${minusWireColor}" stroke-width="${strokeW}" />
+            <rect x="24" y="8" width="16" height="4" fill="#94a3b8" />
+            <rect x="12" y="12" width="40" height="40" rx="6" fill="#3b82f6" />
+            <path d="M 12 18 Q 12 12 18 12 L 46 12 Q 52 12 52 18 L 52 32 L 12 32 Z" fill="#ef4444" />
+            <text x="32" y="27" fill="white" font-size="16" text-anchor="middle" font-weight="bold">+</text>
+            <text x="32" y="49" fill="white" font-size="20" text-anchor="middle" font-weight="bold">-</text>
+          `; 
+          break;
+        case 'led':
+          const lwC = powered ? '#fbbf24' : '#64748b';
+          const lLight = powered ? '#fef08a' : '#94a3b8';
+          const lStroke = powered ? '#eab308' : '#cbd5e1';
+          svgContent = `
+            <line x1="32" y1="0" x2="32" y2="20" stroke="${lwC}" stroke-width="${strokeW}" />
+            <line x1="32" y1="44" x2="32" y2="64" stroke="${lwC}" stroke-width="${strokeW}" />
+            <circle cx="32" cy="32" r="16" fill="${lLight}" stroke="${lStroke}" stroke-width="4" />
+          `; break;
+        case 'led_corner':
+          const lcwC = powered ? '#fbbf24' : '#64748b';
+          const lcLight = powered ? '#fef08a' : '#94a3b8';
+          const lcStroke = powered ? '#eab308' : '#cbd5e1';
+          svgContent = `
+            <line x1="32" y1="0" x2="32" y2="20" stroke="${lcwC}" stroke-width="${strokeW}" />
+            <line x1="44" y1="32" x2="64" y2="32" stroke="${lcwC}" stroke-width="${strokeW}" />
+            <circle cx="32" cy="32" r="16" fill="${lcLight}" stroke="${lcStroke}" stroke-width="4" />
+          `; break;
+      }
+      return `<svg viewBox="0 0 64 64" class="w-full h-full svg-piece ${addClass}" style="transform: rotate(${rotation}deg);">${svgContent}</svg>`;
+    }
+
+    function renderPuzzle() {
+      const boardContainer = document.getElementById('board-container');
+      boardContainer.innerHTML = '';
+      boardContainer.style.gridTemplateColumns = `repeat(${state.config.cols}, 1fr)`;
+      boardContainer.style.gridTemplateRows = `repeat(${state.config.rows}, 1fr)`;
+
+      for (let y = 0; y < state.config.rows; y++) {
+        for (let x = 0; x < state.config.cols; x++) {
+          const cellData = state.board[y][x];
+          const cell = document.createElement('div');
+          
+          let bgClass = 'bg-white';
+          if (cellData.fixed) bgClass = 'bg-slate-100'; 
+          if (cellData.type === 'empty') bgClass = 'bg-slate-200 shadow-inner cursor-pointer hover:bg-slate-300';
+          else if (!cellData.fixed) bgClass += ' cursor-pointer hover:bg-blue-50'; 
+
+          cell.className = `grid-cell rounded-md md:rounded-xl relative flex items-center justify-center overflow-hidden border-2 border-slate-300/50 ${bgClass}`;
+          cell.dataset.x = x; cell.dataset.y = y;
+          cell.innerHTML = getSvgIcon(cellData.type, cellData.rotation, cellData.powered, cellData.poweredPorts);
+          boardContainer.appendChild(cell);
+        }
+      }
+
+      const inventoryContainer = document.getElementById('inventory-container');
+      inventoryContainer.innerHTML = '';
+      let totalInventory = 0;
+      
+      Object.keys(state.inventory).forEach(type => {
+        const count = state.inventory[type];
+        totalInventory += count;
+        
+        const isSelected = state.selectedTool === type;
+        const btn = document.createElement('button');
+        btn.className = `flex flex-col items-center gap-1 transition-opacity outline-none ${count === 0 && !isSelected ? 'opacity-50 cursor-not-allowed' : ''}`;
+        btn.onclick = () => { state.selectedTool = type; renderPuzzle(); };
+        
+        const boxClass = isSelected ? 'border-blue-500 bg-blue-100 scale-105 shadow-sm ring-2 ring-blue-200' : 'border-slate-300 bg-white hover:bg-slate-50 shadow-sm';
+        btn.innerHTML = `
+          <div class="w-10 h-10 md:w-14 md:h-14 rounded-xl border-[3px] flex items-center justify-center transition-all ${boxClass}">
+            <div class="pointer-events-none w-7 h-7 md:w-10 md:h-10">${getSvgIcon(type, 0, false, [])}</div>
+          </div>
+          <span class="text-[10px] md:text-xs font-extrabold ${isSelected ? 'text-blue-600' : 'text-slate-600'}">のこり ${count}</span>
+        `;
+        inventoryContainer.appendChild(btn);
+      });
+
+      const switchArea = document.getElementById('switch-area');
+      if (totalInventory === 0) {
+        switchArea.innerHTML = `
+          <button id="btn-test" class="mt-2 md:mt-3 mb-2 md:mb-3 w-full bg-yellow-400 hover:bg-yellow-500 text-yellow-900 font-black py-2 md:py-3.5 rounded-xl md:rounded-2xl text-base md:text-lg btn-toy btn-toy-yellow flex items-center justify-center gap-1 md:gap-2">
+            <svg class="w-5 h-5 md:w-6 md:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+            スイッチ オン！
+          </button>
+        `;
+        document.getElementById('btn-test').addEventListener('click', () => { if (!state.isSimulating) runSimulation(); });
+      } else {
+        switchArea.innerHTML = '';
+      }
+
+      const eraserBtn = document.getElementById('tool-eraser');
+      if (state.selectedTool === 'eraser') {
+        eraserBtn.classList.replace('border-slate-300', 'border-red-500');
+        eraserBtn.classList.add('bg-red-100', 'text-red-600');
+        eraserBtn.classList.remove('text-slate-600');
+      } else {
+        eraserBtn.classList.replace('border-red-500', 'border-slate-300');
+        eraserBtn.classList.remove('bg-red-100', 'text-red-600');
+        eraserBtn.classList.add('text-slate-600');
+      }
+    }
+
+    document.getElementById('btn-back-home').addEventListener('click', () => switchView('home'));
+    document.getElementById('btn-back-stages').addEventListener('click', () => switchView('stages'));
+    document.getElementById('btn-back-stages-from-clear').addEventListener('click', () => {
+      document.getElementById('modal-clear').classList.add('hidden');
+      switchView('stages');
+    });
+
+    document.getElementById('tool-eraser').addEventListener('click', () => { state.selectedTool = 'eraser'; renderPuzzle(); });
+    document.getElementById('btn-reset-confirm').addEventListener('click', () => { document.getElementById('modal-confirm').classList.remove('hidden'); });
+    document.getElementById('btn-confirm-cancel').addEventListener('click', () => { document.getElementById('modal-confirm').classList.add('hidden'); });
+    document.getElementById('btn-confirm-ok').addEventListener('click', () => { document.getElementById('modal-confirm').classList.add('hidden'); initGame(); });
+
+    document.getElementById('btn-fail-ok').addEventListener('click', () => {
+      document.getElementById('modal-fail').classList.add('hidden');
+      for (let y = 0; y < state.config.rows; y++) {
+        for (let x = 0; x < state.config.cols; x++) {
+          state.board[y][x].powered = false;
+          state.board[y][x].poweredPorts = [];
+        }
+      }
+      renderPuzzle();
+    });
+
+    document.getElementById('board-wrapper').addEventListener('click', (e) => {
+      if (state.isSimulating) return; 
+      
+      for (let y = 0; y < state.config.rows; y++) {
+        for (let x = 0; x < state.config.cols; x++) {
+          state.board[y][x].powered = false;
+          state.board[y][x].poweredPorts = [];
+        }
+      }
+      
+      const cellEl = e.target.closest('.grid-cell');
+      if (!cellEl) return;
+      const x = parseInt(cellEl.dataset.x), y = parseInt(cellEl.dataset.y);
+      const cellData = state.board[y][x];
+
+      if (cellData.fixed) return; 
+
+      if (state.selectedTool === 'eraser') {
+        if (cellData.type !== 'empty') {
+          state.inventory[cellData.type]++;
+          state.board[y][x] = { type: 'empty', rotation: 0, fixed: false, powered: false, poweredPorts: [] };
+        }
+      } else {
+        if (cellData.type === 'empty') {
+          const tool = state.selectedTool;
+          if (tool && state.inventory[tool] > 0) {
+            state.inventory[tool]--;
+            state.board[y][x] = { type: tool, rotation: 0, fixed: false, powered: false, poweredPorts: [] };
+          }
+        } else {
+          state.board[y][x].rotation = (state.board[y][x].rotation + 90) % 360;
+        }
+      }
+      renderPuzzle();
+    });
+
+    function runSimulation() {
+      state.isSimulating = true;
+      state.circuitCompleted = false;
+      
+      for (let y = 0; y < state.config.rows; y++) {
+        for (let x = 0; x < state.config.cols; x++) {
+          state.board[y][x].powered = false;
+          state.board[y][x].poweredPorts = [];
+        }
+      }
+      renderPuzzle();
+
+      let batteryNode = null;
+      for (let y = 0; y < state.config.rows; y++) {
+        for (let x = 0; x < state.config.cols; x++) {
+          if (state.board[y][x].type === 'battery') { batteryNode = { x, y }; break; }
+        }
+      }
+      if (!batteryNode) { state.isSimulating = false; return; }
+
+      let visited = Array.from({ length: state.config.rows }, () => Array(state.config.cols).fill(null).map(() => []));
+      let reachedMinus = false;
+      let pathSteps = []; 
+      
+      let queue = [];
+      const startCell = state.board[batteryNode.y][batteryNode.x];
+      const plusDir = (0 + startCell.rotation / 90) % 4; 
+
+      queue.push({
+        x: batteryNode.x,
+        y: batteryNode.y,
+        fromDir: null,
+        step: 0,
+        isStart: true
+      });
+
+      while (queue.length > 0) {
+        const current = queue.shift();
+        const { x, y, fromDir, step, isStart } = current;
+        const currentCell = state.board[y][x];
+
+        if (!pathSteps[step]) {
+          pathSteps[step] = [];
+        }
+
+        if (isStart) {
+          pathSteps[step].push({ x, y, isStart: true });
+          visited[y][x].push(plusDir);
+          
+          const nx = x + DX[plusDir];
+          const ny = y + DY[plusDir];
+          if (nx >= 0 && nx < state.config.cols && ny >= 0 && ny < state.config.rows) {
+            if (state.board[ny][nx].type !== 'empty') {
+              queue.push({ x: nx, y: ny, fromDir: plusDir, step: step + 1 });
+            }
+          }
+          continue;
+        }
+
+        const enterPort = (fromDir + 2) % 4;
+
+        if (currentCell.type === 'battery') {
+          const targetMinusPort = (2 + currentCell.rotation / 90) % 4;
+          if (enterPort === targetMinusPort) { 
+            reachedMinus = true; 
+            pathSteps[step].push({ x, y, isGoal: true }); 
+          }
+          continue;
+        }
+
+        if (visited[y][x].includes(enterPort)) continue;
+
+        const exits = getExitPorts(currentCell.type, currentCell.rotation, enterPort);
+        if (exits.length === 0) continue; 
+
+        visited[y][x].push(enterPort);
+        exits.forEach(e => visited[y][x].push(e));
+
+        pathSteps[step].push({ x, y, type: currentCell.type, enterPort, exits });
+
+        for (let exitPort of exits) {
+          const nx = x + DX[exitPort];
+          const ny = y + DY[exitPort];
+          if (nx >= 0 && nx < state.config.cols && ny >= 0 && ny < state.config.rows) {
+            if (state.board[ny][nx].type !== 'empty') {
+              queue.push({ x: nx, y: ny, fromDir: exitPort, step: step + 1 });
+            }
+          }
+        }
+      }
+
+      let stepIndex = 0;
+      const interval = setInterval(() => {
+        if (stepIndex < pathSteps.length) {
+          const updates = pathSteps[stepIndex];
+          updates.forEach(cell => {
+            if (cell.isGoal) {
+              state.circuitCompleted = true;
+            } else if (cell.isStart) {
+              state.board[cell.y][cell.x].powered = true;
+            } else {
+              if (!state.board[cell.y][cell.x].poweredPorts) state.board[cell.y][cell.x].poweredPorts = [];
+              state.board[cell.y][cell.x].poweredPorts.push(cell.enterPort, ...cell.exits);
+              state.board[cell.y][cell.x].powered = true; 
+            }
+          });
+          renderPuzzle();
+          stepIndex++;
+        } else {
+          clearInterval(interval);
+          state.isSimulating = false;
+          
+          let allPowered = true;
+          for (let y = 0; y < state.config.rows; y++) {
+            for (let x = 0; x < state.config.cols; x++) {
+              const c = state.board[y][x];
+              if (c.type !== 'empty' && !c.powered) {
+                allPowered = false;
+                break;
+              }
+            }
+          }
+          
+          if (reachedMinus && allPowered) {
+            userProgress[`${state.currentLevel}-${state.currentStage}`] = true;
+            
+            // 全10ステージをクリアしているかチェックする
+            let allCleared = true;
+            for (let i = 1; i <= 10; i++) {
+              if (!userProgress[`${state.currentLevel}-${i}`]) {
+                allCleared = false;
+                break;
+              }
+            }
+            
+            const btnNext = document.getElementById('btn-next-stage');
+            if (allCleared) {
+              btnNext.innerText = 'レベルクリア！もどる';
+              btnNext.onclick = () => {
+                document.getElementById('modal-clear').classList.add('hidden');
+                switchView('home');
+              };
+            } else if (state.currentStage < 10) {
+              btnNext.innerText = 'つぎのもんだいへ';
+              btnNext.onclick = () => {
+                document.getElementById('modal-clear').classList.add('hidden');
+                loadPuzzle(state.currentLevel, state.currentStage + 1);
+              };
+            } else {
+              // 10問目だけど全部クリアしていない場合はステージ選択に戻る
+              btnNext.innerText = 'もんだいをえらぶ';
+              btnNext.onclick = () => {
+                document.getElementById('modal-clear').classList.add('hidden');
+                switchView('stages');
+              };
+            }
+            setTimeout(() => { document.getElementById('modal-clear').classList.remove('hidden'); }, 300);
+          } else {
+            setTimeout(() => { document.getElementById('modal-fail').classList.remove('hidden'); }, 300);
+          }
+        }
+      }, 200); 
+    }
+
+    switchView('home');
+
+  </script>
+</body>
+</html>
