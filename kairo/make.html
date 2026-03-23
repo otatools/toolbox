@@ -21,9 +21,6 @@
 </head>
 <body class="bg-slate-900 text-slate-800 font-sans h-screen w-screen overflow-hidden flex p-2 md:p-4 gap-2 md:gap-4">
 
-  <!-- ==============================================
-       左側：盤面エリア
-  =============================================== -->
   <div class="flex-1 bg-white rounded-2xl md:rounded-3xl shadow-xl border-4 border-slate-700 flex flex-col p-3 md:p-4 min-w-0">
     <div class="flex justify-between items-center mb-3 shrink-0">
       <h1 class="text-xl md:text-2xl font-black text-slate-700 flex items-center gap-2">
@@ -45,13 +42,9 @@
     </div>
   </div>
 
-  <!-- ==============================================
-       右側：ツール・設定エリア
-  =============================================== -->
   <div class="w-72 md:w-80 lg:w-96 bg-white rounded-2xl md:rounded-3xl shadow-xl border-4 border-slate-700 flex flex-col overflow-hidden shrink-0">
     <div class="p-4 overflow-y-auto custom-scrollbar flex-1 flex flex-col gap-6">
       
-      <!-- サイズ設定 -->
       <div class="space-y-2">
         <h2 class="text-sm font-bold text-slate-500 border-b-2 border-slate-100 pb-1">盤面サイズ</h2>
         <div class="flex gap-2">
@@ -69,7 +62,6 @@
         </div>
       </div>
 
-      <!-- モード選択 -->
       <div class="space-y-2">
         <h2 class="text-sm font-bold text-slate-500 border-b-2 border-slate-100 pb-1">配置モード</h2>
         <div class="flex gap-2 p-1 bg-slate-100 rounded-xl">
@@ -83,16 +75,13 @@
         <p class="text-[10px] text-slate-400 leading-tight">※「初期固定」は最初から置かれます。「パズル用」はコード生成時に盤面から消え、使用可能パーツとして計算されます。</p>
       </div>
 
-      <!-- ツールパレット -->
       <div class="space-y-2">
         <h2 class="text-sm font-bold text-slate-500 border-b-2 border-slate-100 pb-1">パーツパレット</h2>
         <div id="palette-container" class="grid grid-cols-3 gap-2">
-          <!-- JSで生成 -->
-        </div>
+          </div>
         <p class="text-[10px] text-slate-400 text-center">※盤面のパーツをクリックすると回転します。</p>
       </div>
 
-      <!-- アクションボタン -->
       <div class="space-y-3 pt-2 border-t-2 border-slate-100">
         <button id="btn-test" class="w-full bg-yellow-400 hover:bg-yellow-500 text-yellow-900 font-black py-3 rounded-xl shadow-[0_4px_0_#b45309] active:translate-y-[4px] active:shadow-none transition-all flex items-center justify-center gap-2">
           <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z"></path></svg>
@@ -108,7 +97,6 @@
         </button>
       </div>
 
-      <!-- 出力エリア -->
       <div class="flex-1 flex flex-col min-h-[150px]">
         <div class="flex justify-between items-center mb-1">
           <h2 class="text-sm font-bold text-slate-500">出力コード</h2>
@@ -120,7 +108,6 @@
     </div>
   </div>
 
-  <!-- トースト通知用のコンテナ -->
   <div id="toast-container" class="fixed bottom-6 left-1/2 transform -translate-x-1/2 flex flex-col gap-2 z-50 pointer-events-none"></div>
 
   <script>
@@ -141,12 +128,10 @@
       
       container.appendChild(toast);
       
-      // アニメーションでフェードイン
       requestAnimationFrame(() => {
         toast.classList.remove('opacity-0');
       });
       
-      // 数秒後にフェードアウトして削除
       setTimeout(() => {
         toast.classList.add('opacity-0');
         setTimeout(() => toast.remove(), 300);
@@ -159,6 +144,7 @@
     const ROUTING = {
       'straight': [[0, 2]],
       'corner': [[0, 1]],
+      'double_corner': [[0, 1], [2, 3]],
       't_shape': [[0, 1, 3]],
       'cross': [[0, 1, 2, 3]],
       'bridge': [[0, 2], [1, 3]],
@@ -201,6 +187,16 @@
         case 'corner':
           const cwC = powered ? '#fbbf24' : '#64748b';
           svgContent = `<path d="M 32 0 Q 32 32 64 32" stroke="${cwC}" stroke-width="${strokeW}" fill="none" stroke-linecap="square"/>`; break;
+        case 'double_corner':
+          const dcPw1 = isPortPowered(0) || isPortPowered(1);
+          const dcColor1 = dcPw1 ? '#fbbf24' : '#64748b';
+          const dcPw2 = isPortPowered(2) || isPortPowered(3);
+          const dcColor2 = dcPw2 ? '#fbbf24' : '#64748b';
+          if (!dcPw1 && !dcPw2) addClass = ''; else addClass = 'powered-glow';
+          svgContent = `
+            <path d="M 32 0 Q 32 32 64 32" stroke="${dcColor1}" stroke-width="${strokeW}" fill="none" stroke-linecap="square"/>
+            <path d="M 0 32 Q 32 32 32 64" stroke="${dcColor2}" stroke-width="${strokeW}" fill="none" stroke-linecap="square"/>
+          `; break;
         case 't_shape':
           const twC = powered ? '#fbbf24' : '#64748b';
           svgContent = `
@@ -263,6 +259,7 @@
       { id: 'eraser', name: '消す' },
       { id: 'straight', name: '直線' },
       { id: 'corner', name: '曲がり角' },
+      { id: 'double_corner', name: 'ダブル角' },
       { id: 't_shape', name: 'T字' },
       { id: 'cross', name: '十字' },
       { id: 'bridge', name: '立体交差' },
@@ -394,8 +391,13 @@
         state.board[y][x] = { type: 'empty', rotation: 0, fixed: true, powered: false, poweredPorts: [] };
       } else {
         if (cell.type === state.selectedTool) {
-          state.board[y][x].rotation = (cell.rotation + 90) % 360;
-          state.board[y][x].fixed = state.isFixedMode;
+          // モードとタイプが完全に同じ場合のみ回転させる
+          if (cell.fixed === state.isFixedMode) {
+            state.board[y][x].rotation = (cell.rotation + 90) % 360;
+          } else {
+            // モードだけ置き換える（回転はそのまま）
+            state.board[y][x].fixed = state.isFixedMode;
+          }
         } else {
           state.board[y][x] = { type: state.selectedTool, rotation: 0, fixed: state.isFixedMode, powered: false, poweredPorts: [] };
         }
@@ -470,7 +472,7 @@
     };
 
     /* =========================================
-       シミュレーション (通電テスト)
+       シミュレーション (電圧計算・正しい通電テスト)
     ========================================= */
     const DX = [0, 1, 0, -1], DY = [-1, 0, 1, 0];
     
@@ -479,13 +481,13 @@
       clearPower();
       renderBoard();
       
-      let batteryNode = null;
+      let batteryNodes = [];
       for (let y = 0; y < state.rows; y++) {
         for (let x = 0; x < state.cols; x++) {
-          if (state.board[y][x].type === 'battery') { batteryNode = { x, y }; break; }
+          if (state.board[y][x].type === 'battery') { batteryNodes.push({ x, y }); }
         }
       }
-      if (!batteryNode) {
+      if (batteryNodes.length === 0) {
         showToast("⚠️ 電池が配置されていません！", 'error');
         return;
       }
@@ -493,88 +495,180 @@
       state.isSimulating = true;
       document.getElementById('sim-status').classList.remove('hidden');
 
-      let visited = Array.from({ length: state.rows }, () => Array(state.cols).fill(null).map(() => []));
-      let reachedMinus = false;
-      let pathCells = [];
-      
-      const startCell = state.board[batteryNode.y][batteryNode.x];
-      const plusDir = (0 + startCell.rotation / 90) % 4; 
+      // 1. 各パーツ内の独立した配線を「電気のノード」としてグラフ化
+      let nodes = [];
+      let adj = {};
+      let isPlus = new Set();
+      let isMinus = new Set();
+      let portToNode = {}; 
+      let vIdToAbsPorts = {}; 
 
-      function dfs(x, y, fromDir) {
-        const currentCell = state.board[y][x];
-        const enterPort = (fromDir + 2) % 4;
+      function getGroups(type, rotation) {
+        if (!ROUTING[type]) return [];
+        const rotSteps = (rotation / 90) % 4;
+        return ROUTING[type].map(group => group.map(p => (p + rotSteps) % 4));
+      }
 
-        if (currentCell.type === 'battery') {
-          const targetMinusPort = (2 + currentCell.rotation / 90) % 4;
-          if (enterPort === targetMinusPort) { reachedMinus = true; pathCells.push({ x, y, isGoal: true }); }
-          return; 
-        }
+      for (let y = 0; y < state.rows; y++) {
+        for (let x = 0; x < state.cols; x++) {
+          const cell = state.board[y][x];
+          if (cell.type === 'empty') continue;
+          
+          const groups = getGroups(cell.type, cell.rotation);
+          groups.forEach((group, gIdx) => {
+            let vId = `${x},${y},${gIdx}`;
+            nodes.push(vId);
+            adj[vId] = new Set();
+            vIdToAbsPorts[vId] = group;
+            
+            group.forEach(p => {
+              portToNode[`${x},${y},${p}`] = vId;
+            });
 
-        if (visited[y][x].includes(enterPort)) return;
-
-        const exits = getExitPorts(currentCell.type, currentCell.rotation, enterPort);
-        if (exits.length === 0) return; 
-
-        visited[y][x].push(enterPort);
-        exits.forEach(e => visited[y][x].push(e));
-        pathCells.push({ x, y, type: currentCell.type, enterPort, exits });
-
-        for (let exitPort of exits) {
-          const nx = x + DX[exitPort];
-          const ny = y + DY[exitPort];
-          if (nx >= 0 && nx < state.cols && ny >= 0 && ny < state.rows) {
-            if (state.board[ny][nx].type !== 'empty') dfs(nx, ny, exitPort);
-          }
+            if (cell.type === 'battery') {
+              if (gIdx === 0) isPlus.add(vId);
+              if (gIdx === 1) isMinus.add(vId);
+            }
+          });
         }
       }
 
-      pathCells.push({ x: batteryNode.x, y: batteryNode.y, type: 'battery', isStart: true });
-      visited[batteryNode.y][batteryNode.x].push(plusDir);
-
-      const nx = batteryNode.x + DX[plusDir], ny = batteryNode.y + DY[plusDir];
-      if (nx >= 0 && nx < state.cols && ny >= 0 && ny < state.rows) {
-        if (state.board[ny][nx].type !== 'empty') dfs(nx, ny, plusDir);
-      }
-
-      let step = 0;
-      const interval = setInterval(() => {
-        if (!state.isSimulating) { clearInterval(interval); return; }
-        
-        if (step < pathCells.length) {
-          const cell = pathCells[step];
-          if (!cell.isGoal) {
-            if (cell.isStart) {
-              state.board[cell.y][cell.x].powered = true;
-            } else {
-              if (!state.board[cell.y][cell.x].poweredPorts) state.board[cell.y][cell.x].poweredPorts = [];
-              state.board[cell.y][cell.x].poweredPorts.push(cell.enterPort, ...cell.exits);
-              state.board[cell.y][cell.x].powered = true; 
+      // 2. 隣り合うマスの繋がっている配線同士を繋ぐ
+      for (let y = 0; y < state.rows; y++) {
+        for (let x = 0; x < state.cols; x++) {
+          for (let p = 0; p < 4; p++) {
+            let v1 = portToNode[`${x},${y},${p}`];
+            if (!v1) continue;
+            
+            let nx = x + DX[p];
+            let ny = y + DY[p];
+            let np = (p + 2) % 4;
+            let v2 = portToNode[`${nx},${ny},${np}`];
+            
+            if (v2) {
+              adj[v1].add(v2);
+              adj[v2].add(v1);
             }
           }
+        }
+      }
+
+      // 3. 電圧計算（ガウス・ザイデル法）
+      let V = {};
+      nodes.forEach(v => V[v] = 0);
+      isPlus.forEach(v => V[v] = 100);
+      isMinus.forEach(v => V[v] = 0);
+
+      for (let iter = 0; iter < 500; iter++) {
+        let nextV = {};
+        nodes.forEach(v => {
+          if (isPlus.has(v)) { nextV[v] = 100; return; }
+          if (isMinus.has(v)) { nextV[v] = 0; return; }
+          
+          let sum = 0;
+          let count = 0;
+          adj[v].forEach(neighbor => {
+            sum += V[neighbor];
+            count++;
+          });
+          nextV[v] = count > 0 ? sum / count : 0;
+        });
+        V = nextV;
+      }
+
+      // 4. 正しい電気の流れ（電圧が高い方から低い方へ）
+      let validDirectedEdges = {};
+      nodes.forEach(v => validDirectedEdges[v] = []);
+      nodes.forEach(u => {
+        adj[u].forEach(v => {
+          if (V[u] > V[v] + 0.1) { // 電位差がある方向のみを許可
+            validDirectedEdges[u].push(v);
+          }
+        });
+      });
+
+      // 5. アニメーション用のステップを記録する（正しい方向にしか進まないBFS）
+      let queue = [];
+      isPlus.forEach(v => {
+        queue.push({ vId: v, step: 0 });
+      });
+      
+      let pathSteps = []; 
+      let visitedBfs = new Set();
+      let reachedMinusSet = new Set();
+
+      while(queue.length > 0) {
+        let current = queue.shift();
+        let vId = current.vId;
+        let step = current.step;
+
+        if (visitedBfs.has(vId)) continue;
+        visitedBfs.add(vId);
+
+        if (!pathSteps[step]) pathSteps[step] = [];
+        pathSteps[step].push(vId);
+
+        if (isMinus.has(vId)) {
+          reachedMinusSet.add(vId);
+          continue; 
+        }
+
+        validDirectedEdges[vId].forEach(neighbor => {
+          if (!visitedBfs.has(neighbor)) {
+            queue.push({ vId: neighbor, step: step + 1 });
+          }
+        });
+      }
+
+      // 6. アニメーション実行
+      let stepIndex = 0;
+      const interval = setInterval(() => {
+        if (!state.isSimulating) { clearInterval(interval); return; }
+
+        if (stepIndex < pathSteps.length) {
+          const updates = pathSteps[stepIndex];
+          updates.forEach(vId => {
+            const parts = vId.split(',');
+            const x = parseInt(parts[0]);
+            const y = parseInt(parts[1]);
+            
+            const cell = state.board[y][x];
+            cell.powered = true;
+            
+            const absPorts = vIdToAbsPorts[vId];
+            if (!cell.poweredPorts) cell.poweredPorts = [];
+            absPorts.forEach(p => {
+              if (!cell.poweredPorts.includes(p)) cell.poweredPorts.push(p);
+            });
+          });
           renderBoard();
-          step++;
+          stepIndex++;
         } else {
           clearInterval(interval);
+          state.isSimulating = false;
+          document.getElementById('sim-status').classList.add('hidden');
           
           let allPowered = true;
           for (let y = 0; y < state.rows; y++) {
             for (let x = 0; x < state.cols; x++) {
               const c = state.board[y][x];
-              if (c.type !== 'empty' && !c.powered) {
-                allPowered = false; break;
+              // 置かれているパーツがすべて正しく通電しているか
+              if (c.type !== 'empty' && (!c.poweredPorts || c.poweredPorts.length === 0)) {
+                allPowered = false;
+                break;
               }
             }
           }
           
           setTimeout(() => {
-            if (reachedMinus && allPowered) {
-              showToast("✅ テスト成功！すべてのパーツに電気が通りました。", 'success');
+            if (reachedMinusSet.size === isMinus.size && allPowered && isMinus.size > 0) {
+              showToast("✅ テスト成功！すべてのパーツに正しく電気が通りました。", 'success');
             } else {
               showToast("❌ テスト失敗。電気が通っていないパーツがあるか、ゴールに届いていません。", 'error');
             }
           }, 100);
         }
-      }, 100);
+      }, 100); // 1ステップのアニメーション速度(ms)
     };
 
     /* =========================================
