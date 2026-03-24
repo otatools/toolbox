@@ -2,9 +2,11 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>教育アプリ｜都道府県マスター</title>
-    <meta name="description" content="都道府県を覚えるために大阪市の現役小学校教員が制作した、都道府県名アプリです。ota toolsのアプリの１つです。">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ota tools | 小学校教員が作った教育アプリ集</title>
+    <meta name="description" content="otatoolsは、大阪市の現役小学校教員が制作した、無料教育アプリ集です。小学校の授業や家庭で使える知育・教育ゲームを多数公開中。">
+    <meta charset="UTF-8">
+    
     <script type="application/ld+json">
     {
       "@context": "https://schema.org",
@@ -21,7 +23,7 @@
         "@type": "Person",
         "name": "太田圭一"
       },
-      "description": "大阪市の現役小学校教員が制作した、授業や家庭で使える無料の教育・学習用アプリです。",
+      "description": "大阪市の現役小学校教員が制作した、授業や家庭で使える無料の教育・学習用アプリ集です。",
       "audience": {
         "@type": "Audience",
         "audienceType": "小学校教員, 児童, 保護者"
@@ -30,942 +32,432 @@
     </script>
 
     <script src="https://cdn.tailwindcss.com"></script>
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@700;900&display=swap');
+    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, doc, setDoc, updateDoc, increment, onSnapshot, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyB4fpt6ffIuTBDJo_9g37kYr6KOWNgIcEY",
+            authDomain: "otatoolssite.firebaseapp.com",
+            projectId: "otatoolssite",
+            storageBucket: "otatoolssite.firebasestorage.app",
+            messagingSenderId: "20522292752",
+            appId: "1:20522292752:web:22fba7fecb61736593dc95"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        window.db = getFirestore(app);
+        window.auth = getAuth(app);
+        window.fb = { collection, doc, setDoc, updateDoc, increment, onSnapshot, getDoc, signInAnonymously, onAuthStateChanged };
         
-        body {
-            font-family: 'M PLUS Rounded 1c', sans-serif;
-            background-color: #dcb888;
-            background-image: 
-                linear-gradient(90deg, rgba(139, 69, 19, 0.05) 1px, transparent 1px),
-                linear-gradient(rgba(139, 69, 19, 0.05) 1px, transparent 1px);
-            background-size: 20px 20px;
-            touch-action: manipulation;
-            margin: 0;
-            height: 100vh; /* フォールバック */
-            height: 100dvh; /* スマホのアドレスバー対策 */
-            overflow: hidden;
-            display: flex;
-            justify-content: center;
-            align-items: center; /* 上下中央に配置 */
-            padding: 10px; /* 画面端に少し余白を作って角丸を見せる */
-            box-sizing: border-box;
+        window.APP_ID = "otatoolssite-v1";
+    </script>
+
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700;900&family=Noto+Sans+JP:wght@400;500;700;900&display=swap');
+        
+        html {
+            overflow-y: scroll;
         }
 
-        /* 冒険の地図・羊皮紙風の背景クラス */
-        .map-texture {
-            background-color: #fdfaf3;
-            background-image: radial-gradient(#e2d3b3 2px, transparent 2px);
-            background-size: 20px 20px;
+        body { 
+            font-family: 'Inter', 'Noto Sans JP', sans-serif; 
         }
+        
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 
-        /* 海の背景クラス */
-        .ocean-bg {
-            background-color: #d1eaed;
-            background-image: radial-gradient(#a3d2d8 2px, transparent 2px);
-            background-size: 20px 20px;
-        }
-
-        .map-wrap {
-            width: 100%;
-            height: 100%;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            padding: 0.5rem;
-        }
-
-        .map-wrap svg {
-            width: 100%;
-            height: 100%;
-            max-height: 100%;
-            object-fit: contain;
-            filter: drop-shadow(2px 4px 6px rgba(139, 69, 19, 0.3));
-        }
-
-        .fade-in { animation: fadeIn 0.3s ease-in-out; }
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
-
-        /* ポップなボタン用クラス */
-        .btn-pop {
-            transition: transform 0.1s, border-bottom-width 0.1s;
-        }
-        .btn-pop:active {
-            transform: translateY(4px);
-            border-bottom-width: 0px !important;
-            margin-top: 4px;
-        }
-
-        /* エフェクト用 */
-        #effect-overlay {
+        /* 管理者用隠しボタンのエリア */
+        .admin-trigger {
+            position: absolute;
+            bottom: 0;
+            right: 0;
+            width: 40px;
+            height: 40px;
+            cursor: default;
+            z-index: 9999;
             opacity: 0;
-            transform: scale(0.5);
-            pointer-events: none;
         }
-        #effect-overlay.show {
-            opacity: 1;
-            transform: scale(1);
-            animation: bounceIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+        .admin-trigger:hover {
+            opacity: 0.1;
+            background: rgba(0,0,0,0.1);
         }
-        @keyframes bounceIn {
-            0% { transform: scale(0.5); opacity: 0; }
-            50% { transform: scale(1.1); opacity: 1; }
-            100% { transform: scale(1); opacity: 1; }
-        }
-
-        /* スタンプ風のエフェクト */
-        .effect-circle { 
-            color: #dc2626; 
-            font-size: 20vh; 
-            font-weight: 900; 
-            text-shadow: 0 0 10px rgba(220,38,38,0.3); 
-            line-height: 1; 
-            display: flex; 
-            align-items: center; 
-            justify-content: center; 
-        }
-        .effect-cross { 
-            color: #2563eb; 
-            font-size: 20vh; 
-            font-weight: 900; 
-            text-shadow: 0 0 10px rgba(37,99,235,0.3); 
-            line-height: 1; 
-            display: flex; 
-            align-items: center; 
-            justify-content: center; 
-        }
-
-        ::-webkit-scrollbar { width: 8px; }
-        ::-webkit-scrollbar-track { background: transparent; }
-        ::-webkit-scrollbar-thumb { background: #c2a278; border-radius: 4px; border: 1px solid #8b5a2b; }
     </style>
 </head>
-<body class="text-[#5c3a21]">
+<body class="bg-slate-50 text-slate-800">
+    <div id="root"></div>
 
-<div id="app" class="w-full max-w-5xl h-full max-h-full bg-[#fdfaf3] relative flex flex-col shadow-[0_10px_40px_rgba(92,64,51,0.6)] overflow-hidden rounded-3xl border-[8px] border-[#8b5a2b] border-double box-border">
-    
-    <div id="effect-overlay" class="absolute inset-0 flex flex-col justify-center items-center z-50 pointer-events-none">
-        <div id="effect-icon"></div>
-        <div id="effect-message" class="hidden mt-4 text-2xl md:text-4xl font-black text-[#5c3a21] bg-[#faedd6] px-8 py-4 rounded-md shadow-[4px_4px_0_rgba(139,69,19,0.5)] text-center border-4 border-[#8b5a2b] border-dashed"></div>
-    </div>
+    <script type="text/babel">
+        const { useState, useEffect, useMemo } = React;
 
-    <div id="screen-loading" class="flex-1 flex flex-col justify-center items-center h-full p-4 fade-in map-texture">
-        <div class="animate-spin rounded-full h-12 w-12 border-b-4 border-t-4 border-[#8b5a2b] border-dashed mb-4"></div>
-        <p class="text-[#8b5a2b] font-black text-xl tracking-widest">じゅんび中...</p>
-    </div>
+        // IDに基づき3桁のファイル名を生成するヘルパー
+        const getImageUrlById = (id) => {
+            const formattedId = String(id).padStart(3, '0');
+            return `${formattedId}.png`;
+        };
 
-    <div id="screen-upload" class="hidden flex-1 flex flex-col justify-center items-center h-full p-4 text-center fade-in map-texture">
-        <div class="w-full max-w-md mx-auto bg-[#faedd6] p-6 rounded-md shadow-[4px_4px_0_rgba(139,69,19,0.3)] border-4 border-[#8b5a2b]">
-            <h2 class="text-2xl font-black text-[#8b5a2b] mb-2 border-b-2 border-dashed border-[#8b5a2b] pb-2">地図をえらんでね！</h2>
-            <p class="text-[#5c3a21] font-bold text-sm mb-4 mt-2">
-                あそぶためには <code class="bg-[#fdfaf3] text-[#c84b31] px-2 py-0.5 rounded border border-[#8b5a2b]">map.svg</code> が必要です。
-            </p>
-            
-            <input type="file" id="svg-file-input" accept=".svg" class="hidden" onchange="handleFileUpload(event)">
-            <button onclick="document.getElementById('svg-file-input').click()" class="btn-pop w-full bg-[#c84b31] hover:bg-[#a63c26] text-[#fdfaf3] border-b-[6px] border-[#7d2916] rounded-sm py-3 font-black text-xl shadow-[inset_0_0_8px_rgba(0,0,0,0.2)]">
-                ファイルをつかう
-            </button>
-        </div>
-    </div>
+        const initialAppList = [
+{ id: "1", title: "卒業文集清書ツール", category: "class", description: "国語科など卒業文集の下書きを書くために作ったツールです。他の学校でも使えるようにカスタム設定もできます。「、」や「。」などの縦書きならではの処理にも対応しているはず…。", url: "https://otatools.github.io/toolbox/graduation/", imageUrl: "001.png", date: "2026-01-15", initialViews: 0 },
+{ id: "2", title: "オンライン回答ボード", category: "game", description: "クイズ番組のように、子機で描いた文字や絵が親機で表示され正誤もそれぞれの端末に表示されるようになっています。", url: "https://otatools.github.io/toolbox/board/", imageUrl: "002.png", date: "2026-01-13", initialViews: 0 },
+{ id: "3", title: "お絵かきクイズ", category: "game", description: "１人がお題を見てその絵を描いて他の児童になんとかお題を伝えるお絵かきゲーム。先生が管理機として管理してください。", url: "https://otatools.github.io/toolbox/oekaki/", imageUrl: "003.png", date: "2026-01-28", initialViews: 0 },
+{ id: "4", title: "漢字クロスワード", category: "game", description: <span>熟語が４つできるように真ん中に漢字を書き込おう。画数があまりにも違う時はなぞり書きモードに切り替わります。熟語の意味もでるようにしました。問題数制限モード、問題最大数制限モード、ヒントモードを作りました。リンク先の設定は「5問ずつ表示」「ヒント有り」になってます。変更したい場合は、<a href="https://otatools.github.io/toolbox/kanji/config" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline decoration-2 font-bold" onClick={(e) => e.stopPropagation()}>この設定画面からURLを作成してください。</a></span>, url: "https://otatools.github.io/toolbox/kanji/#5#hint", imageUrl: "004.png", date: "2026-01-29", initialViews: 0 },
+{ id: "5", title: "推理ゲーム・真実を解明せよ！", category: "game", description: "全員が探偵となり、参加者の中にいる犯人を捜し出せ！それぞれにヒントが与えられますが、それだけでは絞り込めません。教室内をウロウロして他の人のヒントと交換しよう。誰かが親機となり、部屋番号を子機が入力してね。", url: "https://otatools.github.io/toolbox/logic/", imageUrl: "005.png", date: "2026-02-03", initialViews: 0 },
+{ id: "6", title: "文章入力（画像出力付）", category: "class", description: "国語科の学習で文字数をカウントしながら入力することができます。出来上がった文章は縦書きにもでき、画像出力でA4サイズ１枚のJPEGになるので提出もしやすいです。", url: "https://otatools.github.io/toolbox/text/", imageUrl: "006.png", date: "2026-02-5", initialViews: 0 },
+{ id: "7", title: "ポリス vs スパイ", category: "game", description: "いわゆるワードウルフです。１台の端末をみんなで回して使います。全員に同じキーワードが渡っているはずが、スパイだけには違うキーワードが…。喋り合うことでスパイを捜せ！", url: "https://otatools.github.io/toolbox/spy/", imageUrl: "007.png", date: "2026-02-10", initialViews: 0 },
+{ id: "8", title: "シカくんとたのしいしりとり", category: "game", description: "しりとりゲームです。子どもたちが鍛えたせいで最強のシカになってしまいました。見つけた言葉が100個突破する毎にトップページのシカのイラストが変化します！", url: "https://otatools.github.io/toolbox/sika/", imageUrl: "008.png", date: "2026-02-12", initialViews: 0 },
+{ id: "9", title: "ストップウォッチ", category: "utility", description: "ただのストップウォッチです。子どもにも使いやすいようにタップだけでなくスペースキーでも操作できます。ダークモードや記録といった機能付きです。", url: "https://otatools.github.io/toolbox/stopwatch/", imageUrl: "009.png", date: "2026-01-20", initialViews: 0 },
+{ id: "10", title: "学習タイマー", category: "utility", description: "カウントダウンタイマーです。視覚的どのくらい時間が減っているか分かる円も表示しています。終了の音に異様なこだわりをもってつくりました。もちろんオフにもできます。", url: "https://otatools.github.io/toolbox/timer/", imageUrl: "010.png", date: "2026-01-22", initialViews: 0 },
+{ id: "11", title: "走り高跳び 目標計算機", category: "class", description: "体育科「走り高跳び」の学習で( 身長 × 0.5 ) + 110 - ( 50mタイム × 10 )で基準の高さを出せます。A4で保存もできます。負荷を変えたい場合、URLの最後「?val=110」を「?val=120」に変えたURLを配布すれば計算式も変わります。", url: "https://otatools.github.io/toolbox/highjump/?val=110", imageUrl: "011.png", date: "2026-02-18", initialViews: 0 },
+{ id: "12", title: "マルチスコアカウンター", category: "utility", description: "スコアカウンターです。数字の上下を触って得点の上げ下げすることもできます。スコアカードの入れ替えもできます。横向きなら横並び、縦にすれば分割が変わるはずです。ついでにタイマーもついてます。", url: "https://otatools.github.io/toolbox/score/", imageUrl: "012.png", date: "2026-02-18", initialViews: 0 },
+{ id: "13", title: "PDF to JPG Converter", category: "admin", description: "PDFをJPEG画像に変換するだけのツールです。データをクラウド上に送信して変換しておらず、自分のブラウザ上で変換を行うのでデータの流出など不安がありません。", url: "https://otatools.github.io/toolbox/PDFtoJPG/", imageUrl: "013.png", date: "2026-02-21", initialViews: 0 },
+{ id: "14", title: "大阪環状線タイピング", category: "game", description: "大阪環状線の駅名をタイピングして、電車を加速させよう！何周回れるのか！そしてどれだけチケットをもらえるのか！チケットを集めて新しい車両も買おう！", url: "https://otatools.github.io/toolbox/loopline/", imageUrl: "014.png", date: "2026-02-27", initialViews: 0 },
+{ id: "15", title: "PDF 4-in-1 レイアウトツール", category: "admin", description: "PDFを印刷するときに4in1にすることはできますが、PDFの状態で4in1にしたいという思いに応えて作ったアプリです。使う機会が超限定されますが、これで出力してから印刷してもいいかもしれません。", url: "https://otatools.github.io/toolbox/pdf4in1/", imageUrl: "015.png", date: "2026-02-04", initialViews: 0 },
+{ id: "16", title: "まるかき名人", category: "game", description: "最高の「○」を目指して、ただ正円を描くだけのゲームです。", url: "https://otatools.github.io/toolbox/circle/", imageUrl: "016.png", date: "2026-03-04", initialViews: 0 },
+{ id: "17", title: "デジタル時計", category: "utility", description: "広告のない、ただの時計が欲しかったので作りました。フォント、大きさの調整、ダークモードなど選びたいって人におすすめです。", url: "https://otatools.github.io/toolbox/clock/", imageUrl: "017.png", date: "2026-03-04", initialViews: 0 },
+{ id: "18", title: "お絵かき伝言ゲーム", category: "game", description: "タブレット１台を使った、お絵かきの協力ゲームです。最初の人はお題を見てその絵を描き、次の人はその絵を見て文字で書きます。そんな感じで絵→文字→絵→文字と伝言していくゲームです。慣れてくると順番を固定にして複数台のタブレットを使っている班もありました。", url: "https://otatools.github.io/toolbox/oekakidengon/", imageUrl: "018.png", date: "2026-03-08", initialViews: 0 },
+{ id: "19", title: "たてわり班編成ツール", category: "admin", description: "１年から６年をなるべく均等に、男女比もなるべく均等に、各班をABCの小集団に分けて、小集団には各学年のクラスが混ざらないように…と、担当教員がうなっていたので作りました。", url: "https://otatools.github.io/toolbox/group/", imageUrl: "019.png", date: "2026-03-19", initialViews: 0 },
+{ id: "20", title: "都道府県マスター", category: "game", description: "都道府県を楽しく覚えるために作りました。間違えた都道府県を裏でカウントしているので、「ふつう」や「げきむず」モードでは効率的に苦手な都道府県名を覚えることができます。", url: "https://otatools.github.io/toolbox/map/", imageUrl: "020.png", date: "2026-03-20", initialViews: 0 },
+{ id: "21", title: "回路パズル", category: "game", description: "小学校３年生で学習する回路を使ったゲームです。使えるパーツを全て使い切って、すべての電球を点灯させます。小学校４年生で学習する電池を２つ使う直列回路や並列回路はレベル４以降で導入したいなあと考え中です。", url: "https://otatools.github.io/toolbox/kairo/", imageUrl: "021.png", date: "2026-03-21", initialViews: 0 },
+        ];
 
-    <div id="screen-title" class="hidden flex-1 flex flex-col h-full p-2 md:p-4 fade-in overflow-y-auto map-texture relative">
-        <div class="absolute top-4 left-4 w-8 h-8 border-t-4 border-l-4 border-[#8b5a2b] opacity-50"></div>
-        <div class="absolute top-4 right-4 w-8 h-8 border-t-4 border-r-4 border-[#8b5a2b] opacity-50"></div>
-        <div class="absolute bottom-4 left-4 w-8 h-8 border-b-4 border-l-4 border-[#8b5a2b] opacity-50"></div>
-        <div class="absolute bottom-4 right-4 w-8 h-8 border-b-4 border-r-4 border-[#8b5a2b] opacity-50"></div>
+        const categories = [
+            { id: 'all', label: 'すべて', icon: 'layout-grid' },
+            { id: 'game', label: 'ゲーム', icon: 'gamepad-2' },
+            { id: 'class', label: '授業用', icon: 'graduation-cap' },
+            { id: 'utility', label: '便利ツール', icon: 'clock' },
+            { id: 'admin', label: '校務支援', icon: 'settings' },
+        ];
 
-        <div class="w-full max-w-lg mx-auto flex flex-col h-full justify-center z-10">
-            <div class="text-center mt-2 mb-6 shrink-0">
-                <h1 class="text-3xl md:text-5xl font-black text-[#5c3a21] mb-2 drop-shadow-[2px_2px_0_#fdfaf3] tracking-widest border-b-4 border-dashed border-[#8b5a2b] inline-block px-4 pb-2">
-                    都道府県マスター
-                </h1>
-                <p class="text-[#8b5a2b] font-bold text-sm md:text-base mt-2 bg-[#fdfaf3]/80 inline-block px-3 py-1 rounded border border-[#8b5a2b]/30">10問正解するまで終わらない！<br>速さと正確さでハイスコアを目指せ！</p>
-            </div>
+        function App() {
+            const [activeCategory, setActiveCategory] = useState('all');
+            const [searchQuery, setSearchQuery] = useState('');
+            const [sortOrder, setSortOrder] = useState('newest');
+            const [user, setUser] = useState(null);
+            const [viewCounts, setViewCounts] = useState({});
+            const [isGeneratorOpen, setIsGeneratorOpen] = useState(false);
+            const [hasAccessError, setHasAccessError] = useState(false);
+            const [isProcessing, setIsProcessing] = useState(false); // 連打防止用
 
-            <div class="grid grid-cols-2 gap-3 md:gap-4 shrink-0">
-                <button onclick="startGame('easy')" class="btn-pop bg-[#4ade80] hover:bg-[#22c55e] text-[#064e3b] border-2 border-[#064e3b] border-b-[6px] rounded-md p-2 md:p-3 flex flex-col items-center justify-center shadow-[inset_0_0_10px_rgba(255,255,255,0.4)] outline-none">
-                    <div class="font-black text-xl md:text-2xl mb-1 tracking-widest">かんたん</div>
-                    <div class="text-[#064e3b] bg-white/60 text-[10px] md:text-xs px-2 py-0.5 rounded-sm font-bold mb-1.5 border border-[#166534] border-dashed">4択 / ランダム</div>
-                    <div class="text-xs font-bold bg-[#166534]/20 px-2 py-0.5 rounded-sm w-full border border-[#166534]/30">ハイスコア<br><span id="score-easy" class="text-base font-black">0</span></div>
-                </button>
+            const [newAppData, setNewAppData] = useState({
+                title: '',
+                category: 'game',
+                description: '',
+                url: '',
+                imageUrl: '' // 手動入力も可能だが自動生成を優先
+            });
 
-                <button onclick="startGame('normal')" class="btn-pop bg-[#fb923c] hover:bg-[#f97316] text-[#7c2d12] border-2 border-[#7c2d12] border-b-[6px] rounded-md p-2 md:p-3 flex flex-col items-center justify-center shadow-[inset_0_0_10px_rgba(255,255,255,0.4)] outline-none">
-                    <div class="font-black text-xl md:text-2xl mb-1 tracking-widest">ふつう</div>
-                    <div class="text-[#7c2d12] bg-white/60 text-[10px] md:text-xs px-2 py-0.5 rounded-sm font-bold mb-1.5 border border-[#9a3412] border-dashed">6択 / 苦手ゆうせん</div>
-                    <div class="text-xs font-bold bg-[#9a3412]/20 px-2 py-0.5 rounded-sm w-full border border-[#9a3412]/30">ハイスコア<br><span id="score-normal" class="text-base font-black">0</span></div>
-                </button>
-
-                <button onclick="startGame('hard')" class="btn-pop bg-[#f87171] hover:bg-[#ef4444] text-[#7f1d1d] border-2 border-[#7f1d1d] border-b-[6px] rounded-md p-2 md:p-3 flex flex-col items-center justify-center shadow-[inset_0_0_10px_rgba(255,255,255,0.4)] outline-none">
-                    <div class="font-black text-xl md:text-2xl mb-1 tracking-widest">むずかしい</div>
-                    <div class="text-[#7f1d1d] bg-white/60 text-[10px] md:text-xs px-2 py-0.5 rounded-sm font-bold mb-1.5 border border-[#991b1b] border-dashed">入力 / ランダム</div>
-                    <div class="text-xs font-bold bg-[#991b1b]/20 px-2 py-0.5 rounded-sm w-full border border-[#991b1b]/30">ハイスコア<br><span id="score-hard" class="text-base font-black">0</span></div>
-                </button>
-
-                <button onclick="startGame('super')" class="btn-pop bg-[#c084fc] hover:bg-[#a855f7] text-[#4c1d95] border-2 border-[#4c1d95] border-b-[6px] rounded-md p-2 md:p-3 flex flex-col items-center justify-center shadow-[inset_0_0_10px_rgba(255,255,255,0.4)] outline-none">
-                    <div class="font-black text-xl md:text-2xl mb-1 tracking-widest">げきむず</div>
-                    <div class="text-[#4c1d95] bg-white/60 text-[10px] md:text-xs px-2 py-0.5 rounded-sm font-bold mb-1.5 border border-[#5b21b6] border-dashed">入力 / 苦手とっくん</div>
-                    <div class="text-xs font-bold bg-[#5b21b6]/20 px-2 py-0.5 rounded-sm w-full border border-[#5b21b6]/30">ハイスコア<br><span id="score-super" class="text-base font-black">0</span></div>
-                </button>
-            </div>
-
-            <div class="mt-4 shrink-0 w-full">
-                <button onclick="showCollection()" class="btn-pop w-full bg-[#8b5a2b] hover:bg-[#a0522d] text-[#fdfaf3] border-2 border-[#5c3a21] border-b-[6px] rounded-md p-3 md:p-4 font-black text-xl flex justify-center items-center shadow-[inset_0_0_10px_rgba(0,0,0,0.3)] tracking-widest outline-none">
-                    コレクションを見る！
-                </button>
-            </div>
-
-            <div class="mt-8 pb-2 text-center text-[10px] text-[#8b5a2b] font-bold shrink-0">
-                都道府県マスター　|　ver4.3　|　ota tools
-            </div>
-        </div>
-    </div>
-
-    <div id="screen-collection" class="hidden flex-1 flex flex-col h-full fade-in map-texture">
-        <div class="bg-[#8b5a2b] px-3 py-3 shadow-md flex justify-between items-center z-20 border-b-4 border-[#5c3a21] shrink-0">
-            <h2 class="text-xl font-black text-[#fdfaf3] tracking-widest drop-shadow-md">コレクション</h2>
-            <div id="collection-pref-info" class="text-sm font-black text-[#5c3a21] bg-[#faedd6] px-4 py-1.5 rounded-sm border-2 border-[#5c3a21] shadow-inner">地図をタップ！</div>
-            <button onclick="showScreen('title')" class="btn-pop bg-[#c2a278] hover:bg-[#a68861] text-[#5c3a21] font-black px-4 py-1.5 rounded-sm border-2 border-[#5c3a21] border-b-4 text-sm shadow-sm outline-none">
-                もどる
-            </button>
-        </div>
-        
-        <div class="flex-1 relative flex justify-center items-center p-2 min-h-0 ocean-bg shadow-[inset_0_0_15px_rgba(0,0,0,0.1)] border-y-4 border-[#8b5a2b]/20">
-            <div id="collection-map-container" class="map-wrap"></div>
-        </div>
-
-        <div class="bg-[#faedd6] p-3 shrink-0 border-t-4 border-[#8b5a2b] flex flex-col items-center pb-5 shadow-[0_-5px_10px_rgba(0,0,0,0.1)] z-10">
-            <p class="text-xs font-black text-[#8b5a2b] mb-2 border-b border-dashed border-[#8b5a2b] pb-1">正解で赤く、まちがえると薄くなるよ！10回で…！？</p>
-            <div class="flex flex-wrap justify-center items-center gap-2 md:gap-3">
-                <div class="flex items-center gap-1">
-                    <span class="text-[10px] font-black text-[#8b5a2b] mr-1">0回</span>
-                    <div class="w-5 h-5 rounded-sm bg-white border-2 border-[#c2a278]"></div>
-                    <div class="w-5 h-5 rounded-sm bg-[#ffe4e6] border-2 border-[#fda4af]"></div>
-                    <div class="w-5 h-5 rounded-sm bg-[#fecdd3] border-2 border-[#fb7185]"></div>
-                    <div class="w-5 h-5 rounded-sm bg-[#fda4af] border-2 border-[#f43f5e]"></div>
-                    <div class="w-5 h-5 rounded-sm bg-[#fb7185] border-2 border-[#e11d48]"></div>
-                    <div class="w-5 h-5 rounded-sm bg-[#e11d48] border-2 border-[#9f1239]"></div>
-                    <span class="text-[10px] font-black text-[#e11d48] ml-1">5回(MAX赤)</span>
-                </div>
-                <div class="hidden md:block text-[#c2a278] font-black">|</div>
-                <div class="flex items-center gap-1 bg-[#fffbe8] px-3 py-1 rounded-sm border-2 border-[#fbbf24] shadow-sm">
-                    <span class="text-[10px] font-black text-[#b45309]">10回達成で...</span>
-                    <div class="w-6 h-6 rounded-full bg-[#fbbf24] border-2 border-[#d97706] shadow-[0_0_10px_rgba(251,191,36,0.8)]"></div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div id="screen-game" class="hidden flex-1 flex flex-col h-full fade-in min-h-0 map-texture">
-        <div class="bg-[#8b5a2b] px-3 py-3 shadow-md flex justify-between items-center z-20 shrink-0 border-b-4 border-[#5c3a21]">
-            <div class="text-sm font-black text-[#fdfaf3] bg-[#5c3a21] px-3 py-1.5 rounded-sm shadow-inner border-2 border-[#3e2723]">
-                正解: <span id="ui-q-count" class="text-lg text-[#4ade80] drop-shadow">0</span> <span class="text-xs">/ 10</span>
-            </div>
-            <div class="text-sm font-black text-[#fdfaf3] bg-[#5c3a21] px-3 py-1.5 rounded-sm shadow-inner border-2 border-[#3e2723]">
-                ミス: <span id="ui-miss-count" class="text-lg text-[#f87171] drop-shadow">0</span>
-            </div>
-            <div class="text-sm font-black text-[#fbbf24] bg-[#5c3a21] px-3 py-1.5 rounded-sm shadow-inner border-2 border-[#3e2723] flex items-center gap-1">
-                <span id="ui-timer" class="text-lg font-mono drop-shadow">00:00</span>
-            </div>
-        </div>
-
-        <div class="flex-1 flex flex-col md:flex-row min-h-0 ocean-bg shadow-[inset_0_0_20px_rgba(0,0,0,0.1)]">
-            <div class="flex-1 relative flex flex-col justify-center items-center min-h-[30vh] md:min-h-0">
-                <div id="game-map-container" class="map-wrap"></div>
-            </div>
-
-            <div class="w-full md:w-[320px] bg-[#faedd6] shrink-0 z-10 flex flex-col justify-center p-4 shadow-[0_-5px_15px_rgba(139,69,19,0.3)] md:shadow-[-5px_0_15px_rgba(139,69,19,0.3)] overflow-y-auto max-h-[50vh] md:max-h-none border-t-[6px] md:border-t-0 md:border-l-[6px] border-[#8b5a2b] pb-6 md:pb-4 map-texture">
-                <div class="w-full max-w-sm mx-auto flex flex-col h-full justify-center">
-                    <div id="ui-choices" class="flex flex-col gap-3 w-full hidden"></div>
-                    
-                    <div id="ui-typing" class="hidden flex flex-col gap-3 w-full">
-                        <p class="text-center text-sm text-[#8b5a2b] font-black mb-1 border-b-2 border-dashed border-[#8b5a2b] inline-block mx-auto pb-1">赤くぬられた都道府県は？</p>
-                        <input type="text" id="answer-input" placeholder="ここに入力してね" 
-                               class="w-full border-4 border-[#8b5a2b] rounded-md bg-[#fdfaf3] px-3 py-4 text-2xl font-black text-center text-[#5c3a21] focus:outline-none focus:border-[#c84b31] focus:bg-[#fff9f0] shadow-inner transition-colors" autocomplete="off">
-                        <button onclick="checkTextInput()" class="btn-pop w-full bg-[#c84b31] hover:bg-[#a63c26] text-[#fdfaf3] font-black py-4 rounded-md border-2 border-[#7d2916] border-b-[6px] text-2xl mt-2 shadow-sm tracking-widest outline-none">
-                            こたえる！
-                        </button>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div id="screen-result" class="hidden flex-1 flex flex-col h-full p-4 fade-in text-center justify-center overflow-y-auto map-texture pb-8 relative">
-        <div class="absolute top-4 left-4 w-10 h-10 border-t-4 border-l-4 border-[#8b5a2b] opacity-60"></div>
-        <div class="absolute top-4 right-4 w-10 h-10 border-t-4 border-r-4 border-[#8b5a2b] opacity-60"></div>
-        <div class="absolute bottom-4 left-4 w-10 h-10 border-b-4 border-l-4 border-[#8b5a2b] opacity-60"></div>
-        <div class="absolute bottom-4 right-4 w-10 h-10 border-b-4 border-r-4 border-[#8b5a2b] opacity-60"></div>
-
-        <div class="w-full max-w-md mx-auto my-auto py-4 z-10">
-            <div class="mb-6">
-                <h2 class="text-3xl md:text-4xl font-black text-[#8b5a2b] mb-2 drop-shadow-[2px_2px_0_#fdfaf3] tracking-widest">探検けっか！</h2>
-                <p id="result-difficulty" class="text-sm font-black text-[#fdfaf3] mb-4 bg-[#8b5a2b] inline-block px-4 py-1 rounded-sm border-2 border-[#5c3a21] shadow-sm tracking-wider">難易度: かんたん</p>
-                
-                <div class="bg-[#faedd6] border-[6px] border-[#8b5a2b] rounded-md p-6 shadow-[8px_8px_0_rgba(139,69,19,0.3)] inline-block w-full relative">
-                    <div id="new-record-badge" class="hidden absolute -top-5 -right-4 bg-[#fbbf24] text-[#78350f] font-black text-xs px-3 py-1 rounded-sm transform rotate-12 shadow-md border-2 border-[#d97706] tracking-widest">新記録!!</div>
-                    
-                    <div class="text-xs text-[#8b5a2b] font-black mb-1 tracking-widest border-b border-dashed border-[#8b5a2b] inline-block px-2">SCORE</div>
-                    <div class="text-5xl md:text-6xl font-black text-[#c84b31] mb-6 font-mono leading-none drop-shadow-md" id="result-score">0</div>
-
-                    <div class="grid grid-cols-2 gap-3 text-left">
-                        <div class="bg-[#fdfaf3] p-3 rounded-sm border-2 border-[#8b5a2b] shadow-inner">
-                            <div class="text-[10px] text-[#8b5a2b] font-black mb-1 text-center border-b border-dashed border-[#8b5a2b] pb-0.5">タイム</div>
-                            <div class="text-2xl font-black text-[#5c3a21] text-center font-mono drop-shadow-sm" id="result-time">00:00</div>
-                        </div>
-                        <div class="bg-[#fdfaf3] p-3 rounded-sm border-2 border-[#8b5a2b] shadow-inner">
-                            <div class="text-[10px] text-[#8b5a2b] font-black mb-1 text-center border-b border-dashed border-[#8b5a2b] pb-0.5">正解率</div>
-                            <div class="text-2xl font-black text-[#5c3a21] text-center font-mono drop-shadow-sm" id="result-accuracy">100%</div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <div id="result-miss-area" class="mb-6 hidden bg-[#fdfaf3] p-3 rounded-md border-2 border-dashed border-[#8b5a2b]">
-                <p class="text-[11px] font-black text-[#fdfaf3] mb-2 bg-[#c84b31] inline-block px-3 py-0.5 rounded-sm border border-[#7d2916] shadow-sm">まちがえた都道府県</p>
-                <div id="result-miss-list" class="flex flex-wrap gap-1.5 justify-center text-xs"></div>
-            </div>
-
-            <button onclick="showScreen('title')" class="btn-pop w-full bg-[#4ade80] hover:bg-[#22c55e] text-[#064e3b] font-black py-4 rounded-md border-2 border-[#064e3b] border-b-[6px] text-xl shadow-[inset_0_0_10px_rgba(255,255,255,0.4)] tracking-widest mt-2 outline-none">
-                タイトルへもどる
-            </button>
-        </div>
-    </div>
-
-</div>
-
-<script>
-const PREFECTURES = [
-    { id: 1, name: "北海道", kana: "ほっかいどう", short: "北海道", skana: "ほっかいどう", region: 1 },
-    { id: 2, name: "青森県", kana: "あおもりけん", short: "青森", skana: "あおもり", region: 2 },
-    { id: 3, name: "岩手県", kana: "いわてけん", short: "岩手", skana: "いわて", region: 2 },
-    { id: 4, name: "宮城県", kana: "みやぎけん", short: "宮城", skana: "みやぎ", region: 2 },
-    { id: 5, name: "秋田県", kana: "あきたけん", short: "秋田", skana: "あきた", region: 2 },
-    { id: 6, name: "山形県", kana: "やまがたけん", short: "山形", skana: "やまがた", region: 2 },
-    { id: 7, name: "福島県", kana: "ふくしまけん", short: "福島", skana: "ふくしま", region: 2 },
-    { id: 8, name: "茨城県", kana: "いばらきけん", short: "茨城", skana: "いばらき", region: 3 },
-    { id: 9, name: "栃木県", kana: "とちぎけん", short: "栃木", skana: "とちぎ", region: 3 },
-    { id: 10, name: "群馬県", kana: "ぐんまけん", short: "群馬", skana: "ぐんま", region: 3 },
-    { id: 11, name: "埼玉県", kana: "さいたまけん", short: "埼玉", skana: "さいたま", region: 3 },
-    { id: 12, name: "千葉県", kana: "ちばけん", short: "千葉", skana: "ちば", region: 3 },
-    { id: 13, name: "東京都", kana: "とうきょうと", short: "東京", skana: "とうきょう", region: 3 },
-    { id: 14, name: "神奈川県", kana: "かながわけん", short: "神奈川", skana: "かながわ", region: 3 },
-    { id: 15, name: "新潟県", kana: "にいがたけん", short: "新潟", skana: "にいがた", region: 4 },
-    { id: 16, name: "富山県", kana: "とやまけん", short: "富山", skana: "とやま", region: 4 },
-    { id: 17, name: "石川県", kana: "いしかわけん", short: "石川", skana: "いしかわ", region: 4 },
-    { id: 18, name: "福井県", kana: "ふくいけん", short: "福井", skana: "ふくい", region: 4 },
-    { id: 19, name: "山梨県", kana: "やまなしけん", short: "山梨", skana: "やまなし", region: 4 },
-    { id: 20, name: "長野県", kana: "ながのけん", short: "長野", skana: "ながの", region: 4 },
-    { id: 21, name: "岐阜県", kana: "ぎふけん", short: "岐阜", skana: "ぎふ", region: 4 },
-    { id: 22, name: "静岡県", kana: "しずおかけん", short: "静岡", skana: "しずおか", region: 4 },
-    { id: 23, name: "愛知県", kana: "あいちけん", short: "愛知", skana: "あいち", region: 4 },
-    { id: 24, name: "三重県", kana: "みえけん", short: "三重", skana: "みえ", region: 5 },
-    { id: 25, name: "滋賀県", kana: "しがけん", short: "滋賀", skana: "しが", region: 5 },
-    { id: 26, name: "京都府", kana: "きょうとふ", short: "京都", skana: "きょうと", region: 5 },
-    { id: 27, name: "大阪府", kana: "おおさかふ", short: "大阪", skana: "おおさか", region: 5 },
-    { id: 28, name: "兵庫県", kana: "ひょうごけん", short: "兵庫", skana: "ひょうご", region: 5 },
-    { id: 29, name: "奈良県", kana: "ならけん", short: "奈良", skana: "なら", region: 5 },
-    { id: 30, name: "和歌山県", kana: "わかやまけん", short: "和歌山", skana: "わかやま", region: 5 },
-    { id: 31, name: "鳥取県", kana: "とっとりけん", short: "鳥取", skana: "とっとり", region: 6 },
-    { id: 32, name: "島根県", kana: "しまねけん", short: "島根", skana: "しまね", region: 6 },
-    { id: 33, name: "岡山県", kana: "おかやまけん", short: "岡山", skana: "おかやま", region: 6 },
-    { id: 34, name: "広島県", kana: "ひろしまけん", short: "広島", skana: "ひろしま", region: 6 },
-    { id: 35, name: "山口県", kana: "やまぐちけん", short: "山口", skana: "やまぐち", region: 6 },
-    { id: 36, name: "徳島県", kana: "とくしまけん", short: "徳島", skana: "とくしま", region: 7 },
-    { id: 37, name: "香川県", kana: "かがわけん", short: "香川", skana: "かがわ", region: 7 },
-    { id: 38, name: "愛媛県", kana: "えひめけん", short: "愛媛", skana: "えひめ", region: 7 },
-    { id: 39, name: "高知県", kana: "こうちけん", short: "高知", skana: "こうち", region: 7 },
-    { id: 40, name: "福岡県", kana: "ふくおかけん", short: "福岡", skana: "ふくおか", region: 8 },
-    { id: 41, name: "佐賀県", kana: "さがけん", short: "佐賀", skana: "さが", region: 8 },
-    { id: 42, name: "長崎県", kana: "ながさきけん", short: "長崎", skana: "ながさき", region: 8 },
-    { id: 43, name: "熊本県", kana: "くまもとけん", short: "熊本", skana: "くまもと", region: 8 },
-    { id: 44, name: "大分県", kana: "おおいたけん", short: "大分", skana: "おおいた", region: 8 },
-    { id: 45, name: "宮崎県", kana: "みやざきけん", short: "宮崎", skana: "みやざき", region: 8 },
-    { id: 46, name: "鹿児島県", kana: "かごしまけん", short: "鹿児島", skana: "かごしま", region: 8 },
-    { id: 47, name: "沖縄県", kana: "おきなわけん", short: "沖縄", skana: "おきなわ", region: 8 }
-];
-
-const LEVEL_COLORS = [
-    '#ffffff', // 0: 白
-    '#ffe4e6', // 1: うすい赤 (rose-100)
-    '#fecdd3', // 2: (rose-200)
-    '#fda4af', // 3: (rose-300)
-    '#fb7185', // 4: (rose-400)
-    '#e11d48', // 5: MAX赤 (rose-600)
-    '#e11d48', // 6
-    '#e11d48', // 7
-    '#e11d48', // 8
-    '#e11d48', // 9
-    '#fbbf24'  // 10: 黄色に輝く (amber-400)
-];
-
-const TOTAL_QUESTIONS = 10; // ここでの数値は「クリアに必要な正解数」となります
-let originalSvgText = "";
-let gameState = {
-    difficulty: 'easy',
-    questions: [],
-    currentIndex: 0,
-    correctCount: 0,
-    elapsedMs: 0,       
-    elapsedSeconds: 0,  
-    isPaused: false,    
-    lastTickTime: 0,    
-    timerInterval: null,
-    missCount: 0,
-    currentMisses: [],
-    isProcessing: false
-};
-
-document.addEventListener('DOMContentLoaded', () => {
-    loadMapSVG();
-    
-    document.getElementById('answer-input').addEventListener('keypress', (e) => {
-        if (e.key === 'Enter') checkTextInput();
-    });
-});
-
-async function loadMapSVG() {
-    try {
-        if (window.location.protocol === 'blob:' || window.location.protocol === 'data:') {
-            showScreen('upload');
-            return;
-        }
-
-        const response = await fetch('./map.svg');
-        if (!response.ok) throw new Error('Network response was not ok');
-        const svgText = await response.text();
-        setupSVG(svgText);
-    } catch (error) {
-        console.warn('ローカルファイルの自動取得をスキップしました。');
-        showScreen('upload');
-    }
-}
-
-function handleFileUpload(event) {
-    const file = event.target.files[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = (e) => {
-        setupSVG(e.target.result);
-    };
-    reader.onerror = () => {
-        alert("ファイルの読み込みに失敗しました。");
-        showScreen('upload');
-    };
-    reader.readAsText(file);
-}
-
-function setupSVG(svgText) {
-    try {
-        originalSvgText = svgText;
-        document.getElementById('game-map-container').innerHTML = svgText;
-        document.getElementById('collection-map-container').innerHTML = svgText;
-
-        const svg1 = document.getElementById('game-map-container').querySelector('svg');
-        const svg2 = document.getElementById('collection-map-container').querySelector('svg');
-        
-        if (svg1 && svg2) {
-            updateTitleHighScores();
-            showScreen('title');
-        } else {
-            throw new Error('SVG format error');
-        }
-    } catch (error) {
-        alert("無効なSVGファイルです。");
-        showScreen('upload');
-    }
-}
-
-function showScreen(screenId) {
-    const screens = ['loading', 'upload', 'title', 'collection', 'game', 'result'];
-    screens.forEach(s => {
-        document.getElementById(`screen-${s}`).classList.add('hidden');
-    });
-    
-    if (screenId === 'title') updateTitleHighScores();
-    
-    document.getElementById(`screen-${screenId}`).classList.remove('hidden');
-}
-
-function updateTitleHighScores() {
-    const scores = JSON.parse(localStorage.getItem('mapGameHighScores') || '{"easy":0,"normal":0,"hard":0,"super":0}');
-    document.getElementById('score-easy').textContent = scores.easy.toLocaleString();
-    document.getElementById('score-normal').textContent = scores.normal.toLocaleString();
-    document.getElementById('score-hard').textContent = scores.hard.toLocaleString();
-    document.getElementById('score-super').textContent = scores.super.toLocaleString();
-}
-
-function showCollection() {
-    renderCollectionMap();
-    showScreen('collection');
-}
-
-function getPrefLevel(prefId) {
-    const stats = JSON.parse(localStorage.getItem('mapGameStats') || '{}');
-    if (!stats[prefId]) return 0;
-    
-    let level = 0;
-    // 今回のアップデートからlevelプロパティを使用（過去データとの互換性を保つ）
-    if (stats[prefId].level !== undefined) {
-        level = stats[prefId].level;
-    } else {
-        level = Math.max(0, stats[prefId].correct - stats[prefId].miss);
-    }
-    
-    return Math.max(0, Math.min(10, level));
-}
-
-function saveStats(prefId, isCorrect) {
-    let stats = JSON.parse(localStorage.getItem('mapGameStats') || '{}');
-    if (!stats[prefId]) stats[prefId] = { correct: 0, miss: 0, level: 0 };
-    
-    // 過去の保存データでlevelプロパティがない場合の初期化
-    if (stats[prefId].level === undefined) {
-        stats[prefId].level = Math.max(0, stats[prefId].correct - stats[prefId].miss);
-    }
-
-    if (isCorrect) {
-        stats[prefId].correct++;
-        stats[prefId].level++; // 正解でレベルアップ
-    } else {
-        stats[prefId].miss++;
-        stats[prefId].level = Math.max(0, stats[prefId].level - 1); // 0未満にはならないようにする
-    }
-    localStorage.setItem('mapGameStats', JSON.stringify(stats));
-}
-
-function renderCollectionMap() {
-    document.getElementById('collection-pref-info').textContent = '地図をタップ！';
-    PREFECTURES.forEach(p => {
-        const level = getPrefLevel(p.id);
-        const color = LEVEL_COLORS[level];
-        const elements = findSVGElements(p.id, 'collection-map-container');
-        
-        elements.forEach(el => {
-            const applyStyleAndEvent = (target) => {
-                target.style.fill = color;
-                if (level >= 10) {
-                    target.style.stroke = '#fef08a';
-                    target.style.strokeWidth = '2';
-                    target.style.filter = 'drop-shadow(0 0 4px rgba(251, 191, 36, 0.9))';
-                    target.parentNode.appendChild(target); 
-                } else {
-                    target.style.stroke = '#8b5a2b';
-                    target.style.strokeWidth = '1';
-                    target.style.filter = 'none';
-                }
-
-                target.style.cursor = 'pointer';
-                target.onclick = (e) => {
-                    e.stopPropagation();
-                    document.getElementById('collection-pref-info').textContent = `${p.name} (レベル: ${level})`;
+            useEffect(() => {
+                if (!window.fb) return;
+                const initAuth = async () => {
+                    try {
+                        await window.fb.signInAnonymously(window.auth);
+                    } catch (e) { 
+                        setHasAccessError(true);
+                    }
                 };
+                initAuth();
+                return window.fb.onAuthStateChanged(window.auth, (u) => {
+                    if (u) setUser(u);
+                });
+            }, []);
+
+            useEffect(() => {
+                if (!user || !window.db) return;
+                const path = `artifacts/${window.APP_ID}/public/data/app_views`;
+                const colRef = window.fb.collection(window.db, ...path.split('/'));
+                const unsubscribe = window.fb.onSnapshot(colRef, (snap) => {
+                    const counts = {};
+                    snap.forEach(d => { counts[d.id] = d.data().count; });
+                    setViewCounts(counts);
+                    setHasAccessError(false);
+                }, (err) => { setHasAccessError(true); });
+                return () => unsubscribe();
+            }, [user]);
+
+            useEffect(() => {
+                if (window.lucide) window.lucide.createIcons();
+            });
+
+            const checkIfNew = (dateString) => {
+                const appDate = new Date(dateString);
+                const today = new Date();
+                const diffTime = Math.abs(today - appDate);
+                const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                return diffDays <= 10; // 修正箇所: 14から10に変更
             };
 
-            if (['path', 'polygon', 'rect', 'circle'].includes(el.tagName.toLowerCase())) {
-                applyStyleAndEvent(el);
-            }
-            const children = el.querySelectorAll('path, polygon, rect, circle');
-            children.forEach(child => applyStyleAndEvent(child));
-        });
-    });
-}
+            const handleAppClick = async (app) => {
+                if (!user || !window.db || isProcessing) return;
 
-function startGame(difficulty) {
-    gameState = {
-        difficulty: difficulty,
-        questions: generateQuestionList(difficulty === 'normal' || difficulty === 'super'),
-        currentIndex: 0,
-        correctCount: 0,
-        elapsedMs: 0,
-        elapsedSeconds: 0,
-        isPaused: false,
-        lastTickTime: Date.now(),
-        missCount: 0,
-        currentMisses: [],
-        isProcessing: false,
-        timerInterval: null
-    };
+                // 本日の日付を取得
+                const todayStr = new Date().toISOString().split('T')[0];
+                const storageKey = `ota_last_click_${app.id}`;
+                const lastClickDate = localStorage.getItem(storageKey);
 
-    document.getElementById('ui-q-count').textContent = '0'; // 正解数を表示
-    document.getElementById('ui-miss-count').textContent = '0';
-    document.getElementById('ui-timer').textContent = '00:00';
-    
-    if (difficulty === 'easy' || difficulty === 'normal') {
-        const choicesDiv = document.getElementById('ui-choices');
-        choicesDiv.classList.remove('hidden');
-        document.getElementById('ui-typing').classList.add('hidden');
-        choicesDiv.className = 'flex flex-col gap-1.5 md:gap-3 w-full h-full md:h-auto';
-    } else {
-        document.getElementById('ui-choices').classList.add('hidden');
-        document.getElementById('ui-typing').classList.remove('hidden');
-        document.getElementById('answer-input').value = '';
-    }
+                // もし今日すでにクリックしていたら、カウントアップをスキップ（URLへ飛ばす処理のみ実行）
+                if (lastClickDate === todayStr) {
+                    return;
+                }
 
-    clearInterval(gameState.timerInterval);
-    gameState.timerInterval = setInterval(updateTimer, 50); 
+                setIsProcessing(true); // 処理中フラグON
+                const docRef = window.fb.doc(window.db, 'artifacts', window.APP_ID, 'public', 'data', 'app_views', String(app.id));
+                
+                try {
+                    const docSnap = await window.fb.getDoc(docRef);
+                    if (docSnap.exists()) {
+                        await window.fb.updateDoc(docRef, { count: window.fb.increment(1) });
+                    } else {
+                        await window.fb.setDoc(docRef, { count: (app.initialViews || 0) + 1 });
+                    }
+                    // 成功したら本日クリック済みとして保存
+                    localStorage.setItem(storageKey, todayStr);
+                } catch (e) { 
+                    console.error(e); 
+                } finally {
+                    setIsProcessing(false); // 処理終了
+                }
+            };
 
-    showScreen('game');
-    setNextQuestion();
-}
+            const processedApps = useMemo(() => {
+                return initialAppList
+                    .map(app => ({ 
+                        ...app, 
+                        displayViews: viewCounts[String(app.id)] !== undefined ? viewCounts[String(app.id)] : (app.initialViews || 0),
+                        isNew: checkIfNew(app.date)
+                    }))
+                    .filter(app => {
+                        const titleMatch = app.title.includes(searchQuery);
+                        const descMatch = typeof app.description === 'string' 
+                            ? app.description.includes(searchQuery) 
+                            : false; // JSXの場合は簡易化のためタイトル検索優先
+                        return (activeCategory === 'all' || app.category === activeCategory) && (titleMatch || descMatch);
+                    })
+                    .sort((a, b) => sortOrder === 'popular' ? (b.displayViews - a.displayViews) : new Date(b.date) - new Date(a.date));
+            }, [viewCounts, activeCategory, searchQuery, sortOrder]);
 
-function updateTimer() {
-    const now = Date.now();
-    const delta = now - gameState.lastTickTime;
-    gameState.lastTickTime = now;
+            const getCategoryLabel = (catId) => {
+                const cat = categories.find(c => c.id === catId);
+                return cat ? cat.label : catId;
+            };
 
-    if (gameState.isPaused) return; 
-    
-    gameState.elapsedMs += delta;
-    const currentSeconds = Math.floor(gameState.elapsedMs / 1000);
-    
-    if (currentSeconds !== gameState.elapsedSeconds) {
-        gameState.elapsedSeconds = currentSeconds;
-        const m = String(Math.floor(gameState.elapsedSeconds / 60)).padStart(2, '0');
-        const s = String(gameState.elapsedSeconds % 60).padStart(2, '0');
-        document.getElementById('ui-timer').textContent = `${m}:${s}`;
-    }
-}
+            const generatedCode = useMemo(() => {
+                const maxId = Math.max(...initialAppList.map(a => parseInt(a.id)), 0);
+                const nextId = (maxId + 1).toString();
+                const today = new Date().toISOString().split('T')[0];
+                // 自動生成される画像ファイル名
+                const autoImage = getImageUrlById(nextId);
+                return `{ id: "${nextId}", title: "${newAppData.title || 'アプリ名'}", category: "${newAppData.category}", description: "${newAppData.description || '説明文...'}", url: "${newAppData.url || '#'}", imageUrl: "${newAppData.imageUrl || autoImage}", date: "${today}", initialViews: 0 },`;
+            }, [newAppData]);
 
-// 10問だけでなくすべての都道府県をリストにする（足りなくならないように）
-function generateQuestionList(useMissData) {
-    let pool = [...PREFECTURES].map(p => p.id);
-    if (useMissData) {
-        pool.sort((a, b) => {
-            const statsA = JSON.parse(localStorage.getItem('mapGameStats') || '{}')[a] || {correct:0, miss:0};
-            const statsB = JSON.parse(localStorage.getItem('mapGameStats') || '{}')[b] || {correct:0, miss:0};
-            const rateA = statsA.correct / (statsA.correct + statsA.miss || 1);
-            const rateB = statsB.correct / (statsB.correct + statsB.miss || 1);
-            if (rateA === rateB) return Math.random() - 0.5;
-            return rateA - rateB; 
-        });
-    } else {
-        pool.sort(() => Math.random() - 0.5);
-    }
-    return pool;
-}
+            const copyToClipboard = () => {
+                const textArea = document.createElement("textarea");
+                textArea.value = generatedCode;
+                document.body.appendChild(textArea);
+                textArea.select();
+                document.execCommand('copy');
+                document.body.removeChild(textArea);
+            };
 
-function setNextQuestion() {
-    // 10問正解したら終了
-    if (gameState.correctCount >= TOTAL_QUESTIONS) {
-        endGame();
-        return;
-    }
+            return (
+                <div className="min-h-screen bg-slate-50 flex flex-col relative">
+                    <header className="bg-white border-b sticky top-0 z-30 shadow-sm">
+                        <div className="max-w-6xl mx-auto px-4 h-16 flex justify-between items-center">
+                            <div className="flex items-center gap-2">
+                                <div className="bg-gradient-to-br from-blue-500 to-cyan-400 text-white p-2 rounded-xl shadow-lg shadow-blue-100">
+                                    <i data-lucide="laptop" className="w-6 h-6"></i>
+                                </div>
+                                <div>
+                                    <h1 className="text-xl font-bold text-slate-900 leading-tight">ota tools</h1>
+                                    <p className="text-[10px] text-slate-500">大阪市の教員による自作アプリ集</p>
+                                </div>
+                            </div>
+                            <div className="hidden md:flex items-center bg-slate-100 rounded-full px-4 py-1.5 w-64 border border-transparent focus-within:border-blue-200 focus-within:bg-white transition-all">
+                                <i data-lucide="search" className="w-4 h-4 text-slate-400 mr-2"></i>
+                                <input type="text" placeholder="アプリを検索..." className="bg-transparent outline-none text-sm w-full font-medium" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />
+                            </div>
+                        </div>
+                        <div className="max-w-6xl mx-auto px-4 py-3 overflow-x-auto no-scrollbar flex gap-2">
+                            {categories.map(cat => (
+                                <button key={cat.id} onClick={() => setActiveCategory(cat.id)} className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-bold border whitespace-nowrap transition-all ${activeCategory === cat.id ? "bg-blue-600 text-white border-blue-600 shadow-md" : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"}`}>
+                                    <i data-lucide={cat.icon} className="w-4 h-4"></i>{cat.label}
+                                </button>
+                            ))}
+                        </div>
+                    </header>
 
-    // 問題プールが尽きたら再度シャッフルしてループさせる
-    if (gameState.currentIndex >= gameState.questions.length) {
-        gameState.currentIndex = 0;
-        gameState.questions.sort(() => Math.random() - 0.5);
-    }
+                    <main className="max-w-6xl mx-auto w-full px-4 py-8 flex-1">
+                        <div className="mb-6 flex justify-between items-center">
+                            <p className="text-slate-500 text-sm font-bold">{processedApps.length} 件表示中</p>
+                            <div className="flex bg-white p-1 rounded-xl border border-slate-200 shadow-sm">
+                                <button onClick={() => setSortOrder('newest')} className={`px-4 py-1.5 text-xs font-bold rounded-lg flex items-center gap-1.5 transition-all ${sortOrder === 'newest' ? "bg-blue-50 text-blue-700" : "text-slate-400 hover:text-slate-600"}`}><i data-lucide="calendar" className="w-3.5 h-3.5"></i> 新着</button>
+                                <button onClick={() => setSortOrder('popular')} className={`px-4 py-1.5 text-xs font-bold rounded-lg flex items-center gap-1.5 transition-all ${sortOrder === 'popular' ? "bg-blue-50 text-blue-700" : "text-slate-400 hover:text-slate-600"}`}><i data-lucide="eye" className="w-3.5 h-3.5"></i> 人気</button>
+                            </div>
+                        </div>
 
-    gameState.isProcessing = false;
-    document.getElementById('ui-q-count').textContent = gameState.correctCount;
-    
-    const currentPrefId = gameState.questions[gameState.currentIndex];
-    const targetPref = PREFECTURES.find(p => p.id === currentPrefId);
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
+                            {processedApps.map(app => (
+                                <a 
+                                    key={app.id} 
+                                    href={app.url} 
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    onClick={() => handleAppClick(app)}
+                                    className={`group bg-white rounded-2xl border border-slate-200 overflow-hidden hover:shadow-2xl hover:shadow-blue-100/50 hover:-translate-y-1 transition-all duration-300 flex flex-col h-full cursor-pointer ${isProcessing ? 'pointer-events-none' : ''}`}
+                                >
+                                    <div className="relative h-48 bg-slate-50 flex items-center justify-center overflow-hidden">
+                                        <div className="absolute inset-0 bg-gradient-to-br from-blue-50/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                                        
+                                        <div className="w-full h-full flex items-center justify-center relative z-10">
+                                            {app.imageUrl ? (
+                                                <img 
+                                                    src={app.imageUrl} 
+                                                    alt={app.title} 
+                                                    className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                                                    onError={(e) => {
+                                                        e.target.style.display = 'none';
+                                                        e.target.nextSibling.style.display = 'flex';
+                                                    }}
+                                                />
+                                            ) : null}
+                                            <div className={`w-full h-full flex items-center justify-center bg-slate-50 ${app.imageUrl ? 'hidden' : 'flex'}`}>
+                                                <i data-lucide={app.category === 'game' ? 'gamepad-2' : app.category === 'utility' ? 'clock' : 'graduation-cap'} className="w-16 h-16 text-slate-200 group-hover:text-blue-200 group-hover:scale-110 transition-all duration-500"></i>
+                                            </div>
+                                        </div>
 
-    highlightGameMap(currentPrefId);
+                                        {app.isNew && <span className="absolute top-4 right-4 bg-cyan-500 text-white text-[10px] font-black px-3 py-1 rounded-full shadow-lg z-20 animate-pulse">NEW</span>}
+                                    </div>
+                                    <div className="p-6 flex-1 flex flex-col">
+                                        <div className="flex justify-between items-center mb-4 text-[10px] font-bold tracking-widest uppercase">
+                                            <span className="text-blue-600 bg-blue-50 px-2.5 py-1 rounded-md border border-blue-100">
+                                                {getCategoryLabel(app.category)}
+                                            </span>
+                                            <span className={`flex items-center gap-1 text-slate-400 transition-opacity duration-300 ${hasAccessError || viewCounts[String(app.id)] === undefined ? 'opacity-0' : 'opacity-100'}`}>
+                                                <i data-lucide="eye" className="w-3.5 h-3.5"></i>
+                                                {app.displayViews.toLocaleString()}
+                                            </span>
+                                        </div>
+                                        <h3 className="font-bold text-xl mb-2 text-slate-800 group-hover:text-blue-600 transition-colors">{app.title}</h3>
+                                        <div className="text-slate-500 text-sm mb-6 flex-1 leading-relaxed">{app.description}</div>
+                                        <div className="pt-5 border-t border-slate-50 flex justify-between items-center text-[11px] text-slate-400 font-bold">
+                                            <span>{app.date.replace(/-/g, '/')}</span>
+                                            <span className="text-blue-600 flex items-center group-hover:translate-x-1 transition-transform">
+                                                使ってみる <i data-lucide="chevron-right" className="w-3.5 h-3.5 ml-0.5"></i>
+                                            </span>
+                                        </div>
+                                    </div>
+                                </a>
+                            ))}
+                        </div>
+                    </main>
+                    
+                    <footer className="relative bg-white border-t py-12 px-4 overflow-hidden">
+                        <div className="max-w-6xl mx-auto text-center">
+                            <p className="text-slate-400 text-xs font-medium uppercase tracking-widest">© 2026 ota tools</p>
+                        </div>
+                        <div className="admin-trigger" onClick={() => setIsGeneratorOpen(true)}></div>
+                    </footer>
 
-    if (gameState.difficulty === 'easy' || gameState.difficulty === 'normal') {
-        generateChoicesUI(targetPref);
-    } else {
-        const inputEl = document.getElementById('answer-input');
-        inputEl.value = '';
-        inputEl.focus();
-    }
-}
+                    {isGeneratorOpen && (
+                        <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm flex items-center justify-center z-[100] p-4">
+                            <div className="bg-white rounded-[2rem] w-full max-w-lg p-10 shadow-2xl border border-slate-100 overflow-hidden relative">
+                                <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-blue-400 to-cyan-400"></div>
+                                
+                                <div className="flex justify-between items-start mb-10">
+                                    <div>
+                                        <h2 className="text-2xl font-bold text-slate-800 tracking-tight mb-1">新規アプリ用コード生成</h2>
+                                        <p className="text-[11px] text-blue-500 font-bold uppercase tracking-widest">Internal Admin Tools</p>
+                                    </div>
+                                    <button onClick={() => setIsGeneratorOpen(false)} className="bg-slate-50 hover:bg-slate-100 p-2.5 rounded-full transition-all text-slate-400 hover:text-slate-600"><i data-lucide="x"></i></button>
+                                </div>
+                                
+                                <div className="space-y-6 mb-10">
+                                    <div className="grid grid-cols-2 gap-5">
+                                        <div>
+                                            <label className="block text-[10px] font-bold text-slate-400 mb-2 uppercase tracking-widest">ジャンル</label>
+                                            <select 
+                                                value={newAppData.category} 
+                                                onChange={e => setNewAppData({...newAppData, category: e.target.value})}
+                                                className="w-full border-2 border-slate-50 rounded-2xl p-4 text-sm bg-slate-50 outline-none focus:bg-white focus:border-blue-400 transition-all font-bold text-slate-700"
+                                            >
+                                                {categories.filter(c => c.id !== 'all').map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label className="block text-[10px] font-bold text-slate-400 mb-2 uppercase tracking-widest">タイトル</label>
+                                            <input 
+                                                type="text" 
+                                                placeholder="アプリの名称" 
+                                                value={newAppData.title}
+                                                onChange={e => setNewAppData({...newAppData, title: e.target.value})}
+                                                className="w-full border-2 border-slate-50 rounded-2xl p-4 text-sm bg-slate-50 outline-none focus:bg-white focus:border-blue-400 transition-all font-bold"
+                                            />
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <label className="block text-[10px] font-bold text-slate-400 mb-2 uppercase tracking-widest">説明文</label>
+                                        <textarea 
+                                            placeholder="詳細な説明文..." 
+                                            rows="2"
+                                            value={newAppData.description}
+                                            onChange={e => setNewAppData({...newAppData, description: e.target.value})}
+                                            className="w-full border-2 border-slate-50 rounded-2xl p-4 text-sm bg-slate-50 outline-none focus:bg-white focus:border-blue-400 transition-all font-medium"
+                                        ></textarea>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-5">
+                                        <div>
+                                            <label className="block text-[10px] font-bold text-slate-400 mb-2 uppercase tracking-widest">アプリURL</label>
+                                            <input 
+                                                type="text" 
+                                                placeholder="https://..." 
+                                                value={newAppData.url}
+                                                onChange={e => setNewAppData({...newAppData, url: e.target.value})}
+                                                className="w-full border-2 border-slate-50 rounded-2xl p-4 text-sm bg-slate-50 outline-none focus:bg-white focus:border-blue-400 transition-all font-mono text-blue-600"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-[10px] font-bold text-slate-400 mb-2 uppercase tracking-widest">画像URL（任意）</label>
+                                            <input 
+                                                type="text" 
+                                                placeholder="空欄で自動ID指定" 
+                                                value={newAppData.imageUrl}
+                                                onChange={e => setNewAppData({...newAppData, imageUrl: e.target.value})}
+                                                className="w-full border-2 border-slate-50 rounded-2xl p-4 text-sm bg-slate-50 outline-none focus:bg-white focus:border-blue-400 transition-all font-mono"
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
 
-function generateChoicesUI(targetPref) {
-    const container = document.getElementById('ui-choices');
-    container.innerHTML = '';
-    
-    const choiceCount = gameState.difficulty === 'normal' ? 6 : 4;
-    let choices = [targetPref];
-    let pool = [...PREFECTURES].filter(p => p.id !== targetPref.id);
-    
-    if (gameState.difficulty === 'normal') {
-        const sameRegion = pool.filter(p => p.region === targetPref.region);
-        sameRegion.sort(() => Math.random() - 0.5);
-        pool.sort(() => Math.random() - 0.5);
-        
-        const dummyCandidates = [...sameRegion, ...pool];
-        for (let p of dummyCandidates) {
-            if (!choices.find(c => c.id === p.id)) choices.push(p);
-            if (choices.length === choiceCount) break;
+                                <div className="bg-slate-900 rounded-3xl p-6 relative group shadow-xl">
+                                    <button 
+                                        onClick={copyToClipboard}
+                                        className="absolute top-4 right-4 bg-blue-600 text-white p-2.5 rounded-xl opacity-0 group-hover:opacity-100 transition-all hover:bg-blue-500 shadow-lg active:scale-95"
+                                        title="Copy Code"
+                                    >
+                                        <i data-lucide="copy" className="w-4 h-4"></i>
+                                    </button>
+                                    <pre className="text-blue-400 text-[10px] font-mono whitespace-pre-wrap leading-relaxed max-h-32 overflow-y-auto no-scrollbar">
+                                        {generatedCode}
+                                    </pre>
+                                </div>
+                                <div className="mt-8 flex items-center justify-center gap-2 text-slate-400">
+                                    <p className="text-[10px] font-bold uppercase tracking-widest text-center">
+                                        上記をコピーして <code className="text-blue-500">initialAppList</code> 配列に追加してください。
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            );
         }
-    } else {
-        pool.sort(() => Math.random() - 0.5);
-        choices = choices.concat(pool.slice(0, choiceCount - 1));
-    }
 
-    choices.sort(() => Math.random() - 0.5);
-
-    choices.forEach(p => {
-        const btn = document.createElement('button');
-        
-        if (gameState.difficulty === 'normal') {
-            btn.className = 'btn-pop w-full flex-1 min-h-0 flex items-center justify-center bg-[#faedd6] text-[#5c3a21] font-black py-1 md:py-2 px-2 md:px-3 rounded-sm border-2 border-[#8b5a2b] border-b-[3px] md:border-b-[4px] active:bg-[#e6cda3] text-sm md:text-xl leading-tight shadow-sm text-center tracking-widest outline-none';
-        } else {
-            btn.className = 'btn-pop w-full flex-1 min-h-0 flex items-center justify-center bg-[#faedd6] text-[#5c3a21] font-black py-2 md:py-3 px-3 md:px-4 rounded-sm border-2 border-[#8b5a2b] border-b-[4px] active:bg-[#e6cda3] text-base md:text-2xl leading-tight shadow-sm text-center tracking-widest outline-none';
-        }
-        
-        btn.textContent = p.name;
-        btn.onclick = () => checkChoiceAnswer(p.id, targetPref.id);
-        container.appendChild(btn);
-    });
-}
-
-function checkChoiceAnswer(selectedId, correctId) {
-    if (gameState.isProcessing) return;
-    processAnswer(selectedId === correctId, correctId);
-}
-
-function checkTextInput() {
-    if (gameState.isProcessing) return;
-    
-    const inputEl = document.getElementById('answer-input');
-    const rawInput = inputEl.value;
-    if (!rawInput.trim()) return;
-
-    const correctId = gameState.questions[gameState.currentIndex];
-    const targetPref = PREFECTURES.find(p => p.id === correctId);
-
-    let input = rawInput.replace(/[Ａ-Ｚａ-ｚ０-９]/g, s => String.fromCharCode(s.charCodeAt(0) - 0xFEE0));
-    input = input.replace(/[\s　]/g, '');
-    input = input.replace(/[\u30a1-\u30f6]/g, match => String.fromCharCode(match.charCodeAt(0) - 0x60));
-
-    const validAnswers = [
-        targetPref.name, targetPref.short, targetPref.kana, targetPref.skana
-    ].map(s => s.replace(/[\u30a1-\u30f6]/g, match => String.fromCharCode(match.charCodeAt(0) - 0x60)));
-
-    const isCorrect = validAnswers.includes(input);
-    if (!isCorrect) inputEl.value = '';
-    
-    processAnswer(isCorrect, correctId);
-}
-
-function processAnswer(isCorrect, targetId) {
-    gameState.isProcessing = true;
-    saveStats(targetId, isCorrect);
-    
-    if (isCorrect) {
-        showEffect('circle', 500);
-        gameState.correctCount++; // 正解したらカウントアップ
-        setTimeout(() => {
-            gameState.currentIndex++; 
-            setNextQuestion();
-        }, 500);
-    } else {
-        const targetPref = PREFECTURES.find(p => p.id === targetId);
-        showEffect('cross', 1500, `正解は「${targetPref.name}」`); 
-        
-        gameState.missCount++;
-        document.getElementById('ui-miss-count').textContent = gameState.missCount;
-        
-        if (!gameState.currentMisses.includes(targetId)) {
-            gameState.currentMisses.push(targetId);
-        }
-        
-        gameState.isPaused = true; 
-        
-        setTimeout(() => {
-            gameState.isPaused = false;
-            // 不正解でも次の新しい問題へ進む（正解カウントは増えない）
-            gameState.currentIndex++; 
-            setNextQuestion();
-        }, 1500);
-    }
-}
-
-function endGame() {
-    clearInterval(gameState.timerInterval);
-    document.getElementById('ui-q-count').textContent = gameState.correctCount;
-    
-    let multiplier = 1;
-    let diffName = "かんたん";
-    if(gameState.difficulty === 'normal') { multiplier = 1.5; diffName = "ふつう"; }
-    if(gameState.difficulty === 'hard') { multiplier = 2.0; diffName = "むずかしい"; }
-    if(gameState.difficulty === 'super') { multiplier = 3.0; diffName = "げきむず"; }
-
-    // 早ければ早いほど点数がぐんと高くなる（反比例）
-    let timeScore = Math.floor(1000000 / (gameState.elapsedSeconds + 5)); 
-    // 正解率の計算
-    let accuracyRate = TOTAL_QUESTIONS / (TOTAL_QUESTIONS + gameState.missCount); 
-    
-    // スコア算出（正解率を2乗して掛けることで、ミスが多いと大きくスコアが下がる）
-    let score = Math.floor(timeScore * Math.pow(accuracyRate, 2) * multiplier);
-    if (score < 0) score = 0;
-
-    let isNewRecord = false;
-    const scores = JSON.parse(localStorage.getItem('mapGameHighScores') || '{"easy":0,"normal":0,"hard":0,"super":0}');
-    if (score > scores[gameState.difficulty]) {
-        scores[gameState.difficulty] = score;
-        localStorage.setItem('mapGameHighScores', JSON.stringify(scores));
-        isNewRecord = true;
-    }
-
-    const accuracyPercent = Math.floor(accuracyRate * 100);
-
-    document.getElementById('result-difficulty').textContent = `難易度: ${diffName}`;
-    document.getElementById('result-score').textContent = score.toLocaleString();
-    
-    if (isNewRecord && score > 0) {
-        document.getElementById('new-record-badge').classList.remove('hidden');
-    } else {
-        document.getElementById('new-record-badge').classList.add('hidden');
-    }
-    
-    const m = String(Math.floor(gameState.elapsedSeconds / 60)).padStart(2, '0');
-    const s = String(gameState.elapsedSeconds % 60).padStart(2, '0');
-    document.getElementById('result-time').textContent = `${m}:${s}`;
-    document.getElementById('result-accuracy').textContent = `${accuracyPercent}%`;
-
-    const missArea = document.getElementById('result-miss-area');
-    const missList = document.getElementById('result-miss-list');
-    missList.innerHTML = '';
-    
-    if (gameState.currentMisses.length > 0) {
-        missArea.classList.remove('hidden');
-        gameState.currentMisses.forEach(id => {
-            const p = PREFECTURES.find(pref => pref.id === id);
-            const span = document.createElement('span');
-            span.className = 'bg-[#faedd6] border border-[#8b5a2b] text-[#c84b31] px-2 py-0.5 rounded-sm text-[11px] font-black shadow-[2px_2px_0_rgba(139,69,19,0.2)] tracking-widest';
-            span.textContent = p.name;
-            missList.appendChild(span);
-        });
-    } else {
-        missArea.classList.add('hidden');
-    }
-
-    showScreen('result');
-}
-
-function showEffect(type, duration = 400, message = '') {
-    const overlay = document.getElementById('effect-overlay');
-    const icon = document.getElementById('effect-icon');
-    const msgEl = document.getElementById('effect-message');
-    
-    if (type === 'circle') {
-        icon.className = 'effect-circle';
-        icon.textContent = '〇';
-        overlay.classList.remove('bg-[#fdfaf3]/80', 'backdrop-blur-sm');
-    } else {
-        icon.className = 'effect-cross';
-        icon.textContent = '×';
-        overlay.classList.add('bg-[#fdfaf3]/80', 'backdrop-blur-sm');
-    }
-    
-    if (message) {
-        msgEl.textContent = message;
-        msgEl.classList.remove('hidden');
-    } else {
-        msgEl.classList.add('hidden');
-    }
-    
-    overlay.classList.add('show');
-    
-    setTimeout(() => {
-        overlay.classList.remove('show');
-        overlay.classList.remove('bg-[#fdfaf3]/80', 'backdrop-blur-sm');
-    }, duration);
-}
-
-function highlightGameMap(prefId) {
-    const container = document.getElementById('game-map-container');
-    const paths = container.querySelectorAll('path, polygon, rect, circle');
-    paths.forEach(p => {
-        p.style.fill = '#faedd6';
-        p.style.stroke = '#8b5a2b';
-        p.style.strokeWidth = '1';
-        p.style.transition = 'fill 0.2s ease';
-    });
-
-    const elements = findSVGElements(prefId, 'game-map-container');
-    elements.forEach(el => {
-        if (['path', 'polygon', 'rect', 'circle'].includes(el.tagName.toLowerCase())) {
-            el.style.fill = '#ef4444'; 
-        }
-        const children = el.querySelectorAll('path, polygon, rect, circle');
-        children.forEach(child => {
-            child.style.fill = '#ef4444';
-        });
-    });
-}
-
-function findSVGElements(prefId, containerId) {
-    const container = document.getElementById(containerId);
-    if (!container) return [];
-    const svg = container.querySelector('svg');
-    if (!svg) return [];
-
-    const idStr = prefId.toString();
-    const idStr2 = idStr.padStart(2, '0');
-    const prefData = PREFECTURES.find(p => p.id === prefId);
-    const results = [];
-
-    const selectors = [
-        `#JP-${idStr2}`, `#jp-${idStr2}`, `#JP-${idStr}`,
-        `#pref${idStr}`, `#pref${idStr2}`, `#pref-${idStr2}`,
-        `#item${idStr}`, `#item${idStr2}`,
-        `[id="${idStr}"]`, `[id="${idStr2}"]`,
-        `[data-code="${idStr}"]`, `[data-code="${idStr2}"]`,
-        `[data-id="${idStr}"]`, `[data-id="${idStr2}"]`,
-        `.pref${idStr}`, `.pref${idStr2}`, `.pref-${idStr2}`
-    ];
-
-    for (let sel of selectors) {
-        try {
-            const els = svg.querySelectorAll(sel);
-            if (els.length > 0) {
-                els.forEach(e => results.push(e));
-                return results;
-            }
-        } catch(e) {}
-    }
-
-    const ROMAJI_MAP = {
-        1:"hokkaido", 2:"aomori", 3:"iwate", 4:"miyagi", 5:"akita", 6:"yamagata", 7:"fukushima",
-        8:"ibaraki", 9:"tochigi", 10:"gunma", 11:"saitama", 12:"chiba", 13:"tokyo", 14:"kanagawa",
-        15:"niigata", 16:"toyama", 17:"ishikawa", 18:"fukui", 19:"yamanashi", 20:"nagano", 21:"gifu",
-        22:"shizuoka", 23:"aichi", 24:"mie", 25:"shiga", 26:"kyoto", 27:"osaka", 28:"hyogo", 29:"nara", 30:"wakayama",
-        31:"tottori", 32:"shimane", 33:"okayama", 34:"hiroshima", 35:"yamaguchi", 36:"tokushima", 37:"kagawa", 38:"ehime", 39:"kochi",
-        40:"fukuoka", 41:"saga", 42:"nagasaki", 43:"kumamoto", 44:"oita", 45:"miyazaki", 46:"kagoshima", 47:"okinawa"
-    };
-    const romaji = ROMAJI_MAP[prefId];
-    if (romaji) {
-        const UpperRomaji = romaji.charAt(0).toUpperCase() + romaji.slice(1);
-        try {
-            const els = svg.querySelectorAll(`[id="${romaji}"], [id="${UpperRomaji}"]`);
-            if (els.length > 0) {
-                els.forEach(e => results.push(e));
-                return results;
-            }
-        } catch(e) {}
-    }
-
-    if (prefData) {
-        const names = [prefData.name, prefData.short];
-        const allNodes = svg.querySelectorAll('g, path, polygon');
-        for (let el of allNodes) {
-            const title = el.getAttribute('title') || '';
-            const dataName = el.getAttribute('data-name') || '';
-            const nameAttr = el.getAttribute('name') || '';
-            
-            if (names.includes(title) || names.includes(dataName) || names.includes(nameAttr)) {
-                results.push(el);
-            }
-        }
-        if (results.length > 0) return results;
-    }
-
-    const paths = Array.from(svg.querySelectorAll('svg > path, svg > polygon'));
-    if (paths.length === 47 && (prefId - 1) < paths.length) return [paths[prefId - 1]];
-    
-    const groups = Array.from(svg.querySelectorAll('svg > g'));
-    if (groups.length >= 47 && (prefId - 1) < groups.length) return [groups[prefId - 1]];
-
-    return [];
-}
-</script>
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
 </body>
 </html>
