@@ -1,0 +1,484 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>回路パズル - オートソルバー</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    .grid-cell { transition: background-color 0.2s, transform 0.1s; }
+    .svg-piece { transition: transform 0.2s ease-in-out; }
+    .powered-glow { filter: drop-shadow(0 0 5px #fbbf24); }
+    .custom-scrollbar::-webkit-scrollbar { width: 8px; }
+    .custom-scrollbar::-webkit-scrollbar-track { background: #1e293b; border-radius: 4px; }
+    .custom-scrollbar::-webkit-scrollbar-thumb { background: #475569; border-radius: 4px; }
+  </style>
+</head>
+<body class="bg-slate-900 text-slate-800 font-sans h-screen w-screen overflow-hidden flex flex-col p-2 md:p-4">
+
+  <div class="flex justify-between items-center mb-4 px-2 shrink-0">
+    <h1 class="text-2xl md:text-3xl font-black text-white flex items-center gap-2 drop-shadow-md">
+      <svg class="w-8 h-8 text-yellow-400" fill="currentColor" viewBox="0 0 20 20"><path d="M10 2a1 1 0 011 1v1.323l3.954 1.582 1.599-.8a1 1 0 01.894 1.79l-1.233.616 1.738 5.42a1 1 0 01-.286 1.051l-1.493 1.493A1 1 0 0115.46 15H4.54a1 1 0 01-.714-.293L2.333 13.21a1 1 0 01-.286-1.051l1.738-5.42-1.233-.616a1 1 0 01.894-1.79l1.599.8L9 3.323V3a1 1 0 011-1zm-1 3.86L5.674 7.211 4.225 11.75l.551.551h10.448l.551-.551-1.449-4.54L11 5.86v3.28a1 1 0 11-2 0V5.86z"></path></svg>
+      オートソルバー
+    </h1>
+  </div>
+
+  <div class="flex-1 flex flex-col md:flex-row gap-4 min-h-0">
+    <div class="flex-1 flex flex-col bg-white rounded-2xl shadow-xl border-4 border-slate-700 overflow-hidden">
+      <div class="bg-slate-800 text-white p-3 font-bold flex justify-between items-center shrink-0">
+        <span>問題のコード (JSON) を入力</span>
+      </div>
+      <textarea id="input-json" class="flex-1 w-full bg-slate-900 text-green-400 font-mono text-sm p-4 outline-none resize-none custom-scrollbar" placeholder="{
+  cols: 5, rows: 5,
+  board: [ ... ],
+  inventory: { ... }
+}"></textarea>
+      <div class="p-3 bg-slate-100 shrink-0 border-t-2 border-slate-200">
+        <button id="btn-solve" class="w-full bg-blue-500 hover:bg-blue-600 text-white font-black py-3 md:py-4 rounded-xl shadow-[0_4px_0_#1e3a8a] active:translate-y-[4px] active:shadow-none transition-all flex items-center justify-center gap-2 text-lg">
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+          解析してアンサーを計算する
+        </button>
+        <div id="status-text" class="text-center text-sm font-bold text-slate-500 mt-2 h-5"></div>
+      </div>
+    </div>
+
+    <div class="flex-1 flex flex-col gap-4 min-h-0">
+      <div class="flex-1 flex flex-col bg-white rounded-2xl shadow-xl border-4 border-slate-700 overflow-hidden">
+        <div class="bg-slate-800 text-white p-3 font-bold flex justify-between items-center shrink-0">
+          <div class="flex items-center gap-4">
+            <span>解答コード (answer)</span>
+            <div id="solution-tabs" class="flex gap-2 hidden"></div>
+          </div>
+          <button id="btn-copy" class="text-xs bg-slate-600 hover:bg-slate-500 text-white px-3 py-1 rounded transition-colors hidden">コピー</button>
+        </div>
+        <textarea id="output-json" class="flex-1 w-full bg-slate-900 text-yellow-300 font-mono text-sm p-4 outline-none resize-none custom-scrollbar" readonly placeholder="ここに解答のコードが出力されます"></textarea>
+      </div>
+
+      <div class="flex-1 flex flex-col bg-white rounded-2xl shadow-xl border-4 border-slate-700 overflow-hidden">
+        <div class="bg-slate-800 text-white p-3 font-bold shrink-0">
+          盤面プレビュー
+        </div>
+        <div class="flex-1 flex items-center justify-center bg-slate-100 p-2 overflow-hidden relative">
+          <div id="preview-board" class="grid gap-1 mx-auto relative"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ========== SVGアイコン描画用関数 ==========
+    function getSvgIcon(type, rotation) {
+      if (type === 'empty') return '';
+      const strokeW = 10;
+      let svgContent = '';
+      let addClass = 'powered-glow'; // プレビュー時はすべて通電状態で表示
+      const pwC = '#fbbf24';
+
+      switch (type) {
+        case 'straight':
+          svgContent = `<line x1="32" y1="0" x2="32" y2="64" stroke="${pwC}" stroke-width="${strokeW}" />`; break;
+        case 'corner':
+          svgContent = `<path d="M 32 0 Q 32 32 64 32" stroke="${pwC}" stroke-width="${strokeW}" fill="none" stroke-linecap="square"/>`; break;
+        case 'double_corner':
+          svgContent = `
+            <path d="M 32 0 Q 32 32 64 32" stroke="${pwC}" stroke-width="${strokeW}" fill="none" stroke-linecap="square"/>
+            <path d="M 0 32 Q 32 32 32 64" stroke="${pwC}" stroke-width="${strokeW}" fill="none" stroke-linecap="square"/>
+          `; break;
+        case 't_shape':
+          svgContent = `
+            <line x1="32" y1="0" x2="32" y2="32" stroke="${pwC}" stroke-width="${strokeW}" />
+            <line x1="0" y1="32" x2="64" y2="32" stroke="${pwC}" stroke-width="${strokeW}" />
+            <circle cx="32" cy="32" r="${strokeW/2}" fill="${pwC}" />
+          `; break;
+        case 'cross':
+          svgContent = `
+            <line x1="32" y1="0" x2="32" y2="64" stroke="${pwC}" stroke-width="${strokeW}" />
+            <line x1="0" y1="32" x2="64" y2="32" stroke="${pwC}" stroke-width="${strokeW}" />
+          `; break;
+        case 'bridge':
+          svgContent = `
+            <line x1="32" y1="0" x2="32" y2="64" stroke="${pwC}" stroke-width="${strokeW}" />
+            <path d="M 0 32 L 20 32 A 12 12 0 0 1 44 32 L 64 32" stroke="#ffffff" stroke-width="${strokeW + 6}" fill="none" />
+            <path d="M 0 32 L 20 32 A 12 12 0 0 1 44 32 L 64 32" stroke="${pwC}" stroke-width="${strokeW}" fill="none" />
+          `; break;
+        case 'battery':
+          svgContent = `
+            <line x1="32" y1="0" x2="32" y2="12" stroke="${pwC}" stroke-width="${strokeW}" />
+            <line x1="32" y1="52" x2="32" y2="64" stroke="${pwC}" stroke-width="${strokeW}" />
+            <rect x="24" y="8" width="16" height="4" fill="#94a3b8" />
+            <rect x="12" y="12" width="40" height="40" rx="6" fill="#3b82f6" />
+            <path d="M 12 18 Q 12 12 18 12 L 46 12 Q 52 12 52 18 L 52 32 L 12 32 Z" fill="#ef4444" />
+            <text x="32" y="27" fill="white" font-size="16" text-anchor="middle" font-weight="bold">+</text>
+            <text x="32" y="49" fill="white" font-size="20" text-anchor="middle" font-weight="bold">-</text>
+          `; break;
+        case 'led':
+          svgContent = `
+            <line x1="32" y1="0" x2="32" y2="20" stroke="${pwC}" stroke-width="${strokeW}" />
+            <line x1="32" y1="44" x2="32" y2="64" stroke="${pwC}" stroke-width="${strokeW}" />
+            <circle cx="32" cy="32" r="16" fill="#fef08a" stroke="#eab308" stroke-width="4" />
+          `; break;
+        case 'led_corner':
+          svgContent = `
+            <line x1="32" y1="0" x2="32" y2="20" stroke="${pwC}" stroke-width="${strokeW}" />
+            <line x1="44" y1="32" x2="64" y2="32" stroke="${pwC}" stroke-width="${strokeW}" />
+            <circle cx="32" cy="32" r="16" fill="#fef08a" stroke="#eab308" stroke-width="4" />
+          `; break;
+      }
+      return `<svg viewBox="0 0 64 64" class="w-full h-full svg-piece ${addClass}" style="transform: rotate(${rotation}deg);">${svgContent}</svg>`;
+    }
+
+    function renderPreview(board, cols, rows) {
+      const container = document.getElementById('preview-board');
+      container.innerHTML = '';
+      
+      const parentW = container.parentElement.clientWidth - 16;
+      const parentH = container.parentElement.clientHeight - 16;
+      const size = Math.floor(Math.min(parentW / cols, parentH / rows));
+      
+      container.style.gridTemplateColumns = `repeat(${cols}, ${size}px)`;
+      container.style.gridTemplateRows = `repeat(${rows}, ${size}px)`;
+
+      for (let y = 0; y < rows; y++) {
+        for (let x = 0; x < cols; x++) {
+          const cellData = board[y][x];
+          const cell = document.createElement('div');
+          
+          let bgClass = 'bg-white border-slate-300';
+          if (cellData.fixed) bgClass = 'bg-slate-200 border-slate-400';
+          
+          cell.className = `grid-cell rounded relative flex items-center justify-center overflow-hidden border-2 ${bgClass}`;
+          cell.innerHTML = getSvgIcon(cellData.type, cellData.rotation || 0);
+          container.appendChild(cell);
+        }
+      }
+    }
+
+    // ========== Web Worker を用いたソルバーロジック ==========
+    let worker = null;
+    let currentSolutions = [];
+    let currentPuzzleData = null;
+
+    document.getElementById('btn-solve').addEventListener('click', () => {
+      const inputStr = document.getElementById('input-json').value.trim();
+      if (!inputStr) return;
+
+      try {
+        // JSオブジェクト記法に対応させるため eval を使用
+        currentPuzzleData = new Function("return " + inputStr)();
+      } catch (e) {
+        alert("入力されたデータの形式が正しくありません。");
+        return;
+      }
+
+      document.getElementById('btn-solve').disabled = true;
+      document.getElementById('btn-solve').classList.add('opacity-50');
+      document.getElementById('status-text').innerText = "探索中...";
+      document.getElementById('output-json').value = "";
+      document.getElementById('btn-copy').classList.add('hidden');
+      document.getElementById('solution-tabs').classList.add('hidden');
+      currentSolutions = [];
+
+      if (worker) worker.terminate();
+
+      // Worker用のコードをBlob化して実行
+      const workerCode = `
+        const ROUTING = {
+          'straight': [[0, 2]],
+          'corner': [[0, 1]],
+          'double_corner': [[0, 1], [2, 3]],
+          't_shape': [[0, 1, 3]],
+          'cross': [[0, 1, 2, 3]],
+          'bridge': [[0, 2], [1, 3]],
+          'led': [[0, 2]],
+          'led_corner': [[0, 1]],
+          'battery': [[0], [2]]
+        };
+
+        function getPorts(type, rotation) {
+          if (type === 'empty') return [];
+          if (!ROUTING[type]) return [];
+          const rotSteps = (Math.floor(rotation / 90)) % 4;
+          let ports = [];
+          ROUTING[type].forEach(group => {
+            group.forEach(p => {
+              ports.push((p + rotSteps) % 4);
+            });
+          });
+          return ports;
+        }
+
+        self.onmessage = function(e) {
+          const data = e.data;
+          let solutions = [];
+          let cols = data.cols;
+          let rows = data.rows;
+          let totalCells = cols * rows;
+          
+          let flatBoard = [];
+          for(let y=0; y<rows; y++){
+            for(let x=0; x<cols; x++){
+              flatBoard.push(data.board[y][x]);
+            }
+          }
+
+          let totalInv = 0;
+          for (let k in data.inventory) totalInv += data.inventory[k];
+
+          // 左・上・画面端との隣接チェック
+          function checkLocalConsistency(x, y, type, rotation, currBoard) {
+            const ports = getPorts(type, rotation);
+            
+            // 画面外に向かうポートはNG
+            if (x === 0 && ports.includes(3)) return false;
+            if (x === cols - 1 && ports.includes(1)) return false;
+            if (y === 0 && ports.includes(0)) return false;
+            if (y === rows - 1 && ports.includes(2)) return false;
+
+            // 左のセルとの整合性
+            if (x > 0) {
+              const leftCell = currBoard[y * cols + (x - 1)];
+              const leftPorts = getPorts(leftCell.type, leftCell.rotation || 0);
+              if (leftPorts.includes(1) !== ports.includes(3)) return false;
+            }
+            // 上のセルとの整合性
+            if (y > 0) {
+              const topCell = currBoard[(y - 1) * cols + x];
+              const topPorts = getPorts(topCell.type, topCell.rotation || 0);
+              if (topPorts.includes(2) !== ports.includes(0)) return false;
+            }
+            return true;
+          }
+
+          // 最終チェック：全てのパーツが正しく電池と結ばれた一つの閉回路か？
+          function finalCheck(currBoard) {
+            let nodes = [];
+            let isPlus = new Set();
+            let isMinus = new Set();
+            let portToNode = {};
+
+            for (let i = 0; i < totalCells; i++) {
+              const x = i % cols;
+              const y = Math.floor(i / cols);
+              const cell = currBoard[i];
+              if (cell.type === 'empty') continue;
+
+              const rotSteps = Math.floor((cell.rotation || 0) / 90) % 4;
+              ROUTING[cell.type].forEach((group, gIdx) => {
+                let vId = x + "," + y + "," + gIdx;
+                nodes.push(vId);
+                group.forEach(p => {
+                  let absPort = (p + rotSteps) % 4;
+                  portToNode[x + "," + y + "," + absPort] = vId;
+                });
+                if (cell.type === 'battery') {
+                  if (gIdx === 0) isPlus.add(vId);
+                  if (gIdx === 1) isMinus.add(vId);
+                }
+              });
+            }
+
+            let adj = {};
+            nodes.forEach(n => adj[n] = []);
+            for (let i = 0; i < totalCells; i++) {
+              const x = i % cols;
+              const y = Math.floor(i / cols);
+              for (let p = 0; p < 4; p++) {
+                let v1 = portToNode[x + "," + y + "," + p];
+                if (!v1) continue;
+                let nx = x + [0, 1, 0, -1][p];
+                let ny = y + [-1, 0, 1, 0][p];
+                let np = (p + 2) % 4;
+                let v2 = portToNode[nx + "," + ny + "," + np];
+                if (v2) adj[v1].push(v2);
+              }
+            }
+
+            // BFSで通電確認
+            let visited = new Set();
+            let queue = [];
+            isPlus.forEach(v => { queue.push(v); visited.add(v); });
+
+            let reachedMinus = 0;
+            while(queue.length > 0) {
+              let curr = queue.shift();
+              if (isMinus.has(curr)) reachedMinus++;
+              adj[curr].forEach(neighbor => {
+                if (!visited.has(neighbor)) {
+                  visited.add(neighbor);
+                  queue.push(neighbor);
+                }
+              });
+            }
+
+            // 全ての(－)極に到達し、かつ全ての配線を通ったか
+            if (reachedMinus !== isMinus.size || isMinus.size === 0) return false;
+            if (visited.size !== nodes.length) return false;
+            return true;
+          }
+
+          let iterations = 0;
+
+          // 再帰的バックトラッキング
+          function backtrack(index, currBoard, currInv, remainInv) {
+            // ★変更: 解が5つ見つかるまで探索を続ける
+            if (solutions.length >= 5) return;
+            
+            iterations++;
+            if (iterations % 10000 === 0) {
+              self.postMessage({ type: 'progress', iter: iterations });
+            }
+
+            // 枝刈り：残りマス数よりインベントリパーツが多いなら物理的に置けない
+            if (totalCells - index < remainInv) return;
+
+            // 最後まで到達
+            if (index === totalCells) {
+              if (remainInv === 0 && finalCheck(currBoard)) {
+                solutions.push(JSON.parse(JSON.stringify(currBoard)));
+              }
+              return;
+            }
+
+            const x = index % cols;
+            const y = Math.floor(index / cols);
+            const cell = currBoard[index];
+
+            if (cell.type !== 'empty' && cell.fixed) {
+              // 固定パーツの場合
+              if (!checkLocalConsistency(x, y, cell.type, cell.rotation || 0, currBoard)) return;
+              backtrack(index + 1, currBoard, currInv, remainInv);
+            } else {
+              // 空きマスの場合は置かないパターン(empty)を試す
+              if (checkLocalConsistency(x, y, 'empty', 0, currBoard)) {
+                currBoard[index] = { type: 'empty' };
+                backtrack(index + 1, currBoard, currInv, remainInv);
+              }
+              
+              // インベントリのパーツを試す
+              for (let type in currInv) {
+                if (currInv[type] > 0) {
+                  // 回転の無駄を省く
+                  let rotations = [0, 90, 180, 270];
+                  // ★変更: 立体交差(bridge)は回転を含めない(0のみ)
+                  if (type === 'cross' || type === 'bridge') rotations = [0];
+                  else if (type === 'straight' || type === 'double_corner') rotations = [0, 90];
+
+                  for (let rot of rotations) {
+                    if (checkLocalConsistency(x, y, type, rot, currBoard)) {
+                      currBoard[index] = { type: type, rotation: rot, fixed: false };
+                      currInv[type]--;
+                      backtrack(index + 1, currBoard, currInv, remainInv - 1);
+                      currInv[type]++; // 再帰から戻ったらインベントリを復元
+                    }
+                  }
+                }
+              }
+              // 元に戻す
+              currBoard[index] = { type: 'empty' };
+            }
+          }
+
+          backtrack(0, flatBoard, data.inventory, totalInv);
+          self.postMessage({ type: 'done', solutions: solutions });
+        };
+      `;
+
+      const blob = new Blob([workerCode], { type: 'application/javascript' });
+      worker = new Worker(URL.createObjectURL(blob));
+
+      worker.postMessage(currentPuzzleData);
+
+      worker.onmessage = function(e) {
+        if (e.data.type === 'progress') {
+          document.getElementById('status-text').innerText = `探索中... (試行回数: ${e.data.iter})`;
+        } else if (e.data.type === 'done') {
+          document.getElementById('btn-solve').disabled = false;
+          document.getElementById('btn-solve').classList.remove('opacity-50');
+          
+          currentSolutions = e.data.solutions;
+
+          if (currentSolutions.length > 0) {
+            document.getElementById('status-text').innerText = `✅ 解答が ${currentSolutions.length} 個見つかりました！`;
+            document.getElementById('btn-copy').classList.remove('hidden');
+            
+            // 解が複数ある場合はタブを表示
+            if (currentSolutions.length > 1) {
+              document.getElementById('solution-tabs').classList.remove('hidden');
+            }
+            
+            buildTabs();
+            showSolution(0); // 最初の解答を表示
+
+          } else {
+            document.getElementById('status-text').innerText = "❌ 解答は見つかりませんでした（設定ミスの可能性があります）";
+            document.getElementById('output-json').value = "解なし";
+            document.getElementById('preview-board').innerHTML = "";
+          }
+        }
+      };
+    });
+
+    // 動的にタブを生成する関数
+    function buildTabs() {
+      const container = document.getElementById('solution-tabs');
+      container.innerHTML = '';
+      for (let i = 0; i < currentSolutions.length; i++) {
+        const btn = document.createElement('button');
+        btn.innerText = `解答 ${i + 1}`;
+        btn.onclick = () => showSolution(i);
+        container.appendChild(btn);
+      }
+    }
+
+    // 指定したインデックスの解答を表示する関数
+    function showSolution(index) {
+      // タブの見た目を更新
+      const container = document.getElementById('solution-tabs');
+      Array.from(container.children).forEach((btn, i) => {
+        if (i === index) {
+          btn.className = 'text-xs px-3 py-1 rounded font-bold bg-yellow-500 text-yellow-900 transition-colors';
+        } else {
+          btn.className = 'text-xs px-3 py-1 rounded font-bold bg-slate-600 text-slate-300 hover:bg-slate-500 transition-colors';
+        }
+      });
+
+      const cols = currentPuzzleData.cols;
+      const rows = currentPuzzleData.rows;
+      let answerBoard = [];
+      
+      // 1次元配列から2次元配列へ変換
+      for (let y = 0; y < rows; y++) {
+        let row = [];
+        for (let x = 0; x < cols; x++) {
+          row.push(currentSolutions[index][y * cols + x]);
+        }
+        answerBoard.push(row);
+      }
+
+      // テキストエリアへ出力（キーのクォーテーションを消して綺麗に）
+      let outStr = "answer: [\n";
+      answerBoard.forEach(row => {
+        outStr += "  [" + row.map(c => JSON.stringify(c).replace(/"([^"]+)":/g, '$1:')).join(", ") + "],\n";
+      });
+      outStr += "]";
+      
+      document.getElementById('output-json').value = outStr;
+      renderPreview(answerBoard, cols, rows);
+    }
+
+    document.getElementById('btn-copy').addEventListener('click', () => {
+      const textarea = document.getElementById('output-json');
+      textarea.select();
+      document.execCommand('copy');
+      const btn = document.getElementById('btn-copy');
+      btn.innerText = 'コピー完了';
+      btn.classList.replace('bg-slate-600', 'bg-green-600');
+      setTimeout(() => {
+        btn.innerText = 'コピー';
+        btn.classList.replace('bg-green-600', 'bg-slate-600');
+      }, 2000);
+    });
+
+  </script>
+</body>
+</html>
