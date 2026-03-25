@@ -247,7 +247,7 @@
             </button>
             <button id="openSettings" class="p-2 rounded-full hover:bg-white/10">
                 <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" viewBox="0 0 16 16">
-                    <path d="M9.405 1.05c-.413-1.4-2.397-1.4-2.81 0l-.1.34a1.464 1.464 0 0 1-2.105.872l-.31-.17c-1.283-.698-2.686.705-1.987 1.987l.169.311c.446.82.023 1.841-.872 2.105l-.34.1c-1.4.413-1.4 2.397 0 2.81l.34.1a1.464 1.464 0 0 1 .872 2.105l-.17.31c-.698 1.283.705 2.686 1.987 1.987l.311-.169a1.464 1.464 0 0 1 2.105$.872l.1.34c.413 1.4 2.397 1.4 2.81 0l.1-.34a1.464 1.464 0 0 1 2.105-.872l.31.17c1.283.698 2.686-.705 1.987-1.987l-.169-.311a1.464 1.464 0 0 1 .872-2.105l.34-.1c1.4-.413 1.4-2.397 0-2.81l-.34-.1a1.464 1.464 0 0 1-.872-2.105l.17-.31c.698-1.283-.705-2.686-1.987-1.987l-.311.169a1.464 1.464 0 0 1-2.105-.872l-.1-.34zM8 10.93a2.929 2.929 0 1 1 0-5.858 2.929 2.929 0 0 1 0 5.858z"/>
+                    <path d="M9.405 1.05c-.413-1.4-2.397-1.4-2.81 0l-.1.34a1.464 1.464 0 0 1-2.105.872l-.31-.17c-1.283-.698-2.686.705-1.987 1.987l.169.311c.446.82.023 1.841-.872 2.105l-.34.1c-1.4.413-1.4 2.397 0 2.81l.34.1a1.464 1.464 0 0 1 .872 2.105l-.17.31c-.698 1.283.705 2.686 1.987 1.987l.311-.169a1.464 1.464 0 0 1 2.105.872l.1.34c.413 1.4 2.397 1.4 2.81 0l.1-.34a1.464 1.464 0 0 1 2.105-.872l.31.17c1.283.698 2.686-.705 1.987-1.987l-.169-.311a1.464 1.464 0 0 1 .872-2.105l.34-.1c1.4-.413 1.4-2.397 0-2.81l-.34-.1a1.464 1.464 0 0 1-.872-2.105l.17-.31c.698-1.283-.705-2.686-1.987-1.987l-.311.169a1.464 1.464 0 0 1-2.105-.872l-.1-.34zM8 10.93a2.929 2.929 0 1 1 0-5.858 2.929 2.929 0 0 1 0 5.858z"/>
                 </svg>
             </button>
         </div>
@@ -384,7 +384,7 @@
 
         function initPlayers() {
             players = Array.from({length: config.playerCount}, (_, i) => ({
-                id: Date.now() + i, name: `Player ${i+1}`, isDefault: true, scoreMain: config.baseScore, scoreSub: 0
+                id: Date.now() + i, defaultName: `Player ${i+1}`, name: `Player ${i+1}`, isDefault: true, scoreMain: config.baseScore, scoreSub: 0
             }));
         }
 
@@ -421,6 +421,7 @@
                     </div>
                 `;
 
+                // PC用ドラッグ＆ドロップ（標準機能）
                 card.addEventListener('dragstart', () => { draggedIndex = idx; card.classList.add('dragging'); });
                 card.addEventListener('dragend', () => { draggedIndex = null; card.classList.remove('dragging'); });
                 card.addEventListener('dragover', (e) => {
@@ -442,6 +443,111 @@
                     }
                 });
 
+                // --- スマホ用 長押しタッチ・ドラッグ＆ドロップ ---
+                let touchTimer = null;
+                let isTouchDragging = false;
+                let clone = null;
+                let startX = 0, startY = 0;
+
+                card.addEventListener('touchstart', (e) => {
+                    const rect = card.getBoundingClientRect();
+                    // カードの上部25%（名前やハンドルのある領域）付近でのみ長押しを判定
+                    if (e.touches[0].clientY - rect.top > rect.height * 0.25) return;
+                    
+                    touchTimer = setTimeout(() => {
+                        isTouchDragging = true;
+                        draggedIndex = idx;
+                        if (navigator.vibrate) navigator.vibrate(40); // スマホの振動フィードバック
+                        
+                        card.style.opacity = '0.4'; // 元のカードを半透明に
+                        
+                        // 指に追従させるためのクローン要素を作成
+                        clone = card.cloneNode(true);
+                        clone.style.position = 'fixed';
+                        clone.style.zIndex = '9999';
+                        clone.style.width = card.offsetWidth + 'px';
+                        clone.style.height = card.offsetHeight + 'px';
+                        clone.style.opacity = '0.9';
+                        clone.style.pointerEvents = 'none'; // 下にあるカードを検知させるため必須
+                        clone.style.transform = 'scale(1.05)'; // 少し浮かせる演出
+                        clone.style.transition = 'none';
+                        clone.style.left = rect.left + 'px';
+                        clone.style.top = rect.top + 'px';
+                        clone.style.boxShadow = '0 10px 25px rgba(0,0,0,0.5)';
+                        document.body.appendChild(clone);
+                        
+                        startX = e.touches[0].clientX;
+                        startY = e.touches[0].clientY;
+                    }, 400); // 400ミリ秒の長押しで発動
+                }, { passive: true });
+
+                card.addEventListener('touchmove', (e) => {
+                    if (!isTouchDragging) {
+                        clearTimeout(touchTimer); // 長押し判定前に指が動いたらキャンセル（スクロール等）
+                        return;
+                    }
+                    e.preventDefault(); // ドラッグ中は画面自体がスクロールしないようにする
+                    
+                    const currentX = e.touches[0].clientX;
+                    const currentY = e.touches[0].clientY;
+                    const deltaX = currentX - startX;
+                    const deltaY = currentY - startY;
+                    
+                    // クローン要素を指の動きに合わせて移動させる
+                    clone.style.transform = `translate(${deltaX}px, ${deltaY}px) scale(1.05)`;
+                    
+                    // 今指がある場所の下のカードを取得
+                    const elementBelow = document.elementFromPoint(currentX, currentY);
+                    const cardBelow = elementBelow ? elementBelow.closest('.score-card') : null;
+                    
+                    // 青枠のハイライト処理
+                    document.querySelectorAll('.score-card').forEach(c => c.classList.remove('drag-over'));
+                    if (cardBelow && cardBelow !== card) {
+                        cardBelow.classList.add('drag-over');
+                    }
+                }, { passive: false });
+
+                card.addEventListener('touchend', (e) => {
+                    clearTimeout(touchTimer);
+                    if (!isTouchDragging) return;
+                    
+                    isTouchDragging = false;
+                    card.style.opacity = '1';
+                    if (clone) clone.remove(); // クローンを消す
+                    
+                    const changedTouch = e.changedTouches[0];
+                    const elementBelow = document.elementFromPoint(changedTouch.clientX, changedTouch.clientY);
+                    const cardBelow = elementBelow ? elementBelow.closest('.score-card') : null;
+                    
+                    document.querySelectorAll('.score-card').forEach(c => c.classList.remove('drag-over'));
+                    
+                    // 落とした場所に別のカードがあれば場所を入れ替える
+                    if (cardBelow && cardBelow !== card) {
+                        const dropIndex = Array.from(cardBelow.parentNode.children).indexOf(cardBelow);
+                        if (dropIndex !== -1 && draggedIndex !== null) {
+                            const temp = players[draggedIndex];
+                            players[draggedIndex] = players[dropIndex];
+                            players[dropIndex] = temp;
+                            renderPlayers();
+                        }
+                    }
+                    draggedIndex = null;
+                });
+
+                card.addEventListener('touchcancel', () => {
+                    clearTimeout(touchTimer);
+                    if (!isTouchDragging) return;
+                    isTouchDragging = false;
+                    card.style.opacity = '1';
+                    if (clone) clone.remove();
+                    document.querySelectorAll('.score-card').forEach(c => c.classList.remove('drag-over'));
+                    draggedIndex = null;
+                });
+
+                card.addEventListener('contextmenu', (e) => {
+                    if (isTouchDragging) e.preventDefault(); // 長押しドラッグ中はメニューを表示させない
+                });
+
                 grid.appendChild(card);
             });
             setTimeout(calculateLayout, 0);
@@ -449,7 +555,7 @@
 
         function handleNameBlur(idx, input) {
             if (input.value.trim() === '') {
-                input.value = `Player ${idx + 1}`;
+                input.value = players[idx].defaultName;
                 players[idx].name = input.value;
                 players[idx].isDefault = true;
             }
@@ -477,7 +583,7 @@
             let next = config.playerCount + delta;
             if (next >= 1 && next <= 12) {
                 if (next > players.length) {
-                    while(players.length < next) players.push({ id: Date.now() + players.length, name: `Player ${players.length + 1}`, isDefault: true, scoreMain: parseInt(config.baseScore), scoreSub: 0 });
+                    while(players.length < next) players.push({ id: Date.now() + players.length, defaultName: `Player ${players.length + 1}`, name: `Player ${players.length + 1}`, isDefault: true, scoreMain: parseInt(config.baseScore), scoreSub: 0 });
                 } else {
                     players = players.slice(0, next);
                 }
@@ -553,11 +659,18 @@
             });
         };
 
-        window.addEventListener('resize', () => {
-            document.documentElement.style.setProperty('--vh', `${window.innerHeight * 0.01}px`);
+        // 実際に見えている領域に合わせてリサイズする処理
+        function updateViewport() {
+            const viewportHeight = window.visualViewport ? window.visualViewport.height : window.innerHeight;
+            document.documentElement.style.setProperty('--vh', `${viewportHeight * 0.01}px`);
             calculateLayout();
-        });
-        document.documentElement.style.setProperty('--vh', `${window.innerHeight * 0.01}px`);
+        }
+
+        window.addEventListener('resize', updateViewport);
+        if (window.visualViewport) {
+            window.visualViewport.addEventListener('resize', updateViewport);
+        }
+        updateViewport();
 
         initPlayers();
         renderPlayers();
