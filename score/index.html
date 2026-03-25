@@ -337,8 +337,10 @@
             const container = document.getElementById('playersGridContainer');
             const grid = document.getElementById('playersGrid');
             if (!container || !grid) return;
-            const width = container.clientWidth;
-            const height = container.clientHeight;
+            
+            // コンテナのpadding(上下・左右12pxずつ = 計24px)を引いて正確な描画領域を計算
+            const width = container.clientWidth - 24;
+            const height = container.clientHeight - 24;
             const n = config.playerCount;
 
             let bestCols = 1, bestRows = n;
@@ -362,8 +364,9 @@
                 }
             }
 
-            grid.style.gridTemplateColumns = `repeat(${bestCols}, 1fr)`;
-            grid.style.gridTemplateRows = `repeat(${bestRows}, 1fr)`;
+            // minmax(0, 1fr)を指定して、内容サイズにより画面外にはみ出すのを強制ブロック
+            grid.style.gridTemplateColumns = `repeat(${bestCols}, minmax(0, 1fr))`;
+            grid.style.gridTemplateRows = `repeat(${bestRows}, minmax(0, 1fr))`;
 
             const cardH = (height - (bestRows - 1) * 12) / bestRows;
             document.querySelectorAll('.score-card').forEach((card, idx) => {
