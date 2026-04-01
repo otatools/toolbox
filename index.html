@@ -191,38 +191,6 @@
                 return diffDays <= 10; // 修正箇所: 14から10に変更
             };
 
-            const handleAppClick = async (app) => {
-                if (!user || !window.db || isProcessing) return;
-
-                // 本日の日付を取得
-                const todayStr = new Date().toISOString().split('T')[0];
-                const storageKey = `ota_last_click_${app.id}`;
-                const lastClickDate = localStorage.getItem(storageKey);
-
-                // もし今日すでにクリックしていたら、カウントアップをスキップ（URLへ飛ばす処理のみ実行）
-                if (lastClickDate === todayStr) {
-                    return;
-                }
-
-                setIsProcessing(true); // 処理中フラグON
-                const docRef = window.fb.doc(window.db, 'artifacts', window.APP_ID, 'public', 'data', 'app_views', String(app.id));
-                
-                try {
-                    const docSnap = await window.fb.getDoc(docRef);
-                    if (docSnap.exists()) {
-                        await window.fb.updateDoc(docRef, { count: window.fb.increment(1) });
-                    } else {
-                        await window.fb.setDoc(docRef, { count: (app.initialViews || 0) + 1 });
-                    }
-                    // 成功したら本日クリック済みとして保存
-                    localStorage.setItem(storageKey, todayStr);
-                } catch (e) { 
-                    console.error(e); 
-                } finally {
-                    setIsProcessing(false); // 処理終了
-                }
-            };
-
             const processedApps = useMemo(() => {
                 return initialAppList
                     .map(app => ({ 
@@ -301,14 +269,13 @@
 
                         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
                             {processedApps.map(app => (
-                                <a 
-                                    key={app.id} 
-                                    href={app.url} 
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    onClick={() => handleAppClick(app)}
-                                    className={`group bg-white rounded-2xl border border-slate-200 overflow-hidden hover:shadow-2xl hover:shadow-blue-100/50 hover:-translate-y-1 transition-all duration-300 flex flex-col h-full cursor-pointer ${isProcessing ? 'pointer-events-none' : ''}`}
-                                >
+                            <a 
+                                key={app.id} 
+                                href={app.url} 
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="group bg-white rounded-2xl border border-slate-200 overflow-hidden hover:shadow-2xl hover:shadow-blue-100/50 hover:-translate-y-1 transition-all duration-300 flex flex-col h-full cursor-pointer"
+                            >
                                     <div className="relative h-48 bg-slate-50 flex items-center justify-center overflow-hidden">
                                         <div className="absolute inset-0 bg-gradient-to-br from-blue-50/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
                                         
