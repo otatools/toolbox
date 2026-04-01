@@ -285,12 +285,11 @@ const incidentData = [
     { title: "家庭科室の塩・砂糖逆転事件", detail: "調理実習のパンケーキがとんでもなくしょっぱい！砂糖と塩の中身が入れ替えられていたのだ。みんなの楽しみを奪った犯人を追え！" },
     { title: "中庭のひまわり巨大化事件", detail: "1本だけ、他の3倍の高さに成長したひまわり。夜中にこっそり秘密の肥料を与え続けているのは誰なんだ？" },
     { title: "教卓の下のラブレター事件", detail: "教卓の下に、ハートマークで封をされた名前のないラブレターが。中身を読んでみると……。これを書いたのはだれだ？" },
-    { title: "リッピー誘拐事件", detail: "清原先生が大切にしているリッピーが突然消えてしまった。机の上に置いていたはずなのに……。連れ去った犯人はだれだ！" },
     { title: "花瓶の謎の液体事件", detail: "教卓の花瓶から、なぜかほうじ茶の香りがする。水の代わりに毎日新しいお茶を注いでいるのは、一体だれだ！" },
     { title: "消えたシール事件", detail: "みんながコツコツ集めていた漢字シールがまるごと消えてしまった。努力を奪い、自分のものにしようとした犯人はだれだ…。" },
     { title: "運動会のハチマキ結び事件", detail: "運動会前日、赤組のハチマキがすべてガチガチの固結びでつながれていた。これをやったのは、もしかして白組の…？" },
     { title: "机の上の不思議な折り紙事件", detail: "朝、登校すると全員の机に「金色のカエル」の折り紙が。一体だれが、どんなメッセージを込めて置いたのだろうか？" },
-    { title: "キーボードクラッシュ事件", detail: "全校タイピング大会当日、新貝先生のキーボードの「A」だけが抜き取られていた！よりにもよって……。犯人は一体だれだ！？" },
+    { title: "キーボードクラッシュ事件", detail: "全校タイピング大会当日、キーボードの「A」だけが抜き取られていた！よりにもよって……。犯人は一体だれだ！？" },
     { title: "ピアノのふたの謎メモ事件", detail: "音楽室のピアノを開けると、「次は図工室へ行け！ゲームのはじまりだ！」という挑戦状が。このゲームを仕組んだ犯人はだれだ？" },
     { title: "習字の半紙花丸事件", detail: "提出前の作品に、勝手に「優勝」と大きな花丸が描かれていた。先生のふりをして勝手に優勝を決めた犯人はだれなんだ！" },
     { title: "校庭の巨大な地上絵の謎", detail: "朝のグラウンドに、ほうきで描かれた巨大な「の」の字が出現した。こんなダイナミックな落書きをした犯人はだれだ？" },
@@ -306,7 +305,7 @@ const incidentData = [
     { title: "水飲み場のキラキラ石事件", detail: "水飲み場のすべての蛇口の上に、川で拾ったようなキラキラした石が置かれていた。だれが何のために…。" },
     { title: "消えたバレーボールの空気", detail: "体育館のボール20個すべての空気が、半分だけ抜かれていた。弾まないボール……だれの仕業だ！" },
     { title: "図書室の図鑑入れ替え事件", detail: "図書室の『宇宙図鑑』のケースに『恐竜図鑑』が…。全部の中身がバラバラで大混乱！図書室をメチャクチャにした犯人はだれだ？" },
-    { title: "ラケットふにゃふにゃ事件", detail: "太田先生のバドミントンラケットが、こんにゃくのようにふにゃふにゃに！？一体だれが！？…というか、どうやってやったの？" }
+    { title: "ラケットふにゃふにゃ事件", detail: "先生のバドミントンラケットが、こんにゃくのようにふにゃふにゃに！？一体だれが！？…というか、どうやってやったの？" }
 ];
 
 const colorMap = { "赤色": "#ff4d4d", "青色": "#4d94ff", "黄色": "#ffff4d", "緑色": "#4dff88" };
@@ -365,8 +364,23 @@ m: parseInt(month), d: parseInt(day)
 };
 };
 
+async function cleanupOldRooms() {
+    const thirtyMinutesAgo = Date.now() - (30 * 60 * 1000); 
+    const roomsRef = collection(db, "rooms");
+    const q = query(roomsRef, where("createdAt", "<", thirtyMinutesAgo));
+    try {
+        const querySnapshot = await getDocs(q);
+        querySnapshot.forEach(async (roomDoc) => {
+            await deleteDoc(doc(db, "rooms", roomDoc.id));
+        });
+    } catch (e) {
+        console.error("Cleanup error:", e);
+    }
+}
+
 document.getElementById('btn-create-mode').onclick = async () => {
 myProfile = getBasicProfile(); if(!myProfile) return;
+cleanupOldRooms(); 
 isHost = true; myRoomId = Math.floor(1000 + Math.random() * 9000).toString();
 await setDoc(doc(db, "rooms", myRoomId), { 
     status: "waiting", 
@@ -375,13 +389,6 @@ await setDoc(doc(db, "rooms", myRoomId), {
 });
 enterLobby(myRoomId);
 };
-
-// 親機（ホスト）が画面を閉じたときに部屋を削除する
-window.addEventListener('beforeunload', () => {
-    if (isHost && myRoomId) {
-        deleteDoc(doc(db, "rooms", myRoomId));
-    }
-});
 
 document.getElementById('btn-join-mode').onclick = () => { if(getBasicProfile()) { document.getElementById('setup-screen').classList.add('hidden'); document.getElementById('join-screen').classList.remove('hidden'); }};
 
@@ -726,4 +733,51 @@ window.toggleStatus = (idx, status) => {
     wList.innerHTML = winners.length > 0 
         ? winners.map(w => `<span class="winner-tag">🏆 ${w.name}</span>`).join("")
         : "<p style='color:#888;'>正解者はいませんでした…</p>";
-}setTimeout(loadProfile, 100);</script></body></html>
+}setTimeout(loadProfile, 100);</script>
+
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+    import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+    import { getFirestore, doc, setDoc, updateDoc, increment, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+    const firebaseConfig = {
+        apiKey: "AIzaSyB4fpt6ffIuTBDJo_9g37kYr6KOWNgIcEY",
+        authDomain: "otatoolssite.firebaseapp.com",
+        projectId: "otatoolssite",
+        storageBucket: "otatoolssite.firebasestorage.app",
+        messagingSenderId: "20522292752",
+        appId: "1:20522292752:web:22fba7fecb61736593dc95"
+    };
+
+    // アプリ固有のID
+    const THIS_APP_ID = "5"; 
+    
+    const PORTAL_APP_ID = "otatoolssite-v1";
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+    const auth = getAuth(app);
+    signInAnonymously(auth).then(async () => {
+        const todayStr = new Date().toISOString().split('T')[0];
+        const storageKey = `ota_visited_${THIS_APP_ID}`;
+        
+        if (localStorage.getItem(storageKey) === todayStr) {
+            return;
+        }
+        const docRef = doc(db, 'artifacts', PORTAL_APP_ID, 'public', 'data', 'app_views', THIS_APP_ID);
+                try {
+            const docSnap = await getDoc(docRef);
+            if (docSnap.exists()) {
+                await updateDoc(docRef, { count: increment(1) });
+            } else {
+                await setDoc(docRef, { count: 1 }); 
+            }
+            localStorage.setItem(storageKey, todayStr);
+        } catch (e) { 
+            console.error("閲覧数のカウントに失敗しました:", e); 
+        }
+    }).catch((error) => {
+        console.error("Firebase認証エラー:", error);
+    });
+</script>
+
+</body></html>
