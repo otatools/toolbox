@@ -13,4 +13,50 @@
                         const scale = Math.min(targetWidth / embeddedPage.width, targetHeight / embeddedPage.height);                        const drawWidth = embeddedPage.width * scale;                        const drawHeight = embeddedPage.height * scale;                        const offsetX = (targetWidth - drawWidth) / 2;                        const offsetY = (targetHeight - drawHeight) / 2;                        const finalX = x + offsetX;                        const finalY = y + offsetY;
                         if (drawBorder && weight > 0) {                            newPage.drawRectangle({ x: finalX, y: finalY, width: drawWidth, height: drawHeight, borderColor: borderColor, borderWidth: weight });                        }                        newPage.drawPage(embeddedPage, { x: finalX, y: finalY, width: drawWidth, height: drawHeight });                        if (drawItemNum) {                            const text = `${srcIdx + 1}`;                            const fontSize = 10;                            newPage.drawText(text, { x: x, y: y + targetHeight - fontSize, size: fontSize, font: helveticaFont, color: rgb(0, 0, 0) });                        }                    }                    if (drawPageNum) {                        const totalOutputPages = Math.ceil(pageCount / 4);                        const text = `- ${outputPageIdx} -`;                        const fontSize = 11;                        const textWidth = helveticaFont.widthOfTextAtSize(text, fontSize);                        newPage.drawText(text, { x: (a4Width - textWidth) / 2, y: 15, size: fontSize, font: helveticaFont, color: rgb(0.1, 0.1, 0.1) });                    }                }                const pdfBytes = await outDoc.save();                download(pdfBytes, `4in1_${selectedFile.name}`);                showStatus('完了しました！', 'success');            } catch (err) {                console.error(err);                showStatus('エラーが発生しました。', 'error');            } finally {                setLoading(false);            }        };
         function setLoading(isLoading) {            processBtn.disabled = isLoading;            btnText.textContent = isLoading ? '処理中...' : 'PDFを変換してダウンロード';            loadingSpinner.classList.toggle('hidden', !isLoading);        }
-        function download(bytes, filename) {            const blob = new Blob([bytes], { type: 'application/pdf' });            const link = document.createElement('a');            link.href = URL.createObjectURL(blob);            link.download = filename;            link.click();            setTimeout(() => URL.revokeObjectURL(link.href), 100);        }    </script></body></html>
+        function download(bytes, filename) {            const blob = new Blob([bytes], { type: 'application/pdf' });            const link = document.createElement('a');            link.href = URL.createObjectURL(blob);            link.download = filename;            link.click();            setTimeout(() => URL.revokeObjectURL(link.href), 100);        }    </script>
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+    import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+    import { getFirestore, doc, setDoc, updateDoc, increment, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+    const firebaseConfig = {
+        apiKey: "AIzaSyB4fpt6ffIuTBDJo_9g37kYr6KOWNgIcEY",
+        authDomain: "otatoolssite.firebaseapp.com",
+        projectId: "otatoolssite",
+        storageBucket: "otatoolssite.firebasestorage.app",
+        messagingSenderId: "20522292752",
+        appId: "1:20522292752:web:22fba7fecb61736593dc95"
+    };
+
+    // アプリ固有のID
+    const THIS_APP_ID = "15"; 
+    
+    const PORTAL_APP_ID = "otatoolssite-v1";
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+    const auth = getAuth(app);
+    signInAnonymously(auth).then(async () => {
+        const todayStr = new Date().toISOString().split('T')[0];
+        const storageKey = `ota_visited_${THIS_APP_ID}`;
+        
+        if (localStorage.getItem(storageKey) === todayStr) {
+            return;
+        }
+        const docRef = doc(db, 'artifacts', PORTAL_APP_ID, 'public', 'data', 'app_views', THIS_APP_ID);
+                try {
+            const docSnap = await getDoc(docRef);
+            if (docSnap.exists()) {
+                await updateDoc(docRef, { count: increment(1) });
+            } else {
+                await setDoc(docRef, { count: 1 }); 
+            }
+            localStorage.setItem(storageKey, todayStr);
+        } catch (e) { 
+            console.error("閲覧数のカウントに失敗しました:", e); 
+        }
+    }).catch((error) => {
+        console.error("Firebase認証エラー:", error);
+    });
+</script>
+
+</body></html>
