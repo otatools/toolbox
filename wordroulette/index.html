@@ -1,0 +1,643 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ワードルーレット | ota tools</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@400;700&display=swap');
+
+        :root {
+            --primary-color: #4A90E2;
+            --secondary-color: #F5A623;
+            --bg-color: #F0F7FF;
+        }
+
+        body {
+            font-family: 'Zen Maru Gothic', sans-serif;
+            background-color: var(--bg-color);
+            overflow: hidden;
+            height: 100dvh;
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            /* ちらつき防止: 初期状態は非表示 */
+            opacity: 0;
+            transition: opacity 0.3s ease-in-out;
+        }
+
+        /* 準備完了後に表示 */
+        body.ready {
+            opacity: 1;
+        }
+
+        .settings-btn-container {
+            position: fixed;
+            top: 1rem;
+            right: 1rem;
+            z-index: 50;
+        }
+
+        .roulette-wrapper {
+            width: 95%;
+            max-width: 1200px;
+            background: white;
+            border-radius: 3.5rem;
+            padding: clamp(1rem, 2vw, 2.5rem);
+            box-shadow: 0 25px 60px rgba(0,0,0,0.1);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            max-height: 85vh;
+        }
+
+        .roulette-container {
+            position: relative;
+            width: 100%;
+            height: clamp(180px, 40vh, 340px);
+            overflow: hidden;
+            background: #fff;
+            border: 10px solid var(--primary-color);
+            border-radius: 2.5rem;
+            box-sizing: border-box;
+            box-shadow: inset 0 8px 20px rgba(0,0,0,0.06);
+        }
+
+        .indicator {
+            position: absolute;
+            top: 50%;
+            left: 0;
+            right: 0;
+            background: rgba(74, 144, 226, 0.05);
+            border-top: 4px solid var(--secondary-color);
+            border-bottom: 4px solid var(--secondary-color);
+            z-index: 10;
+            pointer-events: none;
+            transform: translateY(-50%);
+            box-sizing: border-box;
+        }
+
+        .indicator::after {
+            content: "▶";
+            position: absolute;
+            left: clamp(10px, 2vw, 25px);
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--secondary-color);
+            font-size: clamp(1.2rem, 5vw, 2.5rem);
+            line-height: 1;
+        }
+
+        .roulette-track {
+            position: absolute;
+            width: 100%;
+            will-change: transform;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .word-item {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            /* JSで動的にフォントサイズを設定するためここでは指定しない */
+            font-weight: 900;
+            color: #333;
+            text-align: center;
+            width: 100%;
+            white-space: nowrap;
+            padding: 0 2rem;
+            box-sizing: border-box;
+            padding-bottom: 0.1em; 
+        }
+
+        .footer-text {
+            font-family: 'Zen Maru Gothic', sans-serif;
+            text-transform: none !important; 
+        }
+
+        .btn-main {
+            width: clamp(220px, 50vw, 380px);
+            height: clamp(65px, 12vh, 90px);
+            font-size: clamp(1.6rem, 5vw, 2.3rem);
+            border-radius: 999px;
+            box-shadow: 0 12px 0 #1d4ed8;
+            transition: all 0.1s;
+        }
+
+        .btn-main:active {
+            transform: translateY(4px);
+            box-shadow: 0 8px 0 #1d4ed8;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            z-index: 100;
+            backdrop-filter: blur(4px);
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal.active { display: flex; }
+
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 50px;
+            height: 24px;
+        }
+        .switch input { opacity: 0; width: 0; height: 0; }
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background-color: #ccc;
+            transition: .4s;
+            border-radius: 24px;
+        }
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 18px; width: 18px;
+            left: 3px; bottom: 3px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+        input:checked + .slider { background-color: var(--primary-color); }
+        input:checked + .slider:before { transform: translateX(26px); }
+
+        /* プリセットメニュー用 */
+        .preset-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 0.5rem;
+        }
+        .preset-btn {
+            background: #f3f4f6;
+            padding: 0.75rem;
+            border-radius: 0.75rem;
+            font-weight: bold;
+            font-size: 0.8rem;
+            text-align: center;
+            transition: all 0.2s;
+            border: 1px solid transparent;
+        }
+        .preset-btn:hover {
+            background: #e5e7eb;
+            border-color: #d1d5db;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="settings-btn-container">
+        <button id="settingsBtn" class="bg-white/90 hover:bg-white text-gray-700 px-6 py-2.5 rounded-full font-bold shadow-md transition-all border border-gray-200 text-sm md:text-base">
+            設定
+        </button>
+    </div>
+
+    <main class="flex-grow flex flex-col items-center justify-center p-4">
+        <div class="roulette-wrapper">
+            <div id="rouletteContainer" class="roulette-container mb-6 md:mb-10">
+                <div id="indicator" class="indicator"></div>
+                <div id="track" class="roulette-track"></div>
+            </div>
+
+            <div class="flex flex-col items-center w-full">
+                <div class="relative">
+                    <button id="startBtn" class="btn-main bg-blue-500 hover:bg-blue-600 text-white font-bold flex items-center justify-center">
+                        スタート！
+                    </button>
+                    <button id="stopBtn" class="btn-main bg-orange-500 hover:bg-orange-600 text-white font-bold hidden items-center justify-center" style="box-shadow: 0 12px 0 #c2410c;">
+                        ストップ
+                    </button>
+                </div>
+                
+                <p class="footer-text mt-8 text-gray-400 text-[10px] md:text-xs font-bold tracking-[0.3em] text-center opacity-60">
+                    ワードルーレット &nbsp;|&nbsp; ver3.0 &nbsp;|&nbsp; ota tools
+                </p>
+                <div id="wordCounter" class="footer-text mt-2 text-[10px] text-gray-300 font-bold"></div>
+            </div>
+        </div>
+    </main>
+
+    <div id="settingsModal" class="modal p-4">
+        <div class="bg-white rounded-[2rem] w-full max-w-lg p-6 md:p-8 max-h-[90vh] flex flex-col shadow-2xl">
+            <h2 class="text-xl md:text-2xl font-bold mb-4 text-gray-800 border-b pb-2">設定</h2>
+            
+            <div class="flex items-center justify-between mb-4 md:mb-6 p-4 bg-blue-50 rounded-2xl">
+                <div class="pr-2">
+                    <div class="font-bold text-blue-800 text-sm md:text-base">選ばれたワードを次に選ばない</div>
+                    <div class="text-[10px] md:text-xs text-blue-600">全ワードが選ばれるまで重複を避けます</div>
+                </div>
+                <label class="switch">
+                    <input type="checkbox" id="removeWordToggle">
+                    <span class="slider"></span>
+                </label>
+            </div>
+
+            <div class="mb-4 flex-grow flex flex-col min-h-0">
+                <div class="flex justify-between items-center mb-2">
+                    <label class="block text-xs md:text-sm font-bold text-gray-600">ワードリスト（改行区切り）</label>
+                    <button id="openPresetsBtn" class="bg-amber-100 hover:bg-amber-200 text-amber-700 text-[10px] font-bold px-3 py-1 rounded-full border border-amber-300">
+                        プリセットを読み込む
+                    </button>
+                </div>
+                <textarea id="wordTextArea" class="w-full flex-grow border-2 border-gray-100 rounded-2xl p-4 outline-none focus:border-blue-300 resize-none font-bold text-base" placeholder="ワードを入力..."></textarea>
+            </div>
+
+            <div class="grid grid-cols-2 gap-3 mb-4 md:mb-6">
+                <button id="saveFileBtn" class="bg-emerald-500 hover:bg-emerald-600 text-white py-2 md:py-3 rounded-xl font-bold transition-colors text-sm">保存</button>
+                <button id="loadFileBtn" class="bg-indigo-500 hover:bg-indigo-600 text-white py-2 md:py-3 rounded-xl font-bold transition-colors text-sm">読込</button>
+                <input type="file" id="fileInput" class="hidden" accept=".txt">
+            </div>
+            <button id="closeSettingsBtn" class="w-full bg-gray-800 hover:bg-black text-white py-3 md:py-4 rounded-xl font-bold transition-all text-sm md:text-base">設定を保存して閉じる</button>
+        </div>
+    </div>
+
+    <div id="presetsModal" class="modal p-4" style="z-index: 110;">
+        <div class="bg-white rounded-[2rem] w-full max-w-sm p-6 shadow-2xl">
+            <h3 class="text-lg font-bold mb-4 text-gray-800">プリセットを選んでください</h3>
+            <div class="preset-grid mb-6">
+                <button class="preset-btn" data-type="numbers">出席番号 (1~40)</button>
+                <button class="preset-btn" data-type="groups">班</button>
+                <button class="preset-btn" data-type="animals">動物</button>
+                <button class="preset-btn" data-type="sports">スポーツ</button>
+                <button class="preset-btn" data-type="jobs">職業</button>
+                <button class="preset-btn" data-type="play">あそび</button>
+                <button class="preset-btn" data-type="speech">1分間スピーチお題</button>
+                <button class="preset-btn" data-type="whatif">もしも〜シリーズ</button>
+                <button class="preset-btn" data-type="debate">ディベートお題</button>
+                <button class="preset-btn" data-type="subjects">教科</button>
+                <button class="preset-btn" data-type="prefectures">都道府県</button>
+                <button class="preset-btn" data-type="boardgames">ボードゲーム</button>
+            </div>
+            <button id="closePresetsBtn" class="w-full bg-gray-200 hover:bg-gray-300 text-gray-700 py-3 rounded-xl font-bold text-sm">戻る</button>
+        </div>
+    </div>
+
+    <script>
+        // デフォルトを「出席番号」に変更
+        let masterWords = Array.from({length: 40}, (_, i) => `${i + 1}番`);
+        let availableWords = [...masterWords];
+        
+        let isRunning = false;
+        let isStopping = false;
+        let currentY = 0;
+        let speed = 0;
+        let removeWordOnStop = false;
+        
+        let ITEM_HEIGHT = 0; 
+        let CONTAINER_HEIGHT = 0;
+        let CENTER_OFFSET = 0;
+
+        const MAX_SPEED = 50;
+        const ACCELERATION = 1.5;
+        const STOP_DURATION = 160; 
+        let stopFrames = 0;
+        let startY = 0;
+        let finalY = 0;
+
+        // 状態保存用関数
+        function saveState() {
+            localStorage.setItem('ota_roulette_master', JSON.stringify(masterWords));
+            localStorage.setItem('ota_roulette_available', JSON.stringify(availableWords));
+            localStorage.setItem('ota_roulette_remove', removeWordOnStop);
+        }
+
+        // 状態復元用関数
+        function loadState() {
+            const savedMaster = localStorage.getItem('ota_roulette_master');
+            const savedAvailable = localStorage.getItem('ota_roulette_available');
+            const savedRemove = localStorage.getItem('ota_roulette_remove');
+
+            if (savedMaster) {
+                try { masterWords = JSON.parse(savedMaster); } catch(e) {}
+            }
+            if (savedAvailable) {
+                try { availableWords = JSON.parse(savedAvailable); } catch(e) {}
+            }
+            if (savedRemove !== null) {
+                removeWordOnStop = savedRemove === 'true';
+                document.getElementById('removeWordToggle').checked = removeWordOnStop;
+            }
+        }
+
+        // プリセットの内容をご指定のものに変更
+        const presets = {
+            numbers: Array.from({length: 40}, (_, i) => `${i + 1}番`),
+            groups: ["1班", "2班", "3班", "4班", "5班", "6班", "7班", "8班"],
+            animals:["いぬ", "ねこ", "うさぎ", "ゴリラ", "さる", "ぞう", "キリン", "ライオン", "トラ", "パンダ", "ペンギン", "コアラ", "カンガルー", "うま", "うし", "ぶた", "ひつじ", "へび", "かめ", "ワニ"],
+            sports: ["サッカー", "バスケットボール", "野球", "バレーボール", "テニス", "卓球", "水泳", "なわとび", "マラソン", "すもう", "柔道", "剣道", "ラグビー", "ゴルフ", "スキー", "スノーボード", "バドミントン"],
+            jobs: ["教師", "医者", "看護師", "警察官", "消防士", "美容師", "料理人", "パン屋", "ケーキ屋", "大工", "電車の運転士", "パイロット", "客室乗務員", "スポーツ選手", "歌手", "俳優", "漫画家", "漁師", "宇宙飛行士"],
+            play: ["おにごっこ", "だるまさんがころんだ", "かくれんぼ", "ドッジボール", "ドッジビー", "サッカー", "バスケットボール", "なわとび", "てつぼう", "すなば", "トランプ", "ボードゲーム", "お絵かき", "おしゃべり", "ハンカチ落とし", "イス取りゲーム", "なんでもバスケット"],
+            speech: ["好きな食べ物", "好きな教科", "好きな遊び", "最近楽しかったこと", "最近びっくりしたこと", "最近がんばったこと", "今ハマっていること", "休みの日の過ごし方", "将来の夢", "行ってみたい場所", "行ったことがある楽しい場所", "好きな季節", "好きな動物", "好きなキャラクター", "好きな本", "好きなテレビ・動画", "好きな音楽", "自分の好きなところ", "友だちのいいところ", "クラスのいいところ", "学校の好きな場所", "朝起きて最初にすること", "夜寝る前にすること", "好きな給食", "給食で増やしてほしいメニュー", "一番おもしろかった授業", "最近笑ったこと", "最近うれしかったこと", "自分の得意なこと", "これからがんばりたいこと", "今ほしいもの", "わたしの宝物", "自分を動物にたとえると？"],
+            whatif: ["もしも空を飛べたら？", "もしも透明人間になれたら？", "もしも1日だけ大人になれたら？", "もしも動物と話せたら？", "もしも好きな動物になれるなら？", "もしも無人島に行くなら何を持っていく？", "もしも宝くじが当たったら？", "もしも魔法が1つ使えたら？", "もしも願いが3つかなうなら？", "もしも過去に行けるなら？", "もしも未来に行けるなら？", "もしも宇宙人に会ったら？", "もしも自分が先生だったら？", "もしも校長先生だったら？", "もしも学校を1つ変えられるなら？", "もしも給食を自由に決められるなら？", "もしも1日中遊んでいいなら？", "もしも好きな場所に住めるなら？", "もしも世界のどこかに旅行できるなら？", "もしも1つだけルールを作れるなら？", "もしも願いが1つだけかなうなら？"],
+            debate: ["パン派？ごはん派？", "犬派？猫派？", "海派？山派？", "夏派？冬派？", "朝型？夜型？", "インドア派？アウトドア派？", "甘いもの派？しょっぱいもの派？", "勉強は朝派？夜派？", "一人で遊ぶ派？みんなで遊ぶ派？", "テレビ派？YouTube派？", "音楽は聴く派？歌う派？", "たけのこの里派？きのこの山派？", "映画は家で見る派？映画館派？", "運動する派？観る派？", "計画立てる派？ノリでいく派？", "リーダーやりたい派？サポート派？", "好きなおかずは最初に食べる派？最後に食べる派？", "カレーは甘口派？辛口派？", "お風呂は長風呂派？サッと派？", "勉強はコツコツ派？一気に派？", "休み時間は外派？教室派？", "雨の日好き派？嫌い派？", "スポーツは個人競技派？チーム競技派？", "夏休みの宿題は先派？後派？", "時計はデジタル派？アナログ派？", "連絡は電話派？メッセージ派？"],
+            subjects: ["国語", "社会", "算数", "理科", "生活", "音楽", "図画工作", "家庭", "体育", "道徳", "外国語", "総合", "学活"],
+            prefectures: ["北海道", "青森県", "岩手県", "宮城県", "秋田県", "山形県", "福島県", "茨城県", "栃木県", "群馬県", "埼玉県", "千葉県", "東京都", "神奈川県", "新潟県", "富山県", "石川県", "福井県", "山梨県", "長野県", "岐阜県", "静岡県", "愛知県", "三重県", "滋賀県", "京都府", "大阪府", "兵庫県", "奈良県", "和歌山県", "鳥取県", "島根県", "岡山県", "広島県", "山口県", "徳島県", "香川県", "愛媛県", "高知県", "福岡県", "佐賀県", "長崎県", "熊本県", "大分県", "宮崎県", "鹿児島県", "沖縄県"],
+            boardgames: ["ドブル", "ハリガリ", "ワードバスケット", "コヨーテ", "インサイダーゲーム", "おばけキャッチ", "ナンジャモンジャ", "ドメモ", "はぁって言うゲーム", "ナインタイル", "ディクシット", "ito（イト）", "ハゲタカのえじき", "ミツカルタ", "ラブレター", "カタカナーシ", "neu（ノイ）", "ゆかいなふくろ", "スピードレシピ", "犯人は踊る", "かたろーぐ", "ニムト", "ナナトリドリ", "ミクロマクロ", "はらぺこバハムート", "ワードスナイパー", "ニャーニャーゲーム", "ぴっぐテン", "ペンギンパーティー", "ピクチャーズ"]
+        };
+
+        const track = document.getElementById('track');
+        const startBtn = document.getElementById('startBtn');
+        const stopBtn = document.getElementById('stopBtn');
+        const wordTextArea = document.getElementById('wordTextArea');
+        const settingsModal = document.getElementById('settingsModal');
+        const presetsModal = document.getElementById('presetsModal');
+        const wordCounter = document.getElementById('wordCounter');
+        const rouletteContainer = document.getElementById('rouletteContainer');
+        const indicator = document.getElementById('indicator');
+
+        function updateSizes() {
+            const rect = rouletteContainer.getBoundingClientRect();
+            if (rect.height === 0) return;
+
+            CONTAINER_HEIGHT = Math.floor(rect.height);
+            let h = Math.floor(CONTAINER_HEIGHT / 2.5);
+            ITEM_HEIGHT = h % 2 === 0 ? h : h - 1;
+            CENTER_OFFSET = (CONTAINER_HEIGHT / 2) - (ITEM_HEIGHT / 2) - 5;
+            indicator.style.height = `${ITEM_HEIGHT}px`;
+            
+            // トラックを再描画（フォントサイズ反映のため）
+            renderTrack();
+        }
+
+        window.addEventListener('resize', updateSizes);
+
+        function updateCounter() {
+            if (removeWordOnStop) {
+                wordCounter.textContent = `未当選: ${availableWords.length} / 全体: ${masterWords.length}`;
+            } else {
+                wordCounter.textContent = "";
+            }
+        }
+
+        function renderTrack() {
+            track.innerHTML = '';
+            if (masterWords.length === 0) return;
+
+            // コンテナの高さに合わせてフォントサイズを動的に決定 (1行の高さの約65%)
+            const dynamicFontSize = Math.floor(ITEM_HEIGHT * 0.65);
+            // 表示領域の幅 (左右のボーダーとパディング、余裕を考慮)
+            const availableWidth = rouletteContainer.clientWidth - 80;
+
+            const renderWords = [...masterWords, ...masterWords, ...masterWords, ...masterWords, ...masterWords];
+            renderWords.forEach((word) => {
+                const div = document.createElement('div');
+                div.className = 'word-item';
+                div.style.height = `${ITEM_HEIGHT}px`;
+                
+                // 文字数に合わせてフォントサイズを調整 (はみ出さないように計算)
+                let textWidthEstimate = 0;
+                for (let i = 0; i < word.length; i++) {
+                    textWidthEstimate += word.charCodeAt(i) > 255 ? 1 : 0.6;
+                }
+                const maxFontSize = availableWidth / (textWidthEstimate || 1);
+                const finalFontSize = Math.min(dynamicFontSize, maxFontSize);
+                
+                div.style.fontSize = `${finalFontSize}px`;
+                div.textContent = word;
+                track.appendChild(div);
+            });
+
+            currentY = -(masterWords.length * 2 * ITEM_HEIGHT) + CENTER_OFFSET;
+            updateTransform();
+            updateCounter();
+        }
+
+        function updateTransform() {
+            track.style.transform = `translateY(${Math.round(currentY)}px)`;
+        }
+
+        function easeOutQuart(t) {
+            return 1 - Math.pow(1 - t, 4);
+        }
+
+        function animate() {
+            if (!isRunning) return;
+            const loopHeight = masterWords.length * ITEM_HEIGHT;
+
+            if (!isStopping) {
+                if (speed < MAX_SPEED) speed += ACCELERATION;
+                currentY += speed;
+            } else {
+                stopFrames++;
+                const t = Math.min(stopFrames / STOP_DURATION, 1);
+                currentY = startY + (finalY - startY) * easeOutQuart(t);
+                if (t >= 1) {
+                    currentY = finalY;
+                    isRunning = false;
+                    finish();
+                }
+            }
+
+            if (currentY > CENTER_OFFSET - loopHeight) {
+                currentY -= loopHeight;
+                if (isStopping) { startY -= loopHeight; finalY -= loopHeight; }
+            } else if (currentY < CENTER_OFFSET - (loopHeight * 3)) {
+                currentY += loopHeight;
+                if (isStopping) { startY += loopHeight; finalY += loopHeight; }
+            }
+
+            updateTransform();
+            requestAnimationFrame(animate);
+        }
+
+        function stopRoulette() {
+            isStopping = true;
+            stopFrames = 0;
+            startY = currentY;
+            const targetList = removeWordOnStop ? availableWords : masterWords;
+            const chosenWinner = targetList[Math.floor(Math.random() * targetList.length)];
+            const minDistance = speed * 60; 
+            const targetYAfterSlide = currentY + minDistance;
+            const masterIdx = masterWords.indexOf(chosenWinner);
+            const loopHeight = masterWords.length * ITEM_HEIGHT;
+            const candidates = [];
+            for(let i = 0; i < 5; i++) {
+                candidates.push(-(i * loopHeight + masterIdx * ITEM_HEIGHT) + CENTER_OFFSET);
+            }
+            finalY = candidates.reduce((prev, curr) => 
+                Math.abs(curr - targetYAfterSlide) < Math.abs(prev - targetYAfterSlide) ? curr : prev
+            );
+        }
+
+        function finish() {
+            startBtn.classList.remove('hidden');
+            stopBtn.classList.add('hidden');
+            const items = document.querySelectorAll('.word-item');
+            const rect = rouletteContainer.getBoundingClientRect();
+            const centerY = rect.top + (CONTAINER_HEIGHT / 2) - 5;
+            let winner = null;
+            let minDiff = Infinity;
+            items.forEach(item => {
+                const itemRect = item.getBoundingClientRect();
+                const itemCenter = itemRect.top + (itemRect.height / 2);
+                const diff = Math.abs(centerY - itemCenter);
+                if (diff < minDiff) { minDiff = diff; winner = item; }
+            });
+
+            if (winner) {
+                const text = winner.textContent;
+                winner.style.color = "#4A90E2";
+                winner.animate([
+                    { transform: 'scale(1)', opacity: 1 },
+                    { transform: 'scale(1.15)', opacity: 1 },
+                    { transform: 'scale(1)', opacity: 1 }
+                ], { duration: 600, easing: 'ease-in-out' });
+                if (removeWordOnStop) {
+                    const idx = availableWords.indexOf(text);
+                    if (idx > -1) {
+                        availableWords.splice(idx, 1);
+                        if (availableWords.length === 0) availableWords = [...masterWords];
+                        updateCounter();
+                    }
+                }
+                saveState(); // 終了後に状態を保存
+            }
+        }
+
+        startBtn.addEventListener('click', () => {
+            if (masterWords.length === 0) return;
+            isRunning = true;
+            isStopping = false;
+            speed = 0;
+            document.querySelectorAll('.word-item').forEach(el => el.style.color = "#333");
+            startBtn.classList.add('hidden');
+            stopBtn.classList.remove('hidden');
+            animate();
+        });
+
+        stopBtn.addEventListener('click', () => {
+            if (isStopping) return; // ストップ処理中なら無効にする
+            stopRoulette();
+        });
+
+        document.getElementById('settingsBtn').addEventListener('click', () => {
+            wordTextArea.value = masterWords.join('\n');
+            settingsModal.classList.add('active');
+        });
+
+        document.getElementById('closeSettingsBtn').addEventListener('click', () => {
+            const list = wordTextArea.value.split('\n').map(s => s.trim()).filter(s => s !== "");
+            if (list.length > 0) {
+                masterWords = [...list];
+                availableWords = [...list];
+                renderTrack();
+                saveState(); // 設定変更後に保存
+            }
+            settingsModal.classList.remove('active');
+        });
+
+        // プリセット操作
+        document.getElementById('openPresetsBtn').addEventListener('click', () => presetsModal.classList.add('active'));
+        document.getElementById('closePresetsBtn').addEventListener('click', () => presetsModal.classList.remove('active'));
+        
+        document.querySelectorAll('.preset-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const type = btn.dataset.type;
+                if (presets[type]) {
+                    wordTextArea.value = presets[type].join('\n');
+                    presetsModal.classList.remove('active');
+                }
+            });
+        });
+
+        document.getElementById('saveFileBtn').addEventListener('click', () => {
+            const blob = new Blob([masterWords.join('\n')], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url; a.download = 'word_list.txt'; a.click();
+        });
+
+        document.getElementById('loadFileBtn').addEventListener('click', () => document.getElementById('fileInput').click());
+        document.getElementById('fileInput').addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = (ev) => {
+                const lines = ev.target.result.split(/\r?\n/).filter(l => l.trim() !== "");
+                if (lines.length > 0) {
+                    masterWords = [...lines];
+                    availableWords = [...lines];
+                    wordTextArea.value = masterWords.join('\n');
+                    renderTrack();
+                    saveState(); // ファイル読み込み後に保存
+                }
+            };
+            reader.readAsText(file);
+        });
+
+        document.getElementById('removeWordToggle').addEventListener('change', (e) => {
+            removeWordOnStop = e.target.checked;
+            updateCounter();
+            saveState(); // トグル変更時に保存
+        });
+
+        // ちらつき防止のための初期化フロー
+        document.addEventListener('DOMContentLoaded', () => {
+            loadState(); // 初期ロード時に状態を復元
+            updateSizes();
+            requestAnimationFrame(() => {
+                document.body.classList.add('ready');
+            });
+        });
+    </script>
+
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+    import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+    import { getFirestore, doc, setDoc, updateDoc, increment, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+    const firebaseConfig = {
+        apiKey: "AIzaSyB4fpt6ffIuTBDJo_9g37kYr6KOWNgIcEY",
+        authDomain: "otatoolssite.firebaseapp.com",
+        projectId: "otatoolssite",
+        storageBucket: "otatoolssite.firebasestorage.app",
+        messagingSenderId: "20522292752",
+        appId: "1:20522292752:web:22fba7fecb61736593dc95"
+    };
+
+    // アプリ固有のID
+    const THIS_APP_ID = "22"; 
+    
+    const PORTAL_APP_ID = "otatoolssite-v1";
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+    const auth = getAuth(app);
+    signInAnonymously(auth).then(async () => {
+        const todayStr = new Date().toISOString().split('T')[0];
+        const storageKey = `ota_visited_${THIS_APP_ID}`;
+        
+        if (localStorage.getItem(storageKey) === todayStr) {
+            return;
+        }
+        const docRef = doc(db, 'artifacts', PORTAL_APP_ID, 'public', 'data', 'app_views', THIS_APP_ID);
+                try {
+            const docSnap = await getDoc(docRef);
+            if (docSnap.exists()) {
+                await updateDoc(docRef, { count: increment(1) });
+            } else {
+                await setDoc(docRef, { count: 1 }); 
+            }
+            localStorage.setItem(storageKey, todayStr);
+        } catch (e) { 
+            console.error("閲覧数のカウントに失敗しました:", e); 
+        }
+    }).catch((error) => {
+        console.error("Firebase認証エラー:", error);
+    });
+</script>
+
+</body>
+</html>
