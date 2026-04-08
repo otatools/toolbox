@@ -1,0 +1,732 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>施設利用予約システム</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+<body class="bg-gray-50 text-gray-800 font-sans min-h-screen">
+  
+  <main class="max-w-7xl mx-auto px-4 py-6">
+    <!-- コントロールパネル -->
+    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4 mb-6 flex flex-col md:flex-row gap-4 justify-between items-start md:items-center">
+      
+      <!-- ビュー切り替え -->
+      <div class="flex bg-gray-100 p-1 rounded-lg border border-gray-200 w-full md:w-auto">
+        <button id="btnDailyView" class="flex-1 md:flex-none px-4 py-2 rounded-md text-sm font-medium transition-all bg-white shadow-sm text-indigo-700">
+          日別状況
+        </button>
+        <button id="btnFacilityView" class="flex-1 md:flex-none px-4 py-2 rounded-md text-sm font-medium transition-all text-gray-500 hover:text-gray-700">
+          施設別状況
+        </button>
+      </div>
+
+      <!-- 日付・施設セレクター -->
+      <div class="flex flex-wrap items-center gap-3 w-full md:w-auto">
+        <div class="flex items-center bg-gray-50 rounded-lg overflow-hidden border border-gray-300 shadow-sm">
+          <button id="btnPrevDate" class="p-2 hover:bg-gray-200 text-gray-600 transition-colors">
+            <i data-lucide="chevron-left" class="w-5 h-5"></i>
+          </button>
+          <input type="date" id="dateInput" class="bg-transparent border-none outline-none px-2 py-2 text-sm font-medium text-gray-800 cursor-pointer" />
+          <button id="btnNextDate" class="p-2 hover:bg-gray-200 text-gray-600 transition-colors">
+            <i data-lucide="chevron-right" class="w-5 h-5"></i>
+          </button>
+        </div>
+        
+        <button id="btnToday" class="px-4 py-2.5 bg-indigo-50 text-indigo-700 rounded-lg text-sm font-medium hover:bg-indigo-100 transition-colors border border-indigo-200">
+          今日
+        </button>
+
+        <select id="facilitySelect" class="hidden px-3 py-2.5 bg-white border border-gray-300 rounded-lg text-sm font-medium outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 shadow-sm">
+          <!-- JSで動的に追加 -->
+        </select>
+      </div>
+    </div>
+
+    <!-- 予約テーブル -->
+    <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden relative z-0">
+      <div class="overflow-x-auto">
+        <table class="w-full text-left border-collapse table-fixed">
+          <thead id="tableHead">
+            <!-- JSで動的に追加 -->
+          </thead>
+          <tbody id="tableBody">
+            <!-- JSで動的に追加 -->
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+
+  <!-- 予約用モーダル (初期状態は非表示) -->
+  <div id="reservationModal" class="hidden fixed inset-0 bg-gray-900/40 backdrop-blur-sm z-50 items-center justify-center p-4">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] flex flex-col transform transition-all overflow-hidden">
+      
+      <!-- モーダルヘッダー -->
+      <div class="px-5 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50 shrink-0">
+        <h3 id="modalTitle" class="font-bold text-lg text-gray-800">新規予約</h3>
+        <button id="btnCloseModal" class="text-gray-400 hover:text-gray-600 p-1.5 rounded-full hover:bg-gray-200 transition-colors">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <!-- モーダルコンテンツ (JSで動的に更新) -->
+      <div id="modalContent" class="p-6 space-y-5 overflow-y-auto">
+        <!-- JSで動的に追加 -->
+      </div>
+
+      <!-- モーダルフッター -->
+      <div id="modalFooter" class="px-6 py-4 bg-gray-50 border-t border-gray-100 flex flex-row-reverse gap-3 shrink-0">
+        <!-- JSで動的に追加 -->
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Firebase & App Logic -->
+  <script type="module">
+    import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js';
+    import { getAuth, signInWithCustomToken, signInAnonymously, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js';
+    import { getFirestore, collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js';
+
+    // Firebase 初期化
+    const fallbackConfig = {
+      apiKey: "AIzaSyBQSo6WJBCN42UyUxZ8M-d3JaxuartXJZc",
+      authDomain: "noda-yoyaku.firebaseapp.com",
+      projectId: "noda-yoyaku",
+      storageBucket: "noda-yoyaku.firebasestorage.app",
+      messagingSenderId: "1074761092556",
+      appId: "1:1074761092556:web:d0c660d8daf61bda092169"
+    };
+    
+    const firebaseConfig = typeof __firebase_config !== 'undefined' && __firebase_config 
+      ? JSON.parse(__firebase_config) 
+      : fallbackConfig;
+      
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getFirestore(app);
+    const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+
+    // 定数定義
+    const FACILITIES = [
+      { id: 'field', name: '運動場' },
+      { id: 'auditorium', name: '講堂' },
+      { id: 'multipurpose', name: '多目的室' },
+      { id: 'art', name: '図工室' },
+      { id: 'music', name: '音楽室' },
+      { id: 'library', name: 'としょ室' },
+      { id: 'science', name: '理科室' },
+      { id: 'home_ec', name: '家庭科室' }
+    ];
+
+    const PERIODS = [
+      { id: 'p1', name: '1時間目' },
+      { id: 'p2', name: '2時間目' },
+      { id: 'p3', name: '3時間目' },
+      { id: 'p4', name: '4時間目' },
+      { id: 'p5', name: '5時間目' },
+      { id: 'p6', name: '6時間目' },
+      { id: 'after', name: '放課後' }
+    ];
+
+    const DAYS = ['日', '月', '火', '水', '木', '金', '土'];
+
+    // 状態管理
+    let user = null;
+    let reservations = [];
+    let viewMode = 'daily';
+    let currentDateStr = formatDateForInput(new Date());
+    let selectedFacilityId = FACILITIES[0].id;
+    let unsubscribeFirestore = null;
+
+    let modalState = { isOpen: false, data: null };
+    let userName = localStorage.getItem('teacherName') || '';
+    let purpose = '';
+    let isRecurring = false;
+    let recurringEndDate = '';
+    let isConfirmingDelete = false;
+    let isSaving = false;
+    let saveError = '';
+
+    // 日付ヘルパー関数
+    function formatDateForInput(date) {
+      const y = date.getFullYear();
+      const m = String(date.getMonth() + 1).padStart(2, '0');
+      const d = String(date.getDate()).padStart(2, '0');
+      return `${y}-${m}-${d}`;
+    }
+
+    function formatDateForDisplay(dateStr) {
+      if (!dateStr) return '';
+      const date = new Date(dateStr);
+      return `${date.getMonth() + 1}/${date.getDate()} (${DAYS[date.getDay()]})`;
+    }
+
+    function addDaysToDateStr(dateStr, days) {
+      const date = new Date(dateStr);
+      date.setDate(date.getDate() + days);
+      return formatDateForInput(date);
+    }
+
+    function getWeekDates(startDateStr) {
+      const dates = [];
+      for (let i = 0; i < 7; i++) {
+        dates.push(addDaysToDateStr(startDateStr, i));
+      }
+      return dates;
+    }
+
+    // HTMLエスケープ関数
+    function escapeHtml(unsafe) {
+      if (!unsafe) return '';
+      return unsafe
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+    }
+
+    // クラス名フォーマット関数
+    function formatClassName(inputStr) {
+      if (!inputStr) return inputStr;
+
+      // 1. 全角英数字・ハイフン系を半角に変換
+      let formattedStr = inputStr.replace(/[Ａ-Ｚａ-ｚ０-９]/g, function(s) {
+          return String.fromCharCode(s.charCodeAt(0) - 0xFEE0);
+      }).replace(/[ー−‐―]/g, '-');
+
+      // 2. 「数字+年+数字+組」のパターンに一致する場合のみ「数字-数字」に変換
+      // 例: "6年1組" -> "6-1", "１２年３４組" -> "12-34"
+      const match = formattedStr.match(/^(\d+)年(\d+)組$/);
+      if (match) {
+        return `${match[1]}-${match[2]}`;
+      }
+
+      return formattedStr;
+    }
+
+    // 認証とデータ取得
+    async function initApp() {
+      lucide.createIcons();
+      setupEventListeners();
+      updateControlsUI();
+
+      try {
+        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+          await signInWithCustomToken(auth, __initial_auth_token);
+        } else {
+          await signInAnonymously(auth);
+        }
+      } catch (error) {
+        console.error("Authentication Error:", error);
+      }
+
+      onAuthStateChanged(auth, (currentUser) => {
+        user = currentUser;
+        if (user) {
+          subscribeData();
+        } else {
+          if(unsubscribeFirestore) unsubscribeFirestore();
+          reservations = [];
+          renderTable();
+        }
+      });
+    }
+
+    function subscribeData() {
+      if (!user) return;
+      const colRef = collection(db, 'artifacts', appId, 'public', 'data', 'facility_reservations');
+      unsubscribeFirestore = onSnapshot(
+        colRef,
+        (snapshot) => {
+          reservations = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+          renderTable();
+          // もしモーダルが開いていたら、表示を最新化する
+          if (modalState.isOpen && modalState.data && modalState.data.reservation) {
+            const updatedRes = reservations.find(r => r.id === modalState.data.reservation.id);
+            if (!updatedRes) {
+               // 削除されていたら閉じる
+               closeModal();
+            } else {
+               modalState.data.reservation = updatedRes;
+               renderModal();
+            }
+          }
+        },
+        (error) => {
+          console.error("Firestore Subscribe Error:", error);
+        }
+      );
+    }
+
+    // UI更新処理
+    function updateControlsUI() {
+      // 施設セレクトボックス初期化
+      const select = document.getElementById('facilitySelect');
+      select.innerHTML = FACILITIES.map(f => `<option value="${f.id}">${f.name}</option>`).join('');
+      select.value = selectedFacilityId;
+
+      // 日付インプット更新
+      document.getElementById('dateInput').value = currentDateStr;
+
+      // ビュー切り替えボタンのスタイル更新
+      const btnDaily = document.getElementById('btnDailyView');
+      const btnFacility = document.getElementById('btnFacilityView');
+      
+      if (viewMode === 'daily') {
+        btnDaily.className = 'flex-1 md:flex-none px-4 py-2 rounded-md text-sm font-medium transition-all bg-white shadow-sm text-indigo-700';
+        btnFacility.className = 'flex-1 md:flex-none px-4 py-2 rounded-md text-sm font-medium transition-all text-gray-500 hover:text-gray-700';
+        select.classList.add('hidden');
+      } else {
+        btnFacility.className = 'flex-1 md:flex-none px-4 py-2 rounded-md text-sm font-medium transition-all bg-white shadow-sm text-indigo-700';
+        btnDaily.className = 'flex-1 md:flex-none px-4 py-2 rounded-md text-sm font-medium transition-all text-gray-500 hover:text-gray-700';
+        select.classList.remove('hidden');
+      }
+    }
+
+    function renderCell(dateStr, facilityId, periodId) {
+      const reservation = reservations.find(
+        r => r.date === dateStr && r.facilityId === facilityId && r.period === periodId
+      );
+
+      const cellDataAttrs = `data-date="${dateStr}" data-facility="${facilityId}" data-period="${periodId}"`;
+
+      if (reservation) {
+        const isMine = user && reservation.userId === user.uid;
+        const bgClass = isMine ? 'bg-indigo-50 hover:bg-indigo-100' : 'bg-gray-100 hover:bg-gray-200';
+        const myBadge = isMine ? `<div class="absolute top-1 right-1 w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-indigo-500" title="自分の予約"></div>` : '';
+
+        return `
+          <td ${cellDataAttrs} data-has-reservation="true"
+            class="cell-target border border-gray-200 p-1 sm:p-2 h-14 sm:h-20 cursor-pointer transition-colors relative overflow-hidden ${bgClass}">
+            <div class="w-full h-full flex items-center justify-center overflow-hidden pointer-events-none">
+              <span class="font-bold text-gray-800 text-sm sm:text-base md:text-lg truncate px-1 pointer-events-none">
+                ${escapeHtml(reservation.teacherName)}
+              </span>
+            </div>
+            ${myBadge}
+          </td>
+        `;
+      } else {
+        return `
+          <td ${cellDataAttrs} data-has-reservation="false"
+            class="cell-target border border-gray-200 p-1 sm:p-2 h-14 sm:h-20 cursor-pointer hover:bg-emerald-50 transition-colors group overflow-hidden">
+            <div class="w-full h-full flex items-center justify-center opacity-0 group-hover:opacity-100 text-emerald-600 transition-opacity pointer-events-none">
+              <i data-lucide="plus" class="w-3 h-3 sm:w-5 sm:h-5"></i>
+              <span class="text-[10px] sm:text-sm ml-0.5 sm:ml-1 font-medium hidden sm:inline">予約</span>
+            </div>
+          </td>
+        `;
+      }
+    }
+
+    function renderTable() {
+      // 1. Table Head
+      let theadHtml = `
+        <tr class="bg-gray-50 border-b border-gray-200">
+          <th class="w-[15%] sm:w-24 md:w-32 p-1 sm:p-2 md:p-3 font-medium text-gray-600 text-[10px] sm:text-xs md:text-sm sticky left-0 bg-gray-50 z-10 border-r border-gray-200 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
+            ${viewMode === 'daily' ? '施設' : '日付'}
+          </th>
+      `;
+      PERIODS.forEach(p => {
+        theadHtml += `
+          <th class="p-1 sm:p-2 md:p-3 font-medium text-gray-600 text-[10px] sm:text-xs md:text-sm text-center border-l border-gray-200 first:border-l-0 overflow-hidden whitespace-nowrap text-ellipsis">
+            <span class="hidden sm:inline">${p.name}</span>
+            <span class="sm:hidden">${p.name.replace('時間目', '限').replace('放課後', '放')}</span>
+          </th>
+        `;
+      });
+      theadHtml += `</tr>`;
+      document.getElementById('tableHead').innerHTML = theadHtml;
+
+      // 2. Table Body
+      let tbodyHtml = '';
+      if (viewMode === 'daily') {
+        FACILITIES.forEach(fac => {
+          tbodyHtml += `
+            <tr class="border-b border-gray-200 last:border-none group">
+              <td class="p-1 sm:p-2 md:p-3 font-medium text-[10px] sm:text-xs md:text-sm text-gray-800 sticky left-0 bg-white z-10 border-r border-gray-200 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] group-hover:bg-gray-50 transition-colors">
+                <div class="flex items-center gap-1 sm:gap-2 overflow-hidden">
+                  <i data-lucide="map-pin" class="text-gray-400 shrink-0 w-3 h-3 sm:w-4 sm:h-4 hidden sm:block"></i>
+                  <span class="truncate">${fac.name}</span>
+                </div>
+              </td>
+          `;
+          PERIODS.forEach(period => {
+            tbodyHtml += renderCell(currentDateStr, fac.id, period.id);
+          });
+          tbodyHtml += `</tr>`;
+        });
+      } else {
+        const weekDates = getWeekDates(currentDateStr);
+        const todayStr = formatDateForInput(new Date());
+        
+        weekDates.forEach(dateStr => {
+          const isToday = dateStr === todayStr;
+          const bgClass = isToday ? 'bg-indigo-50/30' : '';
+          const stickyBgClass = isToday ? 'bg-indigo-50/80 text-indigo-800' : 'bg-white text-gray-800 group-hover:bg-gray-50';
+          const iconClass = isToday ? "text-indigo-500" : "text-gray-400";
+          const todayBadge = isToday ? `<span class="text-[8px] bg-indigo-100 text-indigo-700 px-1 py-0.5 rounded hidden lg:inline whitespace-nowrap ml-1">今日</span>` : '';
+
+          tbodyHtml += `
+            <tr class="border-b border-gray-200 last:border-none group ${bgClass}">
+              <td class="p-1 sm:p-2 md:p-3 font-medium text-[10px] sm:text-xs md:text-sm sticky left-0 z-10 border-r border-gray-200 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] transition-colors ${stickyBgClass}">
+                <div class="flex items-center gap-1 sm:gap-2 overflow-hidden">
+                  <i data-lucide="calendar" class="shrink-0 w-3 h-3 sm:w-4 sm:h-4 hidden sm:block ${iconClass}"></i>
+                  <span class="truncate">${formatDateForDisplay(dateStr)}</span>
+                  ${todayBadge}
+                </div>
+              </td>
+          `;
+          PERIODS.forEach(period => {
+            tbodyHtml += renderCell(dateStr, selectedFacilityId, period.id);
+          });
+          tbodyHtml += `</tr>`;
+        });
+      }
+      
+      const tbody = document.getElementById('tableBody');
+      tbody.innerHTML = tbodyHtml;
+      lucide.createIcons();
+
+      // セルへのクリックイベント登録
+      const cells = tbody.querySelectorAll('.cell-target');
+      cells.forEach(cell => {
+        cell.addEventListener('click', (e) => {
+          const t = e.currentTarget;
+          const d = t.getAttribute('data-date');
+          const f = t.getAttribute('data-facility');
+          const p = t.getAttribute('data-period');
+          
+          const reservation = reservations.find(r => r.date === d && r.facilityId === f && r.period === p);
+          openModal(d, f, p, reservation || null);
+        });
+      });
+    }
+
+    // モーダル処理
+    window.openModal = function(date, facilityId, periodId, reservation) {
+      modalState = {
+        isOpen: true,
+        data: { date, facilityId, periodId, reservation }
+      };
+      if (reservation) {
+        userName = reservation.teacherName;
+        purpose = reservation.purpose || '';
+      } else {
+        userName = localStorage.getItem('teacherName') || '';
+        purpose = '';
+      }
+      isRecurring = false;
+      recurringEndDate = '';
+      isConfirmingDelete = false;
+      saveError = '';
+
+      renderModal();
+    }
+
+    window.closeModal = function() {
+      modalState.isOpen = false;
+      modalState.data = null;
+      saveError = '';
+      renderModal();
+    }
+
+    function renderModal() {
+      const modalEl = document.getElementById('reservationModal');
+      if (!modalState.isOpen) {
+        modalEl.classList.add('hidden');
+        modalEl.classList.remove('flex');
+        return;
+      }
+      modalEl.classList.remove('hidden');
+      modalEl.classList.add('flex');
+
+      const { date, facilityId, periodId, reservation } = modalState.data;
+      
+      // Title
+      document.getElementById('modalTitle').textContent = reservation ? '予約の編集' : '新規予約';
+
+      // Header Info
+      let contentHtml = `
+        <div class="flex flex-wrap gap-2 text-sm text-indigo-800 bg-indigo-50 p-3 rounded-lg border border-indigo-100">
+          <div class="flex items-center gap-1 font-medium">
+            <i data-lucide="calendar" class="w-4 h-4 opacity-70"></i>
+            ${formatDateForDisplay(date)}
+          </div>
+          <div class="flex items-center gap-1 font-medium">
+            <i data-lucide="map-pin" class="w-4 h-4 opacity-70"></i>
+            ${FACILITIES.find(f => f.id === facilityId)?.name}
+          </div>
+          <div class="flex items-center gap-1 font-medium">
+            <i data-lucide="clock" class="w-4 h-4 opacity-70"></i>
+            ${PERIODS.find(p => p.id === periodId)?.name}
+          </div>
+        </div>
+      `;
+
+      // Error Message
+      if (saveError) {
+        contentHtml += `
+          <div class="p-3 bg-red-50 border border-red-200 text-red-600 rounded-lg text-sm font-medium">
+            ${escapeHtml(saveError)}
+          </div>
+        `;
+      }
+
+      // Inputs
+      contentHtml += `<div class="space-y-4">`;
+      
+      // Teacher Name
+      contentHtml += `<div>
+        <label class="block text-sm font-semibold text-gray-700 mb-1.5">
+          予約者（クラス） <span class="text-red-500">*</span>
+        </label>`;
+      contentHtml += `<input type="text" id="inputUserName" value="${escapeHtml(userName)}" placeholder="例: 6-1" class="w-full p-3 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all text-base" ${isSaving ? 'disabled' : ''} />`;
+      contentHtml += `</div>`;
+
+      // Purpose
+      contentHtml += `<div>
+        <label class="block text-sm font-semibold text-gray-700 mb-1.5">
+          利用目的 <span class="text-gray-400 font-normal text-xs ml-1">(任意)</span>
+        </label>`;
+      contentHtml += `<textarea id="inputPurpose" placeholder="例: 1学年集会、合唱コンクール練習 など" rows="3" class="w-full p-3 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all resize-none text-base" ${isSaving ? 'disabled' : ''}>${escapeHtml(purpose)}</textarea>`;
+      contentHtml += `</div>`;
+
+      // Recurring (Only for new)
+      if (!reservation) {
+        contentHtml += `
+          <div class="pt-3 border-t border-gray-100">
+            <label class="flex items-center gap-2 cursor-pointer w-fit py-1">
+              <input type="checkbox" id="inputRecurring" class="rounded text-indigo-600 focus:ring-indigo-500 w-4 h-4 cursor-pointer" ${isRecurring ? 'checked' : ''} />
+              <span class="text-sm font-medium text-gray-700">毎週同じ曜日に繰り返す</span>
+            </label>
+            ${isRecurring ? `
+              <div class="mt-2 pl-6">
+                <label class="block text-sm font-medium text-gray-700 mb-1">終了日 <span class="text-red-500">*</span></label>
+                <input type="date" id="inputRecurringEnd" value="${recurringEndDate}" min="${date}" class="w-full p-2.5 bg-white border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none" />
+              </div>
+            ` : ''}
+          </div>
+        `;
+      }
+      contentHtml += `</div>`;
+      
+      document.getElementById('modalContent').innerHTML = contentHtml;
+      
+      // Footer Buttons
+      let footerHtml = '';
+      
+      const isSaveDisabled = isSaving || !userName.trim() || (isRecurring && !recurringEndDate);
+      
+      footerHtml += `<button id="btnFooterSave" class="px-5 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 shadow-sm" ${isSaveDisabled ? 'disabled' : ''}>
+        ${isSaving ? '保存中...' : (reservation ? '更新する' : '予約を確定')}
+      </button>`;
+
+      if (reservation) {
+        const delClass = isConfirmingDelete 
+          ? 'bg-red-600 text-white hover:bg-red-700 shadow-sm' 
+          : 'text-red-600 hover:bg-red-50 border border-transparent hover:border-red-200';
+        
+        footerHtml += `<button id="btnFooterDelete" class="px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2 ${delClass}" ${isSaving ? 'disabled' : ''}>
+          <i data-lucide="trash-2" class="w-4 h-4"></i>
+          ${isConfirmingDelete ? '本当に削除しますか？' : '削除'}
+        </button>`;
+      }
+
+      footerHtml += `<button id="btnFooterCancel" class="px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors mr-auto" ${isSaving ? 'disabled' : ''}>キャンセル</button>`;
+
+      document.getElementById('modalFooter').innerHTML = footerHtml;
+      lucide.createIcons();
+
+      // Bind Modal Events
+      const updateSaveButton = () => {
+        const btnSave = document.getElementById('btnFooterSave');
+        if (btnSave) {
+          btnSave.disabled = isSaving || !userName.trim() || (isRecurring && !recurringEndDate);
+        }
+      };
+
+      document.getElementById('inputUserName')?.addEventListener('input', (e) => { 
+        userName = e.target.value; 
+        updateSaveButton(); 
+      });
+      document.getElementById('inputPurpose')?.addEventListener('input', (e) => { 
+        purpose = e.target.value; 
+      });
+      document.getElementById('inputRecurring')?.addEventListener('change', (e) => { 
+        isRecurring = e.target.checked; 
+        renderModal(); 
+      });
+      document.getElementById('inputRecurringEnd')?.addEventListener('input', (e) => { 
+        recurringEndDate = e.target.value; 
+        updateSaveButton(); 
+      });
+      
+      document.getElementById('btnFooterSave')?.addEventListener('click', handleSave);
+      if (reservation) document.getElementById('btnFooterDelete')?.addEventListener('click', handleDelete);
+      document.getElementById('btnFooterCancel')?.addEventListener('click', closeModal);
+    }
+
+    // 保存処理
+    async function handleSave() {
+      // 保存時にフォーマットを適用
+      userName = formatClassName(userName);
+
+      if (!userName.trim() || !user) return;
+
+      const { date, facilityId, periodId, reservation } = modalState.data;
+
+      // 保存対象日付リスト
+      const datesToSave = [];
+      if (!reservation && isRecurring && recurringEndDate) {
+        let currDate = new Date(date);
+        const endDate = new Date(recurringEndDate);
+        while (currDate <= endDate) {
+          datesToSave.push(formatDateForInput(currDate));
+          currDate.setDate(currDate.getDate() + 7);
+        }
+      } else {
+        datesToSave.push(date);
+      }
+
+      // 重複チェック
+      if (!reservation) {
+        const conflicts = [];
+        for (const d of datesToSave) {
+          const isConflict = reservations.some(
+            r => r.date === d && r.facilityId === facilityId && r.period === periodId
+          );
+          if (isConflict) {
+            conflicts.push(formatDateForDisplay(d));
+          }
+        }
+        if (conflicts.length > 0) {
+          saveError = `以下の日程はすでに予約が入っているため一括予約できません: ${conflicts.join(', ')}`;
+          renderModal();
+          return;
+        }
+      }
+
+      isSaving = true;
+      saveError = '';
+      renderModal();
+
+      try {
+        localStorage.setItem('teacherName', userName);
+        const colRef = collection(db, 'artifacts', appId, 'public', 'data', 'facility_reservations');
+
+        if (reservation) {
+          const docRef = doc(colRef, reservation.id);
+          await updateDoc(docRef, {
+            teacherName: userName,
+            purpose: purpose,
+            updatedAt: new Date().toISOString()
+          });
+        } else {
+          const promises = datesToSave.map(d => addDoc(colRef, {
+            date: d,
+            facilityId: facilityId,
+            period: periodId,
+            teacherName: userName,
+            purpose: purpose,
+            userId: user.uid,
+            createdAt: new Date().toISOString()
+          }));
+          await Promise.all(promises);
+        }
+        closeModal();
+      } catch (error) {
+        console.error("Save Error:", error);
+        saveError = '保存に失敗しました。通信状況を確認してください。';
+        renderModal();
+      } finally {
+        isSaving = false;
+        if(modalState.isOpen) renderModal();
+      }
+    }
+
+    // 削除処理
+    async function handleDelete() {
+      if (!isConfirmingDelete) {
+        isConfirmingDelete = true;
+        renderModal();
+        return;
+      }
+      
+      isSaving = true;
+      renderModal();
+      try {
+        const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'facility_reservations', modalState.data.reservation.id);
+        await deleteDoc(docRef);
+        closeModal();
+      } catch (error) {
+        console.error("Delete Error:", error);
+        saveError = '削除に失敗しました。通信状況を確認してください。';
+        renderModal();
+      } finally {
+        isSaving = false;
+        if(modalState.isOpen) renderModal();
+      }
+    }
+
+    // イベントリスナー設定
+    function setupEventListeners() {
+      // 日付変更
+      const changeDate = (direction) => {
+        const daysToMove = viewMode === 'facility' ? 7 : 1;
+        currentDateStr = addDaysToDateStr(currentDateStr, direction * daysToMove);
+        updateControlsUI();
+        renderTable();
+      };
+
+      document.getElementById('btnPrevDate').addEventListener('click', () => changeDate(-1));
+      document.getElementById('btnNextDate').addEventListener('click', () => changeDate(1));
+      
+      document.getElementById('dateInput').addEventListener('change', (e) => {
+        if (e.target.value) {
+          currentDateStr = e.target.value;
+          renderTable();
+        }
+      });
+
+      document.getElementById('btnToday').addEventListener('click', () => {
+        currentDateStr = formatDateForInput(new Date());
+        updateControlsUI();
+        renderTable();
+      });
+
+      // ビュー切り替え
+      document.getElementById('btnDailyView').addEventListener('click', () => {
+        viewMode = 'daily';
+        updateControlsUI();
+        renderTable();
+      });
+
+      document.getElementById('btnFacilityView').addEventListener('click', () => {
+        viewMode = 'facility';
+        updateControlsUI();
+        renderTable();
+      });
+
+      // 施設切り替え
+      document.getElementById('facilitySelect').addEventListener('change', (e) => {
+        selectedFacilityId = e.target.value;
+        renderTable();
+      });
+
+      // モーダル閉じる
+      document.getElementById('btnCloseModal').addEventListener('click', closeModal);
+    }
+
+    // アプリ起動
+    initApp();
+
+  </script>
+</body>
+</html>
