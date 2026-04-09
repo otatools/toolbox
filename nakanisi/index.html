@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Image Sequence Viewer</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: #0a0a0a;
+            font-family: 'Helvetica Neue', Arial, sans-serif;
+        }
+
+        .container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            perspective: 1000px;
+        }
+
+        .image-wrapper {
+            position: absolute;
+            display: flex;
+            transition: all 1s cubic-bezier(0.6, 0.05, 0.01, 0.9);
+            width: 100%;
+            height: 100%;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .img-item {
+            height: 95vh;
+            width: auto;
+            max-width: 50vw;
+            object-fit: contain;
+            transition: all 0.9s ease-in-out;
+            margin: 0; 
+            box-shadow: 0 0 50px rgba(0,0,0,0.8);
+            border-radius: 4px;
+            animation: fadeIn 0.8s ease-out;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: scale(0.95) translateX(50px); }
+            to { opacity: 1; transform: scale(1) translateX(0); }
+        }
+
+        /* 最終演出用のラッパー設定 */
+        .final-wrapper {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            position: absolute;
+            width: 100%;
+            height: auto;
+            top: 0;
+            left: 0;
+        }
+
+        /* 最終演出の画像はウィンドウ全体に表示 */
+        .final-wrapper .img-item-final {
+            width: 100vw;
+            height: 100vh;
+            object-fit: contain;
+            margin: 0;
+            box-shadow: none;
+            flex-shrink: 0;
+        }
+
+        .input-overlay {
+            position: fixed;
+            bottom: 40px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 100;
+            background: rgba(40, 40, 40, 0.8);
+            padding: 12px 24px;
+            border-radius: 16px;
+            display: flex;
+            gap: 15px;
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255,255,255,0.3);
+            box-shadow: 0 20px 50px rgba(0,0,0,0.6);
+            transition: opacity 0.5s;
+        }
+
+        input {
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.5);
+            border-radius: 8px;
+            color: #ffffff !important;
+            padding: 12px 15px;
+            outline: none;
+            text-align: center;
+            font-size: 1.2rem;
+            width: 220px;
+            transition: all 0.3s;
+        }
+
+        input::placeholder {
+            color: rgba(255, 255, 255, 0.5);
+        }
+
+        input:focus {
+            border-color: #ffffff;
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        button {
+            background: #ffffff;
+            color: #000000;
+            border: none;
+            padding: 10px 30px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 1.1rem;
+            transition: all 0.3s;
+        }
+
+        button:hover {
+            background: #e0e0e0;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(255,255,255,0.2);
+        }
+
+        .shake {
+            animation: shakeAnim 0.4s;
+        }
+        @keyframes shakeAnim {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-10px); }
+            75% { transform: translateX(10px); }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container" id="stage">
+        <!-- 画像エリア -->
+    </div>
+
+    <div class="input-overlay" id="controls">
+        <input type="text" id="passInput" placeholder="Enter Password" autocomplete="off">
+        <button onclick="checkPassword()">GO</button>
+    </div>
+
+    <script>
+        const passwords = [
+            "start", "pw2", "pw3", "pw4", "pw5", 
+            "pw6", "pw7", "pw8", "pw9", "final"  
+        ];
+
+        let currentStep = 0;
+        const stage = document.getElementById('stage');
+        const passInput = document.getElementById('passInput');
+
+        function checkPassword() {
+            const val = passInput.value;
+            if (val === passwords[currentStep]) {
+                currentStep++;
+                updateGallery();
+                passInput.value = "";
+                if(currentStep >= passwords.length) {
+                    document.getElementById('controls').style.opacity = '0';
+                    setTimeout(() => {
+                        document.getElementById('controls').style.display = 'none';
+                    }, 500);
+                }
+            } else {
+                passInput.parentElement.classList.add('shake');
+                setTimeout(() => passInput.parentElement.classList.remove('shake'), 400);
+            }
+        }
+
+        passInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') checkPassword();
+        });
+
+        function updateGallery() {
+            stage.innerHTML = '';
+            
+            if (currentStep <= 9) {
+                const wrapper = document.createElement('div');
+                wrapper.className = 'image-wrapper';
+                
+                if (currentStep === 1) {
+                    addImage(wrapper, "01");
+                } else {
+                    const imgA = String(currentStep - 1).padStart(2, '0');
+                    const imgB = String(currentStep).padStart(2, '0');
+                    addImage(wrapper, imgA);
+                    addImage(wrapper, imgB);
+                }
+                stage.appendChild(wrapper);
+            } 
+            else if (currentStep === 10) {
+                // 演出用のラッパー
+                const finalWrapper = document.createElement('div');
+                finalWrapper.className = 'final-wrapper';
+                
+                // 1. まず 10.png を配置 (上側)
+                const img10 = document.createElement('img');
+                img10.src = `10.png`;
+                img10.className = 'img-item-final';
+                img10.onerror = () => img10.src = "https://via.placeholder.com/1920x1080?text=10.png";
+                finalWrapper.appendChild(img10);
+
+                // 2. 次に 09.png を配置 (下側)
+                const img09 = document.createElement('img');
+                img09.src = `09.png`;
+                img09.className = 'img-item-final';
+                img09.onerror = () => img09.src = "https://via.placeholder.com/1920x1080?text=09.png";
+                finalWrapper.appendChild(img09);
+
+                // --- 初期状態の設定 ---
+                // ウィンドウには09が表示されている必要があるため、
+                // finalWrapper全体を上に100vh分(10.pngの高さ分)ずらして開始
+                finalWrapper.style.transform = "translateY(-100vh)";
+                stage.appendChild(finalWrapper);
+
+                // --- スライド開始 ---
+                setTimeout(() => {
+                    // 10秒かけてゆっくり移動 (前回よりさらにゆっくり)
+                    // translateY(0) にすることで、上部に隠れていた10番が画面中央にぴったり来ます
+                    finalWrapper.style.transition = "transform 10s cubic-bezier(0.4, 0, 0.2, 1)";
+                    finalWrapper.style.transform = "translateY(0)";
+                }, 100);
+            }
+        }
+
+        function addImage(parent, fileName) {
+            const img = document.createElement('img');
+            img.src = `${fileName}.png`;
+            img.className = 'img-item';
+            img.onerror = () => {
+                img.src = `https://via.placeholder.com/1200x800?text=${fileName}.png`;
+            };
+            parent.appendChild(img);
+        }
+    </script>
+</body>
+</html>
