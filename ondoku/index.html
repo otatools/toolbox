@@ -1,0 +1,987 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>音読クエスト</title>
+  
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  
+  <style>
+    /* カスタムスタイル */
+    .custom-scrollbar::-webkit-scrollbar { height: 8px; }
+    .custom-scrollbar::-webkit-scrollbar-track { background: #f1f5f9; border-radius: 4px; }
+    .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+    .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+    .touch-none { touch-action: none; }
+    
+    /* アニメーション補足 */
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+    @keyframes zoomIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
+    .animate-in { animation: fadeIn 0.3s ease-out; }
+    .zoom-in-95 { animation: zoomIn 0.3s ease-out; }
+    .pb-safe { padding-bottom: env(safe-area-inset-bottom); }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-800 selection:bg-blue-100 font-sans">
+
+  <div id="app"></div>
+
+  <!-- アプリケーションロジック -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+    import { 
+      getAuth, 
+      onAuthStateChanged, 
+      signInAnonymously,
+      signInWithCustomToken,
+      signInWithPopup,
+      GoogleAuthProvider,
+      OAuthProvider,
+      signOut
+    } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+    import { 
+      getFirestore, 
+      collection, 
+      onSnapshot, 
+      doc, 
+      setDoc, 
+      updateDoc,
+      serverTimestamp 
+    } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+    // --- Firebase Initialization ---
+    const firebaseConfig = {
+      apiKey: "AIzaSyBc9bPH4N_wa_NkEI3kpTYERTTP1ThByNw",
+      authDomain: "ondoku-c48a9.firebaseapp.com",
+      projectId: "ondoku-c48a9",
+      storageBucket: "ondoku-c48a9.firebasestorage.app",
+      messagingSenderId: "508376944479",
+      appId: "1:508376944479:web:7d38bc7a02399cd0bd70ea"
+    };
+    
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getFirestore(app);
+
+    // 独自のFirebase環境向けにシンプルなルートコレクションを使用
+    const USERS_PATH = `users`;
+    const ENTRIES_PATH = `entries`;
+
+    // --- State Management ---
+    const state = {
+      user: null,
+      profile: null,
+      isTeacherView: window.location.hash === '#teacher',
+      authChecking: true,
+      
+      activeTab: 'home', // home, calendar, sticker
+      entries: [],
+      allUsers: [],
+      
+      // Student Form State
+      criteria: [null, null, null],
+      isRecording: false,
+      audioURL: null,
+      signatureData: null,
+      showSignaturePad: false,
+      isSubmitting: false,
+      showSuccess: false,
+      
+      // Teacher Dashboard State
+      teacherTab: 'today', // today, month, manage
+      newStudentId: '',
+      searchResult: null,
+      selectedSignature: null,
+      teacherMonthDate: new Date()
+    };
+
+    let unsubs = [];
+    let isInteracting = false; // レンダリングによる入力リセットを防ぐフラグ
+    let mediaRecorder = null;
+    let audioChunks = [];
+
+    // --- Helper Functions ---
+    const escapeHTML = (str) => {
+      if (!str) return '';
+      return String(str).replace(/[&<>'"]/g, 
+        tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag])
+      );
+    };
+
+    const safeRender = () => {
+      if (!isInteracting) render();
+    };
+
+    // --- Firebase Listeners ---
+    onAuthStateChanged(auth, (currentUser) => {
+      state.user = currentUser;
+      state.authChecking = false;
+      if (currentUser) {
+        setupDataListeners(currentUser);
+      } else {
+        unsubs.forEach(unsub => unsub());
+        unsubs = [];
+        state.profile = null;
+        state.entries = [];
+        state.allUsers = [];
+      }
+      safeRender();
+    });
+
+    window.addEventListener('hashchange', () => {
+      state.isTeacherView = window.location.hash === '#teacher';
+      safeRender();
+    });
+
+    function setupDataListeners(user) {
+      unsubs.forEach(unsub => unsub());
+      unsubs = [];
+
+      const userDocRef = doc(db, USERS_PATH, user.uid);
+      const unsubProfile = onSnapshot(userDocRef, (docSnap) => {
+        if (docSnap.exists()) {
+          const data = docSnap.data();
+          if (!data.stickers) data.stickers = [];
+          if (!data.placedStickers) data.placedStickers = [];
+          if (!data.managedStudents) data.managedStudents = [];
+          state.profile = data;
+          safeRender();
+        } else {
+          const shortId = user.uid.substring(0, 6).toUpperCase();
+          const role = state.isTeacherView ? 'teacher' : 'student';
+          const newProfile = {
+            uid: user.uid, shortId, name: role === 'teacher' ? '先生' : `児童_${shortId}`,
+            role, points: 0, stickers: [], placedStickers: [], managedStudents: [],
+            createdAt: serverTimestamp()
+          };
+          setDoc(userDocRef, newProfile);
+        }
+      }, err => console.error("Profile fetch error:", err));
+
+      const entriesRef = collection(db, ENTRIES_PATH);
+      const unsubEntries = onSnapshot(entriesRef, (snapshot) => {
+        state.entries = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+        safeRender();
+      }, err => console.error("Entries fetch error:", err));
+
+      const usersRef = collection(db, USERS_PATH);
+      const unsubUsers = onSnapshot(usersRef, (snapshot) => {
+        state.allUsers = snapshot.docs.map(d => d.data());
+        safeRender();
+      }, err => console.error("Users fetch error:", err));
+
+      unsubs.push(unsubProfile, unsubEntries, unsubUsers);
+    }
+
+    // --- Global Handlers ---
+    window.handleLogin = async (providerName) => {
+      isInteracting = true;
+      const btnContainer = document.getElementById('login-buttons');
+      if (btnContainer) btnContainer.innerHTML = '<p class="mt-4 text-sm text-blue-500 font-bold animate-pulse">ログイン処理中...</p>';
+
+      try {
+        if (providerName === 'google') {
+          await signInWithPopup(auth, new GoogleAuthProvider());
+        } else if (providerName === 'microsoft') {
+          await signInWithPopup(auth, new OAuthProvider('microsoft.com'));
+        } else {
+          // テスト・フォールバック用
+          await signInAnonymously(auth);
+        }
+      } catch (error) {
+        console.error("Login error:", error);
+        alert("ログインに失敗しました。ポップアップがブロックされていないかご確認ください。");
+        // Canvasなどのプレビュー環境でポップアップがブロックされる場合は匿名ログインにフォールバック
+        try {
+          await signInAnonymously(auth);
+        } catch (fallbackError) {
+          console.error("Fallback login failed:", fallbackError);
+        }
+      } finally {
+        isInteracting = false;
+      }
+    };
+
+    window.handleLogout = () => {
+      signOut(auth);
+      state.profile = null;
+    };
+
+    window.switchTab = (tab) => { state.activeTab = tab; render(); };
+    window.setTeacherTab = (tab) => { state.teacherTab = tab; render(); };
+    
+    // Student Form Handlers
+    window.setCriteria = (index, value) => { state.criteria[index] = value; render(); };
+    
+    window.startRecording = async () => {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        mediaRecorder = new MediaRecorder(stream);
+        audioChunks = [];
+        mediaRecorder.ondataavailable = e => e.data.size > 0 && audioChunks.push(e.data);
+        mediaRecorder.onstop = () => {
+          state.audioURL = URL.createObjectURL(new Blob(audioChunks, { type: 'audio/webm' }));
+          state.isRecording = false;
+          isInteracting = false;
+          render();
+        };
+        mediaRecorder.start();
+        state.isRecording = true;
+        isInteracting = true; // 録音中は再レンダリングブロック
+        render();
+      } catch (err) { alert("マイクが使えません。許可を確認してください。"); }
+    };
+    
+    window.stopRecording = () => {
+      if (mediaRecorder && state.isRecording) {
+        mediaRecorder.stop();
+        mediaRecorder.stream.getTracks().forEach(t => t.stop());
+      }
+    };
+
+    window.openSignaturePad = () => { state.showSignaturePad = true; isInteracting = true; render(); };
+    window.closeSignaturePad = () => { state.showSignaturePad = false; isInteracting = false; render(); };
+    window.saveSignature = () => {
+      const canvas = document.getElementById('signature-canvas');
+      state.signatureData = canvas.toDataURL('image/png');
+      state.showSignaturePad = false;
+      isInteracting = false;
+      render();
+    };
+    window.clearSignaturePad = () => {
+      const canvas = document.getElementById('signature-canvas');
+      const ctx = canvas.getContext('2d');
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+    };
+    window.removeSignatureData = () => { state.signatureData = null; render(); };
+
+    window.submitEntry = async () => {
+      if (state.criteria.includes(null)) return;
+      state.isSubmitting = true;
+      render();
+
+      try {
+        const todayStr = new Date().toLocaleDateString('ja-JP');
+        const entryId = `${state.user.uid}_${todayStr.replace(/\//g, '')}`;
+        await setDoc(doc(db, ENTRIES_PATH, entryId), {
+          uid: state.user.uid,
+          date: todayStr,
+          criteria: state.criteria,
+          hasAudio: !!state.audioURL,
+          signature: state.signatureData,
+          timestamp: serverTimestamp()
+        });
+        await updateDoc(doc(db, USERS_PATH, state.user.uid), { points: state.profile.points + 10 });
+        
+        state.showSuccess = true;
+        state.isSubmitting = false;
+        render();
+        setTimeout(() => { state.showSuccess = false; render(); }, 3000);
+      } catch (err) {
+        console.error(err);
+        state.isSubmitting = false;
+        render();
+      }
+    };
+
+    // Sticker Handlers
+    const stickerCollection = [
+      { id: 'apple', emoji: '🍎', price: 10, name: 'りんご' }, { id: 'star', emoji: '⭐', price: 10, name: 'ほし' },
+      { id: 'car', emoji: '🚗', price: 20, name: 'くるま' }, { id: 'cat', emoji: '🐱', price: 20, name: 'ネコ' },
+      { id: 'dog', emoji: '🐶', price: 30, name: 'イヌ' }, { id: 'rocket', emoji: '🚀', price: 30, name: 'ロケット' },
+      { id: 'ghost', emoji: '👻', price: 50, name: 'おばけ' }, { id: 'crown', emoji: '👑', price: 50, name: 'おうかん' },
+      { id: 'gem', emoji: '💎', price: 100, name: 'ほうせき' }, { id: 'dragon', emoji: '🐉', price: 100, name: 'ドラゴン' },
+    ];
+
+    window.buySticker = async (stickerId, price, name) => {
+      if (state.profile.points >= price && !state.profile.stickers.includes(stickerId)) {
+        if (confirm(`「${name}」を ${price}pt でゲットしますか？`)) {
+          await updateDoc(doc(db, USERS_PATH, state.user.uid), {
+            points: state.profile.points - price,
+            stickers: [...state.profile.stickers, stickerId]
+          });
+        }
+      }
+    };
+
+    window.placeSticker = async (id, emoji) => {
+      const x = 100 + Math.random() * 50;
+      const y = 80 + Math.random() * 50;
+      const newSticker = { id, emoji, x, y, uid: Date.now() };
+      await updateDoc(doc(db, USERS_PATH, state.user.uid), {
+        placedStickers: [...state.profile.placedStickers, newSticker]
+      });
+    };
+
+    window.removeSticker = async (index, event) => {
+      event.stopPropagation();
+      const updated = state.profile.placedStickers.filter((_, i) => i !== index);
+      await updateDoc(doc(db, USERS_PATH, state.user.uid), { placedStickers: updated });
+    };
+
+    // Sticker Dragging Logic
+    window.startDragSticker = (e, index) => {
+      e.preventDefault();
+      isInteracting = true; // ドラッグ中の再レンダリング防止
+      const el = e.currentTarget;
+      el.setPointerCapture(e.pointerId);
+      
+      let startX = e.clientX, startY = e.clientY;
+      const item = state.profile.placedStickers[index];
+      let currentX = item.x, currentY = item.y;
+
+      el.style.zIndex = 50;
+      el.style.cursor = 'grabbing';
+      el.firstElementChild.classList.add('scale-110');
+
+      const onMove = (moveEvent) => {
+        const dx = moveEvent.clientX - startX;
+        const dy = moveEvent.clientY - startY;
+        el.style.left = `${currentX + dx}px`;
+        el.style.top = `${currentY + dy}px`;
+      };
+
+      const onUp = async (upEvent) => {
+        el.releasePointerCapture(upEvent.pointerId);
+        document.removeEventListener('pointermove', onMove);
+        document.removeEventListener('pointerup', onUp);
+        
+        el.style.cursor = 'grab';
+        el.firstElementChild.classList.remove('scale-110');
+
+        const finalX = currentX + (upEvent.clientX - startX);
+        const finalY = currentY + (upEvent.clientY - startY);
+        
+        const updated = [...state.profile.placedStickers];
+        updated[index] = { ...updated[index], x: finalX, y: finalY };
+        state.profile.placedStickers = updated; // optimistic update
+        isInteracting = false;
+        render(); // 再描画
+
+        try {
+          await updateDoc(doc(db, USERS_PATH, state.user.uid), { placedStickers: updated });
+        } catch (err) { console.error(err); }
+      };
+
+      document.addEventListener('pointermove', onMove);
+      document.addEventListener('pointerup', onUp);
+    };
+
+    // Teacher Handlers
+    window.onSearchInputChange = (e) => { state.newStudentId = e.value; };
+    window.handleSearchStudent = () => {
+      if (!state.newStudentId) return;
+      const found = state.allUsers.find(u => u.shortId === state.newStudentId.toUpperCase() && u.role === 'student');
+      state.searchResult = found || 'not_found';
+      render();
+    };
+    window.handleAddStudent = async (uid) => {
+      if (state.profile.managedStudents.includes(uid)) return;
+      try {
+        await updateDoc(doc(db, USERS_PATH, state.profile.uid), { managedStudents: [...state.profile.managedStudents, uid] });
+        state.searchResult = null; state.newStudentId = '';
+      } catch (err) { console.error(err); }
+    };
+    window.handleRemoveStudent = async (uid) => {
+      if (confirm("この児童をリストから削除しますか？")) {
+        await updateDoc(doc(db, USERS_PATH, state.profile.uid), { managedStudents: state.profile.managedStudents.filter(id => id !== uid) });
+      }
+    };
+    window.openTeacherSignature = (sig) => { state.selectedSignature = sig; render(); };
+    window.closeTeacherSignature = () => { state.selectedSignature = null; render(); };
+    window.changeTeacherMonth = (offset) => {
+      state.teacherMonthDate = new Date(state.teacherMonthDate.getFullYear(), state.teacherMonthDate.getMonth() + offset, 1);
+      render();
+    };
+
+    // --- Rendering Functions ---
+    const renderApp = () => {
+      if (state.authChecking) return renderLoading('かくにん中...');
+      if (!state.user) return renderLogin();
+      if (!state.profile) return renderLoading('データをよみこみ中...');
+      return renderMain();
+    };
+
+    const renderLoading = (msg) => `
+      <div class="min-h-screen bg-slate-50 flex items-center justify-center p-4">
+        <div class="bg-white p-8 rounded-2xl shadow-sm text-center border border-slate-200">
+          <div class="text-4xl mb-4 animate-bounce">📖</div>
+          <p class="text-slate-500 font-bold">${msg}</p>
+        </div>
+      </div>
+    `;
+
+    const renderLogin = () => `
+      <div class="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-50 flex flex-col items-center justify-center p-4">
+        <div class="bg-white p-8 rounded-3xl shadow-lg max-w-md w-full text-center border border-white">
+          <div class="text-6xl mb-4 drop-shadow-sm">📖</div>
+          <h1 class="text-3xl font-black text-slate-800 mb-2">音読クエスト</h1>
+          <p class="text-slate-500 mb-8 font-medium">
+            ${state.isTeacherView ? '先生用ダッシュボード' : 'まいにち読んでポイントゲット！'}
+          </p>
+          <div id="login-buttons" class="space-y-4">
+            <button onclick="window.handleLogin('google')" class="w-full flex items-center justify-center py-3 px-4 bg-white border-2 border-slate-200 hover:border-blue-400 hover:bg-blue-50 text-slate-700 font-bold rounded-xl transition-all">
+              <svg class="w-5 h-5 mr-3" viewBox="0 0 24 24">
+                <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
+                <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+                <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" />
+                <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
+              </svg> Google でログイン
+            </button>
+            <button onclick="window.handleLogin('microsoft')" class="w-full flex items-center justify-center py-3 px-4 bg-white border-2 border-slate-200 hover:border-blue-400 hover:bg-blue-50 text-slate-700 font-bold rounded-xl transition-all">
+              <svg class="w-5 h-5 mr-3" viewBox="0 0 21 21"><path fill="#f25022" d="M1 1h9v9H1z"/><path fill="#00a4ef" d="M1 11h9v9H1z"/><path fill="#7fba00" d="M11 1h9v9h-9z"/><path fill="#ffb900" d="M11 11h9v9h-9z"/></svg>
+              Microsoft でログイン
+            </button>
+          </div>
+        </div>
+        <div class="mt-8 text-sm font-medium text-slate-500">
+          ${state.isTeacherView 
+            ? `<a href="#" class="hover:text-blue-600 underline">児童用ログイン画面にもどる</a>` 
+            : `<a href="#teacher" class="hover:text-indigo-600 underline">先生用ログインはこちら</a>`}
+        </div>
+      </div>
+    `;
+
+    const renderMain = () => {
+      const isActuallyTeacher = state.profile.role === 'teacher';
+      const myEntries = state.entries.filter(e => e.uid === state.user.uid);
+      
+      return `
+        <div class="min-h-screen pb-24">
+          <!-- Header -->
+          <header class="bg-white p-4 sticky top-0 z-30 shadow-sm border-b border-slate-200">
+            <div class="max-w-4xl mx-auto flex justify-between items-center">
+              <div class="flex items-center space-x-3">
+                <div class="p-2 rounded-full ${isActuallyTeacher ? 'bg-indigo-100 text-indigo-600' : 'bg-blue-100 text-blue-600'}">
+                  <i data-lucide="${isActuallyTeacher ? 'users' : 'award'}" class="w-6 h-6"></i>
+                </div>
+                <div>
+                  <h1 class="text-lg font-bold text-slate-800">${escapeHTML(state.profile.name)}</h1>
+                  ${!isActuallyTeacher ? `<div class="flex items-center text-xs text-slate-500 mt-0.5">ID: <span class="font-mono bg-slate-100 px-1 rounded ml-1 font-bold">${state.profile.shortId}</span></div>` : ''}
+                </div>
+              </div>
+              <div class="flex items-center space-x-4">
+                ${!isActuallyTeacher ? `
+                  <div class="flex items-center text-amber-500 font-bold text-sm bg-amber-50 px-3 py-1 rounded-full">
+                    <i data-lucide="star" class="w-4 h-4 mr-1 fill-current"></i> ${state.profile.points} pt
+                  </div>
+                ` : ''}
+                <button onclick="window.handleLogout()" class="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-colors" title="ログアウト">
+                  <i data-lucide="log-out" class="w-5 h-5"></i>
+                </button>
+              </div>
+            </div>
+          </header>
+
+          <!-- Main Content -->
+          <main class="max-w-4xl mx-auto px-4 mt-6">
+            ${isActuallyTeacher ? renderTeacherDashboard() : renderStudentDashboard(myEntries)}
+          </main>
+
+          <!-- Bottom Navigation (Student) -->
+          ${!isActuallyTeacher ? `
+            <div class="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 z-40 pb-safe">
+              <nav class="max-w-md mx-auto flex justify-around">
+                ${renderNavBtn('mic', 'きろく', state.activeTab === 'home', 'home')}
+                ${renderNavBtn('calendar', 'カレンダー', state.activeTab === 'calendar', 'calendar')}
+                ${renderNavBtn('book-open', 'シール帳', state.activeTab === 'sticker', 'sticker')}
+              </nav>
+            </div>
+          ` : ''}
+        </div>
+      `;
+    };
+
+    const renderNavBtn = (icon, label, active, tabId) => `
+      <button onclick="window.switchTab('${tabId}')" class="flex-1 flex flex-col items-center justify-center py-3 transition-colors ${active ? 'text-blue-600' : 'text-slate-400 hover:text-slate-600'}">
+        <div class="mb-1 ${active ? 'scale-110' : ''} transition-transform"><i data-lucide="${icon}"></i></div>
+        <span class="text-[10px] ${active ? 'font-bold' : 'font-medium'}">${label}</span>
+      </button>
+    `;
+
+    // --- Student Dashboard ---
+    const renderStudentDashboard = (myEntries) => {
+      let content = '';
+      if (state.activeTab === 'home') content = renderHomeTab(myEntries);
+      else if (state.activeTab === 'calendar') content = renderCalendarTab(myEntries);
+      else if (state.activeTab === 'sticker') content = renderStickerBookTab();
+      return `<div class="animate-in fade-in duration-300">${content}</div>`;
+    };
+
+    const renderHomeTab = (myEntries) => {
+      const todayDate = new Date();
+      const todayStr = todayDate.toLocaleDateString('ja-JP');
+      const hasSubmittedToday = myEntries.some(e => e.date === todayStr);
+      const isWeekend = todayDate.getDay() === 0 || todayDate.getDay() === 6;
+
+      if (isWeekend) {
+        return `
+          <div class="bg-white rounded-3xl p-8 text-center shadow-sm border-2 border-slate-100 animate-in zoom-in-95">
+            <div class="text-7xl mb-4">🌴</div>
+            <h2 class="text-2xl font-bold text-slate-700 mb-4">きょうは おやすみ！</h2>
+            <p class="text-slate-600 font-medium leading-relaxed">土曜日と日曜日は、<br/>音読のきろくはおやすみだよ。<br/>ゆっくりやすんで、また月曜日にがんばろう！</p>
+          </div>
+        `;
+      }
+
+      if (hasSubmittedToday) {
+        return `
+          <div class="bg-white rounded-3xl p-8 text-center shadow-sm border border-emerald-100">
+            <div class="text-7xl mb-4">💮</div>
+            <h2 class="text-2xl font-bold text-emerald-600 mb-4">ていしゅつ完了！</h2>
+            <p class="text-slate-600 mb-6">きょうの音読はばっちりだね。<br/>あしたもがんばろう！</p>
+            <div class="inline-flex items-center justify-center bg-amber-100 text-amber-700 px-6 py-2 rounded-full font-bold">
+              <i data-lucide="star" class="w-5 h-5 mr-1 fill-current"></i> +10 ポイント ゲット
+            </div>
+          </div>
+        `;
+      }
+
+      const evalHtml = [
+        { label: "、や。に気をつけて読めた", idx: 0 },
+        { label: "聞きやすい声の大きさで読めた", idx: 1 },
+        { label: "気持ちをこめて読めた", idx: 2 }
+      ].map(c => renderEvaluationItem(c.idx, c.label, state.criteria[c.idx])).join('');
+
+      const sigHtml = state.signatureData ? `
+        <div class="relative bg-slate-50 border-2 border-slate-200 rounded-xl p-2 flex justify-center h-24 mb-4">
+          <img src="${state.signatureData}" alt="サイン" class="max-h-full object-contain" />
+          <button onclick="window.removeSignatureData()" class="absolute top-1 right-1 bg-white p-1 rounded-full shadow text-slate-400 hover:text-red-500"><i data-lucide="x" class="w-4 h-4"></i></button>
+        </div>
+      ` : `
+        <button onclick="window.openSignaturePad()" class="w-full py-4 bg-slate-50 border-2 border-dashed border-slate-300 rounded-xl text-slate-500 font-bold hover:bg-slate-100 hover:border-indigo-300 transition-colors flex items-center justify-center">
+          <i data-lucide="pen-tool" class="w-5 h-5 mr-2"></i> ここを押してサインをかく
+        </button>
+      `;
+
+      const submittable = !state.criteria.includes(null);
+
+      return `
+        <div class="space-y-6 relative">
+          <!-- 録音 -->
+          <div class="bg-white rounded-2xl p-6 shadow-sm border border-slate-200">
+            <div class="flex items-center mb-4 text-blue-600"><i data-lucide="music" class="w-5 h-5 mr-2"></i><h2 class="font-bold">1. 音読をろくおん (おまけ)</h2></div>
+            <div class="flex flex-col items-center bg-slate-50 p-4 rounded-xl border border-slate-100">
+              ${state.isRecording 
+                ? `<button onclick="window.stopRecording()" class="bg-red-500 text-white p-4 rounded-full shadow-md animate-pulse mb-3"><i data-lucide="square" class="w-8 h-8 fill-current"></i></button>` 
+                : `<button onclick="window.startRecording()" class="bg-blue-500 hover:bg-blue-600 text-white p-4 rounded-full shadow-md transition-colors mb-3"><i data-lucide="mic" class="w-8 h-8"></i></button>`
+              }
+              <p class="text-sm font-bold ${state.isRecording ? 'text-red-500' : 'text-slate-500'}">${state.isRecording ? 'ろくおん中...' : 'マイクを押してスタート'}</p>
+              ${state.audioURL && !state.isRecording ? `<div class="mt-4 w-full"><audio src="${state.audioURL}" controls class="w-full h-10 rounded-full"></audio></div>` : ''}
+            </div>
+          </div>
+
+          <!-- チェック -->
+          <div class="bg-white rounded-2xl p-6 shadow-sm border border-slate-200">
+            <div class="flex items-center mb-4 text-orange-600"><i data-lucide="check" class="w-5 h-5 mr-2"></i><h2 class="font-bold">2. おうちのひとのチェック</h2></div>
+            <div class="space-y-4 mb-6">${evalHtml}</div>
+
+            <div class="flex items-center mb-4 text-indigo-600 border-t pt-6"><i data-lucide="pen-tool" class="w-5 h-5 mr-2"></i><h2 class="font-bold">3. おうちのひとのサイン</h2></div>
+            ${sigHtml}
+          </div>
+
+          <button onclick="window.submitEntry()" ${submittable && !state.isSubmitting ? '' : 'disabled'} class="w-full py-5 rounded-xl font-bold text-lg text-white transition-colors flex items-center justify-center shadow-md ${!submittable ? 'bg-slate-300 cursor-not-allowed' : 'bg-emerald-500 hover:bg-emerald-600'}">
+            ${state.isSubmitting ? 'そうしん中...' : 'せんせいに ていしゅつ！'}
+          </button>
+
+          ${state.showSignaturePad ? renderSignatureModal() : ''}
+          ${state.showSuccess ? `
+            <div class="fixed inset-0 bg-black/20 backdrop-blur-sm flex items-center justify-center z-50">
+              <div class="bg-white p-8 rounded-3xl shadow-xl text-center"><div class="text-6xl mb-2">💮</div><p class="font-bold text-xl text-emerald-600">よくできました！</p></div>
+            </div>
+          ` : ''}
+        </div>
+      `;
+    };
+
+    const renderEvaluationItem = (index, label, value) => {
+      const options = [
+        { val: 2, mark: '◎', color: 'text-red-500', activeBg: 'bg-red-50 border-red-400' },
+        { val: 1, mark: '○', color: 'text-orange-500', activeBg: 'bg-orange-50 border-orange-400' },
+        { val: 0, mark: '△', color: 'text-blue-500', activeBg: 'bg-blue-50 border-blue-400' }
+      ];
+      
+      const buttons = options.map(opt => {
+        const isActive = value === opt.val;
+        const btnClass = isActive ? `${opt.activeBg} ${opt.color} border-2 scale-110 shadow-sm z-10` : 'bg-slate-50 border border-slate-200 text-slate-300 hover:bg-slate-100';
+        return `<button onclick="window.setCriteria(${index}, ${opt.val})" class="w-10 h-10 sm:w-12 sm:h-12 rounded-full text-lg sm:text-xl font-bold flex items-center justify-center transition-all ${btnClass}">${opt.mark}</button>`;
+      }).join('');
+
+      return `
+        <div class="flex items-center justify-between p-3 rounded-xl border border-slate-200 bg-white shadow-sm hover:bg-slate-50 transition-colors">
+          <div class="font-medium text-slate-700 text-sm sm:text-base flex-1 pr-2 leading-tight">${label}</div>
+          <div class="flex space-x-2 shrink-0">${buttons}</div>
+        </div>
+      `;
+    };
+
+    const renderSignatureModal = () => `
+      <div class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+        <div class="bg-white rounded-3xl p-5 w-full max-w-md shadow-2xl flex flex-col animate-in zoom-in-95">
+          <h3 class="font-bold text-slate-700 mb-3 text-center">枠の中にサインをかいてください</h3>
+          <div class="border-2 border-slate-200 rounded-2xl bg-slate-50 relative touch-none overflow-hidden h-[200px] w-full">
+            <canvas id="signature-canvas" class="w-full h-full cursor-crosshair touch-none block" style="touch-action: none;"></canvas>
+          </div>
+          <div class="flex justify-between mt-6">
+            <button onclick="window.clearSignaturePad()" class="px-4 py-3 bg-slate-100 text-slate-600 rounded-xl font-bold hover:bg-slate-200">やりなおす</button>
+            <div class="flex space-x-2">
+              <button onclick="window.closeSignaturePad()" class="px-4 py-3 bg-slate-100 text-slate-600 rounded-xl font-bold hover:bg-slate-200">やめる</button>
+              <button onclick="window.saveSignature()" class="px-6 py-3 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 shadow-md">けってい</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+
+    const renderCalendarTab = (myEntries) => {
+      const d = new Date();
+      const daysInMonth = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+      const firstDay = new Date(d.getFullYear(), d.getMonth(), 1).getDay();
+      const submittedDates = myEntries.map(e => parseInt(e.date.split('/')[2], 10));
+
+      let blanksHtml = '';
+      for (let i = 0; i < firstDay; i++) blanksHtml += `<div class="aspect-square"></div>`;
+      
+      let daysHtml = '';
+      for (let i = 1; i <= daysInMonth; i++) {
+        const isSub = submittedDates.includes(i);
+        const isToday = i === d.getDate();
+        const cls = isSub ? 'bg-emerald-50 text-transparent' : isToday ? 'bg-blue-50 text-blue-700 border border-blue-200' : 'bg-slate-50 text-slate-500';
+        daysHtml += `
+          <div class="aspect-square rounded-lg flex items-center justify-center relative font-medium text-sm transition-all ${cls}">
+            <span class="z-10">${i}</span>
+            ${isSub ? `<div class="absolute inset-0 flex items-center justify-center z-20"><span class="text-2xl opacity-90">💮</span></div>` : ''}
+          </div>
+        `;
+      }
+
+      return `
+        <div class="bg-white rounded-2xl p-6 shadow-sm border border-slate-200">
+          <div class="flex justify-between items-center mb-6">
+            <h2 class="text-xl font-bold text-slate-800">${d.getMonth() + 1}月</h2>
+            <div class="text-sm font-bold text-slate-600 bg-slate-100 px-3 py-1 rounded-full">ごうけい: ${myEntries.length} 回</div>
+          </div>
+          <div class="grid grid-cols-7 gap-2 text-center mb-2">
+            ${['日', '月', '火', '水', '木', '金', '土'].map((day, i) => `<div class="text-xs font-bold ${i === 0 ? 'text-red-400' : i === 6 ? 'text-blue-400' : 'text-slate-400'}">${day}</div>`).join('')}
+          </div>
+          <div class="grid grid-cols-7 gap-2">${blanksHtml}${daysHtml}</div>
+        </div>
+      `;
+    };
+
+    const renderStickerBookTab = () => {
+      const pts = state.profile.points;
+      const myStickers = state.profile.stickers || [];
+      const placed = state.profile.placedStickers || [];
+
+      let placedHtml = placed.map((item, index) => `
+        <div onpointerdown="window.startDragSticker(event, ${index})" class="absolute select-none touch-none group" style="left: ${item.x}px; top: ${item.y}px; font-size: 3rem; z-index: ${10 + index}; cursor: grab;">
+          <span class="block drop-shadow-md transition-transform">${item.emoji}</span>
+          <button onpointerdown="event.stopPropagation()" onclick="window.removeSticker(${index}, event)" class="absolute -top-1 -right-1 bg-white text-slate-400 hover:text-red-500 rounded-full w-6 h-6 flex items-center justify-center text-xs shadow-md border border-slate-100 opacity-0 group-hover:opacity-100 transition-opacity">
+            <i data-lucide="x" class="w-4 h-4"></i>
+          </button>
+        </div>
+      `).join('');
+
+      let paletteHtml = stickerCollection.filter(s => myStickers.includes(s.id)).map(s => `
+        <button onclick="window.placeSticker('${s.id}', '${s.emoji}')" class="aspect-square flex items-center justify-center text-3xl bg-indigo-50 border border-indigo-100 rounded-xl hover:bg-indigo-100 transition-transform active:scale-95">
+          ${s.emoji}
+        </button>
+      `).join('');
+      if (!paletteHtml) paletteHtml = '<div class="col-span-5 text-sm text-slate-400 text-center py-4">まだシールをもっていないよ</div>';
+
+      let shopHtml = stickerCollection.filter(s => !myStickers.includes(s.id)).map(s => {
+        const canAfford = pts >= s.price;
+        const cls = canAfford ? 'bg-white border-2 border-amber-200 cursor-pointer hover:bg-amber-50' : 'bg-slate-50 border border-slate-200 opacity-60';
+        return `
+          <div onclick="window.buySticker('${s.id}', ${s.price}, '${s.name}')" class="flex flex-col items-center p-2 rounded-xl transition-all ${cls}">
+            <div class="text-3xl mb-1">${s.emoji}</div>
+            <div class="flex items-center text-[10px] font-bold px-2 py-0.5 rounded-full ${canAfford ? 'bg-amber-100 text-amber-700' : 'bg-slate-200 text-slate-500'}">
+              <i data-lucide="star" class="w-3 h-3 mr-0.5 fill-current"></i>${s.price}
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      return `
+        <div class="space-y-6 flex flex-col pb-6">
+          <div class="flex items-center justify-between bg-white p-4 rounded-2xl shadow-sm border border-slate-200">
+            <div class="flex items-center"><i data-lucide="book-open" class="w-6 h-6 text-indigo-500 mr-2"></i><h2 class="font-bold text-slate-800">シール帳</h2></div>
+            <div class="flex flex-col items-end">
+              <div class="inline-flex items-center bg-amber-100 text-amber-700 px-3 py-1 rounded-full font-bold text-sm"><i data-lucide="star" class="w-4 h-4 mr-1 fill-current"></i>${pts} pt</div>
+            </div>
+          </div>
+
+          <div class="bg-[#Fdfbf7] rounded-2xl shadow-inner border-2 border-slate-200 relative overflow-hidden h-[300px] w-full" style="background-image: linear-gradient(#e5e7eb 1px, transparent 1px); background-size: 100% 2rem;">
+            <div class="absolute top-2 left-2 text-xs font-bold text-slate-400 z-0">自由にシールをはれるよ！</div>
+            ${placedHtml}
+          </div>
+
+          <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-200">
+            <h3 class="text-sm font-bold text-slate-600 mb-3">あつめたシール (タップではる)</h3>
+            <div class="grid grid-cols-5 gap-2 mb-6">${paletteHtml}</div>
+            <h3 class="text-sm font-bold text-slate-600 mb-3 border-t pt-4">シールショップ</h3>
+            <div class="grid grid-cols-3 sm:grid-cols-4 gap-3">${shopHtml}</div>
+          </div>
+        </div>
+      `;
+    };
+
+    // --- Teacher Dashboard ---
+    const renderTeacherDashboard = () => {
+      const managedStudents = state.allUsers.filter(u => state.profile.managedStudents.includes(u.uid));
+      let tabContent = '';
+      if (state.teacherTab === 'today') tabContent = renderTeacherToday(managedStudents);
+      else if (state.teacherTab === 'month') tabContent = renderTeacherMonth(managedStudents);
+      else if (state.teacherTab === 'manage') tabContent = renderTeacherManage(managedStudents);
+
+      const renderTBtn = (id, icon, label) => `
+        <button onclick="window.setTeacherTab('${id}')" class="flex items-center px-4 py-1.5 rounded-md text-sm font-bold transition-all ${state.teacherTab === id ? 'bg-white text-indigo-700 shadow-sm' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-200/50'}">
+          <div class="mr-1.5 [&>svg]:w-4 [&>svg]:h-4"><i data-lucide="${icon}"></i></div>${label}
+        </button>
+      `;
+
+      return `
+        <div class="bg-white rounded-2xl p-6 shadow-sm border border-indigo-100 mb-10">
+          <div class="flex flex-col sm:flex-row justify-between items-center mb-6 pb-4 border-b border-slate-100 gap-4">
+            <h2 class="text-xl font-bold text-indigo-800 flex items-center">
+              <i data-lucide="users" class="w-6 h-6 mr-2 text-indigo-500"></i> クラス管理
+            </h2>
+            <div class="flex bg-slate-100 p-1 rounded-lg">
+              ${renderTBtn('today', 'list-todo', '今日')}
+              ${renderTBtn('month', 'calendar-days', '月間')}
+              ${renderTBtn('manage', 'user-plus', '登録')}
+            </div>
+          </div>
+          ${tabContent}
+          
+          ${state.selectedSignature ? `
+            <div class="fixed inset-0 bg-slate-900/60 flex flex-col items-center justify-center z-50 p-4 backdrop-blur-sm">
+              <div class="bg-white p-6 rounded-2xl w-full max-w-md">
+                <div class="flex justify-between items-center mb-4">
+                  <h3 class="font-bold text-slate-800 text-lg">保護者のサイン</h3>
+                  <button onclick="window.closeTeacherSignature()" class="p-1 bg-slate-100 rounded-full text-slate-500"><i data-lucide="x" class="w-5 h-5"></i></button>
+                </div>
+                <div class="bg-slate-50 border-2 border-slate-200 rounded-xl overflow-hidden flex justify-center p-2 h-[200px]">
+                  <img src="${state.selectedSignature}" alt="保護者のサイン" class="max-h-full object-contain" />
+                </div>
+                <button onclick="window.closeTeacherSignature()" class="w-full mt-4 py-3 bg-indigo-600 text-white rounded-xl font-bold">とじる</button>
+              </div>
+            </div>
+          ` : ''}
+        </div>
+      `;
+    };
+
+    const renderTeacherToday = (managedStudents) => {
+      const todayStr = new Date().toLocaleDateString('ja-JP');
+      let trs = managedStudents.map(student => {
+        const studentEntries = state.entries.filter(e => e.uid === student.uid);
+        const todayEntry = studentEntries.find(e => e.date === todayStr);
+        let statusHtml = '<span class="text-slate-300">-</span>';
+        if (todayEntry) {
+          statusHtml = `
+            <div class="flex flex-col items-center justify-center">
+              <span class="text-emerald-500 text-lg">💮</span>
+              ${todayEntry.signature ? `<button onclick="window.openTeacherSignature('${todayEntry.signature}')" class="mt-1 text-[10px] bg-indigo-50 text-indigo-600 px-2 py-1 rounded-full hover:bg-indigo-100 border border-indigo-100">✒️ サインを見る</button>` : ''}
+            </div>
+          `;
+        }
+        const audioHtml = todayEntry?.hasAudio ? '<i data-lucide="mic" class="w-4 h-4 text-blue-500 mx-auto"></i>' : '<span class="text-slate-300">-</span>';
+        return `
+          <tr class="border-b border-slate-100 hover:bg-slate-50">
+            <td class="p-3 font-medium text-slate-700">${escapeHTML(student.name)}</td>
+            <td class="p-3 text-center">${statusHtml}</td>
+            <td class="p-3 text-center">${audioHtml}</td>
+          </tr>
+        `;
+      }).join('');
+      if (!trs) trs = `<tr><td colSpan="3" class="p-6 text-center text-slate-400">児童が登録されていません。</td></tr>`;
+
+      return `
+        <div class="animate-in fade-in">
+          <h3 class="font-bold text-slate-700 mb-4">本日の提出状況 (${todayStr})</h3>
+          <div class="overflow-x-auto rounded-xl border border-slate-200">
+            <table class="w-full text-left text-sm whitespace-nowrap">
+              <thead class="bg-slate-50">
+                <tr>
+                  <th class="p-3 font-medium text-slate-500 border-b border-slate-200">児童名</th>
+                  <th class="p-3 text-center font-medium text-slate-500 border-b border-slate-200">提出</th>
+                  <th class="p-3 text-center font-medium text-slate-500 border-b border-slate-200">音声</th>
+                </tr>
+              </thead>
+              <tbody>${trs}</tbody>
+            </table>
+          </div>
+        </div>
+      `;
+    };
+
+    const renderTeacherMonth = (managedStudents) => {
+      const year = state.teacherMonthDate.getFullYear();
+      const month = state.teacherMonthDate.getMonth(); 
+      const daysInMonth = new Date(year, month + 1, 0).getDate();
+      
+      let ths = '';
+      for(let i=1; i<=daysInMonth; i++) ths += `<th class="p-2 font-medium text-slate-500 border-b border-slate-200 text-center min-w-[32px]">${i}</th>`;
+
+      let trs = managedStudents.map(student => {
+        const studentEntries = state.entries.filter(e => e.uid === student.uid);
+        let tds = '';
+        for(let d=1; d<=daysInMonth; d++) {
+          const isWeekend = new Date(year, month, d).getDay() === 0 || new Date(year, month, d).getDay() === 6;
+          const entry = studentEntries.find(e => e.date === `${year}/${month + 1}/${d}`);
+          tds += `<td class="p-1 text-center border-r border-slate-50 ${isWeekend ? 'bg-slate-100' : ''}">${entry ? '<span class="text-emerald-500 text-base">💮</span>' : ''}</td>`;
+        }
+        return `
+          <tr class="border-b border-slate-100 hover:bg-blue-50/30">
+            <td class="p-2 font-bold text-slate-700 border-r border-slate-200 sticky left-0 bg-white z-10 whitespace-nowrap">${escapeHTML(student.name)}</td>
+            ${tds}
+          </tr>
+        `;
+      }).join('');
+      if (!trs) trs = `<tr><td colSpan="${daysInMonth + 1}" class="p-6 text-center text-slate-400">児童がいません</td></tr>`;
+
+      return `
+        <div class="animate-in fade-in">
+          <div class="flex justify-between items-center mb-4 bg-slate-50 p-2 rounded-xl border border-slate-200">
+            <button onclick="window.changeTeacherMonth(-1)" class="px-3 py-1 font-bold text-slate-500 hover:bg-white rounded shadow-sm">← 前月</button>
+            <h3 class="font-bold text-slate-800 text-lg">${year}年 ${month + 1}月</h3>
+            <button onclick="window.changeTeacherMonth(1)" class="px-3 py-1 font-bold text-slate-500 hover:bg-white rounded shadow-sm">次月 →</button>
+          </div>
+          <div class="overflow-x-auto rounded-xl border border-slate-200 custom-scrollbar pb-2">
+            <table class="w-full text-left text-xs border-collapse">
+              <thead class="bg-slate-50">
+                <tr>
+                  <th class="p-2 font-medium text-slate-500 border-b border-r border-slate-200 sticky left-0 bg-slate-50 z-10 min-w-[100px]">児童名</th>
+                  ${ths}
+                </tr>
+              </thead>
+              <tbody>${trs}</tbody>
+            </table>
+          </div>
+        </div>
+      `;
+    };
+
+    const renderTeacherManage = (managedStudents) => {
+      let searchResHtml = '';
+      if (state.searchResult === 'not_found') {
+        searchResHtml = '<p class="text-red-500 text-sm font-bold">みつかりませんでした。</p>';
+      } else if (state.searchResult) {
+        const isManaged = state.profile.managedStudents.includes(state.searchResult.uid);
+        searchResHtml = `
+          <div class="bg-white p-4 rounded-lg border border-emerald-200 flex justify-between items-center mt-2">
+            <div><span class="text-xs text-slate-500 block">みつかりました</span><span class="font-bold">${escapeHTML(state.searchResult.name)}</span></div>
+            ${isManaged 
+              ? `<span class="text-sm text-slate-500 font-bold bg-slate-100 px-3 py-1 rounded-full">登録ずみ</span>`
+              : `<button onclick="window.handleAddStudent('${state.searchResult.uid}')" class="bg-emerald-500 text-white px-4 py-1.5 rounded-full font-bold text-sm">追加する</button>`}
+          </div>
+        `;
+      }
+
+      let studentsHtml = managedStudents.map(student => `
+        <div class="flex justify-between items-center p-3 bg-white border border-slate-200 rounded-lg">
+          <div class="flex items-center space-x-3">
+            <div class="bg-slate-100 p-2 rounded-full"><i data-lucide="award" class="w-5 h-5 text-slate-400"></i></div>
+            <div><div class="font-bold text-slate-700">${escapeHTML(student.name)}</div><div class="text-xs text-slate-400 font-mono">ID: ${student.shortId}</div></div>
+          </div>
+          <button onclick="window.handleRemoveStudent('${student.uid}')" class="text-xs text-red-400 hover:bg-red-50 px-3 py-1 rounded-lg">削除</button>
+        </div>
+      `).join('');
+
+      return `
+        <div class="animate-in fade-in space-y-6">
+          <div class="bg-indigo-50 p-6 rounded-xl border border-indigo-100">
+            <h3 class="font-bold text-indigo-800 mb-2 flex items-center"><i data-lucide="user-plus" class="w-5 h-5 mr-2"></i> 児童を追加</h3>
+            <p class="text-sm text-slate-600 mb-4">児童の画面（右上）の6桁の「ID」を入力してください。</p>
+            <div class="flex space-x-2 mb-2">
+              <input type="text" placeholder="ID (例: A1B2C3)" oninput="window.onSearchInputChange(this)" value="${escapeHTML(state.newStudentId)}" class="flex-1 px-4 py-2 rounded-lg border border-slate-300 uppercase" maxlength="6" />
+              <button onclick="window.handleSearchStudent()" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg font-bold"><i data-lucide="search" class="w-4 h-4"></i></button>
+            </div>
+            ${searchResHtml}
+          </div>
+          <div>
+            <h3 class="font-bold text-slate-700 mb-4 border-b pb-2">登録ずみの児童 (${managedStudents.length}名)</h3>
+            <div class="grid gap-3">${studentsHtml}</div>
+          </div>
+        </div>
+      `;
+    };
+
+    // --- DOM Update & Setup ---
+    function render() {
+      const appDiv = document.getElementById('app');
+      appDiv.innerHTML = renderApp();
+      lucide.createIcons();
+
+      // Post-render setup
+      if (state.showSignaturePad) {
+        setupSignatureCanvas();
+      }
+    }
+
+    function setupSignatureCanvas() {
+      const canvas = document.getElementById('signature-canvas');
+      if (!canvas) return;
+      
+      canvas.width = 600;
+      canvas.height = 300; 
+      const ctx = canvas.getContext('2d');
+      ctx.lineWidth = 6;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      ctx.strokeStyle = '#1e293b';
+
+      let isDrawing = false;
+
+      const getCoords = (e) => {
+        const rect = canvas.getBoundingClientRect();
+        const scaleX = canvas.width / rect.width;
+        const scaleY = canvas.height / rect.height;
+        let clientX = e.clientX, clientY = e.clientY;
+        if (e.touches && e.touches.length > 0) {
+          clientX = e.touches[0].clientX;
+          clientY = e.touches[0].clientY;
+        }
+        return { x: (clientX - rect.left) * scaleX, y: (clientY - rect.top) * scaleY };
+      };
+
+      const startDrawing = (e) => {
+        e.preventDefault();
+        isDrawing = true;
+        const { x, y } = getCoords(e);
+        ctx.beginPath();
+        ctx.moveTo(x, y);
+      };
+
+      const draw = (e) => {
+        e.preventDefault();
+        if (!isDrawing) return;
+        const { x, y } = getCoords(e);
+        ctx.lineTo(x, y);
+        ctx.stroke();
+      };
+
+      const stopDrawing = () => { isDrawing = false; };
+
+      canvas.addEventListener('pointerdown', startDrawing);
+      canvas.addEventListener('pointermove', draw);
+      canvas.addEventListener('pointerup', stopDrawing);
+      canvas.addEventListener('pointerout', stopDrawing);
+      canvas.addEventListener('touchstart', startDrawing, {passive: false});
+      canvas.addEventListener('touchmove', draw, {passive: false});
+      canvas.addEventListener('touchend', stopDrawing);
+    }
+
+    // Initialize View
+    render();
+
+  </script>
+</body>
+</html>
