@@ -5,21 +5,15 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>音読クエスト</title>
   
-  <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
-  
-  <!-- Lucide Icons -->
   <script src="https://unpkg.com/lucide@latest"></script>
   
   <style>
-    /* カスタムスタイル */
     .custom-scrollbar::-webkit-scrollbar { height: 8px; }
     .custom-scrollbar::-webkit-scrollbar-track { background: #f1f5f9; border-radius: 4px; }
     .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
     .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
     .touch-none { touch-action: none; }
-    
-    /* アニメーション補足 */
     @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
     @keyframes zoomIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
     .animate-in { animation: fadeIn 0.3s ease-out; }
@@ -31,15 +25,14 @@
 
   <div id="app"></div>
 
-  <!-- アプリケーションロジック -->
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
     import { 
       getAuth, 
       onAuthStateChanged, 
       signInAnonymously,
-      signInWithCustomToken,
-      signInWithPopup,
+      signInWithRedirect,
+      getRedirectResult,
       GoogleAuthProvider,
       OAuthProvider,
       signOut
@@ -68,7 +61,6 @@
     const auth = getAuth(app);
     const db = getFirestore(app);
 
-    // 独自のFirebase環境向けにシンプルなルートコレクションを使用
     const USERS_PATH = `users`;
     const ENTRIES_PATH = `entries`;
 
@@ -78,12 +70,12 @@
       profile: null,
       isTeacherView: window.location.hash === '#teacher',
       authChecking: true,
+      loginError: null, // エラー表示用
       
-      activeTab: 'home', // home, calendar, sticker
+      activeTab: 'home', 
       entries: [],
       allUsers: [],
       
-      // Student Form State
       criteria: [null, null, null],
       isRecording: false,
       audioURL: null,
@@ -92,8 +84,7 @@
       isSubmitting: false,
       showSuccess: false,
       
-      // Teacher Dashboard State
-      teacherTab: 'today', // today, month, manage
+      teacherTab: 'today',
       newStudentId: '',
       searchResult: null,
       selectedSignature: null,
@@ -101,11 +92,10 @@
     };
 
     let unsubs = [];
-    let isInteracting = false; // レンダリングによる入力リセットを防ぐフラグ
+    let isInteracting = false; 
     let mediaRecorder = null;
     let audioChunks = [];
 
-    // --- Helper Functions ---
     const escapeHTML = (str) => {
       if (!str) return '';
       return String(str).replace(/[&<>'"]/g, 
@@ -113,11 +103,21 @@
       );
     };
 
-    const safeRender = () => {
-      if (!isInteracting) render();
-    };
+    const safeRender = () => { if (!isInteracting) render(); };
 
-    // --- Firebase Listeners ---
+    // リダイレクト後の結果を受け取る処理
+    getRedirectResult(auth).then((result) => {
+      if (result) {
+        // ログイン成功
+        state.loginError = null;
+      }
+    }).catch((error) => {
+      console.error("Redirect Login Error:", error);
+      state.loginError = error.message;
+      state.authChecking = false;
+      render();
+    });
+
     onAuthStateChanged(auth, (currentUser) => {
       state.user = currentUser;
       state.authChecking = false;
@@ -178,33 +178,27 @@
       unsubs.push(unsubProfile, unsubEntries, unsubUsers);
     }
 
-    // --- Global Handlers ---
+    // --- 変更: ポップアップからリダイレクトに変更 ---
     window.handleLogin = async (providerName) => {
       isInteracting = true;
+      state.loginError = null;
       const btnContainer = document.getElementById('login-buttons');
-      if (btnContainer) btnContainer.innerHTML = '<p class="mt-4 text-sm text-blue-500 font-bold animate-pulse">ログイン処理中...</p>';
+      if (btnContainer) btnContainer.innerHTML = '<p class="mt-4 text-sm text-blue-500 font-bold animate-pulse">ログイン画面へ移動します...</p>';
 
       try {
         if (providerName === 'google') {
-          await signInWithPopup(auth, new GoogleAuthProvider());
+          await signInWithRedirect(auth, new GoogleAuthProvider());
         } else if (providerName === 'microsoft') {
-          await signInWithPopup(auth, new OAuthProvider('microsoft.com'));
+          await signInWithRedirect(auth, new OAuthProvider('microsoft.com'));
         } else {
-          // テスト・フォールバック用
           await signInAnonymously(auth);
         }
       } catch (error) {
-        console.error("Login error:", error);
-        alert("ログインに失敗しました。ポップアップがブロックされていないかご確認ください。");
-        // Canvasなどのプレビュー環境でポップアップがブロックされる場合は匿名ログインにフォールバック
-        try {
-          await signInAnonymously(auth);
-        } catch (fallbackError) {
-          console.error("Fallback login failed:", fallbackError);
-        }
-      } finally {
+        console.error("Login trigger error:", error);
+        state.loginError = error.message;
         isInteracting = false;
-      }
+        render();
+      } 
     };
 
     window.handleLogout = () => {
@@ -214,8 +208,6 @@
 
     window.switchTab = (tab) => { state.activeTab = tab; render(); };
     window.setTeacherTab = (tab) => { state.teacherTab = tab; render(); };
-    
-    // Student Form Handlers
     window.setCriteria = (index, value) => { state.criteria[index] = value; render(); };
     
     window.startRecording = async () => {
@@ -232,7 +224,7 @@
         };
         mediaRecorder.start();
         state.isRecording = true;
-        isInteracting = true; // 録音中は再レンダリングブロック
+        isInteracting = true;
         render();
       } catch (err) { alert("マイクが使えません。許可を確認してください。"); }
     };
@@ -289,7 +281,6 @@
       }
     };
 
-    // Sticker Handlers
     const stickerCollection = [
       { id: 'apple', emoji: '🍎', price: 10, name: 'りんご' }, { id: 'star', emoji: '⭐', price: 10, name: 'ほし' },
       { id: 'car', emoji: '🚗', price: 20, name: 'くるま' }, { id: 'cat', emoji: '🐱', price: 20, name: 'ネコ' },
@@ -324,10 +315,9 @@
       await updateDoc(doc(db, USERS_PATH, state.user.uid), { placedStickers: updated });
     };
 
-    // Sticker Dragging Logic
     window.startDragSticker = (e, index) => {
       e.preventDefault();
-      isInteracting = true; // ドラッグ中の再レンダリング防止
+      isInteracting = true; 
       const el = e.currentTarget;
       el.setPointerCapture(e.pointerId);
       
@@ -359,9 +349,9 @@
         
         const updated = [...state.profile.placedStickers];
         updated[index] = { ...updated[index], x: finalX, y: finalY };
-        state.profile.placedStickers = updated; // optimistic update
+        state.profile.placedStickers = updated; 
         isInteracting = false;
-        render(); // 再描画
+        render(); 
 
         try {
           await updateDoc(doc(db, USERS_PATH, state.user.uid), { placedStickers: updated });
@@ -372,7 +362,6 @@
       document.addEventListener('pointerup', onUp);
     };
 
-    // Teacher Handlers
     window.onSearchInputChange = (e) => { state.newStudentId = e.value; };
     window.handleSearchStudent = () => {
       if (!state.newStudentId) return;
@@ -424,6 +413,9 @@
           <p class="text-slate-500 mb-8 font-medium">
             ${state.isTeacherView ? '先生用ダッシュボード' : 'まいにち読んでポイントゲット！'}
           </p>
+          
+          ${state.loginError ? `<div class="mb-4 p-3 bg-red-100 text-red-600 rounded-lg text-sm font-bold text-left break-words">ログインエラー: ${escapeHTML(state.loginError)}</div>` : ''}
+
           <div id="login-buttons" class="space-y-4">
             <button onclick="window.handleLogin('google')" class="w-full flex items-center justify-center py-3 px-4 bg-white border-2 border-slate-200 hover:border-blue-400 hover:bg-blue-50 text-slate-700 font-bold rounded-xl transition-all">
               <svg class="w-5 h-5 mr-3" viewBox="0 0 24 24">
@@ -453,7 +445,6 @@
       
       return `
         <div class="min-h-screen pb-24">
-          <!-- Header -->
           <header class="bg-white p-4 sticky top-0 z-30 shadow-sm border-b border-slate-200">
             <div class="max-w-4xl mx-auto flex justify-between items-center">
               <div class="flex items-center space-x-3">
@@ -478,12 +469,10 @@
             </div>
           </header>
 
-          <!-- Main Content -->
           <main class="max-w-4xl mx-auto px-4 mt-6">
             ${isActuallyTeacher ? renderTeacherDashboard() : renderStudentDashboard(myEntries)}
           </main>
 
-          <!-- Bottom Navigation (Student) -->
           ${!isActuallyTeacher ? `
             <div class="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 z-40 pb-safe">
               <nav class="max-w-md mx-auto flex justify-around">
@@ -504,7 +493,6 @@
       </button>
     `;
 
-    // --- Student Dashboard ---
     const renderStudentDashboard = (myEntries) => {
       let content = '';
       if (state.activeTab === 'home') content = renderHomeTab(myEntries);
@@ -563,7 +551,6 @@
 
       return `
         <div class="space-y-6 relative">
-          <!-- 録音 -->
           <div class="bg-white rounded-2xl p-6 shadow-sm border border-slate-200">
             <div class="flex items-center mb-4 text-blue-600"><i data-lucide="music" class="w-5 h-5 mr-2"></i><h2 class="font-bold">1. 音読をろくおん (おまけ)</h2></div>
             <div class="flex flex-col items-center bg-slate-50 p-4 rounded-xl border border-slate-100">
@@ -576,7 +563,6 @@
             </div>
           </div>
 
-          <!-- チェック -->
           <div class="bg-white rounded-2xl p-6 shadow-sm border border-slate-200">
             <div class="flex items-center mb-4 text-orange-600"><i data-lucide="check" class="w-5 h-5 mr-2"></i><h2 class="font-bold">2. おうちのひとのチェック</h2></div>
             <div class="space-y-4 mb-6">${evalHtml}</div>
@@ -732,7 +718,6 @@
       `;
     };
 
-    // --- Teacher Dashboard ---
     const renderTeacherDashboard = () => {
       const managedStudents = state.allUsers.filter(u => state.profile.managedStudents.includes(u.uid));
       let tabContent = '';
@@ -914,13 +899,11 @@
       `;
     };
 
-    // --- DOM Update & Setup ---
     function render() {
       const appDiv = document.getElementById('app');
       appDiv.innerHTML = renderApp();
       lucide.createIcons();
 
-      // Post-render setup
       if (state.showSignaturePad) {
         setupSignatureCanvas();
       }
@@ -979,7 +962,6 @@
       canvas.addEventListener('touchend', stopDrawing);
     }
 
-    // Initialize View
     render();
 
   </script>
