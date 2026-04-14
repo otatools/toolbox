@@ -31,8 +31,7 @@
       getAuth, 
       onAuthStateChanged, 
       signInAnonymously,
-      signInWithRedirect,
-      getRedirectResult,
+      signInWithPopup,
       GoogleAuthProvider,
       OAuthProvider,
       signOut
@@ -70,7 +69,8 @@
       profile: null,
       isTeacherView: window.location.hash === '#teacher',
       authChecking: true,
-      loginError: null, // エラー表示用
+      loginError: null, 
+      isLoggingIn: false,
       
       activeTab: 'home', 
       entries: [],
@@ -104,21 +104,6 @@
     };
 
     const safeRender = () => { if (!isInteracting) render(); };
-
-    // リダイレクト後の結果を受け取る処理
-    getRedirectResult(auth).then((result) => {
-      if (result) {
-        state.loginError = null;
-      }
-    }).catch((error) => {
-      // プレビュー環境でのエラーは無視して続行できるようにする
-      if (error.code !== 'auth/unauthorized-domain') {
-        console.error("Redirect Login Error:", error);
-        state.loginError = error.message;
-      }
-      state.authChecking = false;
-      render();
-    });
 
     onAuthStateChanged(auth, (currentUser) => {
       state.user = currentUser;
@@ -154,6 +139,7 @@
           state.profile = data;
           safeRender();
         } else {
+          // ★新規登録
           const shortId = user.uid.substring(0, 6).toUpperCase();
           const role = state.isTeacherView ? 'teacher' : 'student';
           const newProfile = {
@@ -183,40 +169,39 @@
     window.handleLogin = async (providerName) => {
       isInteracting = true;
       state.loginError = null;
-      const btnContainer = document.getElementById('login-buttons');
-      if (btnContainer) btnContainer.innerHTML = '<p class="mt-4 text-sm text-blue-500 font-bold animate-pulse">通信中...</p>';
+      state.isLoggingIn = true;
+      render();
 
       try {
         if (providerName === 'google') {
-          await signInWithRedirect(auth, new GoogleAuthProvider());
+          await signInWithPopup(auth, new GoogleAuthProvider());
         } else if (providerName === 'microsoft') {
           const msProvider = new OAuthProvider('microsoft.com');
-          // Microsoftの認証エンドポイントへのGETリクエストエラーを回避するため、アカウント選択を強制するパラメータを追加
+          // MicrosoftのGETリクエストエラー対策
           msProvider.setCustomParameters({
             prompt: 'select_account'
           });
-          await signInWithRedirect(auth, msProvider);
+          await signInWithPopup(auth, msProvider);
         } else {
           await signInAnonymously(auth);
         }
       } catch (error) {
-        // Canvasのプレビュー環境などでドメインが未承認の場合、テスト用に匿名ログインへフォールバックします
+        console.error("Login Error:", error);
+        // エラー内容を具体的に画面に表示する
         if (error.code === 'auth/unauthorized-domain') {
-          console.warn("プレビュー環境または未承認ドメインのため、匿名ログインで続行します。");
-          try {
-            await signInAnonymously(auth);
-            return;
-          } catch (fallbackErr) {
-            state.loginError = "テスト用ログインに失敗しました。Firebaseの Authentication で「匿名 (Anonymous)」を有効にしてください。";
-          }
+          state.loginError = `設定エラー: Firebaseの「承認済みドメイン」に [ ${window.location.hostname} ] を追加してください。`;
+        } else if (error.code === 'auth/popup-blocked') {
+          state.loginError = "ポップアップがブロックされました。ブラウザの設定でポップアップを許可してください。";
+        } else if (error.code === 'auth/cancelled-popup-request' || error.code === 'auth/popup-closed-by-user') {
+          state.loginError = "ログインがキャンセルされました。";
         } else {
-          console.error("Login trigger error:", error);
-          state.loginError = error.message;
+          state.loginError = "ログインエラー: " + error.message;
         }
-        
+      } finally {
+        state.isLoggingIn = false;
         isInteracting = false;
         render();
-      } 
+      }
     };
 
     window.handleLogout = () => {
@@ -428,25 +413,37 @@
         <div class="bg-white p-8 rounded-3xl shadow-lg max-w-md w-full text-center border border-white">
           <div class="text-6xl mb-4 drop-shadow-sm">📖</div>
           <h1 class="text-3xl font-black text-slate-800 mb-2">音読クエスト</h1>
-          <p class="text-slate-500 mb-8 font-medium">
+          <p class="text-slate-500 mb-6 font-medium">
             ${state.isTeacherView ? '先生用ダッシュボード' : 'まいにち読んでポイントゲット！'}
           </p>
+
+          <div class="bg-blue-50 p-4 rounded-xl mb-6 text-sm text-blue-700 font-bold text-left shadow-inner border border-blue-100">
+            <i data-lucide="info" class="w-5 h-5 mb-1 inline-block"></i> はじめての方へ<br>
+            <span class="text-blue-600 font-medium">アカウントをお持ちでない場合は、下のボタンから進むと自動的に「新規登録」されます。</span>
+          </div>
           
-          ${state.loginError ? `<div class="mb-4 p-3 bg-red-100 text-red-600 rounded-lg text-sm font-bold text-left break-words">エラー: ${escapeHTML(state.loginError)}</div>` : ''}
+          ${state.loginError ? `<div class="mb-6 p-4 bg-red-100 text-red-700 rounded-xl text-sm font-bold text-left break-words border-2 border-red-200">${escapeHTML(state.loginError)}</div>` : ''}
 
           <div id="login-buttons" class="space-y-4">
-            <button onclick="window.handleLogin('google')" class="w-full flex items-center justify-center py-3 px-4 bg-white border-2 border-slate-200 hover:border-blue-400 hover:bg-blue-50 text-slate-700 font-bold rounded-xl transition-all">
-              <svg class="w-5 h-5 mr-3" viewBox="0 0 24 24">
-                <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
-                <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
-                <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" />
-                <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
-              </svg> Google でログイン
-            </button>
-            <button onclick="window.handleLogin('microsoft')" class="w-full flex items-center justify-center py-3 px-4 bg-white border-2 border-slate-200 hover:border-blue-400 hover:bg-blue-50 text-slate-700 font-bold rounded-xl transition-all">
-              <svg class="w-5 h-5 mr-3" viewBox="0 0 21 21"><path fill="#f25022" d="M1 1h9v9H1z"/><path fill="#00a4ef" d="M1 11h9v9H1z"/><path fill="#7fba00" d="M11 1h9v9h-9z"/><path fill="#ffb900" d="M11 11h9v9h-9z"/></svg>
-              Microsoft でログイン
-            </button>
+            ${state.isLoggingIn ? `
+              <div class="py-4 flex flex-col items-center justify-center text-blue-500 font-bold">
+                <div class="w-8 h-8 border-4 border-blue-200 border-t-blue-500 rounded-full animate-spin mb-3"></div>
+                ログイン処理中...
+              </div>
+            ` : `
+              <button onclick="window.handleLogin('google')" class="w-full flex items-center justify-center py-3 px-4 bg-white border-2 border-slate-200 hover:border-blue-400 hover:bg-blue-50 text-slate-700 font-bold rounded-xl transition-all shadow-sm">
+                <svg class="w-5 h-5 mr-3" viewBox="0 0 24 24">
+                  <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
+                  <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+                  <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" />
+                  <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
+                </svg> Google でログイン
+              </button>
+              <button onclick="window.handleLogin('microsoft')" class="w-full flex items-center justify-center py-3 px-4 bg-white border-2 border-slate-200 hover:border-blue-400 hover:bg-blue-50 text-slate-700 font-bold rounded-xl transition-all shadow-sm">
+                <svg class="w-5 h-5 mr-3" viewBox="0 0 21 21"><path fill="#f25022" d="M1 1h9v9H1z"/><path fill="#00a4ef" d="M1 11h9v9H1z"/><path fill="#7fba00" d="M11 1h9v9h-9z"/><path fill="#ffb900" d="M11 11h9v9h-9z"/></svg>
+                Microsoft でログイン
+              </button>
+            `}
           </div>
         </div>
         <div class="mt-8 text-sm font-medium text-slate-500">
