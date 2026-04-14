@@ -190,13 +190,17 @@
         if (providerName === 'google') {
           await signInWithRedirect(auth, new GoogleAuthProvider());
         } else if (providerName === 'microsoft') {
-          await signInWithRedirect(auth, new OAuthProvider('microsoft.com'));
+          const msProvider = new OAuthProvider('microsoft.com');
+          // Microsoftの認証エンドポイントへのGETリクエストエラーを回避するため、アカウント選択を強制するパラメータを追加
+          msProvider.setCustomParameters({
+            prompt: 'select_account'
+          });
+          await signInWithRedirect(auth, msProvider);
         } else {
           await signInAnonymously(auth);
         }
       } catch (error) {
         // Canvasのプレビュー環境などでドメインが未承認の場合、テスト用に匿名ログインへフォールバックします
-        // コンソールエラーとして出力しないように修正
         if (error.code === 'auth/unauthorized-domain') {
           console.warn("プレビュー環境または未承認ドメインのため、匿名ログインで続行します。");
           try {
