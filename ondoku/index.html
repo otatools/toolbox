@@ -21,7 +21,6 @@
     .pb-safe { padding-bottom: env(safe-area-inset-bottom); }
   </style>
 </head>
-<!-- 画面全体を固定し、メイン領域だけスクロールさせることで 1366x598 のような横長画面に最適化 -->
 <body class="bg-slate-50 text-slate-800 selection:bg-blue-100 font-sans h-screen overflow-hidden flex flex-col">
 
   <div id="app" class="h-full flex flex-col"></div>
@@ -43,6 +42,7 @@
       doc, 
       setDoc, 
       updateDoc,
+      deleteDoc,
       serverTimestamp 
     } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
@@ -79,11 +79,14 @@
       showSignaturePad: false,
       isSubmitting: false,
       showSuccess: false,
+      successMessage: "",
       isRecording: false,
       audioURL: null,
       
       showNameEditModal: false,
       editNameInput: '',
+      
+      calendarSignatureToShow: null,
 
       teacherTab: 'today',
       newStudentId: '',
@@ -136,6 +139,7 @@
           if (!data.stickers) data.stickers = [];
           if (!data.placedStickers) data.placedStickers = [];
           if (!data.managedStudents) data.managedStudents = [];
+          if (data.totalEntries === undefined) data.totalEntries = 0;
           state.profile = data;
           safeRender();
         } else {
@@ -143,7 +147,7 @@
           const role = state.isTeacherView ? 'teacher' : 'student';
           const newProfile = {
             uid: user.uid, shortId, name: role === 'teacher' ? '先生' : `児童_${shortId}`,
-            role, points: 0, stickers: [], placedStickers: [], managedStudents: [],
+            role, points: 0, stickers: [], placedStickers: [], managedStudents: [], totalEntries: 0,
             createdAt: serverTimestamp()
           };
           setDoc(userDocRef, newProfile);
@@ -206,20 +210,12 @@
       isInteracting = true;
       render();
     };
-
-    window.closeNameEditModal = () => {
-      state.showNameEditModal = false;
-      isInteracting = false;
-      render();
-    };
-
+    window.closeNameEditModal = () => { state.showNameEditModal = false; isInteracting = false; render(); };
     window.onNameInputChange = (e) => { state.editNameInput = e.value; };
-
     window.saveName = async () => {
       if (!state.editNameInput.trim()) return;
-      try {
-        await updateDoc(doc(db, USERS_PATH, state.user.uid), { name: state.editNameInput.trim() });
-      } catch(e) { console.error(e); }
+      try { await updateDoc(doc(db, USERS_PATH, state.user.uid), { name: state.editNameInput.trim() }); } 
+      catch(e) { console.error(e); }
       state.showNameEditModal = false;
       isInteracting = false;
       render();
@@ -229,7 +225,6 @@
     window.setTeacherTab = (tab) => { state.teacherTab = tab; render(); };
     window.setCriteria = (index, value) => { state.criteria[index] = value; render(); };
 
-    // --- 録音機能 (一時確認用) ---
     window.startRecording = async () => {
       try {
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -246,9 +241,8 @@
         state.isRecording = true;
         isInteracting = true;
         render();
-      } catch (err) { alert("マイクが使えません。ブラウザの許可を確認してください。"); }
+      } catch (err) { alert("マイクにアクセスできませんでした。\nブラウザのアドレスバー左側からマイクを許可してください。"); }
     };
-    
     window.stopRecording = () => {
       if (mediaRecorder && state.isRecording) {
         mediaRecorder.stop();
@@ -272,6 +266,7 @@
     };
     window.removeSignatureData = () => { state.signatureData = null; render(); };
 
+    // --- 提出・取り消しロジック ---
     window.submitEntry = async () => {
       if (state.criteria.includes(null)) return;
       state.isSubmitting = true;
@@ -280,16 +275,31 @@
       try {
         const todayStr = new Date().toLocaleDateString('ja-JP');
         const entryId = `${state.user.uid}_${todayStr.replace(/\//g, '')}`;
+        
+        const currentTotal = state.profile.totalEntries || 0;
+        const newTotal = currentTotal + 1;
+        
+        let earnedPoints = 10;
+        let isBonus = false;
+        // 5日累計ごとにボーナス50ポイント (基本10 + ボーナス50 = 60pt)
+        if (newTotal % 5 === 0) {
+          earnedPoints += 50;
+          isBonus = true;
+        }
+
         await setDoc(doc(db, ENTRIES_PATH, entryId), {
           uid: state.user.uid,
           date: todayStr,
           criteria: state.criteria,
-          // ※音声データ(hasAudio/audioURL)は提出データから除外しました
           signature: state.signatureData,
           timestamp: serverTimestamp()
         });
-        await updateDoc(doc(db, USERS_PATH, state.user.uid), { points: state.profile.points + 10 });
+        await updateDoc(doc(db, USERS_PATH, state.user.uid), { 
+          points: state.profile.points + earnedPoints,
+          totalEntries: newTotal
+        });
         
+        state.successMessage = isBonus ? "5日たっせいボーナス！ +60 pt ゲット！" : "+10 ポイント ゲット！";
         state.showSuccess = true;
         state.isSubmitting = false;
         render();
@@ -301,13 +311,58 @@
       }
     };
 
+    window.cancelEntry = async () => {
+      if (!confirm("きょうの記録を取り消しますか？\n(ポイントがマイナスになります)")) return;
+      try {
+        const todayStr = new Date().toLocaleDateString('ja-JP');
+        const entryId = `${state.user.uid}_${todayStr.replace(/\//g, '')}`;
+        
+        const currentTotal = state.profile.totalEntries || 1;
+        const newTotal = Math.max(0, currentTotal - 1);
+        
+        let lostPoints = 10;
+        // もしボーナスをもらった回を取り消すならボーナス分も引く
+        if (currentTotal > 0 && currentTotal % 5 === 0) {
+          lostPoints += 50;
+        }
+
+        await updateDoc(doc(db, USERS_PATH, state.user.uid), { 
+          points: state.profile.points - lostPoints,
+          totalEntries: newTotal
+        });
+        await deleteDoc(doc(db, ENTRIES_PATH, entryId));
+
+        state.criteria = [null, null, null];
+        state.signatureData = null;
+        state.audioURL = null;
+        render();
+      } catch (err) {
+        console.error(err);
+        alert("取り消しに失敗しました。");
+      }
+    };
+
+    window.openCalendarSignature = (sig) => { state.calendarSignatureToShow = sig; render(); };
+    window.closeCalendarSignature = () => { state.calendarSignatureToShow = null; render(); };
+
+    // --- カスタムシール設定 ---
     const stickerCollection = [
-      { id: 'apple', emoji: '🍎', price: 10, name: 'りんご' }, { id: 'star', emoji: '⭐', price: 10, name: 'ほし' },
-      { id: 'car', emoji: '🚗', price: 20, name: 'くるま' }, { id: 'cat', emoji: '🐱', price: 20, name: 'ネコ' },
-      { id: 'dog', emoji: '🐶', price: 30, name: 'イヌ' }, { id: 'rocket', emoji: '🚀', price: 30, name: 'ロケット' },
-      { id: 'ghost', emoji: '👻', price: 50, name: 'おばけ' }, { id: 'crown', emoji: '👑', price: 50, name: 'おうかん' },
-      { id: 'gem', emoji: '💎', price: 100, name: 'ほうせき' }, { id: 'dragon', emoji: '🐉', price: 100, name: 'ドラゴン' },
+      { id: 's001', image: '001.png', fallbackEmoji: '🍎', price: 10, name: 'シール1', unlockMonth: 1 },
+      { id: 's002', image: '002.png', fallbackEmoji: '⭐', price: 10, name: 'シール2', unlockMonth: 1 },
+      { id: 's003', image: '003.png', fallbackEmoji: '🚗', price: 20, name: 'シール3', unlockMonth: 2 },
+      { id: 's004', image: '004.png', fallbackEmoji: '🐱', price: 20, name: 'シール4', unlockMonth: 3 },
+      { id: 's005', image: '005.png', fallbackEmoji: '🐶', price: 30, name: 'シール5', unlockMonth: 4 },
+      { id: 's006', image: '006.png', fallbackEmoji: '🚀', price: 30, name: 'シール6', unlockMonth: 5 },
+      { id: 's007', image: '007.png', fallbackEmoji: '👻', price: 50, name: 'シール7', unlockMonth: 6 },
+      { id: 's008', image: '008.png', fallbackEmoji: '👑', price: 50, name: 'シール8', unlockMonth: 7 },
+      { id: 's009', image: '009.png', fallbackEmoji: '💎', price: 100, name: 'シール9', unlockMonth: 8 },
+      { id: 's010', image: '010.png', fallbackEmoji: '🐉', price: 100, name: 'シール10', unlockMonth: 9 },
     ];
+
+    const renderStickerImg = (s, customClass = "w-full h-full object-contain") => {
+      // 画像がない場合は fallbackEmoji を表示する
+      return `<img src="${s.image}" onerror="this.outerHTML='<span class=\\'drop-shadow-md\\'>${s.fallbackEmoji}</span>'" class="${customClass}" alt="${s.name}" />`;
+    };
 
     window.buySticker = async (stickerId, price, name) => {
       if (state.profile.points >= price) {
@@ -320,22 +375,32 @@
       }
     };
 
-    window.placeSticker = async (id, emoji) => {
+    window.placeSticker = async (id) => {
       const x = 20 + Math.random() * 100;
       const y = 20 + Math.random() * 100;
-      const newSticker = { id, emoji, x, y, uid: Date.now() };
+      const newSticker = { id, x, y, rotation: 0, uid: Date.now() };
       await updateDoc(doc(db, USERS_PATH, state.user.uid), {
         placedStickers: [...state.profile.placedStickers, newSticker]
       });
     };
 
-    window.removeSticker = async (index, event) => {
+    window.removeSticker = async (uid, event) => {
       event.stopPropagation();
-      const updated = state.profile.placedStickers.filter((_, i) => i !== index);
+      const updated = state.profile.placedStickers.filter(p => p.uid !== uid);
       await updateDoc(doc(db, USERS_PATH, state.user.uid), { placedStickers: updated });
     };
 
-    // --- すべてはがす機能 ---
+    window.rotateSticker = async (uid, event) => {
+      event.stopPropagation();
+      const index = state.profile.placedStickers.findIndex(p => p.uid === uid);
+      if(index === -1) return;
+      const updated = [...state.profile.placedStickers];
+      updated[index].rotation = (updated[index].rotation || 0) + 45;
+      state.profile.placedStickers = updated;
+      render();
+      try { await updateDoc(doc(db, USERS_PATH, state.user.uid), { placedStickers: updated }); } catch(e){}
+    };
+
     window.removeAllStickers = async () => {
       if (state.profile.placedStickers.length === 0) return;
       if (confirm("はってあるシールをすべてはがしますか？（シールはなくなりません）")) {
@@ -343,15 +408,24 @@
       }
     };
 
-    // --- シールのドラッグ＆枠外防止機能 ---
-    window.startDragSticker = (e, index) => {
+    // シールドラッグ＆レイヤー最前面移動
+    window.startDragSticker = (e, uid) => {
       e.preventDefault();
       isInteracting = true; 
       const el = e.currentTarget;
       el.setPointerCapture(e.pointerId);
       
+      const targetIndex = state.profile.placedStickers.findIndex(p => p.uid === uid);
+      if (targetIndex === -1) return;
+      
+      // 対象を配列の末尾に移動させて最前面(z-index最大)にする
+      const updated = [...state.profile.placedStickers];
+      const [item] = updated.splice(targetIndex, 1);
+      updated.push(item);
+      state.profile.placedStickers = updated;
+      const newIndex = updated.length - 1;
+
       let startX = e.clientX, startY = e.clientY;
-      const item = state.profile.placedStickers[index];
       let currentX = item.x, currentY = item.y;
 
       el.style.zIndex = 50;
@@ -373,7 +447,6 @@
         el.style.cursor = 'grab';
         el.firstElementChild.classList.remove('scale-110');
 
-        // 親コンテナ（台紙）のサイズを取得して、枠外に出ないように計算 (Clamp)
         const containerRect = el.parentElement.getBoundingClientRect();
         const stickerWidth = el.offsetWidth;
         const stickerHeight = el.offsetHeight;
@@ -384,8 +457,7 @@
         finalX = Math.max(0, Math.min(finalX, containerRect.width - stickerWidth));
         finalY = Math.max(0, Math.min(finalY, containerRect.height - stickerHeight));
         
-        const updated = [...state.profile.placedStickers];
-        updated[index] = { ...updated[index], x: finalX, y: finalY };
+        updated[newIndex] = { ...updated[newIndex], x: finalX, y: finalY };
         state.profile.placedStickers = updated; 
         isInteracting = false;
         render(); 
@@ -396,6 +468,9 @@
 
       document.addEventListener('pointermove', onMove);
       document.addEventListener('pointerup', onUp);
+      
+      // Firebaseにレイヤー順序を保存
+      try { updateDoc(doc(db, USERS_PATH, state.user.uid), { placedStickers: updated }); } catch(err){}
     };
 
     window.onSearchInputChange = (e) => { state.newStudentId = e.value; };
@@ -476,7 +551,6 @@
       const myEntries = state.entries.filter(e => e.uid === state.user.uid);
       
       return `
-        <!-- h-full, flex flex-col を使用して全体を画面に収めるレイアウト -->
         <header class="bg-white p-3 md:p-4 shrink-0 z-30 shadow-sm border-b border-slate-200">
           <div class="max-w-5xl mx-auto flex justify-between items-center">
             <div class="flex items-center space-x-3">
@@ -488,7 +562,7 @@
                   <h1 class="text-base md:text-lg font-bold text-slate-800 leading-tight">${escapeHTML(state.profile.name)}</h1>
                   ${!isActuallyTeacher ? `<button onclick="window.openNameEditModal()" class="ml-2 p-1 text-slate-400 hover:text-blue-500 hover:bg-slate-100 rounded transition-colors"><i data-lucide="pencil" class="w-4 h-4"></i></button>` : ''}
                 </div>
-                ${!isActuallyTeacher ? `<div class="flex items-center text-[10px] md:text-xs text-slate-500 mt-0.5">ID: <span class="font-mono bg-slate-100 px-1 rounded ml-1 font-bold">${state.profile.shortId}</span></div>` : ''}
+                ${!isActuallyTeacher ? `<div class="flex items-center text-[10px] md:text-xs text-slate-500 mt-0.5">ID: <span class="font-mono bg-slate-100 px-1 rounded ml-1 font-bold">${state.profile.shortId}</span> <span class="ml-2 bg-indigo-50 text-indigo-600 px-1.5 rounded">累計: ${state.profile.totalEntries || 0}日</span></div>` : ''}
               </div>
             </div>
             <div class="flex items-center space-x-3">
@@ -504,14 +578,12 @@
           </div>
         </header>
 
-        <!-- メイン領域：画面サイズに合わせてスクロール -->
         <main class="flex-1 overflow-y-auto p-3 md:p-6 custom-scrollbar relative">
           <div class="max-w-5xl mx-auto h-full">
             ${isActuallyTeacher ? renderTeacherDashboard() : renderStudentDashboard(myEntries)}
           </div>
         </main>
 
-        <!-- ボトムナビ：固定 -->
         ${!isActuallyTeacher ? `
           <nav class="shrink-0 bg-white border-t border-slate-200 z-40 pb-safe">
             <div class="max-w-lg mx-auto flex justify-around">
@@ -554,7 +626,6 @@
       else if (state.activeTab === 'calendar') content = renderCalendarTab(myEntries);
       else if (state.activeTab === 'sticker') content = renderStickerBookTab();
       else if (state.activeTab === 'shop') content = renderShopTab();
-      // h-full で高さいっぱいに広げる
       return `<div class="animate-in fade-in duration-300 h-full">${content}</div>`;
     };
 
@@ -588,9 +659,12 @@
             <div class="text-7xl mb-4">💮</div>
             <h2 class="text-2xl font-bold text-emerald-600 mb-4">ていしゅつ完了！</h2>
             <p class="text-slate-600 mb-6">きょうの音読はばっちりだね。<br/>あしたもがんばろう！</p>
-            <div class="inline-flex items-center justify-center bg-amber-100 text-amber-700 px-6 py-2 rounded-full font-bold">
-              <i data-lucide="star" class="w-5 h-5 mr-1 fill-current"></i> +10 ポイント ゲット
+            <div class="inline-flex items-center justify-center bg-amber-100 text-amber-700 px-6 py-2 rounded-full font-bold mb-6">
+              <i data-lucide="star" class="w-5 h-5 mr-1 fill-current"></i> ${state.successMessage || "ポイント ゲット！"}
             </div>
+            <button onclick="window.cancelEntry()" class="text-sm text-slate-400 hover:text-red-500 underline decoration-slate-300 hover:decoration-red-300">
+              きょうの記録を取り消す
+            </button>
           </div>
         `;
       }
@@ -614,18 +688,16 @@
 
       const submittable = !state.criteria.includes(null);
 
-      // 横長画面（PCなど）の場合は、左右2カラムにするレイアウト
       return `
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6 relative">
           
-          <!-- 左カラム：録音 と チェック -->
+          <!-- 左カラム -->
           <div class="space-y-4 md:space-y-6">
-            <!-- 録音機能 (一時確認用) -->
             <div class="bg-white rounded-2xl p-4 md:p-5 shadow-sm border border-slate-200">
               <div class="flex justify-between items-center mb-3">
                 <div class="flex items-center text-blue-600"><i data-lucide="mic" class="w-5 h-5 mr-2"></i><h2 class="font-bold text-sm md:text-base">自分の音読を聞いてみよう</h2></div>
               </div>
-              <p class="text-xs text-slate-400 mb-3 ml-1">※録音は提出されません。</p>
+              <p class="text-xs text-slate-400 mb-3 ml-1">※録音は先生に提出されません。</p>
               
               <div class="flex items-center bg-slate-50 p-3 rounded-xl border border-slate-100 gap-4">
                 ${state.isRecording 
@@ -639,16 +711,14 @@
               </div>
             </div>
 
-            <!-- チェック -->
             <div class="bg-white rounded-2xl p-4 md:p-5 shadow-sm border border-slate-200">
               <div class="flex items-center mb-4 text-orange-600"><i data-lucide="check-circle" class="w-5 h-5 mr-2"></i><h2 class="font-bold text-sm md:text-base">おうちのひとのチェック</h2></div>
               <div class="space-y-3">${evalHtml}</div>
             </div>
           </div>
 
-          <!-- 右カラム：サイン と 提出ボタン -->
+          <!-- 右カラム -->
           <div class="space-y-4 md:space-y-6 flex flex-col">
-            <!-- サイン -->
             <div class="bg-white rounded-2xl p-4 md:p-5 shadow-sm border border-slate-200 flex-1 flex flex-col">
               <div class="flex items-center mb-4 text-indigo-600"><i data-lucide="pen-tool" class="w-5 h-5 mr-2"></i><h2 class="font-bold text-sm md:text-base">おうちのひとのサイン</h2></div>
               <div class="flex-1 flex flex-col justify-center">
@@ -656,18 +726,12 @@
               </div>
             </div>
 
-            <!-- 提出ボタン -->
             <button onclick="window.submitEntry()" ${submittable && !state.isSubmitting ? '' : 'disabled'} class="w-full py-4 md:py-5 rounded-2xl font-bold text-lg text-white transition-all flex items-center justify-center shadow-md ${!submittable ? 'bg-slate-300 cursor-not-allowed opacity-70' : 'bg-emerald-500 hover:bg-emerald-600 hover:-translate-y-1 hover:shadow-lg'} shrink-0">
               ${state.isSubmitting ? 'そうしん中...' : 'せんせいに ていしゅつ！'}
             </button>
           </div>
 
           ${state.showSignaturePad ? renderSignatureModal() : ''}
-          ${state.showSuccess ? `
-            <div class="fixed inset-0 bg-black/20 backdrop-blur-sm flex items-center justify-center z-50">
-              <div class="bg-white p-8 rounded-3xl shadow-xl text-center animate-in zoom-in-95"><div class="text-6xl mb-2">💮</div><p class="font-bold text-xl text-emerald-600">よくできました！</p></div>
-            </div>
-          ` : ''}
         </div>
       `;
     };
@@ -723,42 +787,47 @@
       });
 
       let blanksHtml = '';
-      for (let i = 0; i < firstDay; i++) blanksHtml += `<div class="aspect-square"></div>`;
+      for (let i = 0; i < firstDay; i++) blanksHtml += `<div></div>`;
       
       let daysHtml = '';
       for (let i = 1; i <= daysInMonth; i++) {
         const entry = entriesMap[i];
         const isToday = i === d.getDate();
         
-        let contentHtml = `<span class="z-10 ${entry ? 'text-white drop-shadow-md' : ''}">${i}</span>`;
-        if (entry) {
-          if (entry.signature) {
-            // 背景としてサイン画像を配置
-            contentHtml += `<div class="absolute inset-0 flex items-center justify-center z-0 p-1"><img src="${entry.signature}" class="w-full h-full object-contain opacity-40 mix-blend-multiply" /></div>`;
-            contentHtml += `<div class="absolute inset-0 flex items-center justify-center z-20"><i data-lucide="check-circle-2" class="w-6 h-6 text-emerald-500 drop-shadow-sm opacity-80"></i></div>`;
-          } else {
-            contentHtml += `<div class="absolute inset-0 flex items-center justify-center z-20"><span class="text-2xl opacity-90">💮</span></div>`;
-          }
-        }
+        let contentHtml = `<span class="z-10 ${entry ? 'text-emerald-700 font-bold drop-shadow-sm' : ''}">${i}</span>`;
+        
+        const cls = entry ? 'bg-emerald-100 border-2 border-emerald-300 cursor-pointer hover:bg-emerald-200 shadow-inner' : isToday ? 'bg-blue-50 text-blue-700 border-2 border-blue-200' : 'bg-slate-50 text-slate-500 border border-slate-100';
+        const onClickAttr = entry && entry.signature ? `onclick="window.openCalendarSignature('${entry.signature}')"` : '';
 
-        const cls = entry ? 'bg-emerald-50 border border-emerald-200' : isToday ? 'bg-blue-50 text-blue-700 border border-blue-200' : 'bg-slate-50 text-slate-500 border border-slate-100';
         daysHtml += `
-          <div class="aspect-square rounded-lg flex items-center justify-center relative font-medium text-sm transition-all overflow-hidden ${cls}">
+          <div ${onClickAttr} class="aspect-square rounded-lg md:rounded-xl flex items-center justify-center relative font-medium text-sm transition-all overflow-hidden ${cls}">
             ${contentHtml}
           </div>
         `;
       }
 
       return `
-        <div class="bg-white rounded-2xl p-4 md:p-6 shadow-sm border border-slate-200 h-full overflow-y-auto">
-          <div class="flex justify-between items-center mb-4 md:mb-6">
+        <div class="bg-white rounded-2xl p-4 md:p-6 shadow-sm border border-slate-200 h-full flex flex-col">
+          <div class="flex justify-between items-center mb-4 shrink-0">
             <h2 class="text-xl font-bold text-slate-800">${d.getMonth() + 1}月</h2>
-            <div class="text-sm font-bold text-slate-600 bg-slate-100 px-3 py-1 rounded-full">ごうけい: ${myEntries.length} 回</div>
+            <div class="text-sm font-bold text-slate-600 bg-slate-100 px-3 py-1 rounded-full">提出日数: ${myEntries.length} 日</div>
           </div>
-          <div class="grid grid-cols-7 gap-1 md:gap-2 text-center mb-2">
+          <div class="grid grid-cols-7 gap-1 md:gap-2 text-center mb-2 shrink-0">
             ${['日', '月', '火', '水', '木', '金', '土'].map((day, i) => `<div class="text-xs font-bold ${i === 0 ? 'text-red-400' : i === 6 ? 'text-blue-400' : 'text-slate-400'}">${day}</div>`).join('')}
           </div>
-          <div class="grid grid-cols-7 gap-1 md:gap-2">${blanksHtml}${daysHtml}</div>
+          <div class="grid grid-cols-7 gap-1 md:gap-3 flex-1 auto-rows-fr">${blanksHtml}${daysHtml}</div>
+          
+          ${state.calendarSignatureToShow ? `
+            <div class="fixed inset-0 bg-slate-900/70 backdrop-blur-sm flex items-center justify-center z-50 p-4" onclick="window.closeCalendarSignature()">
+              <div class="bg-white p-4 rounded-3xl w-full max-w-sm shadow-2xl flex flex-col items-center animate-in zoom-in-95" onclick="event.stopPropagation()">
+                <h3 class="font-bold text-slate-600 mb-2">おうちのひとのサイン</h3>
+                <div class="w-full bg-slate-50 border border-slate-200 rounded-2xl p-2 h-48 flex items-center justify-center mb-4">
+                  <img src="${state.calendarSignatureToShow}" class="max-w-full max-h-full object-contain" />
+                </div>
+                <button onclick="window.closeCalendarSignature()" class="w-full py-3 bg-slate-200 text-slate-700 font-bold rounded-xl">とじる</button>
+              </div>
+            </div>
+          ` : ''}
         </div>
       `;
     };
@@ -771,19 +840,29 @@
       myStickers.forEach(id => { counts[id] = (counts[id] || 0) + 1; });
       placed.forEach(p => { if (counts[p.id]) counts[p.id]--; });
 
-      let placedHtml = placed.map((item, index) => `
-        <div onpointerdown="window.startDragSticker(event, ${index})" class="absolute select-none touch-none group" style="left: ${item.x}px; top: ${item.y}px; font-size: 3rem; z-index: ${10 + index}; cursor: grab;">
-          <span class="block drop-shadow-md transition-transform">${item.emoji}</span>
-          <button onpointerdown="event.stopPropagation()" onclick="window.removeSticker(${index}, event)" class="absolute -top-2 -right-2 bg-white text-slate-400 hover:text-red-500 rounded-full w-8 h-8 flex items-center justify-center text-sm shadow-md border border-slate-100 opacity-0 group-hover:opacity-100 transition-opacity">
-            <i data-lucide="x" class="w-5 h-5"></i>
-          </button>
-        </div>
-      `).join('');
+      let placedHtml = placed.map((item, index) => {
+        const sDef = stickerCollection.find(s => s.id === item.id) || { fallbackEmoji: '❓', image: '' };
+        return `
+          <div onpointerdown="window.startDragSticker(event, '${item.uid}')" class="absolute select-none touch-none group" style="left: ${item.x}px; top: ${item.y}px; z-index: ${item.uid}; cursor: grab;">
+            <div style="transform: rotate(${item.rotation || 0}deg); font-size: 3rem;" class="transition-transform w-12 h-12 md:w-16 md:h-16 flex items-center justify-center">
+              ${renderStickerImg(sDef)}
+            </div>
+            <!-- 削除ボタン -->
+            <button onpointerdown="event.stopPropagation()" onclick="window.removeSticker('${item.uid}', event)" class="absolute -top-3 -right-3 bg-white text-slate-400 hover:text-red-500 rounded-full w-8 h-8 flex items-center justify-center text-sm shadow-md border border-slate-100 opacity-0 group-hover:opacity-100 transition-opacity">
+              <i data-lucide="x" class="w-5 h-5"></i>
+            </button>
+            <!-- 回転ボタン -->
+            <button onpointerdown="event.stopPropagation()" onclick="window.rotateSticker('${item.uid}', event)" class="absolute -bottom-3 -right-3 bg-white text-slate-400 hover:text-blue-500 rounded-full w-8 h-8 flex items-center justify-center text-sm shadow-md border border-slate-100 opacity-0 group-hover:opacity-100 transition-opacity">
+              <i data-lucide="rotate-cw" class="w-4 h-4"></i>
+            </button>
+          </div>
+        `;
+      }).join('');
 
       let paletteHtml = stickerCollection.filter(s => counts[s.id] > 0).map(s => `
         <div class="relative">
-          <button onclick="window.placeSticker('${s.id}', '${s.emoji}')" class="w-full aspect-square flex items-center justify-center text-2xl md:text-3xl bg-white border border-slate-200 rounded-xl hover:bg-slate-50 transition-transform active:scale-95 shadow-sm">
-            ${s.emoji}
+          <button onclick="window.placeSticker('${s.id}')" class="w-full aspect-square flex items-center justify-center text-2xl md:text-3xl bg-white border border-slate-200 rounded-xl hover:bg-slate-50 transition-transform active:scale-95 shadow-sm overflow-hidden p-2">
+            ${renderStickerImg(s)}
           </button>
           <div class="absolute -top-2 -right-2 bg-indigo-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full shadow border border-white">${counts[s.id]}</div>
         </div>
@@ -816,13 +895,14 @@
 
     const renderShopTab = () => {
       const pts = state.profile.points;
+      const currentMonth = new Date().getMonth() + 1;
       
-      let shopHtml = stickerCollection.map(s => {
+      let shopHtml = stickerCollection.filter(s => s.unlockMonth <= currentMonth).map(s => {
         const canAfford = pts >= s.price;
         const cls = canAfford ? 'bg-white border-2 border-amber-200 cursor-pointer hover:bg-amber-50 hover:-translate-y-1 hover:shadow-md' : 'bg-slate-50 border border-slate-200 opacity-60';
         return `
           <div onclick="window.buySticker('${s.id}', ${s.price}, '${s.name}')" class="flex flex-col items-center p-3 md:p-4 rounded-xl transition-all shadow-sm ${cls}">
-            <div class="text-4xl md:text-5xl mb-2 drop-shadow-sm">${s.emoji}</div>
+            <div class="text-4xl md:text-5xl mb-2 drop-shadow-sm h-12 w-12 flex items-center justify-center">${renderStickerImg(s)}</div>
             <div class="font-bold text-slate-700 text-xs mb-2">${s.name}</div>
             <div class="flex items-center text-xs font-bold px-3 py-1 rounded-full ${canAfford ? 'bg-amber-100 text-amber-700' : 'bg-slate-200 text-slate-500'}">
               <i data-lucide="star" class="w-3 h-3 mr-1 fill-current"></i>${s.price} pt
@@ -897,10 +977,9 @@
             evalHtml = todayEntry.criteria.map(val => `<span class="${criteriaColors[val]} font-bold text-lg leading-none">${criteriaMarks[val]}</span>`).join('<span class="mx-2 text-slate-200">|</span>');
           }
           if (todayEntry.signature) {
-            // モーダルを使わず一覧に直接表示
-            sigHtml = `<div class="h-10 w-24 md:w-32 bg-slate-50 border border-slate-200 rounded mx-auto"><img src="${todayEntry.signature}" class="h-full w-full object-contain mix-blend-multiply" alt="サイン"/></div>`;
+            sigHtml = `<div class="h-12 w-24 md:w-32 bg-slate-50 border border-slate-200 rounded mx-auto"><img src="${todayEntry.signature}" class="h-full w-full object-contain mix-blend-multiply" alt="サイン"/></div>`;
           } else {
-             sigHtml = `<span class="text-emerald-500 text-lg">💮</span>`;
+             sigHtml = `<span class="text-slate-400 text-xs">サインなし</span>`;
           }
         }
         
