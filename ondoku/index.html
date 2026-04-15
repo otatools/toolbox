@@ -31,7 +31,8 @@
       getAuth, 
       onAuthStateChanged, 
       signInAnonymously,
-      signInWithPopup,
+      signInWithRedirect,
+      getRedirectResult,
       GoogleAuthProvider,
       OAuthProvider,
       signOut
@@ -72,29 +73,27 @@
       loginError: null, 
       isLoggingIn: false,
       
-      activeTab: 'home', 
+      activeTab: 'home', // home, calendar, sticker, shop
       entries: [],
       allUsers: [],
       
       criteria: [null, null, null],
-      isRecording: false,
-      audioURL: null,
       signatureData: null,
       showSignaturePad: false,
       isSubmitting: false,
       showSuccess: false,
       
+      showNameEditModal: false,
+      editNameInput: '',
+
       teacherTab: 'today',
       newStudentId: '',
       searchResult: null,
-      selectedSignature: null,
       teacherMonthDate: new Date()
     };
 
     let unsubs = [];
     let isInteracting = false; 
-    let mediaRecorder = null;
-    let audioChunks = [];
 
     const escapeHTML = (str) => {
       if (!str) return '';
@@ -104,6 +103,17 @@
     };
 
     const safeRender = () => { if (!isInteracting) render(); };
+
+    getRedirectResult(auth).then((result) => {
+      if (result) state.loginError = null;
+    }).catch((error) => {
+      if (error.code !== 'auth/unauthorized-domain') {
+        console.error("Redirect Login Error:", error);
+        state.loginError = error.message;
+      }
+      state.authChecking = false;
+      render();
+    });
 
     onAuthStateChanged(auth, (currentUser) => {
       state.user = currentUser;
@@ -139,7 +149,6 @@
           state.profile = data;
           safeRender();
         } else {
-          // ★新規登録
           const shortId = user.uid.substring(0, 6).toUpperCase();
           const role = state.isTeacherView ? 'teacher' : 'student';
           const newProfile = {
@@ -169,39 +178,26 @@
     window.handleLogin = async (providerName) => {
       isInteracting = true;
       state.loginError = null;
-      state.isLoggingIn = true;
-      render();
+      const btnContainer = document.getElementById('login-buttons');
+      if (btnContainer) btnContainer.innerHTML = '<p class="mt-4 text-sm text-blue-500 font-bold animate-pulse">通信中...</p>';
 
       try {
         if (providerName === 'google') {
-          await signInWithPopup(auth, new GoogleAuthProvider());
-        } else if (providerName === 'microsoft') {
-          const msProvider = new OAuthProvider('microsoft.com');
-          // MicrosoftのGETリクエストエラー対策
-          msProvider.setCustomParameters({
-            prompt: 'select_account'
-          });
-          await signInWithPopup(auth, msProvider);
+          await signInWithRedirect(auth, new GoogleAuthProvider());
         } else {
           await signInAnonymously(auth);
         }
       } catch (error) {
-        console.error("Login Error:", error);
-        // エラー内容を具体的に画面に表示する
         if (error.code === 'auth/unauthorized-domain') {
-          state.loginError = `設定エラー: Firebaseの「承認済みドメイン」に [ ${window.location.hostname} ] を追加してください。`;
-        } else if (error.code === 'auth/popup-blocked') {
-          state.loginError = "ポップアップがブロックされました。ブラウザの設定でポップアップを許可してください。";
-        } else if (error.code === 'auth/cancelled-popup-request' || error.code === 'auth/popup-closed-by-user') {
-          state.loginError = "ログインがキャンセルされました。";
+          try { await signInAnonymously(auth); return; } catch (fallbackErr) {
+            state.loginError = "テスト用ログインに失敗しました。";
+          }
         } else {
-          state.loginError = "ログインエラー: " + error.message;
+          state.loginError = error.message;
         }
-      } finally {
-        state.isLoggingIn = false;
         isInteracting = false;
         render();
-      }
+      } 
     };
 
     window.handleLogout = () => {
@@ -209,35 +205,36 @@
       state.profile = null;
     };
 
+    // --- 変更: 名前の変更処理 ---
+    window.openNameEditModal = () => {
+      state.showNameEditModal = true;
+      state.editNameInput = state.profile.name;
+      isInteracting = true;
+      render();
+    };
+
+    window.closeNameEditModal = () => {
+      state.showNameEditModal = false;
+      isInteracting = false;
+      render();
+    };
+
+    window.onNameInputChange = (e) => { state.editNameInput = e.value; };
+
+    window.saveName = async () => {
+      if (!state.editNameInput.trim()) return;
+      try {
+        await updateDoc(doc(db, USERS_PATH, state.user.uid), { name: state.editNameInput.trim() });
+      } catch(e) { console.error(e); }
+      state.showNameEditModal = false;
+      isInteracting = false;
+      render();
+    };
+    // ---------------------------------
+
     window.switchTab = (tab) => { state.activeTab = tab; render(); };
     window.setTeacherTab = (tab) => { state.teacherTab = tab; render(); };
     window.setCriteria = (index, value) => { state.criteria[index] = value; render(); };
-    
-    window.startRecording = async () => {
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        mediaRecorder = new MediaRecorder(stream);
-        audioChunks = [];
-        mediaRecorder.ondataavailable = e => e.data.size > 0 && audioChunks.push(e.data);
-        mediaRecorder.onstop = () => {
-          state.audioURL = URL.createObjectURL(new Blob(audioChunks, { type: 'audio/webm' }));
-          state.isRecording = false;
-          isInteracting = false;
-          render();
-        };
-        mediaRecorder.start();
-        state.isRecording = true;
-        isInteracting = true;
-        render();
-      } catch (err) { alert("マイクが使えません。許可を確認してください。"); }
-    };
-    
-    window.stopRecording = () => {
-      if (mediaRecorder && state.isRecording) {
-        mediaRecorder.stop();
-        mediaRecorder.stream.getTracks().forEach(t => t.stop());
-      }
-    };
 
     window.openSignaturePad = () => { state.showSignaturePad = true; isInteracting = true; render(); };
     window.closeSignaturePad = () => { state.showSignaturePad = false; isInteracting = false; render(); };
@@ -267,7 +264,6 @@
           uid: state.user.uid,
           date: todayStr,
           criteria: state.criteria,
-          hasAudio: !!state.audioURL,
           signature: state.signatureData,
           timestamp: serverTimestamp()
         });
@@ -293,10 +289,11 @@
     ];
 
     window.buySticker = async (stickerId, price, name) => {
-      if (state.profile.points >= price && !state.profile.stickers.includes(stickerId)) {
-        if (confirm(`「${name}」を ${price}pt でゲットしますか？`)) {
+      if (state.profile.points >= price) {
+        if (confirm(`「${name}」を ${price}pt で買いますか？（何枚でも買えます）`)) {
           await updateDoc(doc(db, USERS_PATH, state.user.uid), {
             points: state.profile.points - price,
+            // 重複を許して配列に追加
             stickers: [...state.profile.stickers, stickerId]
           });
         }
@@ -304,8 +301,8 @@
     };
 
     window.placeSticker = async (id, emoji) => {
-      const x = 100 + Math.random() * 50;
-      const y = 80 + Math.random() * 50;
+      const x = 50 + Math.random() * 150;
+      const y = 50 + Math.random() * 100;
       const newSticker = { id, emoji, x, y, uid: Date.now() };
       await updateDoc(doc(db, USERS_PATH, state.user.uid), {
         placedStickers: [...state.profile.placedStickers, newSticker]
@@ -356,9 +353,8 @@
         isInteracting = false;
         render(); 
 
-        try {
-          await updateDoc(doc(db, USERS_PATH, state.user.uid), { placedStickers: updated });
-        } catch (err) { console.error(err); }
+        try { await updateDoc(doc(db, USERS_PATH, state.user.uid), { placedStickers: updated }); } 
+        catch (err) { console.error(err); }
       };
 
       document.addEventListener('pointermove', onMove);
@@ -384,8 +380,6 @@
         await updateDoc(doc(db, USERS_PATH, state.profile.uid), { managedStudents: state.profile.managedStudents.filter(id => id !== uid) });
       }
     };
-    window.openTeacherSignature = (sig) => { state.selectedSignature = sig; render(); };
-    window.closeTeacherSignature = () => { state.selectedSignature = null; render(); };
     window.changeTeacherMonth = (offset) => {
       state.teacherMonthDate = new Date(state.teacherMonthDate.getFullYear(), state.teacherMonthDate.getMonth() + offset, 1);
       render();
@@ -416,40 +410,19 @@
           <p class="text-slate-500 mb-6 font-medium">
             ${state.isTeacherView ? '先生用ダッシュボード' : 'まいにち読んでポイントゲット！'}
           </p>
-
-          <div class="bg-blue-50 p-4 rounded-xl mb-6 text-sm text-blue-700 font-bold text-left shadow-inner border border-blue-100">
-            <i data-lucide="info" class="w-5 h-5 mb-1 inline-block"></i> はじめての方へ<br>
-            <span class="text-blue-600 font-medium">アカウントをお持ちでない場合は、下のボタンから進むと自動的に「新規登録」されます。</span>
-          </div>
           
           ${state.loginError ? `<div class="mb-6 p-4 bg-red-100 text-red-700 rounded-xl text-sm font-bold text-left break-words border-2 border-red-200">${escapeHTML(state.loginError)}</div>` : ''}
 
           <div id="login-buttons" class="space-y-4">
-            ${state.isLoggingIn ? `
-              <div class="py-4 flex flex-col items-center justify-center text-blue-500 font-bold">
-                <div class="w-8 h-8 border-4 border-blue-200 border-t-blue-500 rounded-full animate-spin mb-3"></div>
-                ログイン処理中...
-              </div>
-            ` : `
-              <button onclick="window.handleLogin('google')" class="w-full flex items-center justify-center py-3 px-4 bg-white border-2 border-slate-200 hover:border-blue-400 hover:bg-blue-50 text-slate-700 font-bold rounded-xl transition-all shadow-sm">
-                <svg class="w-5 h-5 mr-3" viewBox="0 0 24 24">
-                  <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
-                  <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
-                  <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" />
-                  <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
-                </svg> Google でログイン
-              </button>
-              <button onclick="window.handleLogin('microsoft')" class="w-full flex items-center justify-center py-3 px-4 bg-white border-2 border-slate-200 hover:border-blue-400 hover:bg-blue-50 text-slate-700 font-bold rounded-xl transition-all shadow-sm">
-                <svg class="w-5 h-5 mr-3" viewBox="0 0 21 21"><path fill="#f25022" d="M1 1h9v9H1z"/><path fill="#00a4ef" d="M1 11h9v9H1z"/><path fill="#7fba00" d="M11 1h9v9h-9z"/><path fill="#ffb900" d="M11 11h9v9h-9z"/></svg>
-                Microsoft でログイン
-              </button>
-            `}
+            <button onclick="window.handleLogin('google')" class="w-full flex items-center justify-center py-3 px-4 bg-white border-2 border-slate-200 hover:border-blue-400 hover:bg-blue-50 text-slate-700 font-bold rounded-xl transition-all shadow-sm">
+              <svg class="w-5 h-5 mr-3" viewBox="0 0 24 24">
+                <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
+                <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+                <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" />
+                <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
+              </svg> Google でログイン
+            </button>
           </div>
-        </div>
-        <div class="mt-8 text-sm font-medium text-slate-500">
-          ${state.isTeacherView 
-            ? `<a href="#" class="hover:text-blue-600 underline">児童用ログイン画面にもどる</a>` 
-            : `<a href="#teacher" class="hover:text-indigo-600 underline">先生用ログインはこちら</a>`}
         </div>
       </div>
     `;
@@ -467,7 +440,10 @@
                   <i data-lucide="${isActuallyTeacher ? 'users' : 'award'}" class="w-6 h-6"></i>
                 </div>
                 <div>
-                  <h1 class="text-lg font-bold text-slate-800">${escapeHTML(state.profile.name)}</h1>
+                  <div class="flex items-center">
+                    <h1 class="text-lg font-bold text-slate-800">${escapeHTML(state.profile.name)}</h1>
+                    ${!isActuallyTeacher ? `<button onclick="window.openNameEditModal()" class="ml-2 text-slate-400 hover:text-blue-500"><i data-lucide="pencil" class="w-4 h-4"></i></button>` : ''}
+                  </div>
                   ${!isActuallyTeacher ? `<div class="flex items-center text-xs text-slate-500 mt-0.5">ID: <span class="font-mono bg-slate-100 px-1 rounded ml-1 font-bold">${state.profile.shortId}</span></div>` : ''}
                 </div>
               </div>
@@ -494,12 +470,29 @@
                 ${renderNavBtn('mic', 'きろく', state.activeTab === 'home', 'home')}
                 ${renderNavBtn('calendar', 'カレンダー', state.activeTab === 'calendar', 'calendar')}
                 ${renderNavBtn('book-open', 'シール帳', state.activeTab === 'sticker', 'sticker')}
+                ${renderNavBtn('shopping-bag', 'ショップ', state.activeTab === 'shop', 'shop')}
               </nav>
             </div>
           ` : ''}
+          
+          ${state.showNameEditModal ? renderNameEditModal() : ''}
         </div>
       `;
     };
+
+    const renderNameEditModal = () => `
+      <div class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+        <div class="bg-white rounded-3xl p-6 w-full max-w-sm shadow-2xl animate-in zoom-in-95">
+          <h3 class="font-bold text-slate-800 mb-4 text-lg">名前の変更</h3>
+          <p class="text-sm text-slate-600 mb-2">出席番号と名前を入力してください。<br><span class="text-slate-400 text-xs">例：01_山田太郎</span></p>
+          <input type="text" value="${escapeHTML(state.editNameInput)}" oninput="window.onNameInputChange(this)" class="w-full px-4 py-3 rounded-xl border border-slate-300 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200 mb-6 font-bold text-slate-800" placeholder="01_なまえ" />
+          <div class="flex justify-end space-x-3">
+            <button onclick="window.closeNameEditModal()" class="px-5 py-2.5 bg-slate-100 text-slate-600 rounded-xl font-bold hover:bg-slate-200 transition-colors">キャンセル</button>
+            <button onclick="window.saveName()" class="px-6 py-2.5 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 transition-colors shadow-md">ほぞんする</button>
+          </div>
+        </div>
+      </div>
+    `;
 
     const renderNavBtn = (icon, label, active, tabId) => `
       <button onclick="window.switchTab('${tabId}')" class="flex-1 flex flex-col items-center justify-center py-3 transition-colors ${active ? 'text-blue-600' : 'text-slate-400 hover:text-slate-600'}">
@@ -513,24 +506,35 @@
       if (state.activeTab === 'home') content = renderHomeTab(myEntries);
       else if (state.activeTab === 'calendar') content = renderCalendarTab(myEntries);
       else if (state.activeTab === 'sticker') content = renderStickerBookTab();
+      else if (state.activeTab === 'shop') content = renderShopTab();
       return `<div class="animate-in fade-in duration-300">${content}</div>`;
     };
 
     const renderHomeTab = (myEntries) => {
-      const todayDate = new Date();
-      const todayStr = todayDate.toLocaleDateString('ja-JP');
-      const hasSubmittedToday = myEntries.some(e => e.date === todayStr);
-      const isWeekend = todayDate.getDay() === 0 || todayDate.getDay() === 6;
+      const d = new Date();
+      const day = d.getDay();
+      const todayStr = d.toLocaleDateString('ja-JP');
 
-      if (isWeekend) {
-        return `
-          <div class="bg-white rounded-3xl p-8 text-center shadow-sm border-2 border-slate-100 animate-in zoom-in-95">
-            <div class="text-7xl mb-4">🌴</div>
-            <h2 class="text-2xl font-bold text-slate-700 mb-4">きょうは おやすみ！</h2>
-            <p class="text-slate-600 font-medium leading-relaxed">土曜日と日曜日は、<br/>音読のきろくはおやすみだよ。<br/>ゆっくりやすんで、また月曜日にがんばろう！</p>
-          </div>
-        `;
+      // --- 金土日の判定ロジック ---
+      // 金(5), 土(6), 日(0) の場合、同じ週末（金土日）のどこかで提出済みかチェックする
+      let checkDates = [todayStr];
+      if (day === 0 || day === 5 || day === 6) {
+        const friday = new Date(d);
+        if (day === 5) friday.setDate(d.getDate());
+        if (day === 6) friday.setDate(d.getDate() - 1);
+        if (day === 0) friday.setDate(d.getDate() - 2);
+
+        const saturday = new Date(friday); saturday.setDate(friday.getDate() + 1);
+        const sunday = new Date(friday); sunday.setDate(friday.getDate() + 2);
+
+        checkDates = [
+          friday.toLocaleDateString('ja-JP'),
+          saturday.toLocaleDateString('ja-JP'),
+          sunday.toLocaleDateString('ja-JP')
+        ];
       }
+
+      const hasSubmittedToday = myEntries.some(e => checkDates.includes(e.date));
 
       if (hasSubmittedToday) {
         return `
@@ -567,22 +571,10 @@
       return `
         <div class="space-y-6 relative">
           <div class="bg-white rounded-2xl p-6 shadow-sm border border-slate-200">
-            <div class="flex items-center mb-4 text-blue-600"><i data-lucide="music" class="w-5 h-5 mr-2"></i><h2 class="font-bold">1. 音読をろくおん (おまけ)</h2></div>
-            <div class="flex flex-col items-center bg-slate-50 p-4 rounded-xl border border-slate-100">
-              ${state.isRecording 
-                ? `<button onclick="window.stopRecording()" class="bg-red-500 text-white p-4 rounded-full shadow-md animate-pulse mb-3"><i data-lucide="square" class="w-8 h-8 fill-current"></i></button>` 
-                : `<button onclick="window.startRecording()" class="bg-blue-500 hover:bg-blue-600 text-white p-4 rounded-full shadow-md transition-colors mb-3"><i data-lucide="mic" class="w-8 h-8"></i></button>`
-              }
-              <p class="text-sm font-bold ${state.isRecording ? 'text-red-500' : 'text-slate-500'}">${state.isRecording ? 'ろくおん中...' : 'マイクを押してスタート'}</p>
-              ${state.audioURL && !state.isRecording ? `<div class="mt-4 w-full"><audio src="${state.audioURL}" controls class="w-full h-10 rounded-full"></audio></div>` : ''}
-            </div>
-          </div>
-
-          <div class="bg-white rounded-2xl p-6 shadow-sm border border-slate-200">
-            <div class="flex items-center mb-4 text-orange-600"><i data-lucide="check" class="w-5 h-5 mr-2"></i><h2 class="font-bold">2. おうちのひとのチェック</h2></div>
+            <div class="flex items-center mb-4 text-orange-600"><i data-lucide="check" class="w-5 h-5 mr-2"></i><h2 class="font-bold">1. おうちのひとのチェック</h2></div>
             <div class="space-y-4 mb-6">${evalHtml}</div>
 
-            <div class="flex items-center mb-4 text-indigo-600 border-t pt-6"><i data-lucide="pen-tool" class="w-5 h-5 mr-2"></i><h2 class="font-bold">3. おうちのひとのサイン</h2></div>
+            <div class="flex items-center mb-4 text-indigo-600 border-t pt-6"><i data-lucide="pen-tool" class="w-5 h-5 mr-2"></i><h2 class="font-bold">2. おうちのひとのサイン</h2></div>
             ${sigHtml}
           </div>
 
@@ -643,20 +635,35 @@
       const d = new Date();
       const daysInMonth = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
       const firstDay = new Date(d.getFullYear(), d.getMonth(), 1).getDay();
-      const submittedDates = myEntries.map(e => parseInt(e.date.split('/')[2], 10));
+      
+      // エントリーを日付(日)ごとのオブジェクトに変換（サイン画像を取得するため）
+      const entriesMap = {};
+      myEntries.forEach(e => {
+        const day = parseInt(e.date.split('/')[2], 10);
+        entriesMap[day] = e;
+      });
 
       let blanksHtml = '';
       for (let i = 0; i < firstDay; i++) blanksHtml += `<div class="aspect-square"></div>`;
       
       let daysHtml = '';
       for (let i = 1; i <= daysInMonth; i++) {
-        const isSub = submittedDates.includes(i);
+        const entry = entriesMap[i];
         const isToday = i === d.getDate();
-        const cls = isSub ? 'bg-emerald-50 text-transparent' : isToday ? 'bg-blue-50 text-blue-700 border border-blue-200' : 'bg-slate-50 text-slate-500';
+        
+        let contentHtml = `<span class="z-10">${i}</span>`;
+        if (entry) {
+          if (entry.signature) {
+            contentHtml += `<div class="absolute inset-0 flex items-center justify-center z-20"><img src="${entry.signature}" class="max-w-[80%] max-h-[80%] object-contain drop-shadow-sm opacity-90" /></div>`;
+          } else {
+            contentHtml += `<div class="absolute inset-0 flex items-center justify-center z-20"><span class="text-2xl opacity-90">💮</span></div>`;
+          }
+        }
+
+        const cls = entry ? 'bg-emerald-50 text-transparent border border-emerald-100' : isToday ? 'bg-blue-50 text-blue-700 border border-blue-200' : 'bg-slate-50 text-slate-500 border border-slate-100';
         daysHtml += `
-          <div class="aspect-square rounded-lg flex items-center justify-center relative font-medium text-sm transition-all ${cls}">
-            <span class="z-10">${i}</span>
-            ${isSub ? `<div class="absolute inset-0 flex items-center justify-center z-20"><span class="text-2xl opacity-90">💮</span></div>` : ''}
+          <div class="aspect-square rounded-lg flex items-center justify-center relative font-medium text-sm transition-all overflow-hidden ${cls}">
+            ${contentHtml}
           </div>
         `;
       }
@@ -676,9 +683,14 @@
     };
 
     const renderStickerBookTab = () => {
-      const pts = state.profile.points;
       const myStickers = state.profile.stickers || [];
       const placed = state.profile.placedStickers || [];
+
+      // 購入したシールの各IDの所持数を計算
+      const counts = {};
+      myStickers.forEach(id => { counts[id] = (counts[id] || 0) + 1; });
+      // 貼った分をマイナスする
+      placed.forEach(p => { if (counts[p.id]) counts[p.id]--; });
 
       let placedHtml = placed.map((item, index) => `
         <div onpointerdown="window.startDragSticker(event, ${index})" class="absolute select-none touch-none group" style="left: ${item.x}px; top: ${item.y}px; font-size: 3rem; z-index: ${10 + index}; cursor: grab;">
@@ -689,52 +701,67 @@
         </div>
       `).join('');
 
-      let paletteHtml = stickerCollection.filter(s => myStickers.includes(s.id)).map(s => `
-        <button onclick="window.placeSticker('${s.id}', '${s.emoji}')" class="aspect-square flex items-center justify-center text-3xl bg-indigo-50 border border-indigo-100 rounded-xl hover:bg-indigo-100 transition-transform active:scale-95">
-          ${s.emoji}
-        </button>
+      let paletteHtml = stickerCollection.filter(s => counts[s.id] > 0).map(s => `
+        <div class="relative">
+          <button onclick="window.placeSticker('${s.id}', '${s.emoji}')" class="w-full aspect-square flex items-center justify-center text-3xl bg-indigo-50 border border-indigo-100 rounded-xl hover:bg-indigo-100 transition-transform active:scale-95">
+            ${s.emoji}
+          </button>
+          <div class="absolute -top-2 -right-2 bg-indigo-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full shadow border-2 border-white">${counts[s.id]}</div>
+        </div>
       `).join('');
-      if (!paletteHtml) paletteHtml = '<div class="col-span-5 text-sm text-slate-400 text-center py-4">まだシールをもっていないよ</div>';
 
-      let shopHtml = stickerCollection.filter(s => !myStickers.includes(s.id)).map(s => {
+      if (!paletteHtml) paletteHtml = '<div class="col-span-5 text-sm text-slate-400 text-center py-4 bg-slate-50 rounded-xl">はれるシールがありません。ショップで買おう！</div>';
+
+      return `
+        <div class="space-y-6 flex flex-col pb-6">
+          <div class="bg-amber-50/50 rounded-2xl shadow-inner border-4 border-white relative overflow-hidden h-[350px] w-full">
+            <div class="absolute top-2 left-2 text-xs font-bold text-amber-300 z-0">自由にシールをはれるよ！</div>
+            ${placedHtml}
+          </div>
+
+          <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-200">
+            <h3 class="text-sm font-bold text-slate-600 mb-3"><i data-lucide="mouse-pointer-click" class="w-4 h-4 inline-block mr-1 -mt-0.5"></i> もっているシール (タップではる)</h3>
+            <div class="grid grid-cols-5 gap-3">${paletteHtml}</div>
+          </div>
+        </div>
+      `;
+    };
+
+    const renderShopTab = () => {
+      const pts = state.profile.points;
+      
+      let shopHtml = stickerCollection.map(s => {
         const canAfford = pts >= s.price;
         const cls = canAfford ? 'bg-white border-2 border-amber-200 cursor-pointer hover:bg-amber-50' : 'bg-slate-50 border border-slate-200 opacity-60';
         return `
-          <div onclick="window.buySticker('${s.id}', ${s.price}, '${s.name}')" class="flex flex-col items-center p-2 rounded-xl transition-all ${cls}">
-            <div class="text-3xl mb-1">${s.emoji}</div>
+          <div onclick="window.buySticker('${s.id}', ${s.price}, '${s.name}')" class="flex flex-col items-center p-3 rounded-xl transition-all ${cls}">
+            <div class="text-4xl mb-2">${s.emoji}</div>
+            <div class="font-bold text-slate-700 text-xs mb-1">${s.name}</div>
             <div class="flex items-center text-[10px] font-bold px-2 py-0.5 rounded-full ${canAfford ? 'bg-amber-100 text-amber-700' : 'bg-slate-200 text-slate-500'}">
-              <i data-lucide="star" class="w-3 h-3 mr-0.5 fill-current"></i>${s.price}
+              <i data-lucide="star" class="w-3 h-3 mr-0.5 fill-current"></i>${s.price} pt
             </div>
           </div>
         `;
       }).join('');
 
       return `
-        <div class="space-y-6 flex flex-col pb-6">
-          <div class="flex items-center justify-between bg-white p-4 rounded-2xl shadow-sm border border-slate-200">
-            <div class="flex items-center"><i data-lucide="book-open" class="w-6 h-6 text-indigo-500 mr-2"></i><h2 class="font-bold text-slate-800">シール帳</h2></div>
-            <div class="flex flex-col items-end">
-              <div class="inline-flex items-center bg-amber-100 text-amber-700 px-3 py-1 rounded-full font-bold text-sm"><i data-lucide="star" class="w-4 h-4 mr-1 fill-current"></i>${pts} pt</div>
-            </div>
+        <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+          <div class="flex items-center justify-between mb-6 pb-4 border-b border-slate-100">
+            <h2 class="text-xl font-bold text-slate-800 flex items-center"><i data-lucide="store" class="w-6 h-6 text-pink-500 mr-2"></i>シールショップ</h2>
+            <div class="inline-flex items-center bg-amber-100 text-amber-700 px-3 py-1.5 rounded-full font-bold text-sm shadow-inner"><i data-lucide="star" class="w-4 h-4 mr-1 fill-current"></i>もっているポイント: ${pts} pt</div>
           </div>
-
-          <div class="bg-[#Fdfbf7] rounded-2xl shadow-inner border-2 border-slate-200 relative overflow-hidden h-[300px] w-full" style="background-image: linear-gradient(#e5e7eb 1px, transparent 1px); background-size: 100% 2rem;">
-            <div class="absolute top-2 left-2 text-xs font-bold text-slate-400 z-0">自由にシールをはれるよ！</div>
-            ${placedHtml}
-          </div>
-
-          <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-200">
-            <h3 class="text-sm font-bold text-slate-600 mb-3">あつめたシール (タップではる)</h3>
-            <div class="grid grid-cols-5 gap-2 mb-6">${paletteHtml}</div>
-            <h3 class="text-sm font-bold text-slate-600 mb-3 border-t pt-4">シールショップ</h3>
-            <div class="grid grid-cols-3 sm:grid-cols-4 gap-3">${shopHtml}</div>
-          </div>
+          <p class="text-sm text-slate-500 mb-4 font-bold">同じシールを何枚でも買えるよ！</p>
+          <div class="grid grid-cols-3 sm:grid-cols-4 gap-4">${shopHtml}</div>
         </div>
       `;
     };
 
     const renderTeacherDashboard = () => {
-      const managedStudents = state.allUsers.filter(u => state.profile.managedStudents.includes(u.uid));
+      // 登録済みの児童を出席番号（名前）順にソート
+      const managedStudents = state.allUsers
+        .filter(u => state.profile.managedStudents.includes(u.uid))
+        .sort((a, b) => a.name.localeCompare(b.name, 'ja'));
+
       let tabContent = '';
       if (state.teacherTab === 'today') tabContent = renderTeacherToday(managedStudents);
       else if (state.teacherTab === 'month') tabContent = renderTeacherMonth(managedStudents);
@@ -759,45 +786,38 @@
             </div>
           </div>
           ${tabContent}
-          
-          ${state.selectedSignature ? `
-            <div class="fixed inset-0 bg-slate-900/60 flex flex-col items-center justify-center z-50 p-4 backdrop-blur-sm">
-              <div class="bg-white p-6 rounded-2xl w-full max-w-md">
-                <div class="flex justify-between items-center mb-4">
-                  <h3 class="font-bold text-slate-800 text-lg">保護者のサイン</h3>
-                  <button onclick="window.closeTeacherSignature()" class="p-1 bg-slate-100 rounded-full text-slate-500"><i data-lucide="x" class="w-5 h-5"></i></button>
-                </div>
-                <div class="bg-slate-50 border-2 border-slate-200 rounded-xl overflow-hidden flex justify-center p-2 h-[200px]">
-                  <img src="${state.selectedSignature}" alt="保護者のサイン" class="max-h-full object-contain" />
-                </div>
-                <button onclick="window.closeTeacherSignature()" class="w-full mt-4 py-3 bg-indigo-600 text-white rounded-xl font-bold">とじる</button>
-              </div>
-            </div>
-          ` : ''}
         </div>
       `;
     };
 
     const renderTeacherToday = (managedStudents) => {
       const todayStr = new Date().toLocaleDateString('ja-JP');
+      const criteriaMarks = ['△', '○', '◎'];
+      const criteriaColors = ['text-blue-500', 'text-orange-500', 'text-red-500'];
+
       let trs = managedStudents.map(student => {
         const studentEntries = state.entries.filter(e => e.uid === student.uid);
         const todayEntry = studentEntries.find(e => e.date === todayStr);
-        let statusHtml = '<span class="text-slate-300">-</span>';
+        
+        let evalHtml = '<span class="text-slate-300">-</span>';
+        let sigHtml = '<span class="text-slate-300">-</span>';
+        
         if (todayEntry) {
-          statusHtml = `
-            <div class="flex flex-col items-center justify-center">
-              <span class="text-emerald-500 text-lg">💮</span>
-              ${todayEntry.signature ? `<button onclick="window.openTeacherSignature('${todayEntry.signature}')" class="mt-1 text-[10px] bg-indigo-50 text-indigo-600 px-2 py-1 rounded-full hover:bg-indigo-100 border border-indigo-100">✒️ サインを見る</button>` : ''}
-            </div>
-          `;
+          if (todayEntry.criteria) {
+            evalHtml = todayEntry.criteria.map(val => `<span class="${criteriaColors[val]} font-bold text-lg leading-none">${criteriaMarks[val]}</span>`).join('<span class="mx-1 text-slate-200">|</span>');
+          }
+          if (todayEntry.signature) {
+            sigHtml = `<img src="${todayEntry.signature}" class="h-10 w-full object-contain" alt="サイン"/>`;
+          } else {
+             sigHtml = `<span class="text-emerald-500 text-lg">💮</span>`;
+          }
         }
-        const audioHtml = todayEntry?.hasAudio ? '<i data-lucide="mic" class="w-4 h-4 text-blue-500 mx-auto"></i>' : '<span class="text-slate-300">-</span>';
+        
         return `
           <tr class="border-b border-slate-100 hover:bg-slate-50">
             <td class="p-3 font-medium text-slate-700">${escapeHTML(student.name)}</td>
-            <td class="p-3 text-center">${statusHtml}</td>
-            <td class="p-3 text-center">${audioHtml}</td>
+            <td class="p-3 text-center whitespace-nowrap">${evalHtml}</td>
+            <td class="p-2 text-center w-32">${sigHtml}</td>
           </tr>
         `;
       }).join('');
@@ -807,12 +827,12 @@
         <div class="animate-in fade-in">
           <h3 class="font-bold text-slate-700 mb-4">本日の提出状況 (${todayStr})</h3>
           <div class="overflow-x-auto rounded-xl border border-slate-200">
-            <table class="w-full text-left text-sm whitespace-nowrap">
+            <table class="w-full text-left text-sm">
               <thead class="bg-slate-50">
                 <tr>
                   <th class="p-3 font-medium text-slate-500 border-b border-slate-200">児童名</th>
-                  <th class="p-3 text-center font-medium text-slate-500 border-b border-slate-200">提出</th>
-                  <th class="p-3 text-center font-medium text-slate-500 border-b border-slate-200">音声</th>
+                  <th class="p-3 text-center font-medium text-slate-500 border-b border-slate-200">保護者の評価</th>
+                  <th class="p-3 text-center font-medium text-slate-500 border-b border-slate-200">サイン</th>
                 </tr>
               </thead>
               <tbody>${trs}</tbody>
