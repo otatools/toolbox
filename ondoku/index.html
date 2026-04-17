@@ -46,6 +46,7 @@
       serverTimestamp 
     } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
+    // --- Firebase Initialization ---
     const firebaseConfig = {
       apiKey: "AIzaSyBc9bPH4N_wa_NkEI3kpTYERTTP1ThByNw",
       authDomain: "ondoku-c48a9.firebaseapp.com",
@@ -62,6 +63,29 @@
     const USERS_PATH = `users`;
     const ENTRIES_PATH = `entries`;
 
+    // --- マスターデータ ---
+    const stickerCollection = [
+      { id: 's4_01', category: '4月', image: '001.png', fallbackEmoji: '🌸', price: 10, name: 'さくら' },
+      { id: 's4_02', category: '4月', image: '002.png', fallbackEmoji: '🎒', price: 20, name: 'ランドセル' },
+      { id: 's5_01', category: '5月', image: '003.png', fallbackEmoji: '🎏', price: 10, name: 'こいのぼり' },
+      { id: 's5_02', category: '5月', image: '004.png', fallbackEmoji: '👦', price: 20, name: 'かぶと' },
+      { id: 'ani_01', category: '動物', image: '005.png', fallbackEmoji: '🐶', price: 30, name: 'イヌ' },
+      { id: 'ani_02', category: '動物', image: '006.png', fallbackEmoji: '🐱', price: 30, name: 'ネコ' },
+      { id: 'sea_01', category: '海', image: '007.png', fallbackEmoji: '🐬', price: 30, name: 'イルカ' },
+      { id: 'sea_02', category: '海', image: '008.png', fallbackEmoji: '🐋', price: 50, name: 'クジラ' },
+    ];
+
+    const pageCollection = [
+      { id: 'page_default', color: '#fff8e7', price: 0, name: 'きほん' },
+      { id: 'page_pink', color: '#fdf2f8', price: 100, name: 'ピンク' },
+      { id: 'page_blue', color: '#eff6ff', price: 100, name: 'あお' },
+      { id: 'page_green', color: '#f0fdf4', price: 150, name: 'みどり' },
+      { id: 'page_dark', color: '#1e293b', price: 200, name: 'よぞら' },
+    ];
+
+    const shopCategories = ['4月', '5月', '動物', '海', '台紙'];
+
+    // --- State Management ---
     const state = {
       user: null,
       profile: null,
@@ -85,8 +109,11 @@
       
       showNameEditModal: false,
       editNameInput: '',
+      editNumberInput: 1,
       
       calendarSignatureToShow: null,
+      shopTab: '4月',
+      currentStickerPageIdx: 0,
 
       teacherTab: 'today',
       newStudentId: '',
@@ -139,6 +166,7 @@
           if (!data.stickers) data.stickers = [];
           if (!data.placedStickers) data.placedStickers = [];
           if (!data.managedStudents) data.managedStudents = [];
+          if (!data.unlockedPages) data.unlockedPages = ['page_default'];
           if (data.totalEntries === undefined) data.totalEntries = 0;
           state.profile = data;
           safeRender();
@@ -146,8 +174,8 @@
           const shortId = user.uid.substring(0, 6).toUpperCase();
           const role = state.isTeacherView ? 'teacher' : 'student';
           const newProfile = {
-            uid: user.uid, shortId, name: role === 'teacher' ? '先生' : `児童_${shortId}`,
-            role, points: 0, stickers: [], placedStickers: [], managedStudents: [], totalEntries: 0,
+            uid: user.uid, shortId, name: role === 'teacher' ? '先生' : `なまえ`, number: null,
+            role, points: 0, stickers: [], placedStickers: [], unlockedPages: ['page_default'], managedStudents: [], totalEntries: 0,
             createdAt: serverTimestamp()
           };
           setDoc(userDocRef, newProfile);
@@ -204,18 +232,25 @@
       state.profile = null;
     };
 
+    // --- 名前と出席番号の編集処理 ---
     window.openNameEditModal = () => {
       state.showNameEditModal = true;
-      state.editNameInput = state.profile.name;
+      state.editNameInput = state.profile.name === 'なまえ' ? '' : state.profile.name;
+      state.editNumberInput = state.profile.number || 1;
       isInteracting = true;
       render();
     };
     window.closeNameEditModal = () => { state.showNameEditModal = false; isInteracting = false; render(); };
     window.onNameInputChange = (e) => { state.editNameInput = e.value; };
+    window.onNumberInputChange = (e) => { state.editNumberInput = parseInt(e.value, 10); };
     window.saveName = async () => {
       if (!state.editNameInput.trim()) return;
-      try { await updateDoc(doc(db, USERS_PATH, state.user.uid), { name: state.editNameInput.trim() }); } 
-      catch(e) { console.error(e); }
+      try { 
+        await updateDoc(doc(db, USERS_PATH, state.user.uid), { 
+          name: state.editNameInput.trim(),
+          number: state.editNumberInput
+        }); 
+      } catch(e) { console.error(e); }
       state.showNameEditModal = false;
       isInteracting = false;
       render();
@@ -224,6 +259,10 @@
     window.switchTab = (tab) => { state.activeTab = tab; render(); };
     window.setTeacherTab = (tab) => { state.teacherTab = tab; render(); };
     window.setCriteria = (index, value) => { state.criteria[index] = value; render(); };
+    window.setShopTab = (tab) => { state.shopTab = tab; render(); };
+    
+    window.prevStickerPage = () => { if(state.currentStickerPageIdx > 0) { state.currentStickerPageIdx--; render(); } };
+    window.nextStickerPage = () => { if(state.currentStickerPageIdx < (state.profile.unlockedPages.length - 1)) { state.currentStickerPageIdx++; render(); } };
 
     window.startRecording = async () => {
       try {
@@ -281,7 +320,6 @@
         
         let earnedPoints = 10;
         let isBonus = false;
-        // 5日累計ごとにボーナス50ポイント (基本10 + ボーナス50 = 60pt)
         if (newTotal % 5 === 0) {
           earnedPoints += 50;
           isBonus = true;
@@ -321,10 +359,7 @@
         const newTotal = Math.max(0, currentTotal - 1);
         
         let lostPoints = 10;
-        // もしボーナスをもらった回を取り消すならボーナス分も引く
-        if (currentTotal > 0 && currentTotal % 5 === 0) {
-          lostPoints += 50;
-        }
+        if (currentTotal > 0 && currentTotal % 5 === 0) lostPoints += 50;
 
         await updateDoc(doc(db, USERS_PATH, state.user.uid), { 
           points: state.profile.points - lostPoints,
@@ -345,23 +380,8 @@
     window.openCalendarSignature = (sig) => { state.calendarSignatureToShow = sig; render(); };
     window.closeCalendarSignature = () => { state.calendarSignatureToShow = null; render(); };
 
-    // --- カスタムシール設定 ---
-    const stickerCollection = [
-      { id: 's001', image: '001.png', fallbackEmoji: '🍎', price: 10, name: 'シール1', unlockMonth: 1 },
-      { id: 's002', image: '002.png', fallbackEmoji: '⭐', price: 10, name: 'シール2', unlockMonth: 1 },
-      { id: 's003', image: '003.png', fallbackEmoji: '🚗', price: 20, name: 'シール3', unlockMonth: 2 },
-      { id: 's004', image: '004.png', fallbackEmoji: '🐱', price: 20, name: 'シール4', unlockMonth: 3 },
-      { id: 's005', image: '005.png', fallbackEmoji: '🐶', price: 30, name: 'シール5', unlockMonth: 4 },
-      { id: 's006', image: '006.png', fallbackEmoji: '🚀', price: 30, name: 'シール6', unlockMonth: 5 },
-      { id: 's007', image: '007.png', fallbackEmoji: '👻', price: 50, name: 'シール7', unlockMonth: 6 },
-      { id: 's008', image: '008.png', fallbackEmoji: '👑', price: 50, name: 'シール8', unlockMonth: 7 },
-      { id: 's009', image: '009.png', fallbackEmoji: '💎', price: 100, name: 'シール9', unlockMonth: 8 },
-      { id: 's010', image: '010.png', fallbackEmoji: '🐉', price: 100, name: 'シール10', unlockMonth: 9 },
-    ];
-
-    const renderStickerImg = (s, customClass = "w-full h-full object-contain") => {
-      // 画像がない場合は fallbackEmoji を表示する
-      return `<img src="${s.image}" onerror="this.outerHTML='<span class=\\'drop-shadow-md\\'>${s.fallbackEmoji}</span>'" class="${customClass}" alt="${s.name}" />`;
+    const renderStickerImg = (s, customClass = "w-full h-full object-contain drop-shadow-md") => {
+      return `<img src="${s.image}" onerror="this.outerHTML='<span class=\\'drop-shadow-md\\'>${s.fallbackEmoji}</span>'" class="${customClass}" alt="${s.name}" draggable="false" />`;
     };
 
     window.buySticker = async (stickerId, price, name) => {
@@ -375,10 +395,22 @@
       }
     };
 
+    window.buyPage = async (pageId, price, name) => {
+      if (state.profile.points >= price && !state.profile.unlockedPages.includes(pageId)) {
+        if (confirm(`「${name}」の台紙を ${price}pt で買いますか？`)) {
+          await updateDoc(doc(db, USERS_PATH, state.user.uid), {
+            points: state.profile.points - price,
+            unlockedPages: [...state.profile.unlockedPages, pageId]
+          });
+        }
+      }
+    };
+
     window.placeSticker = async (id) => {
+      const currentPageId = state.profile.unlockedPages[state.currentStickerPageIdx] || 'page_default';
       const x = 20 + Math.random() * 100;
       const y = 20 + Math.random() * 100;
-      const newSticker = { id, x, y, rotation: 0, uid: Date.now() };
+      const newSticker = { id, x, y, rotation: 0, uid: Date.now(), pageId: currentPageId };
       await updateDoc(doc(db, USERS_PATH, state.user.uid), {
         placedStickers: [...state.profile.placedStickers, newSticker]
       });
@@ -401,14 +433,16 @@
       try { await updateDoc(doc(db, USERS_PATH, state.user.uid), { placedStickers: updated }); } catch(e){}
     };
 
-    window.removeAllStickers = async () => {
-      if (state.profile.placedStickers.length === 0) return;
-      if (confirm("はってあるシールをすべてはがしますか？（シールはなくなりません）")) {
-        await updateDoc(doc(db, USERS_PATH, state.user.uid), { placedStickers: [] });
+    window.removeAllStickersOnPage = async () => {
+      const currentPageId = state.profile.unlockedPages[state.currentStickerPageIdx] || 'page_default';
+      const keeping = state.profile.placedStickers.filter(p => (p.pageId || 'page_default') !== currentPageId);
+      if (state.profile.placedStickers.length === keeping.length) return;
+      
+      if (confirm("このページにはってあるシールをすべてはがしますか？（シールはアイテム欄にもどります）")) {
+        await updateDoc(doc(db, USERS_PATH, state.user.uid), { placedStickers: keeping });
       }
     };
 
-    // シールドラッグ＆レイヤー最前面移動
     window.startDragSticker = (e, uid) => {
       e.preventDefault();
       isInteracting = true; 
@@ -418,7 +452,7 @@
       const targetIndex = state.profile.placedStickers.findIndex(p => p.uid === uid);
       if (targetIndex === -1) return;
       
-      // 対象を配列の末尾に移動させて最前面(z-index最大)にする
+      // 配列の末尾に移動させて最前面に表示
       const updated = [...state.profile.placedStickers];
       const [item] = updated.splice(targetIndex, 1);
       updated.push(item);
@@ -468,8 +502,6 @@
 
       document.addEventListener('pointermove', onMove);
       document.addEventListener('pointerup', onUp);
-      
-      // Firebaseにレイヤー順序を保存
       try { updateDoc(doc(db, USERS_PATH, state.user.uid), { placedStickers: updated }); } catch(err){}
     };
 
@@ -549,6 +581,7 @@
     const renderMain = () => {
       const isActuallyTeacher = state.profile.role === 'teacher';
       const myEntries = state.entries.filter(e => e.uid === state.user.uid);
+      const displayName = state.profile.number ? `${state.profile.number}番 ${escapeHTML(state.profile.name)}` : escapeHTML(state.profile.name);
       
       return `
         <header class="bg-white p-3 md:p-4 shrink-0 z-30 shadow-sm border-b border-slate-200">
@@ -559,7 +592,7 @@
               </div>
               <div>
                 <div class="flex items-center">
-                  <h1 class="text-base md:text-lg font-bold text-slate-800 leading-tight">${escapeHTML(state.profile.name)}</h1>
+                  <h1 class="text-base md:text-lg font-bold text-slate-800 leading-tight">${displayName}</h1>
                   ${!isActuallyTeacher ? `<button onclick="window.openNameEditModal()" class="ml-2 p-1 text-slate-400 hover:text-blue-500 hover:bg-slate-100 rounded transition-colors"><i data-lucide="pencil" class="w-4 h-4"></i></button>` : ''}
                 </div>
                 ${!isActuallyTeacher ? `<div class="flex items-center text-[10px] md:text-xs text-slate-500 mt-0.5">ID: <span class="font-mono bg-slate-100 px-1 rounded ml-1 font-bold">${state.profile.shortId}</span> <span class="ml-2 bg-indigo-50 text-indigo-600 px-1.5 rounded">累計: ${state.profile.totalEntries || 0}日</span></div>` : ''}
@@ -578,8 +611,8 @@
           </div>
         </header>
 
-        <main class="flex-1 overflow-y-auto p-3 md:p-6 custom-scrollbar relative">
-          <div class="max-w-5xl mx-auto h-full">
+        <main class="flex-1 min-h-0 overflow-y-auto p-3 md:p-6 custom-scrollbar relative">
+          <div class="max-w-5xl mx-auto h-full flex flex-col">
             ${isActuallyTeacher ? renderTeacherDashboard() : renderStudentDashboard(myEntries)}
           </div>
         </main>
@@ -603,8 +636,20 @@
       <div class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
         <div class="bg-white rounded-3xl p-6 w-full max-w-sm shadow-2xl animate-in zoom-in-95">
           <h3 class="font-bold text-slate-800 mb-4 text-lg">名前の変更</h3>
-          <p class="text-sm text-slate-600 mb-2">出席番号と名前を入力してください。<br><span class="text-slate-400 text-xs">例：01_山田太郎</span></p>
-          <input type="text" value="${escapeHTML(state.editNameInput)}" oninput="window.onNameInputChange(this)" class="w-full px-4 py-3 rounded-xl border border-slate-300 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200 mb-6 font-bold text-slate-800" placeholder="01_なまえ" />
+          
+          <div class="flex space-x-2 mb-6">
+            <div class="w-1/3">
+              <label class="text-xs font-bold text-slate-500 mb-1 block">出席番号</label>
+              <select onchange="window.onNumberInputChange(this)" class="w-full px-3 py-3 rounded-xl border border-slate-300 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200 font-bold text-slate-800">
+                ${Array.from({length:40}, (_,i)=>i+1).map(n => `<option value="${n}" ${state.editNumberInput === n ? 'selected' : ''}>${n}</option>`).join('')}
+              </select>
+            </div>
+            <div class="w-2/3">
+              <label class="text-xs font-bold text-slate-500 mb-1 block">なまえ</label>
+              <input type="text" value="${escapeHTML(state.editNameInput)}" oninput="window.onNameInputChange(this)" class="w-full px-4 py-3 rounded-xl border border-slate-300 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200 font-bold text-slate-800" placeholder="なまえ" />
+            </div>
+          </div>
+
           <div class="flex justify-end space-x-3">
             <button onclick="window.closeNameEditModal()" class="px-5 py-2.5 bg-slate-100 text-slate-600 rounded-xl font-bold hover:bg-slate-200 transition-colors">キャンセル</button>
             <button onclick="window.saveName()" class="px-6 py-2.5 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 transition-colors shadow-md">ほぞんする</button>
@@ -626,7 +671,7 @@
       else if (state.activeTab === 'calendar') content = renderCalendarTab(myEntries);
       else if (state.activeTab === 'sticker') content = renderStickerBookTab();
       else if (state.activeTab === 'shop') content = renderShopTab();
-      return `<div class="animate-in fade-in duration-300 h-full">${content}</div>`;
+      return `<div class="animate-in fade-in duration-300 h-full flex flex-col">${content}</div>`;
     };
 
     const renderHomeTab = (myEntries) => {
@@ -655,12 +700,12 @@
 
       if (hasSubmittedToday) {
         return `
-          <div class="bg-white rounded-3xl p-8 text-center shadow-sm border border-emerald-100 flex flex-col items-center justify-center h-full min-h-[300px]">
+          <div class="bg-white rounded-3xl p-8 text-center shadow-sm border border-emerald-100 flex flex-col items-center justify-center flex-1">
             <div class="text-7xl mb-4">💮</div>
             <h2 class="text-2xl font-bold text-emerald-600 mb-4">ていしゅつ完了！</h2>
             <p class="text-slate-600 mb-6">きょうの音読はばっちりだね。<br/>あしたもがんばろう！</p>
             <div class="inline-flex items-center justify-center bg-amber-100 text-amber-700 px-6 py-2 rounded-full font-bold mb-6">
-              <i data-lucide="star" class="w-5 h-5 mr-1 fill-current"></i> ${state.successMessage || "ポイント ゲット！"}
+              <i data-lucide="star" class="w-5 h-5 mr-1 fill-current"></i> ${state.successMessage || "+10 ポイント ゲット！"}
             </div>
             <button onclick="window.cancelEntry()" class="text-sm text-slate-400 hover:text-red-500 underline decoration-slate-300 hover:decoration-red-300">
               きょうの記録を取り消す
@@ -677,7 +722,7 @@
 
       const sigHtml = state.signatureData ? `
         <div class="relative bg-slate-50 border-2 border-slate-200 rounded-xl p-2 flex justify-center h-24 md:h-32 mb-4 overflow-hidden w-full">
-          <img src="${state.signatureData}" alt="サイン" class="max-h-full max-w-full object-contain" />
+          <img src="${state.signatureData}" alt="サイン" class="max-h-full max-w-full object-contain mix-blend-multiply" />
           <button onclick="window.removeSignatureData()" class="absolute top-1 right-1 bg-white p-1 rounded-full shadow text-slate-400 hover:text-red-500"><i data-lucide="x" class="w-4 h-4"></i></button>
         </div>
       ` : `
@@ -689,9 +734,7 @@
       const submittable = !state.criteria.includes(null);
 
       return `
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6 relative">
-          
-          <!-- 左カラム -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6 relative flex-1 min-h-0">
           <div class="space-y-4 md:space-y-6">
             <div class="bg-white rounded-2xl p-4 md:p-5 shadow-sm border border-slate-200">
               <div class="flex justify-between items-center mb-3">
@@ -717,9 +760,8 @@
             </div>
           </div>
 
-          <!-- 右カラム -->
           <div class="space-y-4 md:space-y-6 flex flex-col">
-            <div class="bg-white rounded-2xl p-4 md:p-5 shadow-sm border border-slate-200 flex-1 flex flex-col">
+            <div class="bg-white rounded-2xl p-4 md:p-5 shadow-sm border border-slate-200 flex-1 flex flex-col min-h-[200px]">
               <div class="flex items-center mb-4 text-indigo-600"><i data-lucide="pen-tool" class="w-5 h-5 mr-2"></i><h2 class="font-bold text-sm md:text-base">おうちのひとのサイン</h2></div>
               <div class="flex-1 flex flex-col justify-center">
                 ${sigHtml}
@@ -794,37 +836,46 @@
         const entry = entriesMap[i];
         const isToday = i === d.getDate();
         
-        let contentHtml = `<span class="z-10 ${entry ? 'text-emerald-700 font-bold drop-shadow-sm' : ''}">${i}</span>`;
-        
-        const cls = entry ? 'bg-emerald-100 border-2 border-emerald-300 cursor-pointer hover:bg-emerald-200 shadow-inner' : isToday ? 'bg-blue-50 text-blue-700 border-2 border-blue-200' : 'bg-slate-50 text-slate-500 border border-slate-100';
+        let contentHtml = `<div class="absolute top-1 left-1.5 text-[10px] md:text-xs font-bold z-10 ${entry ? 'text-emerald-700' : 'text-slate-400'}">${i}</div>`;
+        if (entry) {
+          if (entry.signature) {
+            contentHtml += `<div class="absolute inset-0 flex items-center justify-center p-2 z-0"><img src="${entry.signature}" class="w-full h-full object-contain mix-blend-multiply opacity-80" /></div>`;
+          } else {
+            contentHtml += `<div class="absolute inset-0 flex items-center justify-center z-0"><span class="text-2xl md:text-3xl opacity-70">💮</span></div>`;
+          }
+        }
+
+        const cls = entry ? 'bg-emerald-50 border-2 border-emerald-300 cursor-pointer hover:bg-emerald-100 shadow-inner' : isToday ? 'bg-blue-50 text-blue-700 border-2 border-blue-200' : 'bg-slate-50 border border-slate-100';
         const onClickAttr = entry && entry.signature ? `onclick="window.openCalendarSignature('${entry.signature}')"` : '';
 
         daysHtml += `
-          <div ${onClickAttr} class="aspect-square rounded-lg md:rounded-xl flex items-center justify-center relative font-medium text-sm transition-all overflow-hidden ${cls}">
+          <div ${onClickAttr} class="border-slate-200 rounded-lg md:rounded-xl flex items-center justify-center relative transition-all overflow-hidden ${cls}">
             ${contentHtml}
           </div>
         `;
       }
 
       return `
-        <div class="bg-white rounded-2xl p-4 md:p-6 shadow-sm border border-slate-200 h-full flex flex-col">
-          <div class="flex justify-between items-center mb-4 shrink-0">
+        <div class="bg-white rounded-2xl p-4 md:p-6 shadow-sm border border-slate-200 h-full flex flex-col min-h-0">
+          <div class="flex justify-between items-center mb-3 shrink-0">
             <h2 class="text-xl font-bold text-slate-800">${d.getMonth() + 1}月</h2>
             <div class="text-sm font-bold text-slate-600 bg-slate-100 px-3 py-1 rounded-full">提出日数: ${myEntries.length} 日</div>
           </div>
           <div class="grid grid-cols-7 gap-1 md:gap-2 text-center mb-2 shrink-0">
             ${['日', '月', '火', '水', '木', '金', '土'].map((day, i) => `<div class="text-xs font-bold ${i === 0 ? 'text-red-400' : i === 6 ? 'text-blue-400' : 'text-slate-400'}">${day}</div>`).join('')}
           </div>
-          <div class="grid grid-cols-7 gap-1 md:gap-3 flex-1 auto-rows-fr">${blanksHtml}${daysHtml}</div>
+          <div class="grid grid-cols-7 grid-rows-6 gap-1 md:gap-2 flex-1 min-h-0">
+            ${blanksHtml}${daysHtml}
+          </div>
           
           ${state.calendarSignatureToShow ? `
             <div class="fixed inset-0 bg-slate-900/70 backdrop-blur-sm flex items-center justify-center z-50 p-4" onclick="window.closeCalendarSignature()">
-              <div class="bg-white p-4 rounded-3xl w-full max-w-sm shadow-2xl flex flex-col items-center animate-in zoom-in-95" onclick="event.stopPropagation()">
+              <div class="bg-white p-4 rounded-3xl w-full max-w-md shadow-2xl flex flex-col items-center animate-in zoom-in-95" onclick="event.stopPropagation()">
                 <h3 class="font-bold text-slate-600 mb-2">おうちのひとのサイン</h3>
-                <div class="w-full bg-slate-50 border border-slate-200 rounded-2xl p-2 h-48 flex items-center justify-center mb-4">
-                  <img src="${state.calendarSignatureToShow}" class="max-w-full max-h-full object-contain" />
+                <div class="w-full bg-slate-50 border border-slate-200 rounded-2xl p-4 h-48 md:h-64 flex items-center justify-center mb-4">
+                  <img src="${state.calendarSignatureToShow}" class="max-w-full max-h-full object-contain mix-blend-multiply" />
                 </div>
-                <button onclick="window.closeCalendarSignature()" class="w-full py-3 bg-slate-200 text-slate-700 font-bold rounded-xl">とじる</button>
+                <button onclick="window.closeCalendarSignature()" class="w-full py-3 bg-slate-200 text-slate-700 font-bold rounded-xl hover:bg-slate-300">とじる</button>
               </div>
             </div>
           ` : ''}
@@ -835,13 +886,23 @@
     const renderStickerBookTab = () => {
       const myStickers = state.profile.stickers || [];
       const placed = state.profile.placedStickers || [];
+      const unlockedPages = state.profile.unlockedPages || ['page_default'];
+      
+      if(state.currentStickerPageIdx >= unlockedPages.length) state.currentStickerPageIdx = Math.max(0, unlockedPages.length - 1);
+      const currentPageId = unlockedPages[state.currentStickerPageIdx];
+      const pageDef = pageCollection.find(p => p.id === currentPageId) || pageCollection[0];
+
+      // このページのシールだけを抽出
+      const placedOnThisPage = placed.filter(p => (p.pageId || 'page_default') === currentPageId);
 
       const counts = {};
       myStickers.forEach(id => { counts[id] = (counts[id] || 0) + 1; });
       placed.forEach(p => { if (counts[p.id]) counts[p.id]--; });
 
-      let placedHtml = placed.map((item, index) => {
+      let placedHtml = placedOnThisPage.map((item, index) => {
         const sDef = stickerCollection.find(s => s.id === item.id) || { fallbackEmoji: '❓', image: '' };
+        // 全体のplacedStickers配列における本当のインデックスを探す
+        const realIndex = placed.findIndex(p => p.uid === item.uid);
         return `
           <div onpointerdown="window.startDragSticker(event, '${item.uid}')" class="absolute select-none touch-none group" style="left: ${item.x}px; top: ${item.y}px; z-index: ${item.uid}; cursor: grab;">
             <div style="transform: rotate(${item.rotation || 0}deg); font-size: 3rem;" class="transition-transform w-12 h-12 md:w-16 md:h-16 flex items-center justify-center">
@@ -868,27 +929,51 @@
         </div>
       `).join('');
 
-      if (!paletteHtml) paletteHtml = '<div class="col-span-5 md:col-span-3 text-sm text-slate-400 text-center py-4 bg-slate-50 rounded-xl border border-slate-200 border-dashed">はれるシールがありません。</div>';
+      if (!paletteHtml) paletteHtml = '<div class="col-span-5 md:col-span-3 text-sm text-slate-400 text-center py-4 bg-slate-50 rounded-xl border border-slate-200 border-dashed">もっているシールがありません。ショップで買おう！</div>';
 
       return `
-        <div class="flex flex-col md:flex-row gap-4 h-full">
-          <!-- 左側：シール台紙 (無地) -->
-          <div class="flex-1 bg-[#fff8e7] rounded-2xl shadow-inner border border-slate-200 relative overflow-hidden min-h-[300px]">
-            <div class="absolute top-3 left-3 text-sm font-bold text-amber-600/50 z-0">わたしのシール帳</div>
-            ${placedHtml}
+        <div class="flex flex-col h-full min-h-0">
+          <div class="flex items-center justify-between bg-white p-3 md:p-4 rounded-2xl shadow-sm border border-slate-200 shrink-0 mb-4">
+            <div class="flex items-center"><i data-lucide="book-open" class="w-5 h-5 md:w-6 md:h-6 text-indigo-500 mr-2"></i><h2 class="font-bold text-slate-800 text-sm md:text-base">シール帳</h2></div>
+            <div class="flex items-center space-x-2 md:space-x-4">
+              <div class="flex items-center space-x-1 md:space-x-2 bg-slate-100 rounded-full px-2 py-1">
+                <button onclick="window.prevStickerPage()" class="p-1 rounded-full hover:bg-white text-slate-500"><i data-lucide="chevron-left" class="w-4 h-4"></i></button>
+                <span class="text-xs font-bold text-slate-600 w-12 md:w-16 text-center truncate">${pageDef.name}</span>
+                <button onclick="window.nextStickerPage()" class="p-1 rounded-full hover:bg-white text-slate-500"><i data-lucide="chevron-right" class="w-4 h-4"></i></button>
+              </div>
+            </div>
           </div>
 
-          <!-- 右側：パレット -->
-          <div class="w-full md:w-72 shrink-0 flex flex-col gap-4">
-            <div class="bg-slate-100 p-4 rounded-2xl border border-slate-200 flex-1 overflow-y-auto">
-              <h3 class="text-sm font-bold text-slate-600 mb-3 flex items-center"><i data-lucide="mouse-pointer-click" class="w-4 h-4 mr-1"></i> タップしてはる</h3>
-              <div class="grid grid-cols-5 md:grid-cols-3 gap-2 md:gap-3">${paletteHtml}</div>
+          <div class="flex flex-col md:flex-row gap-4 flex-1 min-h-0">
+            <!-- 台紙 -->
+            <div class="flex-1 rounded-2xl shadow-inner border border-slate-200 relative overflow-hidden min-h-[250px]" style="background-color: ${pageDef.color};">
+              ${placedHtml}
             </div>
-            
-            <button onclick="window.removeAllStickers()" class="py-3 bg-white border border-red-200 text-red-500 font-bold rounded-xl hover:bg-red-50 transition-colors flex items-center justify-center text-sm shadow-sm shrink-0">
-              <i data-lucide="trash-2" class="w-4 h-4 mr-1"></i> すべてはがす
-            </button>
+
+            <!-- パレット -->
+            <div class="w-full md:w-72 shrink-0 flex flex-col gap-4">
+              <div class="bg-slate-100 p-4 rounded-2xl border border-slate-200 flex-1 overflow-y-auto">
+                <h3 class="text-sm font-bold text-slate-600 mb-3 flex items-center"><i data-lucide="mouse-pointer-click" class="w-4 h-4 mr-1"></i> タップしてはる</h3>
+                <div class="grid grid-cols-5 md:grid-cols-3 gap-2 md:gap-3">${paletteHtml}</div>
+              </div>
+              
+              <button onclick="window.removeAllStickersOnPage()" class="py-3 bg-white border border-red-200 text-red-500 font-bold rounded-xl hover:bg-red-50 transition-colors flex items-center justify-center text-sm shadow-sm shrink-0">
+                <i data-lucide="trash-2" class="w-4 h-4 mr-1"></i> このページをすべてはがす
+              </button>
+            </div>
           </div>
+        </div>
+      `;
+    };
+
+    const renderShopTabs = () => {
+      return `
+        <div class="flex space-x-2 overflow-x-auto pb-2 custom-scrollbar shrink-0 w-full">
+          ${shopCategories.map(cat => `
+            <button onclick="window.setShopTab('${cat}')" class="px-4 py-2 whitespace-nowrap rounded-full font-bold text-sm transition-colors ${state.shopTab === cat ? 'bg-indigo-500 text-white shadow-md' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}">
+              ${cat}
+            </button>
+          `).join('')}
         </div>
       `;
     };
@@ -897,30 +982,65 @@
       const pts = state.profile.points;
       const currentMonth = new Date().getMonth() + 1;
       
-      let shopHtml = stickerCollection.filter(s => s.unlockMonth <= currentMonth).map(s => {
-        const canAfford = pts >= s.price;
-        const cls = canAfford ? 'bg-white border-2 border-amber-200 cursor-pointer hover:bg-amber-50 hover:-translate-y-1 hover:shadow-md' : 'bg-slate-50 border border-slate-200 opacity-60';
-        return `
-          <div onclick="window.buySticker('${s.id}', ${s.price}, '${s.name}')" class="flex flex-col items-center p-3 md:p-4 rounded-xl transition-all shadow-sm ${cls}">
-            <div class="text-4xl md:text-5xl mb-2 drop-shadow-sm h-12 w-12 flex items-center justify-center">${renderStickerImg(s)}</div>
-            <div class="font-bold text-slate-700 text-xs mb-2">${s.name}</div>
-            <div class="flex items-center text-xs font-bold px-3 py-1 rounded-full ${canAfford ? 'bg-amber-100 text-amber-700' : 'bg-slate-200 text-slate-500'}">
-              <i data-lucide="star" class="w-3 h-3 mr-1 fill-current"></i>${s.price} pt
+      let shopHtml = '';
+
+      if (state.shopTab === '台紙') {
+        // 台紙の表示
+        shopHtml = pageCollection.filter(p => p.price > 0).map(p => {
+          const hasPage = state.profile.unlockedPages.includes(p.id);
+          const canAfford = pts >= p.price;
+          if(hasPage) {
+            return `
+              <div class="flex flex-col items-center p-3 md:p-4 rounded-xl transition-all shadow-sm bg-indigo-50 border border-indigo-200">
+                <div class="w-12 h-12 mb-2 rounded-lg border border-slate-300 shadow-inner" style="background-color: ${p.color}"></div>
+                <div class="font-bold text-slate-700 text-xs mb-2">${p.name}</div>
+                <div class="text-[10px] font-bold px-3 py-1 rounded-full bg-indigo-100 text-indigo-700">もっている</div>
+              </div>
+            `;
+          }
+          const cls = canAfford ? 'bg-white border-2 border-amber-200 cursor-pointer hover:bg-amber-50 hover:-translate-y-1 hover:shadow-md' : 'bg-slate-50 border border-slate-200 opacity-60';
+          return `
+            <div onclick="window.buyPage('${p.id}', ${p.price}, '${p.name}')" class="flex flex-col items-center p-3 md:p-4 rounded-xl transition-all shadow-sm ${cls}">
+              <div class="w-12 h-12 mb-2 rounded-lg border border-slate-300 shadow-inner" style="background-color: ${p.color}"></div>
+              <div class="font-bold text-slate-700 text-xs mb-2">${p.name}</div>
+              <div class="flex items-center text-xs font-bold px-3 py-1 rounded-full ${canAfford ? 'bg-amber-100 text-amber-700' : 'bg-slate-200 text-slate-500'}">
+                <i data-lucide="star" class="w-3 h-3 mr-1 fill-current"></i>${p.price} pt
+              </div>
             </div>
-          </div>
-        `;
-      }).join('');
+          `;
+        }).join('');
+      } else {
+        // シールの表示
+        shopHtml = stickerCollection.filter(s => s.category === state.shopTab && s.unlockMonth <= currentMonth).map(s => {
+          const canAfford = pts >= s.price;
+          const cls = canAfford ? 'bg-white border-2 border-amber-200 cursor-pointer hover:bg-amber-50 hover:-translate-y-1 hover:shadow-md' : 'bg-slate-50 border border-slate-200 opacity-60';
+          return `
+            <div onclick="window.buySticker('${s.id}', ${s.price}, '${s.name}')" class="flex flex-col items-center p-3 md:p-4 rounded-xl transition-all shadow-sm ${cls}">
+              <div class="text-4xl md:text-5xl mb-2 drop-shadow-sm h-12 w-12 flex items-center justify-center">${renderStickerImg(s)}</div>
+              <div class="font-bold text-slate-700 text-xs mb-2">${s.name}</div>
+              <div class="flex items-center text-xs font-bold px-3 py-1 rounded-full ${canAfford ? 'bg-amber-100 text-amber-700' : 'bg-slate-200 text-slate-500'}">
+                <i data-lucide="star" class="w-3 h-3 mr-1 fill-current"></i>${s.price} pt
+              </div>
+            </div>
+          `;
+        }).join('');
+        if (!shopHtml) shopHtml = '<div class="col-span-3 md:col-span-5 text-sm text-slate-400 text-center py-8">まだシールがありません。</div>';
+      }
 
       return `
-        <div class="bg-white p-4 md:p-6 rounded-2xl shadow-sm border border-slate-200 h-full overflow-y-auto">
-          <div class="flex flex-col md:flex-row items-start md:items-center justify-between mb-6 pb-4 border-b border-slate-100 gap-4">
+        <div class="bg-white p-4 md:p-6 rounded-2xl shadow-sm border border-slate-200 h-full flex flex-col min-h-0">
+          <div class="flex flex-col md:flex-row items-start md:items-center justify-between mb-4 pb-4 border-b border-slate-100 gap-4 shrink-0">
             <div>
               <h2 class="text-xl font-bold text-slate-800 flex items-center"><i data-lucide="store" class="w-6 h-6 text-pink-500 mr-2"></i>シールショップ</h2>
-              <p class="text-xs text-slate-500 mt-1 font-bold">ポイントをつかって、シールをゲットしよう！</p>
             </div>
-            <div class="inline-flex items-center bg-amber-100 text-amber-700 px-4 py-2 rounded-full font-bold text-sm shadow-inner"><i data-lucide="star" class="w-4 h-4 mr-1 fill-current"></i>もっているポイント: ${pts} pt</div>
+            <div class="inline-flex items-center bg-amber-100 text-amber-700 px-4 py-2 rounded-full font-bold text-sm shadow-inner"><i data-lucide="star" class="w-4 h-4 mr-1 fill-current"></i>ポイント: ${pts} pt</div>
           </div>
-          <div class="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 md:gap-4">${shopHtml}</div>
+          
+          ${renderShopTabs()}
+
+          <div class="flex-1 overflow-y-auto mt-4 custom-scrollbar pr-2">
+            <div class="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 md:gap-4">${shopHtml}</div>
+          </div>
         </div>
       `;
     };
@@ -928,7 +1048,10 @@
     const renderTeacherDashboard = () => {
       const managedStudents = state.allUsers
         .filter(u => state.profile.managedStudents.includes(u.uid))
-        .sort((a, b) => a.name.localeCompare(b.name, 'ja'));
+        .sort((a, b) => {
+          if ((a.number || 0) !== (b.number || 0)) return (a.number || 0) - (b.number || 0);
+          return (a.name || '').localeCompare(b.name || '', 'ja');
+        });
 
       let tabContent = '';
       if (state.teacherTab === 'today') tabContent = renderTeacherToday(managedStudents);
@@ -983,9 +1106,11 @@
           }
         }
         
+        const dispName = student.number ? `${student.number}番 ${escapeHTML(student.name)}` : escapeHTML(student.name);
+
         return `
           <tr class="border-b border-slate-100 hover:bg-slate-50">
-            <td class="p-3 font-bold text-slate-700 whitespace-nowrap">${escapeHTML(student.name)}</td>
+            <td class="p-3 font-bold text-slate-700 whitespace-nowrap">${dispName}</td>
             <td class="p-3 text-center whitespace-nowrap">${evalHtml}</td>
             <td class="p-2 text-center align-middle">${sigHtml}</td>
           </tr>
@@ -1028,9 +1153,11 @@
           const entry = studentEntries.find(e => e.date === `${year}/${month + 1}/${d}`);
           tds += `<td class="p-1 text-center border-r border-slate-50 ${isWeekend ? 'bg-slate-100' : ''}">${entry ? '<span class="text-emerald-500 text-base">💮</span>' : ''}</td>`;
         }
+        const dispName = student.number ? `${student.number}番 ${escapeHTML(student.name)}` : escapeHTML(student.name);
+
         return `
           <tr class="border-b border-slate-100 hover:bg-blue-50/30">
-            <td class="p-2 font-bold text-slate-700 border-r border-slate-200 sticky left-0 bg-white z-10 whitespace-nowrap">${escapeHTML(student.name)}</td>
+            <td class="p-2 font-bold text-slate-700 border-r border-slate-200 sticky left-0 bg-white z-10 whitespace-nowrap">${dispName}</td>
             ${tds}
           </tr>
         `;
@@ -1065,9 +1192,10 @@
         searchResHtml = '<p class="text-red-500 text-sm font-bold">みつかりませんでした。</p>';
       } else if (state.searchResult) {
         const isManaged = state.profile.managedStudents.includes(state.searchResult.uid);
+        const srName = state.searchResult.number ? `${state.searchResult.number}番 ${escapeHTML(state.searchResult.name)}` : escapeHTML(state.searchResult.name);
         searchResHtml = `
           <div class="bg-white p-4 rounded-lg border border-emerald-200 flex justify-between items-center mt-2">
-            <div><span class="text-xs text-slate-500 block">みつかりました</span><span class="font-bold">${escapeHTML(state.searchResult.name)}</span></div>
+            <div><span class="text-xs text-slate-500 block">みつかりました</span><span class="font-bold">${srName}</span></div>
             ${isManaged 
               ? `<span class="text-sm text-slate-500 font-bold bg-slate-100 px-3 py-1 rounded-full">登録ずみ</span>`
               : `<button onclick="window.handleAddStudent('${state.searchResult.uid}')" class="bg-emerald-500 text-white px-4 py-1.5 rounded-full font-bold text-sm">追加する</button>`}
@@ -1075,15 +1203,17 @@
         `;
       }
 
-      let studentsHtml = managedStudents.map(student => `
+      let studentsHtml = managedStudents.map(student => {
+        const dispName = student.number ? `${student.number}番 ${escapeHTML(student.name)}` : escapeHTML(student.name);
+        return `
         <div class="flex justify-between items-center p-3 bg-white border border-slate-200 rounded-lg">
           <div class="flex items-center space-x-3">
             <div class="bg-slate-100 p-2 rounded-full"><i data-lucide="award" class="w-5 h-5 text-slate-400"></i></div>
-            <div><div class="font-bold text-slate-700">${escapeHTML(student.name)}</div><div class="text-xs text-slate-400 font-mono">ID: ${student.shortId}</div></div>
+            <div><div class="font-bold text-slate-700">${dispName}</div><div class="text-xs text-slate-400 font-mono">ID: ${student.shortId}</div></div>
           </div>
           <button onclick="window.handleRemoveStudent('${student.uid}')" class="text-xs text-red-400 hover:bg-red-50 px-3 py-1 rounded-lg border border-transparent hover:border-red-200 transition-colors">削除</button>
         </div>
-      `).join('');
+      `}).join('');
 
       return `
         <div class="animate-in fade-in space-y-6">
