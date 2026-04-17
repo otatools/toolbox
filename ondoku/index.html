@@ -63,12 +63,19 @@
     const USERS_PATH = `users`;
     const ENTRIES_PATH = `entries`;
 
+    // --- 月の計算ロジック（4月始まり） ---
+    const getSchoolMonthIndex = (m) => (m >= 4 ? m - 4 : m + 8);
+    const currentMonth = new Date().getMonth() + 1;
+    const currentSchoolMonthIdx = getSchoolMonthIndex(currentMonth);
+
     // --- マスターデータ ---
     const stickerCollection = [
-      { id: 's4_01', category: '4月', image: '001.png', fallbackEmoji: '🌸', price: 10, name: 'さくら' },
-      { id: 's4_02', category: '4月', image: '002.png', fallbackEmoji: '🎒', price: 20, name: 'ランドセル' },
-      { id: 's5_01', category: '5月', image: '003.png', fallbackEmoji: '🎏', price: 10, name: 'こいのぼり' },
-      { id: 's5_02', category: '5月', image: '004.png', fallbackEmoji: '👦', price: 20, name: 'かぶと' },
+      // unlockMonthに指定した月になると自動的にショップに登場します
+      { id: 's4_01', category: '4月', image: '001.png', fallbackEmoji: '🌸', price: 10, name: 'さくら', unlockMonth: 4 },
+      { id: 's4_02', category: '4月', image: '002.png', fallbackEmoji: '🎒', price: 20, name: 'ランドセル', unlockMonth: 4 },
+      { id: 's5_01', category: '5月', image: '003.png', fallbackEmoji: '🎏', price: 10, name: 'こいのぼり', unlockMonth: 5 },
+      { id: 's5_02', category: '5月', image: '004.png', fallbackEmoji: '👦', price: 20, name: 'かぶと', unlockMonth: 5 },
+      // カテゴリ名で分けることもできます
       { id: 'ani_01', category: '動物', image: '005.png', fallbackEmoji: '🐶', price: 30, name: 'イヌ' },
       { id: 'ani_02', category: '動物', image: '006.png', fallbackEmoji: '🐱', price: 30, name: 'ネコ' },
       { id: 'sea_01', category: '海', image: '007.png', fallbackEmoji: '🐬', price: 30, name: 'イルカ' },
@@ -76,16 +83,27 @@
     ];
 
     const pageCollection = [
-      { id: 'page_default', color: '#fff8e7', price: 0, name: 'きほん' },
+      { id: 'page_default', color: '#ffffff', price: 0, name: 'しろ' },
       { id: 'page_pink', color: '#fdf2f8', price: 100, name: 'ピンク' },
       { id: 'page_blue', color: '#eff6ff', price: 100, name: 'あお' },
-      { id: 'page_green', color: '#f0fdf4', price: 150, name: 'みどり' },
-      { id: 'page_dark', color: '#1e293b', price: 200, name: 'よぞら' },
+      { id: 'page_green', color: '#f0fdf4', price: 100, name: 'みどり' },
+      { id: 'page_yellow', color: '#fefce8', price: 100, name: 'きいろ' },
+      { id: 'page_orange', color: '#fff7ed', price: 100, name: 'オレンジ' },
+      { id: 'page_purple', color: '#faf5ff', price: 100, name: 'むらさき' },
+      { id: 'page_black', color: '#334155', price: 150, name: 'くろ', isDark: true },
+      { id: 'page_night', color: '#1e293b', price: 200, name: 'よぞら', isDark: true }, // おまけ
     ];
 
-    const shopCategories = ['4月', '5月', '動物', '海', '台紙'];
+    // 今の月までのタブを動的に生成する関数
+    const getShopCategories = () => {
+      const monthCategories = [4, 5, 6, 7, 8, 9, 10, 11, 12, 1, 2, 3]
+        .filter(m => getSchoolMonthIndex(m) <= currentSchoolMonthIdx)
+        .map(m => `${m}月`);
+      return [...monthCategories, '動物', '海', '台紙'];
+    };
 
     // --- State Management ---
+    const initialShopCategories = getShopCategories();
     const state = {
       user: null,
       profile: null,
@@ -112,7 +130,7 @@
       editNumberInput: 1,
       
       calendarSignatureToShow: null,
-      shopTab: '4月',
+      shopTab: initialShopCategories[0],
       currentStickerPageIdx: 0,
 
       teacherTab: 'today',
@@ -232,7 +250,6 @@
       state.profile = null;
     };
 
-    // --- 名前と出席番号の編集処理 ---
     window.openNameEditModal = () => {
       state.showNameEditModal = true;
       state.editNameInput = state.profile.name === 'なまえ' ? '' : state.profile.name;
@@ -305,7 +322,6 @@
     };
     window.removeSignatureData = () => { state.signatureData = null; render(); };
 
-    // --- 提出・取り消しロジック ---
     window.submitEntry = async () => {
       if (state.criteria.includes(null)) return;
       state.isSubmitting = true;
@@ -892,7 +908,6 @@
       const currentPageId = unlockedPages[state.currentStickerPageIdx];
       const pageDef = pageCollection.find(p => p.id === currentPageId) || pageCollection[0];
 
-      // このページのシールだけを抽出
       const placedOnThisPage = placed.filter(p => (p.pageId || 'page_default') === currentPageId);
 
       const counts = {};
@@ -901,18 +916,15 @@
 
       let placedHtml = placedOnThisPage.map((item, index) => {
         const sDef = stickerCollection.find(s => s.id === item.id) || { fallbackEmoji: '❓', image: '' };
-        // 全体のplacedStickers配列における本当のインデックスを探す
         const realIndex = placed.findIndex(p => p.uid === item.uid);
         return `
           <div onpointerdown="window.startDragSticker(event, '${item.uid}')" class="absolute select-none touch-none group" style="left: ${item.x}px; top: ${item.y}px; z-index: ${item.uid}; cursor: grab;">
             <div style="transform: rotate(${item.rotation || 0}deg); font-size: 3rem;" class="transition-transform w-12 h-12 md:w-16 md:h-16 flex items-center justify-center">
               ${renderStickerImg(sDef)}
             </div>
-            <!-- 削除ボタン -->
             <button onpointerdown="event.stopPropagation()" onclick="window.removeSticker('${item.uid}', event)" class="absolute -top-3 -right-3 bg-white text-slate-400 hover:text-red-500 rounded-full w-8 h-8 flex items-center justify-center text-sm shadow-md border border-slate-100 opacity-0 group-hover:opacity-100 transition-opacity">
               <i data-lucide="x" class="w-5 h-5"></i>
             </button>
-            <!-- 回転ボタン -->
             <button onpointerdown="event.stopPropagation()" onclick="window.rotateSticker('${item.uid}', event)" class="absolute -bottom-3 -right-3 bg-white text-slate-400 hover:text-blue-500 rounded-full w-8 h-8 flex items-center justify-center text-sm shadow-md border border-slate-100 opacity-0 group-hover:opacity-100 transition-opacity">
               <i data-lucide="rotate-cw" class="w-4 h-4"></i>
             </button>
@@ -938,19 +950,18 @@
             <div class="flex items-center space-x-2 md:space-x-4">
               <div class="flex items-center space-x-1 md:space-x-2 bg-slate-100 rounded-full px-2 py-1">
                 <button onclick="window.prevStickerPage()" class="p-1 rounded-full hover:bg-white text-slate-500"><i data-lucide="chevron-left" class="w-4 h-4"></i></button>
-                <span class="text-xs font-bold text-slate-600 w-12 md:w-16 text-center truncate">${pageDef.name}</span>
+                <span class="text-xs font-bold text-slate-600 w-16 md:w-24 text-center truncate">P${state.currentStickerPageIdx + 1}</span>
                 <button onclick="window.nextStickerPage()" class="p-1 rounded-full hover:bg-white text-slate-500"><i data-lucide="chevron-right" class="w-4 h-4"></i></button>
               </div>
             </div>
           </div>
 
           <div class="flex flex-col md:flex-row gap-4 flex-1 min-h-0">
-            <!-- 台紙 -->
             <div class="flex-1 rounded-2xl shadow-inner border border-slate-200 relative overflow-hidden min-h-[250px]" style="background-color: ${pageDef.color};">
+              <div class="absolute top-3 left-3 text-sm font-bold ${pageDef.isDark ? 'text-white/50' : 'text-amber-600/50'} z-0">P${state.currentStickerPageIdx + 1}</div>
               ${placedHtml}
             </div>
 
-            <!-- パレット -->
             <div class="w-full md:w-72 shrink-0 flex flex-col gap-4">
               <div class="bg-slate-100 p-4 rounded-2xl border border-slate-200 flex-1 overflow-y-auto">
                 <h3 class="text-sm font-bold text-slate-600 mb-3 flex items-center"><i data-lucide="mouse-pointer-click" class="w-4 h-4 mr-1"></i> タップしてはる</h3>
@@ -967,9 +978,12 @@
     };
 
     const renderShopTabs = () => {
+      const cats = getShopCategories();
+      if (!cats.includes(state.shopTab)) state.shopTab = cats[0];
+      
       return `
         <div class="flex space-x-2 overflow-x-auto pb-2 custom-scrollbar shrink-0 w-full">
-          ${shopCategories.map(cat => `
+          ${cats.map(cat => `
             <button onclick="window.setShopTab('${cat}')" class="px-4 py-2 whitespace-nowrap rounded-full font-bold text-sm transition-colors ${state.shopTab === cat ? 'bg-indigo-500 text-white shadow-md' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}">
               ${cat}
             </button>
@@ -985,7 +999,6 @@
       let shopHtml = '';
 
       if (state.shopTab === '台紙') {
-        // 台紙の表示
         shopHtml = pageCollection.filter(p => p.price > 0).map(p => {
           const hasPage = state.profile.unlockedPages.includes(p.id);
           const canAfford = pts >= p.price;
@@ -1010,13 +1023,12 @@
           `;
         }).join('');
       } else {
-        // シールの表示
-        shopHtml = stickerCollection.filter(s => s.category === state.shopTab && s.unlockMonth <= currentMonth).map(s => {
+        shopHtml = stickerCollection.filter(s => s.category === state.shopTab).map(s => {
           const canAfford = pts >= s.price;
           const cls = canAfford ? 'bg-white border-2 border-amber-200 cursor-pointer hover:bg-amber-50 hover:-translate-y-1 hover:shadow-md' : 'bg-slate-50 border border-slate-200 opacity-60';
           return `
             <div onclick="window.buySticker('${s.id}', ${s.price}, '${s.name}')" class="flex flex-col items-center p-3 md:p-4 rounded-xl transition-all shadow-sm ${cls}">
-              <div class="text-4xl md:text-5xl mb-2 drop-shadow-sm h-12 w-12 flex items-center justify-center">${renderStickerImg(s)}</div>
+              <div class="text-4xl md:text-5xl mb-2 h-12 w-12 flex items-center justify-center">${renderStickerImg(s)}</div>
               <div class="font-bold text-slate-700 text-xs mb-2">${s.name}</div>
               <div class="flex items-center text-xs font-bold px-3 py-1 rounded-full ${canAfford ? 'bg-amber-100 text-amber-700' : 'bg-slate-200 text-slate-500'}">
                 <i data-lucide="star" class="w-3 h-3 mr-1 fill-current"></i>${s.price} pt
