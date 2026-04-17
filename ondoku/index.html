@@ -512,21 +512,12 @@
       });
     };
 
+    // シールをはがす
     window.removeSticker = async (uid, event) => {
+      event.preventDefault();
       event.stopPropagation();
-      const updated = state.profile.placedStickers.filter(p => p.uid !== uid);
+      const updated = state.profile.placedStickers.filter(p => p.uid.toString() !== uid.toString());
       await updateDoc(doc(db, USERS_PATH, state.user.uid), { placedStickers: updated });
-    };
-
-    window.rotateSticker = async (uid, event) => {
-      event.stopPropagation();
-      const index = state.profile.placedStickers.findIndex(p => p.uid === uid);
-      if(index === -1) return;
-      const updated = [...state.profile.placedStickers];
-      updated[index].rotation = (updated[index].rotation || 0) + 45;
-      state.profile.placedStickers = updated;
-      render();
-      try { await updateDoc(doc(db, USERS_PATH, state.user.uid), { placedStickers: updated }); } catch(e){}
     };
 
     window.removeAllStickersOnPage = async () => {
@@ -539,13 +530,15 @@
       }
     };
 
+    // --- シールのドラッグ移動 ---
     window.startDragSticker = (e, uid) => {
       e.preventDefault();
       isInteracting = true; 
       const el = e.currentTarget;
       el.setPointerCapture(e.pointerId);
       
-      const targetIndex = state.profile.placedStickers.findIndex(p => p.uid === uid);
+      // IDの比較を確実に行うためtoString()を使用
+      const targetIndex = state.profile.placedStickers.findIndex(p => p.uid.toString() === uid.toString());
       if (targetIndex === -1) return;
       
       // 配列の末尾に移動させて最前面に表示
@@ -555,7 +548,8 @@
       state.profile.placedStickers = updated;
       const newIndex = updated.length - 1;
 
-      let startX = e.clientX, startY = e.clientY;
+      let startX = e.clientX || (e.touches && e.touches[0].clientX);
+      let startY = e.clientY || (e.touches && e.touches[0].clientY);
       let currentX = item.x, currentY = item.y;
 
       el.style.zIndex = 50;
@@ -563,8 +557,10 @@
       el.firstElementChild.classList.add('scale-110');
 
       const onMove = (moveEvent) => {
-        const dx = moveEvent.clientX - startX;
-        const dy = moveEvent.clientY - startY;
+        const clientX = moveEvent.clientX || (moveEvent.touches && moveEvent.touches[0].clientX);
+        const clientY = moveEvent.clientY || (moveEvent.touches && moveEvent.touches[0].clientY);
+        const dx = clientX - startX;
+        const dy = clientY - startY;
         el.style.left = `${currentX + dx}px`;
         el.style.top = `${currentY + dy}px`;
       };
@@ -581,8 +577,11 @@
         const stickerWidth = el.offsetWidth;
         const stickerHeight = el.offsetHeight;
 
-        let finalX = currentX + (upEvent.clientX - startX);
-        let finalY = currentY + (upEvent.clientY - startY);
+        const clientX = upEvent.clientX || (upEvent.changedTouches && upEvent.changedTouches[0].clientX);
+        const clientY = upEvent.clientY || (upEvent.changedTouches && upEvent.changedTouches[0].clientY);
+
+        let finalX = currentX + (clientX - startX);
+        let finalY = currentY + (clientY - startY);
         
         finalX = Math.max(0, Math.min(finalX, containerRect.width - stickerWidth));
         finalY = Math.max(0, Math.min(finalY, containerRect.height - stickerHeight));
@@ -598,7 +597,78 @@
 
       document.addEventListener('pointermove', onMove);
       document.addEventListener('pointerup', onUp);
+      // Firebaseにレイヤー順序を保存
       try { updateDoc(doc(db, USERS_PATH, state.user.uid), { placedStickers: updated }); } catch(err){}
+    };
+
+    // --- シールの自由回転 ---
+    window.startRotateSticker = (e, uid) => {
+      e.preventDefault();
+      e.stopPropagation(); // ドラッグ移動イベントを親に伝播させない
+      isInteracting = true; 
+      const el = e.currentTarget;
+      el.setPointerCapture(e.pointerId);
+      
+      const targetIndex = state.profile.placedStickers.findIndex(p => p.uid.toString() === uid.toString());
+      if (targetIndex === -1) return;
+
+      const updated = [...state.profile.placedStickers];
+      const item = updated[targetIndex];
+
+      const stickerEl = el.parentElement; // シール本体
+      const stickerInner = stickerEl.firstElementChild; // 回転させる対象のdiv
+      
+      // スムーズに回転させるためtransitionを一時的に無効化
+      stickerInner.classList.remove('transition-transform');
+
+      const rect = stickerInner.getBoundingClientRect();
+      const centerX = rect.left + rect.width / 2;
+      const centerY = rect.top + rect.height / 2;
+
+      let initialRotation = item.rotation || 0;
+      
+      const clientX = e.clientX || (e.touches && e.touches[0].clientX);
+      const clientY = e.clientY || (e.touches && e.touches[0].clientY);
+      
+      // 回転開始時の角度
+      const startAngle = Math.atan2(clientY - centerY, clientX - centerX) * (180 / Math.PI);
+
+      const onMove = (moveEvent) => {
+        const mx = moveEvent.clientX || (moveEvent.touches && moveEvent.touches[0].clientX);
+        const my = moveEvent.clientY || (moveEvent.touches && moveEvent.touches[0].clientY);
+        
+        const currentAngle = Math.atan2(my - centerY, mx - centerX) * (180 / Math.PI);
+        const deltaAngle = currentAngle - startAngle;
+        const newRotation = initialRotation + deltaAngle;
+        
+        // 画面上のみ即座に回転を反映
+        stickerInner.style.transform = `rotate(${newRotation}deg) scale(1.1)`;
+        item._tempRotation = newRotation;
+      };
+
+      const onUp = async (upEvent) => {
+        el.releasePointerCapture(upEvent.pointerId);
+        document.removeEventListener('pointermove', onMove);
+        document.removeEventListener('pointerup', onUp);
+        
+        stickerInner.classList.add('transition-transform');
+        stickerInner.style.transform = `rotate(${item._tempRotation || initialRotation}deg)`; // scale解除
+
+        if (item._tempRotation !== undefined) {
+          updated[targetIndex].rotation = item._tempRotation;
+          delete item._tempRotation;
+        }
+        
+        state.profile.placedStickers = updated; 
+        isInteracting = false;
+        render(); 
+
+        try { await updateDoc(doc(db, USERS_PATH, state.user.uid), { placedStickers: updated }); } 
+        catch (err) { console.error(err); }
+      };
+
+      document.addEventListener('pointermove', onMove);
+      document.addEventListener('pointerup', onUp);
     };
 
     window.onSearchInputChange = (e) => { state.newStudentId = e.value; };
@@ -991,7 +1061,6 @@
       if(state.currentStickerPageIdx >= unlockedPages.length) state.currentStickerPageIdx = Math.max(0, unlockedPages.length - 1);
       const currentPageInstanceId = unlockedPages[state.currentStickerPageIdx];
       
-      // ページの色などを取得
       let basePageId = currentPageInstanceId;
       if(currentPageInstanceId.match(/_\d+$/)) {
         basePageId = currentPageInstanceId.substring(0, currentPageInstanceId.lastIndexOf('_'));
@@ -1006,16 +1075,15 @@
 
       let placedHtml = placedOnThisPage.map((item, index) => {
         const sDef = stickerCollection.find(s => s.id === item.id) || { fallbackEmoji: '❓', image: '' };
-        const realIndex = placed.findIndex(p => p.uid === item.uid);
         return `
           <div onpointerdown="window.startDragSticker(event, '${item.uid}')" class="absolute select-none touch-none group" style="left: ${item.x}px; top: ${item.y}px; z-index: ${item.uid}; cursor: grab;">
             <div style="transform: rotate(${item.rotation || 0}deg); font-size: 3rem;" class="transition-transform w-12 h-12 md:w-16 md:h-16 flex items-center justify-center">
               ${renderStickerImg(sDef)}
             </div>
-            <button onpointerdown="event.stopPropagation()" onclick="window.removeSticker('${item.uid}', event)" class="absolute -top-3 -right-3 bg-white text-slate-400 hover:text-red-500 rounded-full w-8 h-8 flex items-center justify-center text-sm shadow-md border border-slate-100 opacity-0 group-hover:opacity-100 transition-opacity">
+            <button onpointerdown="window.removeSticker('${item.uid}', event)" class="absolute -top-3 -right-3 bg-white text-slate-400 hover:text-red-500 rounded-full w-8 h-8 flex items-center justify-center text-sm shadow-md border border-slate-100 opacity-0 group-hover:opacity-100 transition-opacity">
               <i data-lucide="x" class="w-5 h-5"></i>
             </button>
-            <button onpointerdown="event.stopPropagation()" onclick="window.rotateSticker('${item.uid}', event)" class="absolute -bottom-3 -right-3 bg-white text-slate-400 hover:text-blue-500 rounded-full w-8 h-8 flex items-center justify-center text-sm shadow-md border border-slate-100 opacity-0 group-hover:opacity-100 transition-opacity">
+            <button onpointerdown="window.startRotateSticker(event, '${item.uid}')" class="absolute -bottom-3 -right-3 bg-white text-slate-400 hover:text-blue-500 rounded-full w-8 h-8 flex items-center justify-center text-sm shadow-md border border-slate-100 opacity-0 group-hover:opacity-100 transition-opacity cursor-grab active:cursor-grabbing">
               <i data-lucide="rotate-cw" class="w-4 h-4"></i>
             </button>
           </div>
