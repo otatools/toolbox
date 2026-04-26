@@ -517,7 +517,7 @@
                     </div>
 
                     <div class="footer-credit">
-                        大阪環状線タイピング　|　ver8.2　|　ota tools
+                        大阪環状線タイピング　|　ver9.0　|　ota tools
                     </div>
 
                 </div>
@@ -743,7 +743,7 @@
             const w = window.innerWidth;
             const h = window.innerHeight;
             const baseW = 900, baseH = 850;
-            const scale = Math.min(w / baseW, h / h, 1);
+            const scale = Math.min(w / baseW, h / baseH, 1);
             container.style.transform = `scale(${scale})`;
             initMap();
         }
@@ -905,9 +905,28 @@
             
             let shopTrains = [
                 { id: '001', name: 'いつもの車両', desc: 'ノーマルな車両です。', price: 0 },
-                { id: '002', name: 'スキップマシン', desc: '3駅連続ミスなしで次駅を自動通過！', price: 10000 },
-                { id: '003', name: 'タイム延長マシン', desc: '30字連続ミスなし毎に2秒加算！', price: 20000 }
+                { id: '002', name: 'スキップマシン', desc: '3駅連続ミスなしで次駅を自動通過！', price: 10000 }
             ];
+
+            if (purchasedTrains.includes('002')) {
+                shopTrains.push({ id: '004', name: '超スキップマシン', desc: '4駅連続ミスなしで3駅を自動通過！', price: 20000 });
+            }
+            if (purchasedTrains.includes('004')) {
+                shopTrains.push({ id: '005', name: '極スキップマシン', desc: '5駅連続ミスなしで5駅を自動通過！', price: 30000 });
+            }
+
+            shopTrains.push({ id: '003', name: 'タイム延長マシン', desc: '30字連続ミスなし毎に2秒加算！', price: 20000 });
+
+            if (purchasedTrains.includes('003')) {
+                shopTrains.push({ id: '006', name: '超タイム延長マシン', desc: '50字連続ミスなし毎に4秒加算！', price: 30000 });
+            }
+            if (purchasedTrains.includes('006')) {
+                shopTrains.push({ id: '007', name: '極タイム延長マシン', desc: '70字連続ミスなし毎に6秒加算！', price: 40000 });
+            }
+
+            if (purchasedTrains.includes('005') && purchasedTrains.includes('007')) {
+                shopTrains.push({ id: '008', name: 'ゴールドマシン', desc: '5駅連続ミスなしで5駅を自動通過し、70字連続ミスなし毎に6秒加算！', price: 100000 });
+            }
             
             trainList.innerHTML = shopTrains.map(t => {
                 const isPurchased = purchasedTrains.includes(t.id) || t.id === '001';
@@ -1011,9 +1030,13 @@
             const bar = document.getElementById('machine-gauge-bar');
             const text = document.getElementById('machine-gauge-text');
             
-            if (equippedTrain === '002') {
+            if (['002', '004', '005', '008'].includes(equippedTrain)) {
+                let req = 3;
+                if (equippedTrain === '004') req = 4;
+                if (equippedTrain === '005' || equippedTrain === '008') req = 5;
+
                 container.classList.remove('hidden');
-                let ratio = Math.min((consecutiveNoMissStations / 3) * 100, 100);
+                let ratio = Math.min((consecutiveNoMissStations / req) * 100, 100);
                 bar.style.height = ratio + '%';
                 if (ratio >= 100) {
                     bar.classList.remove('bg-red-500');
@@ -1022,11 +1045,15 @@
                 } else {
                     bar.classList.remove('bg-green-500');
                     bar.classList.add('bg-red-500');
-                    text.innerText = `${consecutiveNoMissStations}/3`;
+                    text.innerText = `${consecutiveNoMissStations}/${req}`;
                 }
-            } else if (equippedTrain === '003') {
+            } else if (['003', '006', '007'].includes(equippedTrain)) {
+                let req = 30;
+                if (equippedTrain === '006') req = 50;
+                if (equippedTrain === '007') req = 70;
+
                 container.classList.remove('hidden');
-                let ratio = Math.min((consecutiveNoMissTypes / 30) * 100, 100);
+                let ratio = Math.min((consecutiveNoMissTypes / req) * 100, 100);
                 bar.style.height = ratio + '%';
                 if (ratio >= 100) {
                     bar.classList.remove('bg-red-500');
@@ -1035,7 +1062,7 @@
                 } else {
                     bar.classList.remove('bg-green-500');
                     bar.classList.add('bg-red-500');
-                    text.innerText = `${consecutiveNoMissTypes}/30`;
+                    text.innerText = `${consecutiveNoMissTypes}/${req}`;
                 }
             } else {
                 container.classList.add('hidden');
@@ -1257,7 +1284,12 @@
                     updateStationDisplay();
                     resetStationTimer();
 
-                    if (equippedTrain === '002' && consecutiveNoMissStations >= 3) {
+                    let skipReq = 0, skipCount = 0;
+                    if (equippedTrain === '002') { skipReq = 3; skipCount = 1; }
+                    else if (equippedTrain === '004') { skipReq = 4; skipCount = 3; }
+                    else if (equippedTrain === '005' || equippedTrain === '008') { skipReq = 5; skipCount = 5; }
+
+                    if (skipReq > 0 && consecutiveNoMissStations >= skipReq) {
                         isTimerPaused = true; 
                         setTimeout(() => {
                             if (!isPlaying) return;
@@ -1273,10 +1305,66 @@
                                 if(bar) bar.style.transition = '';
                             }, 50);
 
-                            setTimeout(() => {
-                                isTimerPaused = false; 
-                                if (isPlaying) goToNextStation(true);
-                            }, 600);
+                            const startIdx = currentStationIndex;
+                            let startTime = null;
+                            const duration = 600;
+
+                            function animateSkip(timestamp) {
+                                if (!isPlaying) return;
+                                if (!startTime) startTime = timestamp;
+                                const progress = Math.min((timestamp - startTime) / duration, 1.0);
+                                
+                                const totalProgress = progress * skipCount;
+                                let currentStep = Math.floor(totalProgress);
+                                let stepProgress = totalProgress - currentStep;
+                                if (currentStep === skipCount) {
+                                    currentStep = skipCount - 1;
+                                    stepProgress = 1.0;
+                                }
+                                
+                                const tempCurrentIdx = (startIdx + currentStep) % stations.length;
+                                
+                                const train = document.getElementById('train');
+                                if (train) {
+                                    train.style.transition = 'none';
+                                    
+                                    const metrics = getMapMetrics();
+                                    let cIdx = tempCurrentIdx;
+                                    let nIdx = (tempCurrentIdx + 1) % STATIONS_MASTER.length;
+                                    if (loopDirection === 'inner') {
+                                        cIdx = (STATIONS_MASTER.length - tempCurrentIdx) % STATIONS_MASTER.length;
+                                        nIdx = (STATIONS_MASTER.length - (tempCurrentIdx + 1)) % STATIONS_MASTER.length;
+                                    }
+                                    const startAngle = (cIdx / STATIONS_MASTER.length) * Math.PI * 2 - Math.PI / 2;
+                                    let endAngle = (nIdx / STATIONS_MASTER.length) * Math.PI * 2 - Math.PI / 2;
+                                    if (loopDirection === 'outer' && endAngle < startAngle) endAngle += Math.PI * 2;
+                                    if (loopDirection === 'inner' && endAngle > startAngle) endAngle -= Math.PI * 2;
+                                    
+                                    const currentAngle = startAngle + (endAngle - startAngle) * stepProgress;
+                                    const x = metrics.radius * Math.cos(currentAngle);
+                                    const y = metrics.radius * Math.sin(currentAngle);
+                                    train.style.marginLeft = `${x}px`;
+                                    train.style.marginTop = `${y}px`;
+                                }
+
+                                if (progress < 1.0) {
+                                    requestAnimationFrame(animateSkip);
+                                } else {
+                                    if (train) train.style.transition = '';
+                                    
+                                    isTimerPaused = false;
+                                    for (let i = 0; i < skipCount - 1; i++) {
+                                        totalStationsCovered++;
+                                        currentStationIndex = (currentStationIndex + 1) % stations.length;
+                                    }
+                                    if (skipCount > 1) {
+                                        document.getElementById('score').innerText = `${Math.floor(totalStationsCovered / STATIONS_MASTER.length)}周 / ${totalStationsCovered % STATIONS_MASTER.length}駅`;
+                                        updateCurrentFareDisplay();
+                                    }
+                                    goToNextStation(true);
+                                }
+                            }
+                            requestAnimationFrame(animateSkip);
                         }, 200);
                     }
 
@@ -1344,17 +1432,22 @@
             if (isCorrect) {
                 correctCount++;
                 
-                if (equippedTrain === '003') {
+                if (['003', '006', '007', '008'].includes(equippedTrain)) {
                     consecutiveNoMissTypes++;
-                    if (consecutiveNoMissTypes >= 30) {
+                    let req = 30;
+                    let addSec = 2;
+                    if (equippedTrain === '006') { req = 50; addSec = 4; }
+                    else if (equippedTrain === '007' || equippedTrain === '008') { req = 70; addSec = 6; }
+
+                    if (consecutiveNoMissTypes >= req) {
                         updateMachineGauge();
-                        timeLeft += 2;
+                        timeLeft += addSec;
                         document.getElementById('timer').innerText = `${timeLeft}秒`;
                         const timerEl = document.getElementById('timer');
                         timerEl.classList.add('text-green-500', 'scale-125');
                         setTimeout(() => timerEl.classList.remove('text-green-500', 'scale-125'), 300);
 
-                        showFloatingText('timer', '+2秒', 'text-green-500 text-3xl drop-shadow-md');
+                        showFloatingText('timer', `+${addSec}秒`, 'text-green-500 text-3xl drop-shadow-md');
 
                         setTimeout(() => {
                             if (!isPlaying) return;
@@ -1404,17 +1497,22 @@
             if (isCorrect) {
                 correctCount++;
                 
-                if (equippedTrain === '003') {
+                if (['003', '006', '007', '008'].includes(equippedTrain)) {
                     consecutiveNoMissTypes++;
-                    if (consecutiveNoMissTypes >= 30) {
+                    let req = 30;
+                    let addSec = 2;
+                    if (equippedTrain === '006') { req = 50; addSec = 4; }
+                    else if (equippedTrain === '007' || equippedTrain === '008') { req = 70; addSec = 6; }
+
+                    if (consecutiveNoMissTypes >= req) {
                         updateMachineGauge();
-                        timeLeft += 2;
+                        timeLeft += addSec;
                         document.getElementById('timer').innerText = `${timeLeft}秒`;
                         const timerEl = document.getElementById('timer');
                         timerEl.classList.add('text-green-500', 'scale-125');
                         setTimeout(() => timerEl.classList.remove('text-green-500', 'scale-125'), 300);
 
-                        showFloatingText('timer', '+2秒', 'text-green-500 text-3xl drop-shadow-md');
+                        showFloatingText('timer', `+${addSec}秒`, 'text-green-500 text-3xl drop-shadow-md');
 
                         setTimeout(() => {
                             if (!isPlaying) return;
