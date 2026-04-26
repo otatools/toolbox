@@ -1305,9 +1305,54 @@
                                 if(bar) bar.style.transition = '';
                             }, 50);
 
-                            setTimeout(() => {
-                                isTimerPaused = false; 
-                                if (isPlaying) {
+                            const startIdx = currentStationIndex;
+                            let startTime = null;
+                            const duration = 600;
+
+                            function animateSkip(timestamp) {
+                                if (!isPlaying) return;
+                                if (!startTime) startTime = timestamp;
+                                const progress = Math.min((timestamp - startTime) / duration, 1.0);
+                                
+                                const totalProgress = progress * skipCount;
+                                let currentStep = Math.floor(totalProgress);
+                                let stepProgress = totalProgress - currentStep;
+                                if (currentStep === skipCount) {
+                                    currentStep = skipCount - 1;
+                                    stepProgress = 1.0;
+                                }
+                                
+                                const tempCurrentIdx = (startIdx + currentStep) % stations.length;
+                                
+                                const train = document.getElementById('train');
+                                if (train) {
+                                    train.style.transition = 'none';
+                                    
+                                    const metrics = getMapMetrics();
+                                    let cIdx = tempCurrentIdx;
+                                    let nIdx = (tempCurrentIdx + 1) % STATIONS_MASTER.length;
+                                    if (loopDirection === 'inner') {
+                                        cIdx = (STATIONS_MASTER.length - tempCurrentIdx) % STATIONS_MASTER.length;
+                                        nIdx = (STATIONS_MASTER.length - (tempCurrentIdx + 1)) % STATIONS_MASTER.length;
+                                    }
+                                    const startAngle = (cIdx / STATIONS_MASTER.length) * Math.PI * 2 - Math.PI / 2;
+                                    let endAngle = (nIdx / STATIONS_MASTER.length) * Math.PI * 2 - Math.PI / 2;
+                                    if (loopDirection === 'outer' && endAngle < startAngle) endAngle += Math.PI * 2;
+                                    if (loopDirection === 'inner' && endAngle > startAngle) endAngle -= Math.PI * 2;
+                                    
+                                    const currentAngle = startAngle + (endAngle - startAngle) * stepProgress;
+                                    const x = metrics.radius * Math.cos(currentAngle);
+                                    const y = metrics.radius * Math.sin(currentAngle);
+                                    train.style.marginLeft = `${x}px`;
+                                    train.style.marginTop = `${y}px`;
+                                }
+
+                                if (progress < 1.0) {
+                                    requestAnimationFrame(animateSkip);
+                                } else {
+                                    if (train) train.style.transition = '';
+                                    
+                                    isTimerPaused = false;
                                     for (let i = 0; i < skipCount - 1; i++) {
                                         totalStationsCovered++;
                                         currentStationIndex = (currentStationIndex + 1) % stations.length;
@@ -1318,7 +1363,8 @@
                                     }
                                     goToNextStation(true);
                                 }
-                            }, 600);
+                            }
+                            requestAnimationFrame(animateSkip);
                         }, 200);
                     }
 
