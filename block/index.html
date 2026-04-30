@@ -1,0 +1,867 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>教育アプリ｜ブロックかずかぞえ</title>
+    <meta name="description" content="算数の立体への興味関心に役立つ大阪市の現役小学校教員が制作した、ブロックかずかぞえアプリです。ota toolsのアプリの１つです。">
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "SoftwareApplication",
+      "name": "ota tools",
+      "operatingSystem": "Web",
+      "applicationCategory": "EducationalApplication",
+      "offers": {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "JPY"
+      },
+      "author": {
+        "@type": "Person",
+        "name": "太田圭一"
+      },
+      "description": "大阪市の現役小学校教員が制作した、授業や家庭で使える無料の教育・学習用アプリです。",
+      "audience": {
+        "@type": "Audience",
+        "audienceType": "小学校教員, 児童, 保護者"
+      }
+    }
+    </script>  
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- FontAwesome (アイコン用) -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  
+  <!-- Three.js (3D描画用) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <!-- OrbitControls (カメラ回転用) -->
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@400;700;900&display=swap');
+
+    body {
+      font-family: 'M PLUS Rounded 1c', sans-serif;
+      background-color: #f0fdfa; /* 薄いミントグリーン */
+      touch-action: manipulation;
+    }
+
+    /* 画面全体のテキスト選択を無効化してカーソルが出ないようにする */
+    * {
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    /* 画面の切り替え用クラス */
+    .screen {
+      display: none;
+    }
+    .screen.active {
+      display: flex;
+    }
+
+    /* アニメーション */
+    @keyframes pop {
+      0% { transform: scale(0.5); opacity: 0; }
+      70% { transform: scale(1.2); opacity: 1; }
+      100% { transform: scale(1); opacity: 1; }
+    }
+    .animate-pop {
+      animation: pop 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+    }
+
+    @keyframes shake {
+      0%, 100% { transform: translateX(0); }
+      20% { transform: translateX(-10px) rotate(-5deg); }
+      40% { transform: translateX(10px) rotate(5deg); }
+      60% { transform: translateX(-10px) rotate(-5deg); }
+      80% { transform: translateX(10px) rotate(5deg); }
+    }
+    .animate-shake {
+      animation: shake 0.4s ease-in-out;
+    }
+
+    /* キーボードボタンの共通スタイル */
+    .key-btn {
+      @apply bg-white border-2 border-gray-200 text-gray-700 text-2xl font-bold py-3 md:py-4 rounded-xl shadow-sm active:bg-gray-100 active:scale-95 transition-transform flex items-center justify-center;
+    }
+
+    /* 3Dキャンバスのコンテナ */
+    #canvas-container {
+      touch-action: none; /* スワイプ時の画面スクロール防止 */
+    }
+
+    /* スクロールバー非表示（図鑑用） */
+    .no-scrollbar::-webkit-scrollbar {
+      display: none;
+    }
+    .no-scrollbar {
+      -ms-overflow-style: none;
+      scrollbar-width: none;
+    }
+  </style>
+</head>
+<body class="text-gray-800 h-screen w-screen overflow-hidden opacity-0 transition-opacity duration-500">
+
+  <!-- メインコンテナ -->
+  <div id="app" class="w-full h-full mx-auto bg-white relative flex flex-col">
+
+    <!-- ==========================================
+         タイトル画面
+    =========================================== -->
+    <div id="screen-title" class="screen active flex-col items-center justify-center p-6 md:p-12 h-full relative overflow-hidden">
+      <!-- 背景の装飾 -->
+      <div class="absolute top-10 left-10 md:top-20 md:left-20 text-teal-200 opacity-50 text-6xl md:text-9xl"><i class="fa-solid fa-cubes"></i></div>
+      <div class="absolute bottom-20 right-10 md:bottom-20 md:right-20 text-yellow-200 opacity-50 text-8xl md:text-[10rem]"><i class="fa-solid fa-cube"></i></div>
+
+      <h1 class="text-4xl md:text-7xl font-black text-center text-teal-600 mb-2 md:mb-6 leading-tight z-10 drop-shadow-sm">
+        ブロック<br><span class="text-orange-500">かずかぞえ</span>
+      </h1>
+      <p class="text-gray-500 md:text-2xl font-bold mb-10 md:mb-16 z-10">はやく せいかい して ハイスコアを ねらえ！</p>
+
+      <div class="flex flex-col md:flex-row gap-4 md:gap-8 w-full max-w-xs md:max-w-3xl justify-center z-10">
+        <button onclick="startGame('easy')" class="md:flex-1 bg-green-400 hover:bg-green-500 text-white py-4 px-6 md:py-6 rounded-2xl shadow-[0_6px_0_#16a34a] active:shadow-[0_0px_0_#16a34a] active:translate-y-[6px] transition-all flex flex-col items-center justify-center">
+          <span class="text-2xl md:text-3xl font-bold">やさしい</span>
+          <span class="text-sm md:text-base font-bold text-green-100 mt-1">ハイスコア: <span id="highscore-easy">0</span></span>
+        </button>
+        <button onclick="startGame('hard')" class="md:flex-1 bg-yellow-400 hover:bg-yellow-500 text-white py-4 px-6 md:py-6 rounded-2xl shadow-[0_6px_0_#ca8a04] active:shadow-[0_0px_0_#ca8a04] active:translate-y-[6px] transition-all flex flex-col items-center justify-center">
+          <span class="text-2xl md:text-3xl font-bold">むずかしい</span>
+          <span class="text-sm md:text-base font-bold text-yellow-100 mt-1">ハイスコア: <span id="highscore-hard">0</span></span>
+        </button>
+        <button onclick="startGame('insane')" class="md:flex-1 bg-red-500 hover:bg-red-600 text-white py-4 px-6 md:py-6 rounded-2xl shadow-[0_6px_0_#dc2626] active:shadow-[0_0px_0_#dc2626] active:translate-y-[6px] transition-all flex flex-col items-center justify-center">
+          <span class="text-2xl md:text-3xl font-bold">とんでもない</span>
+          <span class="text-sm md:text-base font-bold text-red-200 mt-1">ハイスコア: <span id="highscore-insane">0</span></span>
+        </button>
+      </div>
+
+      <button onclick="showScreen('screen-zukan')" class="mt-12 md:mt-20 bg-blue-500 hover:bg-blue-600 text-white md:text-2xl font-bold py-3 px-8 md:py-4 md:px-12 rounded-full shadow-md active:scale-95 transition-transform z-10 flex items-center gap-2 md:gap-4">
+        <i class="fa-solid fa-book"></i> ブロックずかん
+      </button>
+
+      <!-- クレジット表記 -->
+      <div class="absolute bottom-4 text-gray-400 text-xs md:text-sm font-bold z-10">
+        ブロック かず かぞえ　|　ver1.0　|　ota tools
+      </div>
+    </div>
+
+    <!-- ==========================================
+         ゲーム画面
+    =========================================== -->
+    <div id="screen-game" class="screen flex-col h-full bg-gray-50">
+      <!-- ヘッダー情報 -->
+      <div class="bg-white p-2 md:p-4 shadow-sm flex justify-between items-center z-10 shrink-0">
+        <!-- 戻るボタン -->
+        <button onclick="returnToTitle()" class="w-10 h-10 md:w-12 md:h-12 bg-gray-100 hover:bg-gray-200 rounded-full flex items-center justify-center text-gray-600 transition-colors shrink-0 active:scale-95">
+          <i class="fa-solid fa-arrow-left text-lg md:text-xl"></i>
+        </button>
+        <!-- 問題番号 -->
+        <div class="text-base md:text-2xl font-bold text-gray-600 bg-gray-100 px-3 py-1.5 md:px-6 md:py-2 rounded-lg text-center mx-2 flex-grow max-w-sm">
+          だい <span id="question-number" class="text-xl md:text-3xl text-blue-600">1</span> / <span id="question-total">5</span> もん
+        </div>
+        <!-- タイマー -->
+        <div class="text-xl md:text-4xl font-black font-mono text-gray-700 w-24 md:w-48 text-right tracking-widest shrink-0" id="timer-display">
+          00.00
+        </div>
+      </div>
+
+      <!-- メインコンテンツ (横画面で左右分割) -->
+      <div class="flex flex-col md:flex-row flex-grow overflow-hidden">
+        
+        <!-- 3Dキャンバスエリア -->
+        <div class="relative flex-grow md:w-2/3 bg-gradient-to-b from-blue-50 to-gray-200 min-h-[35%]" id="canvas-container">
+          <!-- 3D描画はJavaScriptで行う -->
+          
+          <!-- 操作ヒント -->
+          <div class="absolute top-2 left-0 right-0 text-center pointer-events-none opacity-60">
+            <span class="bg-white/80 text-gray-600 text-sm md:text-lg font-bold px-3 py-1 md:px-5 md:py-2 rounded-full shadow-sm">
+              スワイプ・ドラッグで まわせるよ！
+            </span>
+          </div>
+
+          <!-- 正解・不正解エフェクト -->
+          <div id="effect-overlay" class="absolute inset-0 flex items-center justify-center pointer-events-none hidden">
+            <div id="effect-icon" class="text-9xl md:text-[15rem] drop-shadow-lg"></div>
+          </div>
+        </div>
+
+        <!-- 入力・キーボードエリア -->
+        <div class="bg-white p-4 md:p-8 rounded-t-3xl md:rounded-none md:border-l border-gray-200 shadow-[0_-4px_10px_rgba(0,0,0,0.05)] md:shadow-none z-10 pb-6 md:pb-8 flex flex-col justify-center w-full md:w-1/3 min-w-[300px] max-w-sm mx-auto md:mx-0 shrink-0">
+          
+          <!-- 入力表示部 -->
+          <div class="flex justify-between items-center mb-4 md:mb-8 px-2">
+            <div class="text-gray-500 font-bold text-sm md:text-xl leading-snug">ブロックは<br>いくつ？</div>
+            <div class="bg-gray-100 border-2 border-gray-300 rounded-xl h-14 w-28 md:h-20 md:w-40 flex items-center justify-center text-4xl md:text-5xl font-bold font-mono text-gray-800" id="answer-input">
+              <!-- 入力された数字 -->
+            </div>
+            <div class="text-gray-500 font-bold text-sm md:text-xl">こ</div>
+          </div>
+
+          <!-- テンキー -->
+          <div class="grid grid-cols-3 gap-2 md:gap-4 w-full mb-3 md:mb-6">
+            <button class="key-btn md:text-3xl" onclick="inputNum(1)">1</button>
+            <button class="key-btn md:text-3xl" onclick="inputNum(2)">2</button>
+            <button class="key-btn md:text-3xl" onclick="inputNum(3)">3</button>
+            <button class="key-btn md:text-3xl" onclick="inputNum(4)">4</button>
+            <button class="key-btn md:text-3xl" onclick="inputNum(5)">5</button>
+            <button class="key-btn md:text-3xl" onclick="inputNum(6)">6</button>
+            <button class="key-btn md:text-3xl" onclick="inputNum(7)">7</button>
+            <button class="key-btn md:text-3xl" onclick="inputNum(8)">8</button>
+            <button class="key-btn md:text-3xl" onclick="inputNum(9)">9</button>
+            <!-- 空白マス -->
+            <div class="col-span-1"></div>
+            <button class="key-btn md:text-3xl" onclick="inputNum(0)">0</button>
+            <button class="key-btn bg-red-50 text-red-500 text-xl md:text-2xl" onclick="deleteNum()">
+              <i class="fa-solid fa-delete-left"></i>
+            </button>
+          </div>
+
+          <!-- こたえるボタン (フルワイドで独立) -->
+          <button class="w-full bg-blue-500 hover:bg-blue-600 text-white font-bold py-4 md:py-6 rounded-2xl shadow-[0_6px_0_#2563eb] active:shadow-[0_0px_0_#2563eb] active:translate-y-[6px] transition-all text-2xl md:text-3xl flex justify-center items-center gap-2" onclick="checkAnswer()">
+            こたえる!
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==========================================
+         結果画面
+    =========================================== -->
+    <div id="screen-result" class="screen flex-col items-center justify-center p-6 h-full bg-gradient-to-br from-yellow-100 to-orange-100 relative">
+      <div class="absolute inset-0 overflow-hidden pointer-events-none" id="confetti-container"></div>
+      
+      <h2 class="text-5xl md:text-8xl font-black text-orange-500 mb-8 md:mb-12 drop-shadow-md z-10 animate-pop">クリア!!</h2>
+      
+      <div class="bg-white rounded-3xl p-6 md:p-10 shadow-xl w-full max-w-sm md:max-w-lg flex flex-col items-center z-10 mb-8 border-4 border-yellow-300">
+        <p class="text-gray-500 md:text-2xl font-bold mb-1 md:mb-2">かかった じかん</p>
+        <p class="text-4xl md:text-6xl font-mono font-black text-gray-800 mb-6 md:mb-10" id="result-time">00.00</p>
+        
+        <p class="text-gray-500 md:text-2xl font-bold mb-1 md:mb-2">スコア</p>
+        <p class="text-6xl md:text-8xl font-black text-red-500" id="result-score">0</p>
+        <p id="new-record-msg" class="text-xl md:text-2xl text-orange-500 font-black mt-2 hidden animate-bounce">しんきろく!!</p>
+        <p class="text-sm md:text-xl text-gray-400 font-bold mt-2 md:mt-4">はやいほど コースコア！</p>
+      </div>
+
+      <button onclick="showScreen('screen-title')" class="bg-blue-500 hover:bg-blue-600 text-white text-xl md:text-3xl font-bold py-4 px-8 md:py-6 md:px-12 rounded-full shadow-[0_5px_0_#2563eb] active:shadow-[0_0px_0_#2563eb] active:translate-y-[5px] transition-all z-10">
+        タイトルへ もどる
+      </button>
+    </div>
+
+    <!-- ==========================================
+         図鑑画面
+    =========================================== -->
+    <div id="screen-zukan" class="screen flex-col h-full bg-blue-50">
+      <div class="bg-blue-500 text-white p-4 md:p-6 flex items-center justify-between shadow-md z-10 relative">
+        <button onclick="showScreen('screen-title')" class="w-10 h-10 md:w-16 md:h-16 bg-white/20 rounded-full flex items-center justify-center active:bg-white/40 transition-colors">
+          <i class="fa-solid fa-chevron-left text-xl md:text-3xl"></i>
+        </button>
+        <h2 class="text-xl md:text-3xl font-bold">ブロックずかん</h2>
+        <div class="w-10 md:w-16"></div> <!-- バランス用 -->
+      </div>
+      
+      <div class="p-4 md:p-6 bg-blue-100 text-center shadow-inner">
+        <span class="font-bold text-blue-800 md:text-2xl">あつめたブロック: </span>
+        <span class="text-2xl md:text-4xl font-black text-blue-600" id="zukan-count">0 / 0</span>
+        <p class="text-sm font-bold text-blue-500 mt-2">ブロックを おすと れんしゅう ができるよ！</p>
+      </div>
+
+      <div class="flex-grow overflow-y-auto p-4 md:p-8 no-scrollbar">
+        <div id="zukan-list" class="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 gap-3 md:gap-6 pb-10">
+          <!-- 図鑑リストがJSで生成される -->
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ==========================================
+       JavaScript ロジック
+  =========================================== -->
+  <script>
+    /*
+     * 問題データ
+     * ここに問題を登録します。x, y, z はブロックの座標（位置）です。
+     */
+    const PROBLEM_DATA = {
+      // 🟢 やさしいレベル
+      easy: {
+        sub1: [
+          { id: 'e1_1', blocks: [{x:0,y:0,z:0},{x:1,y:0,z:0}] },
+          { id: 'e1_2', blocks: [{x:0,y:0,z:0},{x:0,y:1,z:0}] },
+          { id: 'e1_3', blocks: [{x:0,y:0,z:0},{x:0,y:0,z:1}] },
+          { id: 'e1_4', blocks: [{x:0,y:0,z:0},{x:1,y:0,z:0},{x:0,y:0,z:1}] },
+          { id: 'e1_5', blocks: [{x:0,y:0,z:0},{x:0,y:1,z:0},{x:1,y:0,z:0}] },
+          { id: 'e1_6', blocks: [{x:1,y:0,z:0},{x:0,y:0,z:0},{x:0,y:1,z:0},{x:1,y:1,z:0}] },
+          { id: 'e1_7', blocks: [{x:0,y:0,z:1},{x:0,y:0,z:0},{x:1,y:0,z:0},{x:1,y:0,z:1}] },
+          { id: 'e1_8', blocks: [{x:0,y:0,z:0},{x:0,y:1,z:0},{x:0,y:2,z:0}] },
+          { id: 'e1_9', blocks: [{x:0,y:0,z:0},{x:1,y:0,z:0},{x:2,y:0,z:0}] },
+          { id: 'e1_10', blocks: [{x:0,y:0,z:0},{x:0,y:0,z:1},{x:0,y:0,z:2}] },
+        ],
+        sub2: [
+          { id: 'e2_1', blocks: [{x:0,y:0,z:0},{x:1,y:0,z:0},{x:0,y:1,z:0},{x:2,y:0,z:0}] },
+          { id: 'e2_2', blocks: [{x:0,y:0,z:0},{x:0,y:0,z:1},{x:1,y:0,z:0},{x:2,y:0,z:0}] },
+          { id: 'e2_3', blocks: [{x:0,y:0,z:0},{x:0,y:1,z:0},{x:0,y:2,z:0},{x:1,y:0,z:0}] },
+          { id: 'e2_4', blocks: [{x:0,y:0,z:0},{x:1,y:0,z:0},{x:0,y:1,z:0},{x:0,y:0,z:1}] },
+          { id: 'e2_5', blocks: [{x:0,y:0,z:0},{x:1,y:0,z:0},{x:2,y:0,z:0},{x:1,y:1,z:0}] },
+          { id: 'e2_6', blocks: [{x:0,y:0,z:0},{x:0,y:1,z:0},{x:0,y:2,z:0},{x:1,y:0,z:0},{x:2,y:0,z:0}] },
+          { id: 'e2_7', blocks: [{x:0,y:0,z:0},{x:0,y:1,z:0},{x:0,y:0,z:1},{x:1,y:0,z:0},{x:0,y:1,z:1}] },
+          { id: 'e2_8', blocks: [{x:0,y:0,z:0},{x:0,y:1,z:0},{x:1,y:0,z:0},{x:2,y:0,z:0},{x:2,y:1,z:0}] },
+          { id: 'e2_9', blocks: [{x:0,y:0,z:0},{x:1,y:0,z:0},{x:2,y:0,z:0},{x:0,y:0,z:1},{x:0,y:0,z:2}] },
+          { id: 'e2_10', blocks: [{x:0,y:0,z:0},{x:1,y:0,z:0},{x:2,y:0,z:0},{x:0,y:0,z:1},{x:0,y:0,z:2},{x:0,y:1,z:0}] },
+        ]
+      },
+      // 🟡 むずかしいレベル
+      hard: {
+        sub1: [
+          { id: 'h1_1', blocks: [{x:0,y:0,z:0},{x:0,y:1,z:0},{x:1,y:0,z:0},{x:1,y:1,z:0},{x:0,y:0,z:1},{x:1,y:0,z:1},{x:0,y:1,z:1},{x:1,y:1,z:1}] },
+          { id: 'h1_2', blocks: [{x:0,y:0,z:1},{x:0,y:0,z:0},{x:1,y:0,z:0},{x:0,y:1,z:0},{x:1,y:1,z:0},{x:1,y:0,z:1}] },
+          { id: 'h1_3', blocks: [{x:0,y:0,z:1},{x:0,y:0,z:0},{x:1,y:0,z:0},{x:0,y:1,z:0},{x:1,y:1,z:0},{x:1,y:0,z:1},{x:0,y:1,z:1}] },
+          { id: 'h1_4', blocks: [{x:0,y:0,z:1},{x:0,y:0,z:0},{x:1,y:0,z:0},{x:0,y:1,z:0},{x:0,y:1,z:1},{x:1,y:1,z:0}] },
+          { id: 'h1_5', blocks: [{x:0,y:0,z:0},{x:1,y:0,z:0},{x:2,y:0,z:0},{x:0,y:0,z:1},{x:1,y:0,z:1},{x:0,y:1,z:0},{x:1,y:1,z:0}] },
+          { id: 'h1_6', blocks: [{x:0,y:0,z:0},{x:1,y:0,z:0},{x:2,y:0,z:0},{x:0,y:0,z:1},{x:1,y:0,z:1},{x:0,y:1,z:0},{x:1,y:1,z:0},{x:0,y:1,z:1}] },
+          { id: 'h1_7', blocks: [{x:0,y:0,z:0},{x:1,y:0,z:0},{x:0,y:0,z:1},{x:1,y:0,z:1},{x:0,y:1,z:0},{x:1,y:1,z:0},{x:0,y:1,z:1},{x:0,y:2,z:0}] },
+          { id: 'h1_8', blocks: [{x:0,y:0,z:0},{x:1,y:0,z:0},{x:2,y:0,z:0},{x:0,y:1,z:0},{x:1,y:1,z:0},{x:2,y:1,z:0},{x:0,y:0,z:1},{x:0,y:1,z:1}] },
+          { id: 'h1_9', blocks: [{x:0,y:0,z:0},{x:1,y:0,z:0},{x:2,y:0,z:0},{x:0,y:1,z:0},{x:1,y:1,z:0},{x:2,y:1,z:0},{x:0,y:0,z:1},{x:0,y:1,z:1},{x:1,y:0,z:1}] },
+          { id: 'h1_10', blocks: [{x:0,y:0,z:0},{x:1,y:0,z:0},{x:2,y:0,z:0},{x:0,y:1,z:0},{x:1,y:1,z:0},{x:2,y:1,z:0},{x:0,y:0,z:1},{x:0,y:1,z:1},{x:1,y:0,z:1},{x:0,y:0,z:2}] },
+        ],
+        sub2: [
+          { id: 'h2_1', blocks: [{x:0,y:0,z:0},{x:1,y:0,z:0},{x:2,y:0,z:0},{x:0,y:1,z:0},{x:1,y:1,z:0},{x:2,y:1,z:0},{x:0,y:0,z:1},{x:0,y:1,z:1},{x:1,y:0,z:1},{x:0,y:0,z:2},{x:0,y:1,z:2},{x:1,y:1,z:1}] },
+          { id: 'h2_2', blocks: [{x:0,y:0,z:0},{x:1,y:0,z:0},{x:2,y:0,z:0},{x:0,y:1,z:0},{x:1,y:1,z:0},{x:2,y:1,z:0},{x:0,y:0,z:1},{x:0,y:1,z:1},{x:1,y:0,z:1},{x:0,y:0,z:2},{x:0,y:1,z:2},{x:1,y:1,z:1},{x:2,y:0,z:1},{x:2,y:1,z:1}] },
+          { id: 'h2_3', blocks: [{x:0,y:0,z:0},{x:1,y:0,z:0},{x:2,y:0,z:0},{x:0,y:1,z:0},{x:1,y:1,z:0},{x:2,y:1,z:0},{x:0,y:0,z:1},{x:0,y:1,z:1},{x:1,y:0,z:1},{x:0,y:0,z:2},{x:0,y:1,z:2},{x:1,y:1,z:1},{x:2,y:0,z:1},{x:2,y:1,z:1},{x:0,y:2,z:0},{x:0,y:2,z:1},{x:0,y:2,z:2}] },
+          { id: 'h2_4', blocks: [{x:0,y:0,z:0},{x:1,y:0,z:0},{x:2,y:0,z:0},{x:0,y:1,z:0},{x:1,y:1,z:0},{x:2,y:1,z:0},{x:0,y:0,z:1},{x:0,y:1,z:1},{x:1,y:0,z:1},{x:0,y:0,z:2},{x:1,y:1,z:1},{x:2,y:0,z:1},{x:1,y:0,z:2},{x:2,y:0,z:2},{x:0,y:1,z:2}] },
+          { id: 'h2_5', blocks: [{x:0,y:0,z:1},{x:0,y:1,z:1},{x:0,y:0,z:0},{x:0,y:1,z:0},{x:1,y:0,z:0},{x:1,y:0,z:1},{x:2,y:0,z:1},{x:2,y:0,z:0},{x:1,y:1,z:0},{x:2,y:1,z:0},{x:0,y:0,z:2},{x:0,y:1,z:2},{x:0,y:2,z:0},{x:1,y:2,z:0}] },
+          { id: 'h2_6', blocks: [{x:0,y:0,z:1},{x:0,y:1,z:1},{x:0,y:0,z:0},{x:0,y:1,z:0},{x:1,y:0,z:0},{x:1,y:0,z:1},{x:2,y:0,z:1},{x:2,y:0,z:0},{x:1,y:1,z:0},{x:2,y:1,z:0},{x:0,y:0,z:2},{x:0,y:1,z:2},{x:0,y:2,z:0},{x:1,y:2,z:0},{x:1,y:1,z:1},{x:2,y:1,z:1},{x:0,y:2,z:1},{x:1,y:2,z:1}] },
+          { id: 'h2_7', blocks: [{x:0,y:0,z:0},{x:1,y:0,z:0},{x:2,y:0,z:0},{x:0,y:1,z:0},{x:1,y:1,z:0},{x:0,y:2,z:0},{x:0,y:1,z:1},{x:0,y:0,z:1},{x:0,y:0,z:2}] },
+          { id: 'h2_8', blocks: [{x:0,y:0,z:0},{x:1,y:0,z:0},{x:2,y:0,z:0},{x:0,y:1,z:0},{x:1,y:1,z:0},{x:0,y:2,z:0},{x:0,y:1,z:1},{x:0,y:0,z:1},{x:0,y:0,z:2},{x:1,y:0,z:1}] },
+          { id: 'h2_9', blocks: [{x:0,y:0,z:0},{x:1,y:0,z:0},{x:2,y:0,z:0},{x:0,y:1,z:0},{x:1,y:1,z:0},{x:0,y:2,z:0},{x:0,y:1,z:1},{x:0,y:0,z:1},{x:0,y:0,z:2},{x:1,y:0,z:1},{x:1,y:1,z:1},{x:2,y:0,z:1},{x:1,y:0,z:2}] },
+          { id: 'h2_10', blocks: [{x:0,y:0,z:0},{x:1,y:0,z:0},{x:2,y:0,z:0},{x:0,y:1,z:0},{x:1,y:1,z:0},{x:0,y:2,z:0},{x:0,y:1,z:1},{x:0,y:0,z:1},{x:0,y:0,z:2},{x:1,y:0,z:1},{x:1,y:1,z:1},{x:2,y:0,z:1},{x:1,y:0,z:2},{x:0,y:1,z:2},{x:2,y:1,z:0},{x:2,y:0,z:2},{x:0,y:2,z:1},{x:1,y:2,z:0}] },
+        ]
+      },
+      // 🔴 とんでもないレベル
+      insane: {
+        sub1: [
+          { id: 'i1_1', blocks: [{x:1,y:0,z:0},{x:2,y:0,z:0},{x:3,y:0,z:0},{x:0,y:0,z:0},{x:1,y:0,z:1},{x:0,y:0,z:1},{x:0,y:0,z:2},{x:0,y:0,z:3},{x:0,y:1,z:1},{x:0,y:1,z:0},{x:1,y:1,z:0},{x:1,y:1,z:1},{x:0,y:2,z:0},{x:1,y:2,z:0},{x:0,y:3,z:0},{x:1,y:3,z:0}] },
+          { id: 'i1_2', blocks: [{x:1,y:0,z:0},{x:2,y:0,z:0},{x:3,y:0,z:0},{x:0,y:0,z:0},{x:1,y:0,z:1},{x:0,y:0,z:1},{x:0,y:0,z:2},{x:0,y:0,z:3},{x:0,y:1,z:1},{x:0,y:1,z:0},{x:1,y:1,z:0},{x:1,y:1,z:1},{x:0,y:2,z:0},{x:1,y:2,z:0},{x:2,y:1,z:0},{x:3,y:1,z:0}] },
+          { id: 'i1_3', blocks: [{x:1,y:0,z:0},{x:2,y:0,z:0},{x:3,y:0,z:0},{x:0,y:0,z:0},{x:1,y:0,z:1},{x:0,y:0,z:1},{x:0,y:0,z:2},{x:0,y:0,z:3},{x:0,y:1,z:1},{x:0,y:1,z:0},{x:1,y:1,z:0},{x:1,y:1,z:1},{x:0,y:2,z:0},{x:1,y:2,z:0},{x:2,y:1,z:0},{x:3,y:1,z:0},{x:0,y:1,z:2},{x:0,y:1,z:3},{x:0,y:2,z:1},{x:1,y:2,z:1}] },
+          { id: 'i1_4', blocks: [{x:0,y:0,z:0},{x:1,y:0,z:0},{x:2,y:0,z:0},{x:3,y:0,z:0},{x:0,y:0,z:1},{x:1,y:0,z:1},{x:2,y:0,z:1},{x:3,y:0,z:1},{x:0,y:1,z:0},{x:0,y:1,z:1},{x:1,y:1,z:0},{x:1,y:1,z:1},{x:0,y:2,z:0},{x:0,y:2,z:1},{x:2,y:1,z:0},{x:2,y:1,z:1},{x:1,y:2,z:0},{x:1,y:2,z:1},{x:0,y:3,z:0},{x:0,y:3,z:1}] },
+          { id: 'i1_5', blocks: [{x:0,y:0,z:0},{x:1,y:0,z:0},{x:2,y:0,z:0},{x:3,y:0,z:0},{x:0,y:0,z:1},{x:0,y:1,z:0},{x:0,y:1,z:1},{x:1,y:1,z:0},{x:0,y:2,z:0},{x:0,y:2,z:1},{x:2,y:1,z:0},{x:1,y:2,z:0},{x:0,y:3,z:0},{x:0,y:3,z:1},{x:0,y:2,z:2},{x:0,y:0,z:2},{x:0,y:1,z:2},{x:0,y:0,z:3},{x:0,y:1,z:3},{x:0,y:0,z:4},{x:0,y:4,z:0},{x:1,y:3,z:0},{x:2,y:2,z:0},{x:3,y:1,z:0},{x:4,y:0,z:0}] },
+          { id: 'i1_6', blocks: [{x:0,y:0,z:0},{x:1,y:0,z:0},{x:2,y:0,z:0},{x:3,y:0,z:0},{x:3,y:0,z:1},{x:2,y:0,z:1},{x:1,y:0,z:1},{x:0,y:0,z:1},{x:0,y:0,z:2},{x:1,y:0,z:2},{x:2,y:0,z:2},{x:0,y:0,z:3},{x:1,y:0,z:3},{x:0,y:1,z:0},{x:0,y:1,z:1},{x:1,y:1,z:0},{x:1,y:1,z:1},{x:0,y:1,z:2},{x:2,y:1,z:0},{x:0,y:2,z:0},{x:0,y:2,z:1},{x:1,y:2,z:0}] },
+          { id: 'i1_7', blocks: [{x:0,y:0,z:0},{x:1,y:0,z:0},{x:2,y:0,z:0},{x:3,y:0,z:0},{x:0,y:0,z:1},{x:1,y:0,z:1},{x:2,y:0,z:1},{x:0,y:1,z:0},{x:0,y:1,z:1},{x:1,y:1,z:0},{x:2,y:1,z:0},{x:0,y:2,z:0},{x:1,y:2,z:0},{x:0,y:3,z:0},{x:1,y:3,z:0},{x:0,y:0,z:2},{x:1,y:0,z:2},{x:0,y:0,z:3},{x:1,y:1,z:1},{x:0,y:2,z:1}] },
+          { id: 'i1_8', blocks: [{x:0,y:0,z:0},{x:1,y:0,z:0},{x:2,y:0,z:0},{x:3,y:0,z:0},{x:0,y:0,z:1},{x:1,y:0,z:1},{x:2,y:0,z:1},{x:3,y:0,z:1},{x:0,y:0,z:2},{x:1,y:0,z:2},{x:0,y:0,z:3},{x:1,y:0,z:3},{x:0,y:1,z:0},{x:0,y:2,z:0},{x:0,y:3,z:0},{x:1,y:1,z:0},{x:1,y:2,z:0},{x:1,y:3,z:0},{x:0,y:1,z:1},{x:1,y:1,z:1}] },
+          { id: 'i1_9', blocks: [{x:0,y:0,z:0},{x:1,y:0,z:0},{x:2,y:0,z:0},{x:3,y:0,z:0},{x:0,y:0,z:1},{x:1,y:0,z:1},{x:2,y:0,z:1},{x:3,y:0,z:1},{x:0,y:0,z:2},{x:1,y:0,z:2},{x:0,y:0,z:3},{x:1,y:0,z:3},{x:0,y:1,z:0},{x:0,y:2,z:0},{x:0,y:3,z:0},{x:1,y:1,z:0},{x:1,y:2,z:0},{x:1,y:3,z:0},{x:0,y:1,z:1},{x:1,y:1,z:1},{x:0,y:2,z:1},{x:0,y:1,z:2},{x:2,y:1,z:0},{x:0,y:1,z:3}] },
+          { id: 'i1_10', blocks: [{x:0,y:0,z:0},{x:1,y:0,z:0},{x:2,y:0,z:0},{x:3,y:0,z:0},{x:0,y:0,z:1},{x:1,y:0,z:1},{x:0,y:0,z:2},{x:0,y:0,z:3},{x:0,y:1,z:0},{x:0,y:2,z:0},{x:0,y:3,z:0},{x:1,y:1,z:0},{x:0,y:1,z:1},{x:1,y:2,z:0},{x:0,y:2,z:1},{x:1,y:0,z:2},{x:2,y:0,z:1},{x:1,y:1,z:1},{x:2,y:1,z:0},{x:0,y:1,z:2}] },
+        ],
+        sub2: [
+          { id: 'i1_1', blocks: [{x:0,y:0,z:0},{x:1,y:0,z:0},{x:2,y:0,z:0},{x:3,y:0,z:0},{x:0,y:0,z:1},{x:1,y:0,z:1},{x:2,y:0,z:1},{x:3,y:0,z:1},{x:0,y:0,z:2},{x:1,y:0,z:2},{x:2,y:0,z:2},{x:3,y:0,z:2},{x:0,y:1,z:0},{x:0,y:1,z:1},{x:0,y:1,z:2},{x:3,y:1,z:0},{x:3,y:1,z:1},{x:3,y:1,z:2},{x:0,y:2,z:0},{x:0,y:2,z:1},{x:0,y:2,z:2},{x:0,y:3,z:0},{x:0,y:3,z:1},{x:0,y:3,z:2}] },
+          { id: 'i1_2', blocks: [{x:0,y:0,z:0},{x:1,y:0,z:0},{x:3,y:0,z:0},{x:2,y:0,z:0},{x:0,y:0,z:1},{x:0,y:0,z:2},{x:0,y:0,z:3},{x:1,y:0,z:3},{x:2,y:0,z:3},{x:3,y:0,z:3},{x:3,y:0,z:1},{x:3,y:0,z:2},{x:1,y:1,z:0},{x:0,y:1,z:0},{x:0,y:1,z:1},{x:0,y:1,z:2},{x:0,y:2,z:2},{x:0,y:2,z:0},{x:0,y:2,z:1},{x:1,y:2,z:0},{x:2,y:1,z:0},{x:2,y:2,z:0},{x:0,y:1,z:3},{x:0,y:2,z:3},{x:3,y:1,z:0},{x:3,y:2,z:0}] },
+          { id: 'i1_3', blocks: [{x:0,y:0,z:0},{x:1,y:0,z:0},{x:2,y:0,z:0},{x:3,y:0,z:0},{x:0,y:0,z:1},{x:1,y:0,z:1},{x:2,y:0,z:1},{x:3,y:0,z:1},{x:0,y:0,z:2},{x:1,y:0,z:2},{x:0,y:0,z:3},{x:1,y:0,z:3},{x:0,y:1,z:0},{x:0,y:2,z:0},{x:0,y:3,z:0},{x:1,y:1,z:0},{x:1,y:2,z:0},{x:1,y:3,z:0},{x:0,y:1,z:1},{x:1,y:1,z:1},{x:0,y:2,z:1},{x:0,y:3,z:1},{x:0,y:1,z:2},{x:0,y:1,z:3},{x:2,y:1,z:0},{x:3,y:1,z:0},{x:2,y:2,z:0},{x:0,y:2,z:2},{x:1,y:2,z:1},{x:4,y:0,z:0},{x:0,y:0,z:4}] },
+          { id: 'i1_4', blocks: [{x:0,y:0,z:0},{x:1,y:0,z:0},{x:2,y:0,z:0},{x:3,y:0,z:0},{x:4,y:0,z:0},{x:0,y:0,z:1},{x:1,y:0,z:1},{x:2,y:0,z:1},{x:0,y:0,z:2},{x:1,y:0,z:2},{x:0,y:0,z:3},{x:0,y:1,z:0},{x:0,y:1,z:1},{x:0,y:1,z:2},{x:0,y:1,z:3},{x:1,y:1,z:0},{x:2,y:1,z:0},{x:1,y:2,z:0},{x:0,y:2,z:0},{x:0,y:2,z:1},{x:0,y:2,z:2},{x:0,y:2,z:3},{x:0,y:3,z:0},{x:0,y:3,z:1},{x:0,y:3,z:2},{x:0,y:3,z:3},{x:1,y:1,z:1},{x:1,y:2,z:1},{x:2,y:2,z:0},{x:1,y:0,z:3},{x:2,y:1,z:1},{x:3,y:1,z:0},{x:4,y:1,z:0},{x:1,y:1,z:2},{x:2,y:0,z:2},{x:2,y:0,z:3}] },
+          { id: 'i1_5', blocks: [{x:1,y:0,z:0},{x:0,y:0,z:0},{x:0,y:0,z:1},{x:0,y:0,z:2},{x:0,y:0,z:3},{x:2,y:0,z:0},{x:3,y:0,z:0},{x:4,y:0,z:0},{x:0,y:1,z:0},{x:0,y:2,z:0},{x:0,y:3,z:0},{x:0,y:4,z:0},{x:0,y:1,z:1},{x:0,y:0,z:4},{x:1,y:1,z:0},{x:1,y:0,z:1},{x:0,y:2,z:1},{x:0,y:1,z:2},{x:1,y:2,z:0},{x:2,y:1,z:0},{x:2,y:0,z:1},{x:1,y:0,z:2},{x:1,y:1,z:1},{x:0,y:1,z:3},{x:1,y:0,z:3},{x:2,y:0,z:2},{x:3,y:0,z:1},{x:3,y:1,z:0},{x:2,y:2,z:0},{x:0,y:3,z:1},{x:1,y:3,z:0},{x:0,y:2,z:2},{x:1,y:2,z:1},{x:1,y:1,z:2},{x:2,y:1,z:1}] },
+          { id: 'i1_6', blocks: [{x:0,y:0,z:0},{x:1,y:0,z:0},{x:2,y:0,z:0},{x:3,y:0,z:0},{x:4,y:0,z:0},{x:0,y:0,z:1},{x:1,y:0,z:1},{x:2,y:0,z:1},{x:3,y:0,z:1},{x:4,y:0,z:1},{x:0,y:1,z:0},{x:1,y:1,z:0},{x:2,y:1,z:0},{x:3,y:1,z:0},{x:4,y:1,z:0},{x:0,y:2,z:0},{x:1,y:2,z:0},{x:2,y:2,z:0},{x:3,y:2,z:0},{x:4,y:2,z:0},{x:0,y:0,z:2},{x:1,y:0,z:2},{x:2,y:0,z:2},{x:3,y:0,z:2},{x:4,y:0,z:2},{x:0,y:1,z:1},{x:0,y:2,z:1},{x:0,y:1,z:2},{x:0,y:2,z:2},{x:0,y:3,z:0},{x:0,y:3,z:1},{x:0,y:3,z:2},{x:0,y:4,z:0},{x:0,y:4,z:1},{x:0,y:4,z:2},{x:1,y:1,z:1},{x:1,y:1,z:2},{x:1,y:2,z:1},{x:1,y:2,z:2}] },
+          { id: 'i1_7', blocks: [{x:0,y:0,z:0},{x:1,y:0,z:0},{x:2,y:0,z:0},{x:3,y:0,z:0},{x:4,y:0,z:0},{x:0,y:0,z:1},{x:1,y:0,z:1},{x:2,y:0,z:1},{x:3,y:0,z:1},{x:1,y:0,z:2},{x:0,y:0,z:2},{x:2,y:0,z:2},{x:3,y:0,z:2},{x:0,y:0,z:3},{x:1,y:0,z:3},{x:2,y:0,z:3},{x:3,y:0,z:3},{x:0,y:1,z:0},{x:1,y:1,z:0},{x:2,y:1,z:0},{x:3,y:1,z:0},{x:0,y:1,z:1},{x:1,y:1,z:1},{x:2,y:1,z:1},{x:3,y:1,z:1},{x:3,y:1,z:2},{x:2,y:1,z:2},{x:2,y:1,z:3},{x:1,y:1,z:2},{x:0,y:1,z:2},{x:0,y:1,z:3},{x:1,y:1,z:3},{x:0,y:2,z:0},{x:0,y:2,z:1},{x:0,y:2,z:2},{x:1,y:2,z:2},{x:1,y:2,z:0},{x:2,y:2,z:2},{x:1,y:2,z:1},{x:2,y:2,z:0},{x:2,y:2,z:1}] },
+          { id: 'i1_8', blocks: [{x:0,y:0,z:0},{x:1,y:0,z:0},{x:2,y:0,z:0},{x:3,y:0,z:0},{x:0,y:0,z:1},{x:0,y:0,z:2},{x:0,y:0,z:3},{x:0,y:0,z:4},{x:1,y:0,z:1},{x:1,y:0,z:2},{x:1,y:0,z:3},{x:1,y:0,z:4},{x:0,y:1,z:0},{x:1,y:1,z:0},{x:0,y:1,z:1},{x:0,y:1,z:2},{x:0,y:1,z:3},{x:2,y:0,z:1},{x:2,y:0,z:2},{x:0,y:2,z:0},{x:0,y:2,z:1},{x:0,y:2,z:2},{x:0,y:3,z:0},{x:2,y:1,z:0},{x:4,y:0,z:0},{x:0,y:3,z:1},{x:1,y:1,z:1},{x:1,y:2,z:0}] },
+          { id: 'i1_9', blocks: [{x:0,y:0,z:0},{x:1,y:0,z:0},{x:1,y:0,z:1},{x:1,y:0,z:2},{x:0,y:0,z:1},{x:0,y:0,z:2},{x:0,y:1,z:0},{x:1,y:1,z:0},{x:0,y:1,z:1},{x:1,y:1,z:1},{x:0,y:1,z:2},{x:1,y:1,z:2},{x:1,y:2,z:0},{x:0,y:2,z:0},{x:0,y:2,z:1},{x:0,y:2,z:2},{x:1,y:2,z:1},{x:1,y:2,z:2},{x:2,y:0,z:0},{x:3,y:0,z:0},{x:4,y:0,z:0},{x:2,y:0,z:1},{x:3,y:0,z:1},{x:4,y:0,z:1},{x:2,y:0,z:2},{x:3,y:0,z:2},{x:4,y:0,z:2},{x:0,y:0,z:3},{x:1,y:0,z:3},{x:0,y:0,z:4},{x:1,y:0,z:4},{x:2,y:1,z:0},{x:3,y:1,z:0},{x:2,y:1,z:1},{x:3,y:1,z:1},{x:4,y:1,z:0}] },
+          { id: 'i1_10', blocks: [{x:0,y:0,z:0},{x:1,y:0,z:0},{x:2,y:0,z:0},{x:3,y:0,z:0},{x:4,y:0,z:0},{x:0,y:1,z:0},{x:0,y:2,z:0},{x:0,y:3,z:0},{x:0,y:4,z:0},{x:4,y:1,z:0},{x:4,y:2,z:0},{x:4,y:3,z:0},{x:4,y:4,z:0},{x:0,y:0,z:1},{x:0,y:0,z:2},{x:0,y:0,z:3},{x:0,y:0,z:4},{x:4,y:0,z:1},{x:4,y:0,z:2},{x:4,y:0,z:3},{x:4,y:0,z:4},{x:0,y:1,z:4},{x:0,y:2,z:4},{x:0,y:3,z:4},{x:0,y:4,z:4},{x:0,y:4,z:1},{x:0,y:4,z:2},{x:0,y:4,z:3},{x:1,y:4,z:0},{x:2,y:4,z:0},{x:3,y:4,z:0},{x:1,y:0,z:4},{x:2,y:0,z:4},{x:3,y:0,z:4}] },
+        ]
+      }
+    };
+
+    // ==========================================
+    // 状態管理
+    // ==========================================
+    let currentQuestions = [];
+    let currentQuestionIndex = 0;
+    let currentLevel = '';
+    let startTime = 0;
+    let timerInterval = null;
+    let elapsedTime = 0; // ミリ秒
+    let answerString = '';
+    
+    // ハイスコアデータ (In-Memory)
+    let highScores = {
+      easy: 0,
+      hard: 0,
+      insane: 0
+    };
+
+    // 図鑑のデータ保存 (In-Memory)
+    // プレイ中に取得したブロックIDを true にする
+    let unlockedBlocks = {};
+
+    // ==========================================
+    // Three.js の設定
+    // ==========================================
+    let scene, camera, renderer, controls;
+    
+    function initThreeJS() {
+      const container = document.getElementById('canvas-container');
+      
+      scene = new THREE.Scene();
+      
+      // カメラ設定
+      camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 100);
+      
+      // レンダラー設定
+      renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
+      renderer.setSize(container.clientWidth, container.clientHeight);
+      renderer.setPixelRatio(window.devicePixelRatio);
+      container.appendChild(renderer.domElement);
+      
+      // ライト設定（カメラから見て一定方向からの光にする）
+      const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
+      scene.add(ambientLight);
+      const directionalLight = new THREE.DirectionalLight(0xffffff, 0.6);
+      directionalLight.position.set(-10, 10, 10); // 左(マイナス)、上、手前から照らす
+      scene.add(camera);
+      camera.add(directionalLight);
+
+      // コントロール設定（マウス・タッチで回転）
+      controls = new THREE.OrbitControls(camera, renderer.domElement);
+      controls.enableZoom = false; // ズーム禁止
+      controls.enablePan = false;  // パン禁止
+      controls.enableDamping = true; // 滑らかな回転
+      controls.dampingFactor = 0.1;
+      // 縦方向の回転を制限（一定の見下ろし角度に固定）
+      controls.minPolarAngle = Math.PI / 3; 
+      controls.maxPolarAngle = Math.PI / 3;
+
+      // ブロックを描画するためのグループ（ライトを消さないため）
+      scene.userData.blocksGroup = new THREE.Group();
+      scene.add(scene.userData.blocksGroup);
+
+      // アニメーションループ
+      function animate() {
+        requestAnimationFrame(animate);
+        if(controls) controls.update();
+        if(renderer && scene && camera) renderer.render(scene, camera);
+      }
+      animate();
+
+      // ウィンドウリサイズ対応
+      window.addEventListener('resize', () => {
+        if(container.offsetParent !== null) { // 表示されている時のみ
+          camera.aspect = container.clientWidth / container.clientHeight;
+          camera.updateProjectionMatrix();
+          renderer.setSize(container.clientWidth, container.clientHeight);
+        }
+      });
+    }
+
+    // 図鑑のサムネイル生成用レンダラー
+    let thumbRenderer, thumbScene, thumbCamera;
+    function initThumbRenderer() {
+      // preserveDrawingBuffer を true にすることで toDataURL() で画像化できるようにする
+      thumbRenderer = new THREE.WebGLRenderer({ alpha: true, antialias: true, preserveDrawingBuffer: true });
+      thumbRenderer.setSize(300, 300); // サムネイルとして十分な解像度
+      thumbRenderer.setPixelRatio(window.devicePixelRatio);
+      
+      thumbScene = new THREE.Scene();
+      thumbCamera = new THREE.PerspectiveCamera(45, 1, 0.1, 100);
+      
+      const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
+      thumbScene.add(ambientLight);
+      const directionalLight = new THREE.DirectionalLight(0xffffff, 0.6);
+      directionalLight.position.set(-10, 10, 10);
+      thumbScene.add(thumbCamera);
+      thumbCamera.add(directionalLight);
+
+      thumbScene.userData.blocksGroup = new THREE.Group();
+      thumbScene.add(thumbScene.userData.blocksGroup);
+    }
+
+    // ブロックを描画する関数
+    function renderBlocks(blocksData, targetScene, targetCamera, targetControls, colorHex = 0xcccccc) {
+      const blocksGroup = targetScene.userData.blocksGroup;
+
+      // 古いブロックだけを削除（ライトはそのまま）
+      while(blocksGroup.children.length > 0){ 
+        blocksGroup.remove(blocksGroup.children[0]); 
+      }
+
+      const geometry = new THREE.BoxGeometry(1, 1, 1);
+      const material = new THREE.MeshStandardMaterial({
+        color: colorHex,
+        roughness: 0.6,
+        polygonOffset: true,
+        polygonOffsetFactor: 1,
+        polygonOffsetUnits: 1
+      });
+      // 輪郭線用のマテリアル
+      const edgeMaterial = new THREE.LineBasicMaterial({ color: 0x333333, linewidth: 2 });
+
+      let minX=Infinity, maxX=-Infinity, minY=Infinity, maxY=-Infinity, minZ=Infinity, maxZ=-Infinity;
+      const group = new THREE.Group();
+
+      blocksData.forEach(pos => {
+        // 本体
+        const mesh = new THREE.Mesh(geometry, material);
+        mesh.position.set(pos.x, pos.y, pos.z);
+        group.add(mesh);
+
+        // 輪郭線
+        const edges = new THREE.EdgesGeometry(geometry);
+        const line = new THREE.LineSegments(edges, edgeMaterial);
+        line.position.copy(mesh.position);
+        group.add(line);
+
+        // 境界を計算
+        if(pos.x < minX) minX = pos.x; if(pos.x > maxX) maxX = pos.x;
+        if(pos.y < minY) minY = pos.y; if(pos.y > maxY) maxY = pos.y;
+        if(pos.z < minZ) minZ = pos.z; if(pos.z > maxZ) maxZ = pos.z;
+      });
+
+      // グループの重心を計算して原点にずらす（中心で回転させるため）
+      const centerX = (minX + maxX) / 2;
+      const centerY = (minY + maxY) / 2;
+      const centerZ = (minZ + maxZ) / 2;
+      group.position.set(-centerX, -centerY, -centerZ);
+      
+      blocksGroup.add(group);
+
+      // カメラの位置を調整（固定された角度に合わせて距離を取る）
+      const maxDim = Math.max(maxX - minX, maxY - minY, maxZ - minZ) + 1;
+      const distance = maxDim * 2.2;
+      
+      // カメラ初期位置をセット
+      targetCamera.position.set(distance, distance, distance);
+      targetCamera.lookAt(0, 0, 0);
+      
+      // Controlsがある場合はターゲットを更新
+      if(targetControls) {
+        targetControls.target.set(0, 0, 0);
+        targetControls.update();
+      }
+    }
+
+
+    // ==========================================
+    // ゲームロジック
+    // ==========================================
+    
+    // 画面切り替え
+    function showScreen(screenId) {
+      document.querySelectorAll('.screen').forEach(el => el.classList.remove('active'));
+      document.getElementById(screenId).classList.add('active');
+
+      if(screenId === 'screen-game') {
+        // キャンバスのサイズを再計算
+        setTimeout(() => {
+          window.dispatchEvent(new Event('resize'));
+        }, 10);
+      }
+      if(screenId === 'screen-zukan') {
+        renderZukan();
+      }
+    }
+
+    // 配列からランダムに指定数取得
+    function getRandomItems(array, count) {
+      const weightedArray = array.map(item => {
+        // 図鑑に載っていない(未クリア)ものはウェイトを高くして出やすくする（絶対ではない）
+        const weight = unlockedBlocks[item.id] ? Math.random() : Math.random() + 0.5;
+        return { item, weight };
+      });
+      // 重みが大きい順にソート
+      weightedArray.sort((a, b) => b.weight - a.weight);
+      return weightedArray.slice(0, count).map(obj => obj.item);
+    }
+
+    // ゲーム開始 (通常5問モード)
+    function startGame(level) {
+      currentLevel = level;
+      // 問題の選定 (sub1から2問、sub2から3問)
+      const data = PROBLEM_DATA[level];
+      const easyQs = getRandomItems(data.sub1, 2);
+      const hardQs = getRandomItems(data.sub2, 3);
+      
+      currentQuestions = [...easyQs, ...hardQs];
+      currentQuestionIndex = 0;
+      elapsedTime = 0;
+      answerString = '';
+      
+      if(!scene) initThreeJS();
+
+      showScreen('screen-game');
+      loadQuestion();
+
+      // タイマースタート
+      startTime = Date.now();
+      clearInterval(timerInterval);
+      timerInterval = setInterval(updateTimer, 10); // 10msごとに更新
+    }
+
+    // 図鑑からの1問モード開始
+    function startSingleGame(questionData) {
+      currentLevel = 'practice'; // ハイスコア更新を防ぐための特別なレベル名
+      currentQuestions = [questionData];
+      currentQuestionIndex = 0;
+      elapsedTime = 0;
+      answerString = '';
+      
+      if(!scene) initThreeJS();
+
+      showScreen('screen-game');
+      loadQuestion();
+
+      // タイマースタート
+      startTime = Date.now();
+      clearInterval(timerInterval);
+      timerInterval = setInterval(updateTimer, 10);
+    }
+
+    // プレイ中にタイトルへ戻る処理
+    function returnToTitle() {
+      clearInterval(timerInterval);
+      showScreen('screen-title');
+    }
+
+    // タイマー更新
+    function updateTimer() {
+      elapsedTime = Date.now() - startTime;
+      const seconds = Math.floor(elapsedTime / 1000);
+      const milliseconds = Math.floor((elapsedTime % 1000) / 10);
+      document.getElementById('timer-display').innerText = 
+        `${seconds.toString().padStart(2, '0')}.${milliseconds.toString().padStart(2, '0')}`;
+    }
+
+    // フォーマット化された時間を返す
+    function formatTime(ms) {
+      const seconds = Math.floor(ms / 1000);
+      const milliseconds = Math.floor((ms % 1000) / 10);
+      return `${seconds.toString().padStart(2, '0')}.${milliseconds.toString().padStart(2, '0')}`;
+    }
+
+    // 問題の読み込み
+    function loadQuestion() {
+      const q = currentQuestions[currentQuestionIndex];
+      // 問題数の表示を更新 (1問モードにも対応)
+      document.getElementById('question-number').innerText = currentQuestionIndex + 1;
+      document.getElementById('question-total').innerText = currentQuestions.length;
+      
+      answerString = '';
+      updateAnswerDisplay();
+
+      // ブロックを描画
+      let color = 0xdbeafe; // 薄い青
+      if(currentLevel === 'practice') {
+        color = 0xfffbeb; // 練習モードは少し色を変える(薄い黄色)
+      }
+      renderBlocks(q.blocks, scene, camera, controls, color);
+    }
+
+    // キーボード入力
+    function inputNum(num) {
+      if(answerString.length < 3) { // 3桁まで
+        answerString += num.toString();
+        updateAnswerDisplay();
+      }
+    }
+
+    function deleteNum() {
+      if(answerString.length > 0) {
+        answerString = answerString.slice(0, -1);
+        updateAnswerDisplay();
+      }
+    }
+
+    function updateAnswerDisplay() {
+      document.getElementById('answer-input').innerText = answerString;
+    }
+
+    // 答え合わせ
+    function checkAnswer() {
+      if(answerString === '') return;
+
+      const answer = parseInt(answerString, 10);
+      const q = currentQuestions[currentQuestionIndex];
+      const correctAnswer = q.blocks.length;
+
+      if(answer === correctAnswer) {
+        // 正解
+        showEffect(true);
+        // 図鑑に登録
+        unlockedBlocks[q.id] = true;
+
+        setTimeout(() => {
+          currentQuestionIndex++;
+          if(currentQuestionIndex >= currentQuestions.length) {
+            endGame();
+          } else {
+            loadQuestion();
+          }
+        }, 800); // エフェクトを見せるためのディレイ
+      } else {
+        // 不正解 (タイマーは止まらない)
+        showEffect(false);
+        answerString = '';
+        setTimeout(updateAnswerDisplay, 400); // 揺れた後に消す
+      }
+    }
+
+    // 正解・不正解エフェクト
+    function showEffect(isCorrect) {
+      const overlay = document.getElementById('effect-overlay');
+      const icon = document.getElementById('effect-icon');
+      
+      overlay.classList.remove('hidden');
+      icon.className = 'text-9xl md:text-[15rem] drop-shadow-lg'; // リセット
+
+      if(isCorrect) {
+        icon.innerHTML = '<i class="fa-regular fa-circle text-red-500"></i>';
+        icon.classList.add('animate-pop');
+      } else {
+        icon.innerHTML = '<i class="fa-solid fa-xmark text-blue-500"></i>';
+        icon.classList.add('animate-shake');
+        // 不正解時は入力欄も揺らす
+        const inputArea = document.getElementById('answer-input');
+        inputArea.classList.remove('animate-shake');
+        void inputArea.offsetWidth; // reflow
+        inputArea.classList.add('animate-shake');
+      }
+
+      setTimeout(() => {
+        overlay.classList.add('hidden');
+      }, 700);
+    }
+
+    // ゲーム終了
+    function endGame() {
+      clearInterval(timerInterval);
+      
+      // 練習モード（1問だけ）の場合は、そのまま図鑑に戻る
+      if (currentLevel === 'practice') {
+        showScreen('screen-zukan');
+        return;
+      }
+
+      const finalTime = elapsedTime;
+      document.getElementById('result-time').innerText = formatTime(finalTime);
+
+      // スコア計算: 基本10000点から、0.1秒ごとに10点マイナス (最低0点)
+      let score = Math.max(0, 10000 - Math.floor(finalTime / 10));
+      document.getElementById('result-score').innerText = score;
+
+      // ハイスコアの更新判定
+      const recordMsg = document.getElementById('new-record-msg');
+      if (score > highScores[currentLevel]) {
+        highScores[currentLevel] = score;
+        document.getElementById(`highscore-${currentLevel}`).innerText = score;
+        recordMsg.classList.remove('hidden');
+      } else {
+        recordMsg.classList.add('hidden');
+      }
+
+      showScreen('screen-result');
+      createConfetti();
+    }
+
+    // クリア時の紙吹雪エフェクト
+    function createConfetti() {
+      const container = document.getElementById('confetti-container');
+      container.innerHTML = '';
+      const colors = ['bg-red-500', 'bg-blue-500', 'bg-green-500', 'bg-yellow-400', 'bg-pink-500'];
+      
+      for(let i=0; i<50; i++) {
+        const conf = document.createElement('div');
+        const color = colors[Math.floor(Math.random() * colors.length)];
+        conf.className = `absolute w-3 h-3 ${color} rounded-sm opacity-80`;
+        conf.style.left = Math.random() * 100 + '%';
+        conf.style.top = '-10px';
+        
+        // アニメーション設定
+        const duration = Math.random() * 2 + 2;
+        const delay = Math.random() * 1;
+        conf.style.transition = `transform ${duration}s linear, opacity ${duration}s ease-in`;
+        
+        container.appendChild(conf);
+
+        setTimeout(() => {
+          conf.style.transform = `translateY(100vh) rotate(${Math.random()*360}deg)`;
+          conf.style.opacity = 0;
+        }, delay * 1000 + 50);
+      }
+    }
+
+
+    // ==========================================
+    // 図鑑ロジック
+    // ==========================================
+    function renderZukan() {
+      const listDiv = document.getElementById('zukan-list');
+      listDiv.innerHTML = '';
+      
+      let totalCount = 0;
+      let unlockedCount = 0;
+
+      // 全問題データをフラットな配列にする
+      const allBlocks = [];
+      ['easy', 'hard', 'insane'].forEach(level => {
+        ['sub1', 'sub2'].forEach(sub => {
+          PROBLEM_DATA[level][sub].forEach(q => {
+            allBlocks.push({ ...q, level: level }); // レベル情報を追加
+          });
+        });
+      });
+
+      totalCount = allBlocks.length;
+
+      // サムネイル生成用のレンダラーを準備
+      if(!thumbRenderer) initThumbRenderer();
+
+      allBlocks.forEach(q => {
+        const isUnlocked = unlockedBlocks[q.id];
+        if(isUnlocked) unlockedCount++;
+
+        // 難易度に応じた色の設定
+        let blockColor = 0xfacc15; // 黄色 (デフォルト・やさしい)
+        let borderColorClass = 'border-yellow-300';
+        let hoverBgClass = 'hover:bg-yellow-50';
+
+        if (q.level === 'hard') {
+          blockColor = 0x38bdf8; // 水色
+          borderColorClass = 'border-sky-300';
+          hoverBgClass = 'hover:bg-sky-50';
+        } else if (q.level === 'insane') {
+          blockColor = 0xf472b6; // ピンク
+          borderColorClass = 'border-pink-300';
+          hoverBgClass = 'hover:bg-pink-50';
+        }
+
+        const card = document.createElement('div');
+        // 高さを固定せず、幅に合わせた正方形(aspect-square)にする
+        card.className = `bg-white rounded-2xl shadow-sm border-2 overflow-hidden flex flex-col items-center justify-center aspect-square relative ${isUnlocked ? `${borderColorClass} cursor-pointer ${hoverBgClass} transition-colors` : 'border-gray-200'}`;
+        
+        if(isUnlocked) {
+          // クリックすると1問モードでゲーム開始
+          card.onclick = () => startSingleGame(q);
+          
+          // ブロックを配置してレンダリング
+          renderBlocks(q.blocks, thumbScene, thumbCamera, null, blockColor); 
+          thumbRenderer.render(thumbScene, thumbCamera);
+          
+          // 描画結果を画像として取得
+          const imgData = thumbRenderer.domElement.toDataURL('image/png');
+
+          card.innerHTML = `
+            <img src="${imgData}" class="w-full h-full object-contain p-2 hover:scale-110 transition-transform duration-300">
+          `;
+        } else {
+          card.innerHTML = `
+            <div class="text-gray-300 text-4xl md:text-6xl"><i class="fa-solid fa-question"></i></div>
+          `;
+        }
+        listDiv.appendChild(card);
+      });
+
+      document.getElementById('zukan-count').innerText = `${unlockedCount} / ${totalCount}`;
+    }
+
+    // フォントの準備ができてから画面を表示する
+    document.fonts.ready.then(() => {
+      document.body.classList.remove('opacity-0');
+    });
+
+  </script>
+</body>
+</html>

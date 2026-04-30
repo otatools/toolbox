@@ -1,0 +1,666 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>ブロック問題メーカー</title>
+  
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- FontAwesome -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  
+  <!-- Three.js -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@400;700;900&display=swap');
+
+    body {
+      font-family: 'M PLUS Rounded 1c', sans-serif;
+      background-color: #f8fafc;
+      /* スマホ・タブレットでの予期せぬスクロールや選択を防止 */
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    #canvas-container {
+      touch-action: none; /* スワイプ時のブラウザアクションを無効化 */
+      cursor: crosshair;
+    }
+
+    /* カスタムスクロールバー */
+    ::-webkit-scrollbar {
+      width: 8px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #f1f5f9; 
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #cbd5e1; 
+      border-radius: 4px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #94a3b8; 
+    }
+  </style>
+</head>
+<body class="h-screen w-screen overflow-hidden flex flex-col md:flex-row">
+
+  <!-- ==========================================
+       左/上 エリア (キャンバス ＆ ビューアー)
+  =========================================== -->
+  
+  <!-- 3D キャンバスエリア (つくるモード) -->
+  <div class="relative flex-grow h-2/3 md:h-full bg-gradient-to-b from-blue-50 to-gray-200" id="canvas-container">
+    
+    <!-- ツールバー -->
+    <div class="absolute top-4 left-0 right-0 flex justify-center z-10 pointer-events-none">
+      <div class="bg-white/90 backdrop-blur p-2 rounded-full shadow-lg pointer-events-auto flex gap-2 border-2 border-gray-100">
+        
+        <!-- おく モード -->
+        <button id="btn-add" onclick="setMode('add')" class="flex flex-col md:flex-row items-center gap-1 md:gap-2 px-4 py-2 rounded-full bg-blue-500 text-white font-bold transition-colors">
+          <i class="fa-solid fa-cube text-xl"></i>
+          <span class="text-sm md:text-base">おく</span>
+        </button>
+        
+        <!-- けす モード -->
+        <button id="btn-del" onclick="setMode('del')" class="flex flex-col md:flex-row items-center gap-1 md:gap-2 px-4 py-2 rounded-full bg-transparent text-gray-500 hover:bg-gray-100 font-bold transition-colors">
+          <i class="fa-solid fa-eraser text-xl"></i>
+          <span class="text-sm md:text-base">けす</span>
+        </button>
+        
+        <!-- まわす モード -->
+        <button id="btn-cam" onclick="setMode('cam')" class="flex flex-col md:flex-row items-center gap-1 md:gap-2 px-4 py-2 rounded-full bg-transparent text-gray-500 hover:bg-gray-100 font-bold transition-colors">
+          <i class="fa-solid fa-arrows-up-down-left-right text-xl"></i>
+          <span class="text-sm md:text-base">まわす</span>
+        </button>
+
+      </div>
+    </div>
+
+    <!-- ヘルプテキスト -->
+    <div class="absolute bottom-4 left-0 right-0 text-center pointer-events-none opacity-70">
+      <span id="help-text" class="bg-white/80 text-gray-700 text-sm md:text-base font-bold px-4 py-2 rounded-full shadow-sm">
+        マスをタップしてブロックをおこう！
+      </span>
+    </div>
+  </div>
+
+  <!-- ビューアーエリア (かくにんモード) -->
+  <div id="viewer-container" class="hidden relative flex-grow h-2/3 md:h-full bg-gray-100 overflow-y-auto p-4 md:p-8">
+    <div id="viewer-list" class="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+      <!-- サムネイルがここに入る -->
+    </div>
+    
+    <!-- 空の時のメッセージ -->
+    <div id="viewer-empty" class="absolute inset-0 flex flex-col items-center justify-center text-gray-400">
+      <i class="fa-solid fa-boxes-stacked text-6xl mb-4 opacity-50"></i>
+      <p class="font-bold">データがありません</p>
+    </div>
+  </div>
+
+  <!-- ==========================================
+       UI エリア (右/下)
+  =========================================== -->
+  <div class="w-full md:w-96 bg-white shadow-[-4px_0_15px_rgba(0,0,0,0.05)] flex flex-col z-20 h-1/3 md:h-full">
+    
+    <!-- タブメニュー -->
+    <div class="flex">
+      <button id="tab-maker" onclick="changeTab('maker')" class="flex-1 py-4 font-black bg-teal-500 text-white transition-colors flex justify-center items-center gap-2">
+        <i class="fa-solid fa-hammer"></i> つくる
+      </button>
+      <button id="tab-viewer" onclick="changeTab('viewer')" class="flex-1 py-4 font-black bg-gray-200 text-gray-500 hover:bg-gray-300 transition-colors flex justify-center items-center gap-2">
+        <i class="fa-solid fa-list"></i> かくにん
+      </button>
+    </div>
+
+    <!-- ==========================================
+         つくる モード パネル
+    =========================================== -->
+    <div id="panel-maker" class="p-4 md:p-6 flex-grow flex flex-col overflow-y-auto">
+      
+      <!-- ブロック数表示 -->
+      <div class="bg-gray-50 border-2 border-gray-100 rounded-2xl p-4 mb-4 flex justify-between items-center">
+        <div class="text-gray-500 font-bold">ブロックのかず</div>
+        <div class="text-3xl font-black text-blue-600"><span id="block-count">0</span> こ</div>
+      </div>
+
+      <!-- 出力テキストエリア -->
+      <div class="flex-grow flex flex-col mb-4">
+        <label class="text-sm text-gray-500 font-bold mb-2 flex justify-between items-end">
+          <span>プログラム用データ</span>
+        </label>
+        <textarea id="output-text" class="w-full flex-grow bg-gray-50 border-2 border-gray-200 rounded-xl p-3 font-mono text-sm resize-none focus:outline-none focus:border-teal-400 text-gray-600" readonly></textarea>
+      </div>
+
+      <!-- アクションボタン -->
+      <div class="flex flex-col gap-3">
+        <button onclick="copyToClipboard()" id="btn-copy" class="w-full bg-blue-500 hover:bg-blue-600 text-white font-bold py-4 rounded-xl shadow-[0_4px_0_#2563eb] active:shadow-[0_0px_0_#2563eb] active:translate-y-[4px] transition-all text-lg flex justify-center items-center gap-2">
+          <i class="fa-regular fa-copy"></i> コピーする
+        </button>
+        <button onclick="clearAllBlocks()" class="w-full bg-white border-2 border-red-200 text-red-500 hover:bg-red-50 font-bold py-3 rounded-xl transition-colors">
+          ぜんぶけす
+        </button>
+      </div>
+    </div>
+
+    <!-- ==========================================
+         かくにん モード パネル
+    =========================================== -->
+    <div id="panel-viewer" class="hidden p-4 md:p-6 flex-grow flex flex-col overflow-y-auto bg-gray-50">
+      
+      <p class="text-sm text-gray-600 font-bold mb-3 leading-relaxed">
+        つくったデータのコードをここに貼り付けると、一覧で確認できます。
+      </p>
+
+      <div class="flex-grow flex flex-col mb-4 relative">
+        <textarea id="input-data" class="w-full flex-grow bg-white border-2 border-gray-300 rounded-xl p-3 font-mono text-xs resize-none focus:outline-none focus:border-teal-400 text-gray-700 shadow-inner" placeholder="{ id: '...', blocks: [{x:0,y:0,z:0}] },&#10;{ id: '...', blocks: [...] },"></textarea>
+      </div>
+
+      <button onclick="loadViewerData()" class="w-full bg-teal-500 hover:bg-teal-600 text-white font-bold py-4 rounded-xl shadow-[0_4px_0_#0f766e] active:shadow-[0_0px_0_#0f766e] active:translate-y-[4px] transition-all text-lg flex justify-center items-center gap-2">
+        <i class="fa-solid fa-magnifying-glass"></i> よみこむ
+      </button>
+
+    </div>
+
+  </div>
+
+  <!-- ==========================================
+       JavaScript ロジック
+  =========================================== -->
+  <script>
+    let scene, camera, renderer, controls;
+    let plane, gridHelper;
+    let rollOverMesh, rollOverMaterial;
+    let cubeGeo, cubeMaterial, edgeMaterial;
+    
+    // レイキャスト用
+    const raycaster = new THREE.Raycaster();
+    const mouse = new THREE.Vector2();
+    let objects = []; // 判定対象（平面 + ブロック）
+    
+    // 状態管理
+    let mode = 'add'; // 'add', 'del', 'cam'
+    let isPointerDown = false;
+    let hasPointerMoved = false; // ドラッグとタップの判定用
+
+    init();
+
+    function init() {
+      const container = document.getElementById('canvas-container');
+      
+      // シーン
+      scene = new THREE.Scene();
+      
+      // カメラ
+      camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 1, 1000);
+      camera.position.set(10, 15, 15);
+      camera.lookAt(0, 0, 0);
+      
+      // レンダラー
+      renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+      renderer.setPixelRatio(window.devicePixelRatio);
+      renderer.setSize(container.clientWidth, container.clientHeight);
+      container.appendChild(renderer.domElement);
+      
+      // ライト
+      const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+      scene.add(ambientLight);
+      const directionalLight = new THREE.DirectionalLight(0xffffff, 0.7);
+      directionalLight.position.set(-10, 20, 10);
+      scene.add(directionalLight);
+
+      // 床（透明な判定用平面）
+      const planeGeo = new THREE.PlaneGeometry(30, 30);
+      planeGeo.rotateX(- Math.PI / 2);
+      plane = new THREE.Mesh(planeGeo, new THREE.MeshBasicMaterial({ visible: false }));
+      scene.add(plane);
+      objects.push(plane);
+
+      // グリッド
+      gridHelper = new THREE.GridHelper(30, 30, 0x888888, 0xdddddd);
+      scene.add(gridHelper);
+
+      // プレビュー用メッシュ（半透明）
+      const rollOverGeo = new THREE.BoxGeometry(1, 1, 1);
+      rollOverMaterial = new THREE.MeshBasicMaterial({ color: 0x38bdf8, opacity: 0.5, transparent: true });
+      rollOverMesh = new THREE.Mesh(rollOverGeo, rollOverMaterial);
+      rollOverMesh.visible = false;
+      scene.add(rollOverMesh);
+
+      // ブロックのマテリアル設定
+      cubeGeo = new THREE.BoxGeometry(1, 1, 1);
+      cubeMaterial = new THREE.MeshStandardMaterial({ 
+        color: 0xfacc15, // 黄色
+        roughness: 0.6,
+        polygonOffset: true,
+        polygonOffsetFactor: 1,
+        polygonOffsetUnits: 1
+      });
+      edgeMaterial = new THREE.LineBasicMaterial({ color: 0x333333, linewidth: 2 });
+
+      // コントロール (初期は無効、カメラモード時のみ有効)
+      controls = new THREE.OrbitControls(camera, renderer.domElement);
+      controls.enabled = false;
+      controls.enableDamping = true;
+      controls.dampingFactor = 0.1;
+
+      // イベントリスナー
+      container.addEventListener('pointermove', onPointerMove);
+      container.addEventListener('pointerdown', onPointerDown);
+      container.addEventListener('pointerup', onPointerUp);
+      
+      window.addEventListener('resize', onWindowResize);
+
+      // アニメーションループ
+      animate();
+      
+      // 初期状態の出力更新
+      updateOutput();
+    }
+
+    function onWindowResize() {
+      const container = document.getElementById('canvas-container');
+      if (container.clientWidth > 0 && container.offsetParent !== null) {
+        camera.aspect = container.clientWidth / container.clientHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(container.clientWidth, container.clientHeight);
+      }
+    }
+
+    function getIntersects(event) {
+      const container = document.getElementById('canvas-container');
+      const rect = container.getBoundingClientRect();
+      mouse.x = ( (event.clientX - rect.left) / rect.width ) * 2 - 1;
+      mouse.y = - ( (event.clientY - rect.top) / rect.height ) * 2 + 1;
+      
+      raycaster.setFromCamera(mouse, camera);
+      return raycaster.intersectObjects(objects, false);
+    }
+
+    function onPointerDown(event) {
+      if (mode === 'cam') return;
+      isPointerDown = true;
+      hasPointerMoved = false; // タップ判定用にリセット
+    }
+
+    function onPointerMove(event) {
+      if (isPointerDown) {
+        hasPointerMoved = true; // ドラッグ中
+      }
+
+      if (mode === 'cam') {
+        rollOverMesh.visible = false;
+        return;
+      }
+
+      const intersects = getIntersects(event);
+
+      if (intersects.length > 0) {
+        const intersect = intersects[0];
+
+        if (mode === 'add') {
+          rollOverMesh.visible = true;
+          rollOverMaterial.color.setHex(0x38bdf8); // 追加色は青
+          
+          // 配置位置の計算
+          const pos = intersect.point.clone().add(intersect.face.normal.clone().multiplyScalar(0.5));
+          const ix = Math.floor(pos.x);
+          const iy = Math.floor(pos.y);
+          const iz = Math.floor(pos.z);
+          
+          // 床より下にはみ出さないようにする
+          if (iy >= 0) {
+            rollOverMesh.position.set(ix + 0.5, iy + 0.5, iz + 0.5);
+          } else {
+            rollOverMesh.visible = false;
+          }
+        } 
+        else if (mode === 'del') {
+          if (intersect.object !== plane) {
+            rollOverMesh.visible = true;
+            rollOverMaterial.color.setHex(0xff0000); // 削除色は赤
+            rollOverMesh.position.copy(intersect.object.position);
+          } else {
+            rollOverMesh.visible = false;
+          }
+        }
+      } else {
+        rollOverMesh.visible = false;
+      }
+    }
+
+    function onPointerUp(event) {
+      if (mode === 'cam') return;
+      isPointerDown = false;
+      
+      // ドラッグ（スワイプ）した場合は配置処理をしない
+      if (hasPointerMoved) return;
+
+      const intersects = getIntersects(event);
+
+      if (intersects.length > 0) {
+        const intersect = intersects[0];
+
+        if (mode === 'add') {
+          const pos = intersect.point.clone().add(intersect.face.normal.clone().multiplyScalar(0.5));
+          const ix = Math.floor(pos.x);
+          const iy = Math.floor(pos.y);
+          const iz = Math.floor(pos.z);
+
+          if (iy >= 0) {
+            addBlock(ix, iy, iz);
+          }
+        } 
+        else if (mode === 'del') {
+          if (intersect.object !== plane) {
+            removeBlock(intersect.object);
+          }
+        }
+        updateOutput();
+      }
+    }
+
+    function addBlock(x, y, z) {
+      // 重複チェック
+      for (let obj of objects) {
+        if (obj !== plane && obj.userData.x === x && obj.userData.y === y && obj.userData.z === z) {
+          return; // 既に同じ場所にある
+        }
+      }
+
+      const voxel = new THREE.Mesh(cubeGeo, cubeMaterial);
+      voxel.position.set(x + 0.5, y + 0.5, z + 0.5);
+      voxel.userData = { x: x, y: y, z: z };
+      
+      // 輪郭線
+      const edges = new THREE.EdgesGeometry(cubeGeo);
+      const line = new THREE.LineSegments(edges, edgeMaterial);
+      voxel.add(line);
+
+      scene.add(voxel);
+      objects.push(voxel);
+    }
+
+    function removeBlock(mesh) {
+      scene.remove(mesh);
+      objects.splice(objects.indexOf(mesh), 1);
+      rollOverMesh.visible = false;
+    }
+
+    function clearAllBlocks() {
+      // 後ろから削除
+      for (let i = objects.length - 1; i >= 0; i--) {
+        if (objects[i] !== plane) {
+          scene.remove(objects[i]);
+          objects.splice(i, 1);
+        }
+      }
+      updateOutput();
+      rollOverMesh.visible = false;
+    }
+
+    // データの正規化とJSON出力
+    function updateOutput() {
+      const blocks = [];
+      let minX = Infinity, minZ = Infinity;
+      
+      // 登録されたブロックを収集
+      objects.forEach(obj => {
+        if (obj !== plane) {
+          blocks.push({ x: obj.userData.x, y: obj.userData.y, z: obj.userData.z });
+          minX = Math.min(minX, obj.userData.x);
+          minZ = Math.min(minZ, obj.userData.z);
+        }
+      });
+
+      document.getElementById('block-count').innerText = blocks.length;
+
+      if (blocks.length === 0) {
+        document.getElementById('output-text').value = '';
+        return;
+      }
+
+      // XとZの最小値が0になるように全体をずらす (Yは元々0が床なのでそのまま)
+      const normalizedBlocks = blocks.map(b => ({
+        x: b.x - minX,
+        y: b.y,
+        z: b.z - minZ
+      }));
+
+      // 文字列の組み立て
+      let outStr = `{ id: 'new_block_${Date.now().toString().slice(-4)}', blocks: [`;
+      normalizedBlocks.forEach((b, i) => {
+        outStr += `{x:${b.x},y:${b.y},z:${b.z}}`;
+        if (i < normalizedBlocks.length - 1) outStr += `,`;
+      });
+      outStr += `] },`;
+
+      document.getElementById('output-text').value = outStr;
+    }
+
+    function animate() {
+      requestAnimationFrame(animate);
+      if (controls && controls.enabled) controls.update();
+      renderer.render(scene, camera);
+    }
+
+    // ==========================================
+    // UI制御: タブ切り替え
+    // ==========================================
+    function changeTab(tab) {
+      const tabMaker = document.getElementById('tab-maker');
+      const tabViewer = document.getElementById('tab-viewer');
+      const panelMaker = document.getElementById('panel-maker');
+      const panelViewer = document.getElementById('panel-viewer');
+      const canvasContainer = document.getElementById('canvas-container');
+      const viewerContainer = document.getElementById('viewer-container');
+
+      if (tab === 'maker') {
+        tabMaker.className = "flex-1 py-4 font-black bg-teal-500 text-white transition-colors flex justify-center items-center gap-2";
+        tabViewer.className = "flex-1 py-4 font-black bg-gray-200 text-gray-500 hover:bg-gray-300 transition-colors flex justify-center items-center gap-2";
+        
+        panelMaker.classList.remove('hidden');
+        panelMaker.classList.add('flex');
+        panelViewer.classList.add('hidden');
+        panelViewer.classList.remove('flex');
+        
+        canvasContainer.classList.remove('hidden');
+        viewerContainer.classList.add('hidden');
+        
+        // 描画領域の再計算
+        setTimeout(() => onWindowResize(), 10);
+
+      } else if (tab === 'viewer') {
+        tabMaker.className = "flex-1 py-4 font-black bg-gray-200 text-gray-500 hover:bg-gray-300 transition-colors flex justify-center items-center gap-2";
+        tabViewer.className = "flex-1 py-4 font-black bg-teal-500 text-white transition-colors flex justify-center items-center gap-2";
+        
+        panelMaker.classList.add('hidden');
+        panelMaker.classList.remove('flex');
+        panelViewer.classList.remove('hidden');
+        panelViewer.classList.add('flex');
+        
+        canvasContainer.classList.add('hidden');
+        viewerContainer.classList.remove('hidden');
+      }
+    }
+
+    // ==========================================
+    // UI制御: モード切替
+    // ==========================================
+    function setMode(newMode) {
+      mode = newMode;
+      
+      const btnAdd = document.getElementById('btn-add');
+      const btnDel = document.getElementById('btn-del');
+      const btnCam = document.getElementById('btn-cam');
+      const helpText = document.getElementById('help-text');
+      
+      // 全ボタンを非アクティブのスタイルにリセット
+      [btnAdd, btnDel, btnCam].forEach(btn => {
+        btn.className = "flex flex-col md:flex-row items-center gap-1 md:gap-2 px-4 py-2 rounded-full bg-transparent text-gray-500 hover:bg-gray-100 font-bold transition-colors";
+      });
+
+      if (mode === 'add') {
+        btnAdd.className = "flex flex-col md:flex-row items-center gap-1 md:gap-2 px-4 py-2 rounded-full bg-blue-500 text-white font-bold transition-colors";
+        controls.enabled = false;
+        rollOverMesh.visible = false;
+        helpText.innerText = "マスをタップしてブロックをおこう！";
+      } else if (mode === 'del') {
+        btnDel.className = "flex flex-col md:flex-row items-center gap-1 md:gap-2 px-4 py-2 rounded-full bg-red-500 text-white font-bold transition-colors";
+        controls.enabled = false;
+        rollOverMesh.visible = false;
+        helpText.innerText = "ブロックをタップしてけそう！";
+      } else if (mode === 'cam') {
+        btnCam.className = "flex flex-col md:flex-row items-center gap-1 md:gap-2 px-4 py-2 rounded-full bg-gray-600 text-white font-bold transition-colors";
+        controls.enabled = true; // カメラ操作を有効化
+        rollOverMesh.visible = false;
+        helpText.innerText = "スワイプでぐるぐるまわせるよ！";
+      }
+    }
+
+    // ==========================================
+    // UI制御: コピー機能
+    // ==========================================
+    function copyToClipboard() {
+      const textarea = document.getElementById('output-text');
+      const text = textarea.value;
+      
+      if (!text) return;
+
+      textarea.select();
+      textarea.setSelectionRange(0, 99999);
+      document.execCommand('copy');
+      window.getSelection().removeAllRanges();
+
+      const btn = document.getElementById('btn-copy');
+      const originalHTML = btn.innerHTML;
+      btn.innerHTML = '<i class="fa-solid fa-check"></i> コピーしました！';
+      btn.classList.replace('bg-blue-500', 'bg-green-500');
+      btn.classList.replace('hover:bg-blue-600', 'hover:bg-green-600');
+      btn.classList.replace('shadow-[0_4px_0_#2563eb]', 'shadow-[0_4px_0_#16a34a]');
+
+      setTimeout(() => {
+        btn.innerHTML = originalHTML;
+        btn.classList.replace('bg-green-500', 'bg-blue-500');
+        btn.classList.replace('hover:bg-green-600', 'hover:bg-blue-600');
+        btn.classList.replace('shadow-[0_4px_0_#16a34a]', 'shadow-[0_4px_0_#2563eb]');
+      }, 2000);
+    }
+
+    // ==========================================
+    // ビューアー (かくにんモード) ロジック
+    // ==========================================
+    let thumbRenderer, thumbScene, thumbCamera, thumbGroup;
+
+    function initThumbRenderer() {
+      thumbRenderer = new THREE.WebGLRenderer({ alpha: true, antialias: true, preserveDrawingBuffer: true });
+      thumbRenderer.setSize(200, 200);
+      thumbRenderer.setPixelRatio(window.devicePixelRatio);
+      
+      thumbScene = new THREE.Scene();
+      thumbCamera = new THREE.PerspectiveCamera(45, 1, 0.1, 100);
+      
+      const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
+      thumbScene.add(ambientLight);
+      const directionalLight = new THREE.DirectionalLight(0xffffff, 0.6);
+      directionalLight.position.set(-10, 10, 10);
+      thumbScene.add(thumbCamera);
+      thumbCamera.add(directionalLight);
+
+      thumbGroup = new THREE.Group();
+      thumbScene.add(thumbGroup);
+    }
+
+    function loadViewerData() {
+      const inputStr = document.getElementById('input-data').value.trim();
+      if (!inputStr) return;
+
+      // 末尾の不要なカンマを削除し、全体を配列として評価できるように整える
+      let cleanInput = inputStr.replace(/,\s*$/, "");
+      if (!cleanInput.startsWith('[')) {
+        cleanInput = '[' + cleanInput + ']';
+      }
+
+      try {
+        // 安全ではないが、コピペされるJSのオブジェクトリテラルをパースするための簡易手法
+        const dataArray = new Function("return " + cleanInput)();
+        
+        if (Array.isArray(dataArray) && dataArray.length > 0) {
+          renderViewer(dataArray);
+          document.getElementById('viewer-empty').classList.add('hidden');
+        } else {
+          throw new Error("配列ではありません");
+        }
+      } catch(e) {
+        alert("データの読み込みに失敗しました。形式（ { id: ..., blocks: [...] } ）が正しいか確認してください。\n\n詳細: " + e.message);
+      }
+    }
+
+    function renderViewer(dataArray) {
+      if (!thumbRenderer) initThumbRenderer();
+      
+      const list = document.getElementById('viewer-list');
+      list.innerHTML = '';
+      
+      dataArray.forEach(q => {
+        // 古いブロックを消す
+        while(thumbGroup.children.length > 0){ 
+          thumbGroup.remove(thumbGroup.children[0]); 
+        }
+        
+        let minX=Infinity, maxX=-Infinity, minY=Infinity, maxY=-Infinity, minZ=Infinity, maxZ=-Infinity;
+        const group = new THREE.Group();
+        
+        if (!q.blocks || !Array.isArray(q.blocks)) return;
+
+        q.blocks.forEach(pos => {
+            const mesh = new THREE.Mesh(cubeGeo, cubeMaterial);
+            mesh.position.set(pos.x, pos.y, pos.z);
+            group.add(mesh);
+            
+            const edges = new THREE.EdgesGeometry(cubeGeo);
+            const line = new THREE.LineSegments(edges, edgeMaterial);
+            line.position.copy(mesh.position);
+            group.add(line);
+            
+            if(pos.x < minX) minX = pos.x; if(pos.x > maxX) maxX = pos.x;
+            if(pos.y < minY) minY = pos.y; if(pos.y > maxY) maxY = pos.y;
+            if(pos.z < minZ) minZ = pos.z; if(pos.z > maxZ) maxZ = pos.z;
+        });
+        
+        // 中心合わせ
+        const centerX = (minX + maxX) / 2;
+        const centerY = (minY + maxY) / 2;
+        const centerZ = (minZ + maxZ) / 2;
+        group.position.set(-centerX, -centerY, -centerZ);
+        thumbGroup.add(group);
+        
+        // カメラ距離調整
+        const maxDim = Math.max(maxX - minX, maxY - minY, maxZ - minZ) + 1;
+        const distance = maxDim * 2.2;
+        thumbCamera.position.set(distance, distance, distance);
+        thumbCamera.lookAt(0, 0, 0);
+        
+        // 描画と画像化
+        thumbRenderer.render(thumbScene, thumbCamera);
+        const imgData = thumbRenderer.domElement.toDataURL('image/png');
+        
+        // UIに追加
+        const card = document.createElement('div');
+        card.className = "bg-white rounded-xl shadow-sm border-2 border-gray-200 overflow-hidden flex flex-col items-center justify-center aspect-square relative";
+        card.innerHTML = `
+          <img src="${imgData}" class="w-full h-full object-contain p-2">
+          ${q.id ? `<div class="absolute top-1 left-1 text-[9px] font-bold text-gray-400 bg-white/80 px-1 rounded">${q.id}</div>` : ''}
+          <div class="absolute top-1 right-1 text-[10px] md:text-xs font-bold text-gray-600 bg-white/90 px-1.5 md:px-2 py-0.5 rounded-full shadow-sm">${q.blocks.length}こ</div>
+        `;
+        list.appendChild(card);
+      });
+    }
+
+  </script>
+</body>
+</html>
