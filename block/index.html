@@ -378,16 +378,53 @@
     let elapsedTime = 0; // ミリ秒
     let answerString = '';
     
-    // ハイスコアデータ (In-Memory)
+    // ハイスコアデータ
     let highScores = {
       easy: 0,
       hard: 0,
       insane: 0
     };
 
-    // 図鑑のデータ保存 (In-Memory)
+    // 図鑑のデータ保存
     // プレイ中に取得したブロックIDを true にする
     let unlockedBlocks = {};
+
+    const STORAGE_KEY = '23block_save_data';
+
+    // データの保存
+    function saveData() {
+      const data = {
+        highScores: highScores,
+        unlockedBlocks: unlockedBlocks
+      };
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    }
+
+    // データの読み込み
+    function loadData() {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved) {
+        try {
+          const data = JSON.parse(saved);
+          if (data.highScores) {
+            highScores = Object.assign(highScores, data.highScores);
+          }
+          if (data.unlockedBlocks) {
+            unlockedBlocks = Object.assign(unlockedBlocks, data.unlockedBlocks);
+          }
+          
+          // タイトル画面のハイスコア表示を更新
+          document.getElementById('highscore-easy').innerText = highScores.easy;
+          document.getElementById('highscore-hard').innerText = highScores.hard;
+          document.getElementById('highscore-insane').innerText = highScores.insane;
+        } catch (e) {
+          console.error('データの読み込みに失敗しました', e);
+        }
+      }
+    }
+
+    // 初期化時にデータを読み込む
+    window.addEventListener('DOMContentLoaded', loadData);
 
     // ==========================================
     // Three.js の設定
@@ -681,7 +718,10 @@
         // 正解
         showEffect(true);
         // 図鑑に登録
-        unlockedBlocks[q.id] = true;
+        if (!unlockedBlocks[q.id]) {
+          unlockedBlocks[q.id] = true;
+          saveData(); // 新しいブロックを集めたら保存
+        }
 
         setTimeout(() => {
           currentQuestionIndex++;
@@ -748,6 +788,7 @@
         highScores[currentLevel] = score;
         document.getElementById(`highscore-${currentLevel}`).innerText = score;
         recordMsg.classList.remove('hidden');
+        saveData(); // ハイスコアが更新されたら保存
       } else {
         recordMsg.classList.add('hidden');
       }
@@ -863,5 +904,50 @@
     });
 
   </script>
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+    import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+    import { getFirestore, doc, setDoc, updateDoc, increment, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+    const firebaseConfig = {
+        apiKey: "AIzaSyB4fpt6ffIuTBDJo_9g37kYr6KOWNgIcEY",
+        authDomain: "otatoolssite.firebaseapp.com",
+        projectId: "otatoolssite",
+        storageBucket: "otatoolssite.firebasestorage.app",
+        messagingSenderId: "20522292752",
+        appId: "1:20522292752:web:22fba7fecb61736593dc95"
+    };
+
+    // アプリ固有のID
+    const THIS_APP_ID = "23"; 
+    
+    const PORTAL_APP_ID = "otatoolssite-v1";
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+    const auth = getAuth(app);
+    signInAnonymously(auth).then(async () => {
+        const todayStr = new Date().toISOString().split('T')[0];
+        const storageKey = `ota_visited_${THIS_APP_ID}`;
+        
+        if (localStorage.getItem(storageKey) === todayStr) {
+            return;
+        }
+        const docRef = doc(db, 'artifacts', PORTAL_APP_ID, 'public', 'data', 'app_views', THIS_APP_ID);
+                try {
+            const docSnap = await getDoc(docRef);
+            if (docSnap.exists()) {
+                await updateDoc(docRef, { count: increment(1) });
+            } else {
+                await setDoc(docRef, { count: 1 }); 
+            }
+            localStorage.setItem(storageKey, todayStr);
+        } catch (e) { 
+            console.error("閲覧数のカウントに失敗しました:", e); 
+        }
+    }).catch((error) => {
+        console.error("Firebase認証エラー:", error);
+    });
+</script>
+
 </body>
 </html>
