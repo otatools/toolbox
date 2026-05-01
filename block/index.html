@@ -119,7 +119,10 @@
       <h1 class="text-4xl md:text-7xl font-black text-center text-teal-600 mb-2 md:mb-6 leading-tight z-10 drop-shadow-sm">
         ブロック<br><span class="text-orange-500">かずかぞえ</span>
       </h1>
-      <p class="text-gray-500 md:text-2xl font-bold mb-6 md:mb-16 z-10">はやく せいかい して ハイスコアを ねらえ！</p>
+      
+      <!-- テキスト部分の修正 -->
+      <p class="text-gray-500 md:text-2xl font-bold mb-2 md:mb-4 z-10">はやく せいかい して ハイスコアを ねらえ！</p>
+      <p class="text-red-500 text-sm md:text-xl font-bold mb-6 md:mb-16 z-10 drop-shadow-sm">まちがえると ブロックずかんの ブロックがきえるよ！</p>
 
       <div class="flex flex-col md:flex-row gap-3 md:gap-8 w-full max-w-xs md:max-w-3xl justify-center z-10">
         <button onclick="startGame('easy')" class="md:flex-1 bg-green-400 hover:bg-green-500 text-white py-3 px-6 md:py-6 rounded-2xl shadow-[0_6px_0_#16a34a] active:shadow-[0_0px_0_#16a34a] active:translate-y-[6px] transition-all flex flex-col items-center justify-center">
@@ -142,7 +145,7 @@
 
       <!-- クレジット表記 -->
       <div class="absolute bottom-4 text-gray-400 text-xs md:text-sm font-bold z-10">
-        ブロック かず かぞえ　|　ver1.2　|　ota tools
+        ブロック かず かぞえ　|　ver1.3　|　ota tools
       </div>
     </div>
 
@@ -387,6 +390,7 @@
 
     // 図鑑のデータ保存
     // プレイ中に取得したブロックIDを true にする
+    // 没収されたブロックは 'lost' にする
     let unlockedBlocks = {};
 
     const STORAGE_KEY = '23block_save_data';
@@ -596,7 +600,7 @@
     function getRandomItems(array, count) {
       const weightedArray = array.map(item => {
         // 図鑑に載っていない(未クリア)ものはウェイトを高くして出やすくする（絶対ではない）
-        const weight = unlockedBlocks[item.id] ? Math.random() : Math.random() + 0.5;
+        const weight = (unlockedBlocks[item.id] === true) ? Math.random() : Math.random() + 0.5;
         return { item, weight };
       });
       // 重みが大きい順にソート
@@ -717,8 +721,8 @@
       if(answer === correctAnswer) {
         // 正解
         showEffect(true);
-        // 図鑑に登録
-        if (!unlockedBlocks[q.id]) {
+        // 図鑑に登録 (未所持か、没収されて'lost'になっていた場合)
+        if (unlockedBlocks[q.id] !== true) {
           unlockedBlocks[q.id] = true;
           saveData(); // 新しいブロックを集めたら保存
         }
@@ -736,6 +740,14 @@
         showEffect(false);
         answerString = '';
         setTimeout(updateAnswerDisplay, 400); // 揺れた後に消す
+
+        // ★追加：間違えペナルティ（持っているブロックをランダムに1つ失う）
+        const unlockedKeys = Object.keys(unlockedBlocks).filter(key => unlockedBlocks[key] === true);
+        if (unlockedKeys.length > 0) {
+          const lostKey = unlockedKeys[Math.floor(Math.random() * unlockedKeys.length)];
+          unlockedBlocks[lostKey] = 'lost'; // 没収ステータスに変更
+          saveData();
+        }
       }
     }
 
@@ -851,7 +863,10 @@
       if(!thumbRenderer) initThumbRenderer();
 
       allBlocks.forEach(q => {
-        const isUnlocked = unlockedBlocks[q.id];
+        // ★状態判定を追加
+        const isUnlocked = unlockedBlocks[q.id] === true;
+        const isLost = unlockedBlocks[q.id] === 'lost';
+
         if(isUnlocked) unlockedCount++;
 
         // 難易度に応じた色の設定
@@ -869,13 +884,22 @@
           hoverBgClass = 'hover:bg-pink-50';
         }
 
+        // ★没収されたブロックは色とスタイルを灰色に変更
+        if (isLost) {
+          blockColor = 0x9ca3af; // 灰色
+          borderColorClass = 'border-gray-300';
+          hoverBgClass = ''; // ホバー効果を消す
+        }
+
         const card = document.createElement('div');
         // 高さを固定せず、幅に合わせた正方形(aspect-square)にする
-        card.className = `bg-white rounded-2xl shadow-sm border-2 overflow-hidden flex flex-col items-center justify-center aspect-square relative ${isUnlocked ? `${borderColorClass} cursor-pointer ${hoverBgClass} transition-colors` : 'border-gray-200'}`;
+        card.className = `bg-white rounded-2xl shadow-sm border-2 overflow-hidden flex flex-col items-center justify-center aspect-square relative ${isUnlocked ? `${borderColorClass} cursor-pointer ${hoverBgClass} transition-colors` : isLost ? `${borderColorClass} bg-gray-100` : 'border-gray-200'}`;
         
-        if(isUnlocked) {
-          // クリックすると1問モードでゲーム開始
-          card.onclick = () => startSingleGame(q);
+        if(isUnlocked || isLost) {
+          if (isUnlocked) {
+            // 持っている場合のみクリックすると1問モードでゲーム開始
+            card.onclick = () => startSingleGame(q);
+          }
           
           // ブロックを配置してレンダリング
           renderBlocks(q.blocks, thumbScene, thumbCamera, null, blockColor); 
@@ -885,7 +909,7 @@
           const imgData = thumbRenderer.domElement.toDataURL('image/png');
 
           card.innerHTML = `
-            <img src="${imgData}" class="w-full h-full object-contain p-2 hover:scale-110 transition-transform duration-300">
+            <img src="${imgData}" class="w-full h-full object-contain p-2 ${isUnlocked ? 'hover:scale-110 transition-transform duration-300' : 'opacity-60 grayscale'}">
           `;
         } else {
           card.innerHTML = `
