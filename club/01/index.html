@@ -1,0 +1,811 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>英単語ドロップス</title>
+    <!-- ポップでかわいいフォントを読み込み -->
+    <link href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@700;900&family=Nunito:wght@800;900&display=swap" rel="stylesheet">
+    <!-- 物理演算エンジン Matter.js を読み込み -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
+    
+    <style>
+        :root {
+            --primary: #ff8da1;
+            --bg-color: #e0f7fa;
+            --box-bg: rgba(255, 255, 255, 0.9);
+        }
+
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            background-color: var(--bg-color);
+            background-image: radial-gradient(#fff 20%, transparent 20%);
+            background-size: 20px 20px;
+            font-family: 'M PLUS Rounded 1c', 'Nunito', sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            touch-action: none; /* スマホでのスワイプスクロールを防止 */
+            overflow: hidden;
+        }
+
+        #app {
+            position: relative;
+            /* 画面いっぱいに広げる（ウィンドウサイズに追従） */
+            width: 100vw;
+            height: 100vh;
+            background: #fff;
+            overflow: hidden;
+        }
+
+        /* キャンバス（物理描画領域） */
+        #canvas-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+            /* 追加：キャンバスがリサイズ中に歪まないように中央揃え */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden;
+        }
+        canvas {
+            display: block;
+            /* 100%指定を削除してJavaScriptでのサイズ制御に完全に任せる */
+        }
+
+        /* 画面レイヤー共通 */
+        .screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 10;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s ease;
+            background: rgba(255, 255, 255, 0.85); /* 半透明背景 */
+        }
+        .screen.active {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        /* ゲーム画面は背景を透明にしてCanvasを見せる */
+        #game-screen {
+            background: transparent;
+            justify-content: flex-start;
+            padding-top: 20px;
+        }
+        #game-screen.active {
+            pointer-events: none; /* 下のCanvasへのクリックを透過 */
+        }
+
+        /* --- タイトル画面 --- */
+        .title {
+            font-size: 40px;
+            color: var(--primary);
+            text-shadow: 2px 2px 0px #fff, 4px 4px 0px #ffc1cc;
+            margin-bottom: 40px;
+            text-align: center;
+            line-height: 1.2;
+        }
+        
+        .diff-btn {
+            padding: 15px 40px;
+            margin: 10px;
+            font-size: 22px;
+            font-weight: 900;
+            color: white;
+            border: none;
+            border-radius: 30px;
+            cursor: pointer;
+            transition: transform 0.1s;
+            width: 80%;
+            max-width: 300px;
+            font-family: inherit;
+        }
+        .diff-btn:active {
+            transform: translateY(4px);
+        }
+        .btn-easy { background: #66cdaa; box-shadow: 0 6px #3cb371; }
+        .btn-easy:active { box-shadow: 0 0px #3cb371; }
+        .btn-normal { background: #87cefa; box-shadow: 0 6px #4682b4; }
+        .btn-normal:active { box-shadow: 0 0px #4682b4; }
+        .btn-hard { background: #ffa07a; box-shadow: 0 6px #cd5c5c; }
+        .btn-hard:active { box-shadow: 0 0px #cd5c5c; }
+
+        /* --- ゲーム中UI --- */
+        #game-ui-layer {
+            position: absolute;
+            box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
+            z-index: 20;
+        }
+
+        /* スマホ等（縦長画面）のレイアウト */
+        @media (orientation: portrait) {
+            #game-ui-layer {
+                top: 20px;
+                left: 0;
+                width: 100%;
+                padding: 0 20px;
+                align-items: center;
+            }
+            .header-info {
+                max-width: 400px;
+            }
+        }
+
+        /* PC等（横長画面）のレイアウト */
+        @media (orientation: landscape) {
+            #game-ui-layer {
+                top: 0;
+                left: 0;
+                width: 45%;
+                height: 100%;
+                padding: 0 5%;
+                justify-content: center;
+                align-items: flex-start;
+            }
+            .header-info {
+                max-width: 400px;
+            }
+            .target-word-display {
+                font-size: 64px; /* 横長時は少し大きく */
+            }
+            .pick-box {
+                width: 60px;
+                height: 60px;
+                font-size: 40px;
+            }
+        }
+
+        .header-info {
+            display: flex;
+            justify-content: space-between;
+            width: 100%;
+            font-size: 20px;
+            font-weight: 900;
+            color: #555;
+            background: var(--box-bg);
+            padding: 10px 20px;
+            border-radius: 20px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+            margin-bottom: 15px;
+            box-sizing: border-box;
+        }
+
+        .target-word-display {
+            font-family: 'Nunito', sans-serif;
+            font-size: 48px;
+            font-weight: 900;
+            color: #ff69b4;
+            letter-spacing: 5px;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 0px #fff;
+        }
+
+        .picked-container {
+            display: flex;
+            gap: 8px;
+            min-height: 60px;
+            align-items: center;
+            flex-wrap: wrap; /* 長い単語でも折り返すようにする */
+        }
+
+        .pick-box {
+            width: 45px;
+            height: 45px;
+            border: 3px dashed #b0c4de;
+            border-radius: 12px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 32px;
+            font-family: 'Nunito', sans-serif;
+            font-weight: 900;
+            color: transparent;
+            background: rgba(255,255,255,0.6);
+        }
+
+        .pick-box.filled {
+            border: 3px solid #ff1493;
+            background: #fff0f5;
+            color: #ff1493;
+            animation: popIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        @keyframes popIn {
+            0% { transform: scale(0.3) translateY(20px); opacity: 0; }
+            50% { transform: scale(1.2); }
+            100% { transform: scale(1) translateY(0); opacity: 1; }
+        }
+
+        /* --- リザルト画面 --- */
+        .result-box {
+            background: #fff;
+            padding: 40px;
+            border-radius: 30px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            text-align: center;
+            width: 80%;
+        }
+        .result-title {
+            font-size: 36px;
+            color: #ffb6c1;
+            margin-bottom: 20px;
+        }
+        .result-detail {
+            font-size: 24px;
+            color: #555;
+            margin: 10px 0;
+            font-weight: bold;
+        }
+        .result-score {
+            font-size: 48px;
+            color: #ff69b4;
+            margin: 20px 0;
+            font-family: 'Nunito', sans-serif;
+        }
+        .retry-btn {
+            margin-top: 20px;
+            background: #dda0dd;
+            box-shadow: 0 6px #ba55d3;
+        }
+        .retry-btn:active {
+            box-shadow: 0 0px #ba55d3;
+        }
+
+        /* アニメーション用 */
+        .word-clear-anim {
+            animation: bounce 0.5s ease;
+            color: #32cd32 !important; /* クリア時は緑に */
+        }
+        @keyframes bounce {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-10px); }
+        }
+    </style>
+</head>
+<body>
+
+<div id="app">
+    <!-- キャンバス領域（裏で常に動く） -->
+    <div id="canvas-container">
+        <canvas id="game-canvas"></canvas>
+    </div>
+
+    <!-- タイトル画面 -->
+    <div id="start-screen" class="screen active">
+        <div class="title">カランコロン<br>英単語ドロップス</div>
+        <p style="font-weight:bold; color:#777; margin-bottom:20px;">難易度をえらんでね！</p>
+        <button class="diff-btn btn-easy" onclick="startGame('easy')">やさしい</button>
+        <button class="diff-btn btn-normal" onclick="startGame('normal')">ふつう</button>
+        <button class="diff-btn btn-hard" onclick="startGame('hard')">むずかしい</button>
+    </div>
+
+    <!-- ゲーム画面（UIのみ、背景は透過） -->
+    <div id="game-screen" class="screen">
+        <div id="game-ui-layer">
+            <div class="header-info">
+                <div>もんだい: <span id="q-num">1</span>/5</div>
+                <div>タイム: <span id="time-val">0.0</span>s</div>
+            </div>
+            
+            <!-- 左上（上部）にお題の表示 -->
+            <div class="target-word-display" id="target-word">cat</div>
+            
+            <!-- ピックアップされた文字が並ぶエリア -->
+            <div class="picked-container" id="picked-container">
+                <!-- Javascriptで箱を生成 -->
+            </div>
+        </div>
+    </div>
+
+    <!-- リザルト（結果）画面 -->
+    <div id="result-screen" class="screen">
+        <div class="result-box">
+            <div class="result-title">クリア！</div>
+            <div class="result-detail">クリアタイム: <span id="res-time">0.0</span> 秒</div>
+            <div class="result-detail" style="font-size:18px;">スコア</div>
+            <div class="result-score" id="res-score">0</div>
+            <button class="diff-btn retry-btn" onclick="showScreen('start-screen')">タイトルへもどる</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    /* ==========================================================
+       【問題データ】
+       あとから先生や親御さんが簡単に単語を追加・変更できる場所です。
+       ※全て小文字で入力してください。
+    ========================================================== */
+    const WORD_DATA = {
+        // やさしい（3〜4文字程度・ダミー少なめ）
+        easy: ["cat", "dog", "sun", "pen", "cup", "pig", "box", "hat", "car", "map"],
+        // ふつう（4〜5文字程度・ダミー普通）
+        normal: ["apple", "bird", "grape", "music", "water", "house", "train", "desk", "chair"],
+        // むずかしい（5〜7文字程度・ダミー多め）
+        hard: ["school", "friend", "animal", "flower", "family", "orange", "yellow", "rabbit"]
+    };
+
+    /* ==========================================================
+       ゲームの仕組み（ロジックと物理演算）
+    ========================================================== */
+    const GAME_STATE = { MENU: 0, PLAYING: 1, RESULT: 2 };
+    let currentState = GAME_STATE.MENU;
+
+    // キャンバス設定
+    const canvas = document.getElementById('game-canvas');
+    const ctx = canvas.getContext('2d');
+    
+    // サイズと位置を変数化
+    let CANVAS_WIDTH = 0;
+    let CANVAS_HEIGHT = 0;
+    let bowlCenter = { x: 0, y: 0 };
+    let bowlRadius = 180;
+
+    // Matter.jsの準備
+    const Engine = Matter.Engine,
+          Bodies = Matter.Bodies,
+          Composite = Matter.Composite,
+          World = Matter.World,
+          Body = Matter.Body;
+
+    const engine = Engine.create();
+    const world = engine.world;
+    // ビーズがフワッとしないよう重力を少し強めに
+    engine.world.gravity.y = 1.2;
+
+    // 状態変数
+    let currentDifficulty = 'easy';
+    let currentQuestions = [];
+    let currentQIndex = 0;
+    let targetWord = "";
+    let currentWordIndex = 0; // 何文字目まで正解したか
+    
+    let startTime = 0;
+    let frameCount = 0;
+    let beadsQueue = []; // 降ってくるのを待機しているビーズ
+    
+    // キャンバスのサイズと器の位置をウィンドウに合わせて更新
+    function updateCanvasSize() {
+        const container = document.getElementById('canvas-container');
+        const rect = container.getBoundingClientRect();
+        CANVAS_WIDTH = rect.width;
+        CANVAS_HEIGHT = rect.height;
+        
+        // 論理サイズと表示サイズ（CSS）を完全に一致させることで、縦横比の歪みを防ぐ
+        canvas.width = CANVAS_WIDTH;
+        canvas.height = CANVAS_HEIGHT;
+        canvas.style.width = CANVAS_WIDTH + 'px';
+        canvas.style.height = CANVAS_HEIGHT + 'px';
+
+        if (CANVAS_WIDTH > CANVAS_HEIGHT) {
+            // 横長（パソコン等）の場合：器を右側に配置
+            bowlCenter = { x: CANVAS_WIDTH * 0.75, y: CANVAS_HEIGHT * 0.65 };
+            bowlRadius = Math.min(CANVAS_WIDTH * 0.25, CANVAS_HEIGHT * 0.35);
+            if (bowlRadius < 150) bowlRadius = 150;
+        } else {
+            // 縦長（スマホ等）の場合：器を下部に配置
+            bowlCenter = { x: CANVAS_WIDTH * 0.5, y: CANVAS_HEIGHT * 0.75 };
+            bowlRadius = Math.min(CANVAS_WIDTH * 0.4, CANVAS_HEIGHT * 0.25);
+            if (bowlRadius < 120) bowlRadius = 120;
+        }
+    }
+
+    // ウィンドウリサイズ時の処理
+    let resizeTimer;
+    window.addEventListener('resize', () => {
+        clearTimeout(resizeTimer);
+        resizeTimer = setTimeout(() => {
+            if (currentState === GAME_STATE.PLAYING) {
+                initPhysics();
+                setupQuestion(); // リサイズされたら器を作り直して現在の問題をリセット
+            } else {
+                initPhysics();
+            }
+        }, 300);
+    });
+
+    // ゲーム初期化（器の生成など）
+    function initPhysics() {
+        updateCanvasSize(); // ここで画面サイズを取得して位置を確定
+
+        // 一旦世界をクリア
+        World.clear(world);
+        Engine.clear(engine);
+        
+        // 円いケース（ボウル）の作成
+        const thickness = 40;
+        const parts = [];
+        const segments = 36;
+        
+        // 上部に穴を開けた円状の壁を作る
+        for (let i = 0; i < segments; i++) {
+            const angle = (Math.PI * 2) * (i / segments);
+            const deg = angle * 180 / Math.PI;
+            
+            // 230度〜310度（真上あたり）は穴をあけるためブロックを作らない
+            if (deg > 230 && deg < 310) continue;
+            
+            const x = bowlCenter.x + Math.cos(angle) * bowlRadius;
+            const y = bowlCenter.y + Math.sin(angle) * bowlRadius;
+            
+            const part = Bodies.rectangle(x, y, thickness, 35, {
+                isStatic: true,
+                angle: angle + Math.PI / 2,
+                friction: 0.1,
+                restitution: 0.2 // 器は弾みすぎないように
+            });
+            parts.push(part);
+        }
+        World.add(world, parts);
+    }
+
+    // ビーズ（アルファベット）を画面上から降らせる関数
+    const beadColors = ['#ffb3ba', '#ffdfba', '#ffffba', '#baffc9', '#bae1ff', '#e6e6fa'];
+    function spawnBead(char) {
+        const radius = 32;
+        // 穴の上からランダムにばらけて落とす
+        const x = bowlCenter.x + (Math.random() - 0.5) * 100;
+        const y = -50; // 画面外
+        const color = beadColors[Math.floor(Math.random() * beadColors.length)];
+        
+        const bead = Bodies.circle(x, y, radius, {
+            label: 'bead',
+            restitution: 0.4, // 跳ねすぎないように調整（0.8 → 0.4）
+            friction: 0.005,
+            density: 0.05,
+            customChar: char, // 文字データ
+            customColor: color,
+            customRadius: radius
+        });
+        World.add(world, bead);
+    }
+
+    // ゲーム開始
+    function startGame(difficulty) {
+        currentDifficulty = difficulty;
+        currentState = GAME_STATE.PLAYING;
+        
+        // 問題をランダムに5つ選ぶ
+        let words = [...WORD_DATA[difficulty]];
+        words.sort(() => Math.random() - 0.5);
+        currentQuestions = words.slice(0, 5);
+        currentQIndex = 0;
+        
+        startTime = Date.now();
+        showScreen('game-screen');
+        initPhysics();
+        setupQuestion();
+    }
+
+    // 1問ごとのセットアップ
+    function setupQuestion() {
+        targetWord = currentQuestions[currentQIndex];
+        currentWordIndex = 0;
+        beadsQueue = [];
+
+        // UIの更新
+        document.getElementById('q-num').textContent = currentQIndex + 1;
+        const targetWordEl = document.getElementById('target-word');
+        targetWordEl.textContent = targetWord;
+        targetWordEl.classList.remove('word-clear-anim');
+        
+        // ピックアップエリア（空の箱）を作成
+        const container = document.getElementById('picked-container');
+        container.innerHTML = '';
+        for(let i=0; i < targetWord.length; i++) {
+            const box = document.createElement('div');
+            box.className = 'pick-box';
+            container.appendChild(box);
+        }
+
+        // 難易度に応じたダミーの数
+        let dummyCount = 2; // やさしい
+        if (currentDifficulty === 'normal') dummyCount = 3;
+        if (currentDifficulty === 'hard') dummyCount = 5;
+
+        // 現在の器の中のビーズの文字を調べる
+        const bodies = Composite.allBodies(world);
+        let currentCharsInBowl = [];
+        bodies.forEach(b => {
+            if (b.label === 'bead') {
+                currentCharsInBowl.push(b.customChar);
+            }
+        });
+
+        // 今の問題の答えを作るのに、器の中で「足りない文字」を洗い出す
+        let targetChars = targetWord.split('');
+        let missingChars = [];
+        let availableChars = [...currentCharsInBowl];
+        for (let char of targetChars) {
+            const idx = availableChars.indexOf(char);
+            if (idx !== -1) {
+                // 器の中に文字があったので、使えるリストから1つ消費
+                availableChars.splice(idx, 1);
+            } else {
+                // 器の中に文字がないので補充が必要
+                missingChars.push(char);
+            }
+        }
+
+        // 器の中にあるべき目標のビーズ数 = 今回の答えの文字数 + ダミーの数
+        let targetBeadsCount = targetWord.length + dummyCount;
+
+        // 新しく降らせるビーズの数を計算
+        let numToSpawn = targetBeadsCount - currentCharsInBowl.length;
+        if (numToSpawn < missingChars.length) {
+            numToSpawn = missingChars.length; // 最低限必要な文字数は確保する
+        }
+
+        let newChars = [...missingChars];
+
+        // 今後（次の問題以降）必要な文字のリストを作る
+        let futureChars = [];
+        for (let i = currentQIndex + 1; i < currentQuestions.length; i++) {
+            futureChars = futureChars.concat(currentQuestions[i].split(''));
+        }
+        futureChars.sort(() => Math.random() - 0.5); // ランダムに混ぜる
+
+        const allLetters = "abcdefghijklmnopqrstuvwxyz";
+
+        // 補充枠が埋まるまで、今後の文字やランダムなダミーを追加
+        while (newChars.length < numToSpawn) {
+            if (futureChars.length > 0) {
+                // 今後使う文字をフェイク（ダミー）として先に入れておく
+                newChars.push(futureChars.shift());
+            } else {
+                // それでも枠が余る場合は完全なランダムダミー
+                newChars.push(allLetters[Math.floor(Math.random() * allLetters.length)]);
+            }
+        }
+
+        // 降らせる順番をシャッフル
+        newChars.sort(() => Math.random() - 0.5);
+        beadsQueue = newChars;
+    }
+
+    // クリック・タップした時の判定
+    function handleInteraction(x, y) {
+        if (currentState !== GAME_STATE.PLAYING) return;
+
+        // タッチ座標にいるすべてのボディを取得
+        const bodies = Composite.allBodies(world);
+        const clicked = Matter.Query.point(bodies, { x: x, y: y });
+        
+        // ビーズだけを抽出
+        const beads = clicked.filter(b => b.label === 'bead');
+        if (beads.length > 0) {
+            // 一番手前（最後に描画されたもの）を選択
+            const targetBead = beads[beads.length - 1];
+            checkAnswer(targetBead);
+        }
+    }
+
+    // 正解・不正解の判定
+    function checkAnswer(bead) {
+        // 次に押すべき正解の文字
+        const neededChar = targetWord[currentWordIndex];
+        
+        if (bead.customChar === neededChar) {
+            // 【大正解！】
+            // ★修正点：正解したビーズは器の中から消去する
+            World.remove(world, bead);
+            
+            // ピックアップエリアに文字を表示
+            const boxes = document.querySelectorAll('.pick-box');
+            boxes[currentWordIndex].textContent = bead.customChar;
+            boxes[currentWordIndex].classList.add('filled');
+            
+            currentWordIndex++;
+            
+            // 単語が完成したか？
+            if (currentWordIndex >= targetWord.length) {
+                document.getElementById('target-word').classList.add('word-clear-anim');
+                currentQIndex++;
+                
+                // 少し間をあけて次へ（または終了）
+                setTimeout(() => {
+                    if (currentQIndex >= 5) {
+                        finishGame();
+                    } else {
+                        setupQuestion();
+                    }
+                }, 1000);
+            }
+        } else {
+            // 【不正解！】
+            // ペナルティ：ビーズが軽く弾いて逃げる演出
+            Body.applyForce(bead, bead.position, {
+                x: (Math.random() - 0.5) * 0.05 * bead.mass,
+                y: -0.05 * bead.mass
+            });
+        }
+    }
+
+    // ゲームクリア時の処理
+    function finishGame() {
+        currentState = GAME_STATE.RESULT;
+        const timeMs = Date.now() - startTime;
+        const timeSec = (timeMs / 1000).toFixed(1);
+        
+        // スコア計算 (早いほど高い。50000点満点から時間経過で減点)
+        let score = Math.max(0, Math.floor(50000 - (timeMs * 1.5)));
+        
+        document.getElementById('res-time').textContent = timeSec;
+        document.getElementById('res-score').textContent = score;
+        
+        showScreen('result-screen');
+    }
+
+    // 画面切り替えの補助関数
+    function showScreen(id) {
+        document.querySelectorAll('.screen').forEach(el => el.classList.remove('active'));
+        document.getElementById(id).classList.add('active');
+        if(id === 'start-screen'){
+            currentState = GAME_STATE.MENU;
+            initPhysics(); // タイトルの裏でも空のケースを描画
+        }
+    }
+
+    /* ==========================================================
+       描画ループとイベントリスナー
+    ========================================================== */
+    function gameLoop() {
+        requestAnimationFrame(gameLoop);
+        
+        // 物理演算を進める
+        Engine.update(engine, 1000 / 60);
+        
+        // 順番待ちのビーズを一定間隔（15フレーム毎）で落とす
+        if (currentState === GAME_STATE.PLAYING && beadsQueue.length > 0 && frameCount % 15 === 0) {
+            spawnBead(beadsQueue.shift());
+        }
+
+        // タイムの更新
+        if (currentState === GAME_STATE.PLAYING) {
+            const timeMs = Date.now() - startTime;
+            document.getElementById('time-val').textContent = (timeMs / 1000).toFixed(1);
+        }
+
+        // 描画処理
+        draw();
+        frameCount++;
+    }
+
+    function draw() {
+        ctx.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+        
+        // 器の中の背景（うっすら白）
+        ctx.beginPath();
+        ctx.arc(bowlCenter.x, bowlCenter.y, bowlRadius - 10, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
+        ctx.fill();
+
+        // 物理ボディ（ビーズ）の描画
+        const bodies = Composite.allBodies(world);
+        for (let body of bodies) {
+            if (body.label === 'bead') {
+                const x = body.position.x;
+                const y = body.position.y;
+                const r = body.customRadius;
+
+                ctx.save();
+                ctx.translate(x, y);
+                
+                // 円を回転させて描画（ハイライトが回って物理っぽく見える）
+                ctx.rotate(body.angle);
+
+                // 1. ガラス玉の本体（グラデーションで透明感を出す）
+                const mainGrad = ctx.createRadialGradient(-r * 0.2, -r * 0.2, r * 0.1, 0, 0, r);
+                mainGrad.addColorStop(0, body.customColor);
+                mainGrad.addColorStop(1, adjustColor(body.customColor, -30)); // 外側を少し暗くして立体感を強調
+                
+                ctx.beginPath();
+                ctx.arc(0, 0, r, 0, Math.PI * 2);
+                ctx.fillStyle = mainGrad;
+                ctx.fill();
+
+                // 2. 底の透過光（ガラス特有の光の溜まり）
+                const lightGrad = ctx.createRadialGradient(0, r * 0.5, 0, 0, r * 0.5, r * 0.8);
+                lightGrad.addColorStop(0, 'rgba(255, 255, 255, 0.5)');
+                lightGrad.addColorStop(1, 'rgba(255, 255, 255, 0)');
+                
+                ctx.beginPath();
+                ctx.arc(0, 0, r * 0.9, 0, Math.PI * 2);
+                ctx.fillStyle = lightGrad;
+                ctx.fill();
+                
+                // 3. 表面のハイライト（強い光沢）
+                ctx.beginPath();
+                ctx.ellipse(-r * 0.35, -r * 0.35, r * 0.25, r * 0.15, Math.PI * 0.25, 0, Math.PI * 2);
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+                ctx.fill();
+                
+                // フチ（薄く細く）
+                ctx.lineWidth = 1;
+                ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
+                ctx.stroke();
+                
+                ctx.restore();
+
+                // 文字の描画（文字は読みやすいように回転させず常に上向き）
+                ctx.save();
+                ctx.translate(body.position.x, body.position.y);
+                // ガラスに刻印されているような色と影を設定
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
+                ctx.font = 'bold 36px "Nunito", sans-serif';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.shadowColor = 'rgba(255, 255, 255, 0.5)';
+                ctx.shadowBlur = 3;
+                ctx.fillText(body.customChar, 0, 2); 
+                ctx.restore();
+            }
+        }
+
+        // 器（ケース）のガラスドームのようなフチを描画
+        ctx.beginPath();
+        // 穴の部分（約230度〜310度）以外を描画
+        // Canvasのarcは右端が0度。230度は約 -Math.PI*0.7, 310度は約 -Math.PI*0.3
+        ctx.arc(bowlCenter.x, bowlCenter.y, bowlRadius, -Math.PI * 0.25, Math.PI * 1.25, false);
+        ctx.lineWidth = 12;
+        ctx.strokeStyle = '#fff';
+        ctx.stroke();
+        
+        ctx.lineWidth = 6;
+        ctx.strokeStyle = 'rgba(176, 196, 222, 0.5)'; // ガラスっぽい青み
+        ctx.stroke();
+    }
+
+    // タッチ・マウスクリックイベントの登録
+    canvas.addEventListener('pointerdown', (e) => {
+        e.preventDefault();
+        
+        const rect = canvas.getBoundingClientRect();
+        // キャンバスのサイズと表示サイズが一致しているためそのまま計算
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+        
+        handleInteraction(x, y);
+    });
+
+    // 初期化実行
+    initPhysics();
+    gameLoop();
+
+    // 色を暗くしたり明るくしたりする補助関数（ガラスのグラデーション用）
+    function adjustColor(hex, amt) {
+        let usePound = false;
+        if (hex[0] == "#") {
+            hex = hex.slice(1);
+            usePound = true;
+        }
+        let num = parseInt(hex, 16);
+        let r = (num >> 16) + amt;
+        if (r > 255) r = 255; else if (r < 0) r = 0;
+        let b = ((num >> 8) & 0x00FF) + amt;
+        if (b > 255) b = 255; else if (b < 0) b = 0;
+        let g = (num & 0x0000FF) + amt;
+        if (g > 255) g = 255; else if (g < 0) g = 0;
+        return (usePound ? "#" : "") + (g | (b << 8) | (r << 16)).toString(16).padStart(6, '0');
+    }
+
+</script>
+</body>
+</html>
