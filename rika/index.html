@@ -1,0 +1,565 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>水のしみこみ方 くらべてみよう！</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            background-color: #f0f8ff;
+            font-family: 'Hiragino Maru Gothic ProN', 'Rounded Mplus 1c', 'Comic Sans MS', sans-serif;
+            overflow: hidden; /* 1366x598の画面でスクロールバーを出さないための設定 */
+        }
+        canvas {
+            background-color: #fffaf0;
+            border-radius: 12px;
+            box-shadow: inset 0 4px 6px rgba(0,0,0,0.1);
+        }
+        .canvas-container {
+            background: white;
+            padding: 8px;
+            border-radius: 16px;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+        }
+    </style>
+</head>
+<body class="text-gray-800 h-screen flex flex-col justify-between">
+
+    <!-- ================= START SCREEN (メイン画面) ================= -->
+    <div id="start-screen" class="flex-grow flex flex-col justify-center items-center px-4 py-6 text-center">
+        <div class="bg-white p-8 rounded-3xl shadow-xl border-4 border-blue-200 max-w-2xl transform transition-all">
+            <h1 class="text-4xl md:text-5xl font-bold text-blue-600 mb-6 tracking-wide flex justify-center items-center gap-3">
+                💧 水のしみこみ方<br class="sm:hidden"> くらべてみよう！
+            </h1>
+            <p class="text-xl md:text-2xl text-gray-700 leading-relaxed mb-8">
+                つぶの小さな <strong>「土（つち）」</strong> と、<br class="hidden sm:inline">
+                つぶの大きな <strong>「じゃり」</strong>。<br>
+                どちらが はやく水が しみこむ（通りぬける）かな？
+            </p>
+            <button id="goto-sim-btn" class="bg-blue-500 hover:bg-blue-600 text-white font-bold text-2xl py-5 px-12 rounded-full shadow-lg transition transform hover:scale-105 active:scale-95 flex items-center gap-3 mx-auto">
+                じっけんをはじめよう！ 💧
+            </button>
+        </div>
+    </div>
+
+    <!-- ================= SIMULATOR SCREEN (実験画面) ================= -->
+    <div id="sim-screen" class="hidden flex-grow flex flex-col justify-between px-4 py-3 h-full">
+        <!-- ミニヘッダー -->
+        <div class="flex justify-between items-center border-b border-blue-100 pb-2">
+            <h1 class="text-xl md:text-2xl font-bold text-blue-600 flex items-center gap-2">
+                💧 水のしみこみ方 じっけん中
+            </h1>
+            <button id="back-to-start-btn" class="bg-gray-200 hover:bg-gray-300 text-gray-700 font-bold text-sm py-1.5 px-4 rounded-full transition">
+                ← はじめの画面にもどる
+            </button>
+        </div>
+
+        <!-- メインシミュレーションエリア (1366x598で綺麗に収まる高さ) -->
+        <div class="flex flex-row justify-center gap-6 items-center my-auto">
+            
+            <!-- 土のキャンバス -->
+            <div class="flex flex-col items-center">
+                <h2 class="text-lg font-bold text-yellow-800 mb-1.5 bg-yellow-100 px-4 py-1 rounded-full border border-yellow-300">
+                    つぶの小さな 土
+                </h2>
+                <div class="canvas-container relative border-2 border-yellow-700">
+                    <canvas id="soil-canvas" width="240" height="340"></canvas>
+                    <div id="soil-timer" class="absolute top-2 right-2 bg-white/90 px-2 py-0.5 rounded font-mono font-bold text-base text-gray-700 shadow border border-gray-200">
+                        0.0秒
+                    </div>
+                </div>
+                <p class="mt-1 font-bold text-yellow-800 text-lg h-6" id="soil-result"></p>
+            </div>
+
+            <!-- 操作・コントロール（中央配置） -->
+            <div class="flex flex-col gap-3 justify-center items-center px-2">
+                <button id="start-btn" class="bg-blue-500 hover:bg-blue-600 text-white font-bold text-lg py-3 px-6 rounded-full shadow-md transition transform hover:scale-105 active:scale-95 flex items-center gap-1">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 14l-7 7m0 0l-7-7m7 7V3" /></svg>
+                    水をながす
+                </button>
+                <button id="reset-btn" class="bg-gray-400 hover:bg-gray-500 text-white font-bold text-lg py-3 px-6 rounded-full shadow-md transition active:scale-95 flex items-center gap-1">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+                    リセット
+                </button>
+            </div>
+
+            <!-- じゃりのキャンバス -->
+            <div class="flex flex-col items-center">
+                <h2 class="text-lg font-bold text-gray-600 mb-1.5 bg-gray-200 px-4 py-1 rounded-full border border-gray-400">
+                    つぶの大きな じゃり
+                </h2>
+                <div class="canvas-container relative border-2 border-gray-500">
+                    <canvas id="gravel-canvas" width="240" height="340"></canvas>
+                    <div id="gravel-timer" class="absolute top-2 right-2 bg-white/90 px-2 py-0.5 rounded font-mono font-bold text-base text-gray-700 shadow border border-gray-200">
+                        0.0秒
+                    </div>
+                </div>
+                <p class="mt-1 font-bold text-gray-600 text-lg h-6" id="gravel-result"></p>
+            </div>
+
+        </div>
+
+        <!-- 下部のスペースプレースホルダー（通常は薄いグレー、結果が出たら「まとめ」を重ねて表示） -->
+        <div class="h-16 flex items-center justify-center">
+            <div id="wait-message" class="text-gray-500 font-bold text-base">
+                上の「水をながす」ボタンをおしてみよう！
+            </div>
+        </div>
+    </div>
+
+    <!-- ================= CONCLUSION MODAL (まとめポップアップ) ================= -->
+    <div id="conclusion-modal" class="fixed inset-0 bg-black/50 z-50 hidden flex justify-center items-center px-4">
+        <div class="bg-yellow-50 p-6 rounded-2xl shadow-2xl border-4 border-yellow-400 max-w-xl text-center transform scale-95 transition-all">
+            <h3 class="text-2xl font-bold text-yellow-800 mb-3 flex justify-center items-center gap-2">
+                🌟 じっけんから わかったこと
+            </h3>
+            <p class="text-lg text-gray-800 leading-relaxed mb-6 text-left sm:text-center">
+                つぶの大きな <strong>「じゃり」</strong> のほうが、はやく水が しみこんだね！<br>
+                つぶが大きいと、つぶとつぶの間の <span class="text-red-500 font-bold border-b-2 border-red-500">「すきま（通り道）」</span> が広くなるから、水が通りやすいんだ。<br>
+                反対に「土」は、つぶが小さくて「すきま」がせまいから、水がぶつかって なかなか下に進めないんだよ。
+            </p>
+            <button id="close-modal-btn" class="bg-yellow-500 hover:bg-yellow-600 text-white font-bold text-lg py-2.5 px-8 rounded-full shadow-md transition active:scale-95">
+                とじる
+            </button>
+        </div>
+    </div>
+
+    <script>
+        // --- シミュレーションクラス ---
+        class Simulation {
+            constructor(canvasId, type) {
+                this.canvas = document.getElementById(canvasId);
+                this.ctx = this.canvas.getContext('2d');
+                this.type = type;
+                this.width = this.canvas.width;
+                this.height = this.canvas.height;
+                
+                this.particles = []; // 水滴
+                this.obstacles = []; // つぶ（障害物）
+                
+                // タイプごとに目標水滴量を分ける（土は一滴のかさを減らすため、全体の目標値も小さく調整）
+                this.goalWaterAmount = type === 'soil' ? 40 : 120; 
+                this.waterReached = 0; // 下まで到達した水の数
+                this.beakerHeight = 70; // ビーカーの高さ (少し低く調整)
+                
+                // 土用の追加パラメータ
+                this.wetHeight = 0; // 土が濡れている高さの上限 (0〜290)
+                this.dripTimer = 0; // ぽたぽた落ちる間隔制御
+                
+                this.state = 'idle'; // idle, running, finished
+                this.time = 0;
+                this.startTime = 0;
+                
+                this.timerElement = document.getElementById(type === 'soil' ? 'soil-timer' : 'gravel-timer');
+                this.resultElement = document.getElementById(type === 'soil' ? 'soil-result' : 'gravel-result');
+
+                this.initObstacles();
+            }
+
+            // 粒（障害物）を互い違い（千鳥配置）にセットする
+            initObstacles() {
+                this.obstacles = [];
+                let r, spacingX, spacingY, color, highlightColor;
+                
+                if (this.type === 'soil') {
+                    // 土：粒が小さく、間隔が狭い
+                    r = 8;
+                    spacingX = 22; 
+                    spacingY = 20;
+                    color = '#8B5A2B'; // 乾いた土の色
+                    highlightColor = '#A06B3C';
+                } else {
+                    // じゃり：粒を大きく、すきまをやや狭く調整
+                    r = 30;
+                    spacingX = 74; 
+                    spacingY = 64;
+                    color = '#7A8B99';
+                    highlightColor = '#94A3B0';
+                }
+                
+                // キャンバスを埋め尽くすように配置（下部のビーカー部分は空ける）
+                let availableHeight = this.height - this.beakerHeight - 20;
+                let rows = Math.ceil(availableHeight / spacingY);
+                let cols = Math.ceil(this.width / spacingX) + 2;
+                
+                for (let i = 0; i < rows; i++) {
+                    for (let j = -1; j < cols; j++) {
+                        // 偶数行と奇数行でX座標をずらす（千鳥配置）
+                        let offsetX = (i % 2 === 0) ? 0 : spacingX / 2;
+                        let x = j * spacingX + offsetX;
+                        let y = i * spacingY;
+                        
+                        this.obstacles.push({
+                            x: x, 
+                            y: y + 20, // 少し上をあける
+                            radius: r, 
+                            color: color,
+                            highlightColor: highlightColor
+                        });
+                    }
+                }
+            }
+
+            reset() {
+                this.particles = [];
+                this.waterReached = 0;
+                this.wetHeight = 0;
+                this.dripTimer = 0;
+                this.state = 'idle';
+                this.time = 0;
+                this.timerElement.innerText = "0.0秒";
+                this.resultElement.innerText = "";
+                this.timerElement.classList.remove('text-red-500');
+                
+                this.draw();
+            }
+
+            start() {
+                this.reset();
+                this.state = 'running';
+                this.startTime = performance.now();
+            }
+
+            update() {
+                if (this.state === 'idle') return;
+
+                // タイムの計測
+                if (this.state === 'running') {
+                    let now = performance.now();
+                    this.time = (now - this.startTime) / 1000;
+                    this.timerElement.innerText = this.time.toFixed(1) + "秒";
+                }
+
+                let soilLimitY = this.height - this.beakerHeight - 10; // 土のエリアの下限
+
+                // 水滴（パーティクル）の生成
+                if (this.state === 'running') {
+                    if (this.type === 'gravel') {
+                        // じゃり：絶え間なくザーッと降らせる
+                        for(let i=0; i < 4; i++) {
+                            this.particles.push({
+                                x: this.width / 2 + (Math.random() - 0.5) * 100,
+                                y: -10,
+                                vx: (Math.random() - 0.5) * 1.5,
+                                vy: Math.random() * 2 + 1,
+                                radius: 2.5
+                            });
+                        }
+                    } else {
+                        // 土：じわじわと染み込ませるために、上部からゆっくり供給する
+                        if (Math.random() < 0.4) {
+                            for (let i = 0; i < 2; i++) {
+                                this.particles.push({
+                                    x: this.width / 2 + (Math.random() - 0.5) * 140,
+                                    y: -5,
+                                    vx: (Math.random() - 0.5) * 1.0,
+                                    vy: Math.random() * 0.8 + 0.5,
+                                    radius: 2.2,
+                                    inSoil: true // 土の中を移動中フラグ
+                                });
+                            }
+                        }
+                    }
+                }
+
+                // 濡れ前線（土が徐々に濡れていく深さ）の進行
+                if (this.type === 'soil' && this.state === 'running') {
+                    // 水が供給されている間、じわじわと濡れ前線が下がる
+                    if (this.wetHeight < soilLimitY) {
+                        this.wetHeight += 0.45; // じわじわ進むスピード
+                    }
+                }
+
+                // 水滴の動きと衝突判定の計算
+                for (let i = this.particles.length - 1; i >= 0; i--) {
+                    let p = this.particles[i];
+                    
+                    if (this.type === 'gravel') {
+                        // 【じゃり】の物理挙動：摩擦を極端に低くし、丸みに沿ってスルスル滑り落ちる動き
+                        p.vy += 0.22; // 少し重力を強めて、勢いよくつるつる落下させる
+                        p.vx *= 0.98; // 空気抵抗を減らして滑りを良くする
+                        p.vy *= 0.99;
+                        p.vx += (Math.random() - 0.5) * 0.15; // 横への無駄なブレを抑える
+                        p.x += p.vx;
+                        p.y += p.vy;
+
+                        // 壁跳ね返り
+                        if (p.x < p.radius) { p.x = p.radius; p.vx *= -0.3; }
+                        if (p.x > this.width - p.radius) { p.x = this.width - p.radius; p.vx *= -0.3; }
+
+                        // 障害物との衝突
+                        for (let obs of this.obstacles) {
+                            let dx = p.x - obs.x;
+                            let dy = p.y - obs.y;
+                            let dist = Math.sqrt(dx*dx + dy*dy);
+                            let minDist = p.radius + obs.radius;
+                            
+                            if (dist < minDist) {
+                                let overlap = minDist - dist;
+                                let nx = dx / dist;
+                                let ny = dy / dist;
+                                p.x += nx * overlap;
+                                p.y += ny * overlap;
+                                
+                                let dotProduct = p.vx * nx + p.vy * ny;
+                                if (dotProduct < 0) {
+                                    p.vx -= 1.4 * dotProduct * nx; 
+                                    p.vy -= 1.4 * dotProduct * ny;
+                                    p.vx *= 0.97;
+                                    p.vy *= 0.97;
+                                }
+                            }
+                        }
+
+                        // ビーカーの底に到達
+                        if (p.y > this.height - 5) {
+                            this.particles.splice(i, 1);
+                            this.waterReached++;
+                        }
+
+                    } else {
+                        // 【土】の物理挙動：毛管作用・じわっと染み込む浸透
+                        if (p.inSoil) {
+                            // 土の中：速度を極端に遅くし、さらに濡れ前線（wetHeight）より下には進みにくくする
+                            p.vy = 0.3 + Math.random() * 0.2; 
+                            p.vx = (Math.random() - 0.5) * 0.5;
+
+                            // 濡れ前線より下にはいけない（じわじわとしか浸透しない）
+                            if (p.y > this.wetHeight) {
+                                p.y = this.wetHeight;
+                                p.vy = 0;
+                            }
+
+                            p.x += p.vx;
+                            p.y += p.vy;
+
+                            // 土の粒子との当たり判定
+                            for (let obs of this.obstacles) {
+                                let dx = p.x - obs.x;
+                                let dy = p.y - obs.y;
+                                let dist = Math.sqrt(dx*dx + dy*dy);
+                                let minDist = p.radius + obs.radius - 1; // わずかに重なりを許容して通りやすく
+                                
+                                if (dist < minDist) {
+                                    let nx = dx / dist;
+                                    let ny = dy / dist;
+                                    p.x += nx * 0.8; // じんわり押し出す
+                                    p.y += ny * 0.2; // じんわり下方向へ
+                                    p.vx *= 0.5;
+                                }
+                            }
+
+                            // 壁の制限
+                            if (p.x < 10) p.x = 10;
+                            if (p.x > this.width - 10) p.x = this.width - 10;
+
+                            // 土の最下部（ビーカーとの境界）に到達したら、その場にとどまって「滴下用の水分」に変わる
+                            if (p.y >= soilLimitY - 5) {
+                                this.particles.splice(i, 1);
+                                // 最下部が濡れたら、雫メーターを貯める
+                                if (this.wetHeight >= soilLimitY - 10) {
+                                    this.dripTimer += 1.2; // 雫ができるための水分をチャージ
+                                }
+                            }
+                        } else {
+                            // 土からビーカーへ【ぽたぽた】と落ちる大きな雫の動き
+                            p.vy += 0.15; // 自由落下
+                            p.x += p.vx;
+                            p.y += p.vy;
+
+                            if (p.y > this.height - 5) {
+                                this.particles.splice(i, 1);
+                                this.waterReached += 2; // 雫一滴あたりの水の増加量を6から2に減少（かさを少なく）
+                            }
+                        }
+                    }
+                }
+
+                // 【土】最下部からビーカーへ「ぽた…ぽた…」と滴り落ちる雫の生成
+                if (this.type === 'soil' && this.state === 'running' && this.dripTimer >= 20) {
+                    // 水分が一定以上溜まったら、下の数カ所から「ぽたっ」と落ちる
+                    let dripX = [40, 90, 150, 200];
+                    let randomX = dripX[Math.floor(Math.random() * dripX.length)] + (Math.random() - 0.5) * 10;
+                    
+                    this.particles.push({
+                        x: randomX,
+                        y: soilLimitY + 5,
+                        vx: 0,
+                        vy: 0.5,
+                        radius: 5.5, // じわっと集まって落ちる大きな雫
+                        inSoil: false // 自由落下モード
+                    });
+                    this.dripTimer = 0; // タイマーリセット
+                }
+
+                // 目標の量まで水が溜まったらゴール（タイムストップ）
+                if (this.state === 'running' && this.waterReached >= this.goalWaterAmount) {
+                    this.state = 'finished';
+                    this.timerElement.classList.add('text-red-500'); // タイムを赤文字で強調
+                    this.resultElement.innerText = "満タン！🎉";
+                    checkAllFinished();
+                }
+            }
+
+            draw() {
+                // キャンバスをクリア
+                this.ctx.clearRect(0, 0, this.width, this.height);
+
+                // ビーカー（溜まった水）の背景エリア
+                this.ctx.fillStyle = 'rgba(240, 248, 255, 0.5)';
+                this.ctx.fillRect(0, this.height - this.beakerHeight, this.width, this.beakerHeight);
+
+                // 土の濡れグラデーション（背景）の描画
+                if (this.type === 'soil' && this.wetHeight > 0) {
+                    let grad = this.ctx.createLinearGradient(0, 20, 0, this.wetHeight + 10);
+                    grad.addColorStop(0, 'rgba(0, 150, 255, 0.15)'); // 上の方は水分がたっぷり
+                    grad.addColorStop(1, 'rgba(0, 150, 255, 0.03)'); // 濡れ前線の先端
+                    this.ctx.fillStyle = grad;
+                    this.ctx.fillRect(0, 20, this.width, this.wetHeight - 10);
+                }
+
+                // 粒（障害物）の描画（色変更はせず、乾いた元の色のまま）
+                for (let obs of this.obstacles) {
+                    // 本体の色
+                    this.ctx.beginPath();
+                    this.ctx.arc(obs.x, obs.y, obs.radius, 0, Math.PI * 2);
+                    this.ctx.fillStyle = obs.color;
+                    this.ctx.fill();
+                    
+                    // 立体感を出すための明るい部分（ハイライト）
+                    this.ctx.beginPath();
+                    this.ctx.arc(obs.x - obs.radius * 0.3, obs.y - obs.radius * 0.3, obs.radius * 0.4, 0, Math.PI * 2);
+                    this.ctx.fillStyle = obs.highlightColor;
+                    this.ctx.fill();
+                }
+
+                // 水滴（パーティクル）の描画
+                for (let p of this.particles) {
+                    this.ctx.beginPath();
+                    this.ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+                    if (this.type === 'soil' && p.inSoil) {
+                        // 土の中の水滴はより「じわっと」馴染むように少し透明に
+                        this.ctx.fillStyle = 'rgba(0, 160, 255, 0.6)';
+                    } else {
+                        // 滴る水やじゃりの水ははっきりと
+                        this.ctx.fillStyle = 'rgba(0, 191, 255, 0.85)';
+                    }
+                    this.ctx.fill();
+                }
+
+                // 土の最下部で水滴が「じわっ…」と集まる様子の視覚効果
+                if (this.type === 'soil' && this.wetHeight >= this.height - this.beakerHeight - 15) {
+                    this.ctx.fillStyle = 'rgba(0, 180, 255, 0.4)';
+                    // 染み出して溜まりつつある水面
+                    this.ctx.fillRect(0, this.height - this.beakerHeight - 8, this.width, 6);
+                }
+
+                // 溜まった水の描画（底からせり上がる）
+                if (this.waterReached > 0) {
+                    // 目標量に対する割合
+                    let waterRatio = Math.min(this.waterReached / this.goalWaterAmount, 1.05);
+                    let waterHeight = waterRatio * (this.beakerHeight - 15);
+                    
+                    // 水の表面を少し揺らす表現
+                    this.ctx.fillStyle = 'rgba(0, 191, 255, 0.6)';
+                    this.ctx.fillRect(0, this.height - waterHeight, this.width, waterHeight);
+                    
+                    // 濃い水面
+                    this.ctx.fillStyle = 'rgba(0, 150, 255, 0.8)';
+                    this.ctx.fillRect(0, this.height - waterHeight, this.width, 4);
+                }
+
+                // ゴールライン（満タンライン）の描画
+                this.ctx.strokeStyle = '#ff4444';
+                this.ctx.lineWidth = 1.5;
+                this.ctx.setLineDash([4, 4]);
+                this.ctx.beginPath();
+                this.ctx.moveTo(0, this.height - this.beakerHeight + 15);
+                this.ctx.lineTo(this.width, this.height - this.beakerHeight + 15);
+                this.ctx.stroke();
+                this.ctx.setLineDash([]); // 点線をリセット
+
+                this.ctx.fillStyle = '#ff4444';
+                this.ctx.font = 'bold 12px sans-serif';
+                this.ctx.fillText('満タンライン', 8, this.height - this.beakerHeight + 8);
+            }
+        }
+
+        // --- 全体のコントロール ---
+        let simSoil, simGravel;
+
+        function init() {
+            simSoil = new Simulation('soil-canvas', 'soil');
+            simGravel = new Simulation('gravel-canvas', 'gravel');
+            
+            // 初期状態の描画
+            simSoil.draw();
+            simGravel.draw();
+
+            // 画面遷移用のイベント
+            document.getElementById('goto-sim-btn').addEventListener('click', () => {
+                document.getElementById('start-screen').classList.add('hidden');
+                document.getElementById('sim-screen').classList.remove('hidden');
+                simSoil.reset();
+                simGravel.reset();
+            });
+
+            document.getElementById('back-to-start-btn').addEventListener('click', () => {
+                document.getElementById('sim-screen').classList.add('hidden');
+                document.getElementById('start-screen').classList.remove('hidden');
+                simSoil.reset();
+                simGravel.reset();
+            });
+
+            // コントロールボタンのイベント
+            document.getElementById('start-btn').addEventListener('click', () => {
+                document.getElementById('wait-message').innerText = "じっけん中... がんばれ！";
+                simSoil.start();
+                simGravel.start();
+            });
+
+            document.getElementById('reset-btn').addEventListener('click', () => {
+                document.getElementById('wait-message').innerText = "上の「水をながす」ボタンをおしてみよう！";
+                simSoil.reset();
+                simGravel.reset();
+            });
+
+            // まとめモーダルの閉じるボタン
+            document.getElementById('close-modal-btn').addEventListener('click', () => {
+                document.getElementById('conclusion-modal').classList.add('hidden');
+            });
+        }
+
+        // アニメーションループ（常に回し続ける）
+        function loop() {
+            simSoil.update();
+            simGravel.update();
+            
+            simSoil.draw();
+            simGravel.draw();
+
+            requestAnimationFrame(loop);
+        }
+
+        // 両方がゴールしたかチェック
+        function checkAllFinished() {
+            if (simSoil.state === 'finished' && simGravel.state === 'finished') {
+                document.getElementById('wait-message').innerText = "実験終了！結果をまとめよう！";
+                
+                // ポップアップを表示
+                setTimeout(() => {
+                    const modal = document.getElementById('conclusion-modal');
+                    modal.classList.remove('hidden');
+                }, 500);
+            }
+        }
+
+        // ページ読み込み完了時にスタート
+        window.onload = function () {
+            init();
+            loop(); // アニメーションループを開始
+        }
+    </script>
+</body>
+</html>
