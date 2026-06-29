@@ -173,13 +173,18 @@
             // 基準となるカメラの距離（PCなど横長画面用）
             let distance = 21.5; 
 
-            if (aspect < 1.0) {
-                // スマホなどの縦長画面の場合、トレイの左右が切れないように
-                // 画面の細さに比例してカメラを後ろに引く
-                distance = 21.5 / aspect;
-                
-                // 極端に細長い端末で小さくなりすぎないよう上限を設定
-                distance = Math.min(distance, 50.0);
+            // ★ 修正: トレイの全体幅（直径約20）＋左右の余白を確保するための目標横幅を定義
+            const targetWidth = 23.0; 
+            const fovRad = (camera.fov / 2) * (Math.PI / 180);
+            
+            // 視野角とアスペクト比から、目標の横幅を画面に収めるために必要なカメラ距離を逆算
+            const requiredDistance = targetWidth / (2 * Math.tan(fovRad) * aspect);
+
+            // 画面が縦長で、基準距離では横幅が収まらない場合のみ距離を伸ばす
+            if (requiredDistance > distance) {
+                distance = requiredDistance;
+                // スマホで極端に小さくなりすぎないよう最大距離を制限
+                distance = Math.min(distance, 65.0);
             }
 
             // 元々のカメラ角度 (Y:14, Z:16) の比率を維持したまま配置
@@ -1209,7 +1214,8 @@
         }
 
         animate();
-</script>
+
+    </script>
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
     import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
