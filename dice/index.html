@@ -3,8 +3,33 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>3D サイコロローラー</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+  <title>教育アプリ｜サイコロアプリ</title>
+    <meta name="description" content="算数や学級活動に使える大阪市の現役小学校教員が制作した、さいころアプリです。ota toolsのアプリの１つです。">
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "SoftwareApplication",
+      "name": "ota tools",
+      "operatingSystem": "Web",
+      "applicationCategory": "EducationalApplication",
+      "offers": {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "JPY"
+      },
+      "author": {
+        "@type": "Person",
+        "name": "太田圭一"
+      },
+      "description": "大阪市の現役小学校教員が制作した、授業や家庭で使える無料の教育・学習用アプリです。",
+      "audience": {
+        "@type": "Audience",
+        "audienceType": "小学校教員, 児童, 保護者"
+      }
+    }
+    </script>  
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
     <style>
         body { 
             margin: 0; 
@@ -797,12 +822,33 @@
                 if (currentDiceCount === 2) displayX = index === 0 ? -3.5 : 3.5;
                 if (currentDiceCount === 3) displayX = (index - 1) * 4.5; 
                 
-                dice.body.position.set(displayX, diceSize / 2, 0);
-                dice.body.quaternion.set(0, 0, 0, 1);
+                // ★ 修正: 10面体の大きさに合わせてY座標（高さ）を調整
+                let posY = 1.5;
+                if (dice.diceType === 'd10') {
+                    posY = 2.05; 
+                }
+
+                dice.body.position.set(displayX, posY, 0);
+                
+                // ★ 修正: 10面体の場合は「0」の面が真上を向くように角度をセットする
+                if (dice.diceType === 'd10') {
+                    const faceNormal = dice.body.shapes[0].faceNormals[0];
+                    const targetNormal = new CANNON.Vec3(0, 1, 0);
+                    dice.body.quaternion.setFromVectors(faceNormal, targetNormal);
+                } else {
+                    dice.body.quaternion.set(0, 0, 0, 1);
+                }
+                
                 dice.body.velocity.set(0, 0, 0);
                 dice.body.angularVelocity.set(0, 0, 0);
+                dice.body.sleep(); // ★ 修正: 最初からピタッと完全に静止(スリープ)させる
+                
                 dice.mesh.position.copy(dice.body.position);
                 dice.mesh.quaternion.copy(dice.body.quaternion);
+                
+                // ★ 修正: 最初から確定状態（赤色）にするために静止時間を長めに設定
+                dice.stillTime = 1.0;
+                dice.currentRedIndex = -1;
             });
         }
         
@@ -844,7 +890,8 @@
             metalness: 0.1       
         });
 
-        const floorRadius = trayRadius + wallThickness; 
+        // ★ 修正: 緑の床が外にはみ出さないよう、壁の厚みの「中心」にピッタリ収まるサイズに再計算
+        const floorRadius = trayRadius / Math.cos(Math.PI / 8); 
         const floorGeometry = new THREE.CylinderGeometry(floorRadius, floorRadius, trayThickness, 8);
         const floorMesh = new THREE.Mesh(floorGeometry, feltMaterial);
         floorMesh.position.y = -trayThickness / 2;
@@ -1081,11 +1128,30 @@
             const deltaTime = Math.min(clock.getDelta(), 0.1);
             world.step(1 / 60, deltaTime, 3);
 
+            // ★ 修正: まず各サイコロの「静止時間」を更新する
             dices.forEach(dice => {
                 dice.mesh.position.copy(dice.body.position);
                 dice.mesh.quaternion.copy(dice.body.quaternion);
 
-                // ★ 追加: 現在の全ての面の中から、一番上(Y軸)に近い面を常に特定する
+                const isAlmostStill = dice.body.velocity.lengthSquared() < 0.05 && dice.body.angularVelocity.lengthSquared() < 0.5;
+                if (dice.body.sleepState === CANNON.Body.SLEEPING || isAlmostStill) {
+                    dice.stillTime += deltaTime; 
+                } else {
+                    dice.stillTime = 0; 
+                }
+            });
+
+            // ★ 追加: 「すべての」サイコロが静止(またはほぼ静止)しているかを判定
+            let allSettled = true;
+            for (let dice of dices) {
+                if (dice.stillTime < 0.2) { // 全てが0.2秒以上落ち着いていれば確定
+                    allSettled = false;
+                    break;
+                }
+            }
+
+            // 色の変更と斜め補正
+            dices.forEach(dice => {
                 let maxDot = -1;
                 let bestNormal = null;
                 let bestIndex = -1; 
@@ -1105,20 +1171,17 @@
                     }
                 }
 
-                // ★ 追加: サイコロの速度と回転速度から「ゆっくり動いている」かどうかを判定
-                const isSlow = dice.body.velocity.lengthSquared() < 4.0 && dice.body.angularVelocity.lengthSquared() < 4.0;
-
                 if (dice.diceType === 'd10') {
-                    if (isSlow) {
-                        // ゆっくり動いている、または静止しているときは一番上(になりそうな)面を即座に赤くする
+                    if (allSettled) {
+                        // ★ 修正: 全てのサイコロが落ち着いた状態になって初めて赤くする
                         if (dice.currentRedIndex !== bestIndex) {
                             const newMat = [...d10MaterialsBlack];
                             newMat[bestIndex] = d10MaterialsRed[bestIndex];
                             dice.mesh.material = newMat;
-                            dice.currentRedIndex = bestIndex; // 現在の赤い面を記憶
+                            dice.currentRedIndex = bestIndex; 
                         }
                     } else {
-                        // 勢いよく転がっているときはすべて黒に戻す
+                        // 1つでも動いているサイコロがあれば全て黒に戻す
                         if (dice.currentRedIndex !== -1) {
                             dice.mesh.material = [...d10MaterialsBlack];
                             dice.currentRedIndex = -1;
@@ -1126,16 +1189,7 @@
                     }
                 }
 
-                // 斜め止まり検知・補正
-                const isAlmostStill = dice.body.velocity.lengthSquared() < 0.05 && dice.body.angularVelocity.lengthSquared() < 0.5;
-                
-                if (dice.body.sleepState === CANNON.Body.SLEEPING || isAlmostStill) {
-                    dice.stillTime += deltaTime; 
-                } else {
-                    dice.stillTime = 0; 
-                }
-
-                // ★ 修正: 斜め状態(maxDot < 0.985)で静止しそうな時は自動で姿勢を補正する
+                // 斜め補正処理
                 if (dice.stillTime > 0.1 && dice.stillTime <= 2.5) {
                     if (maxDot < 0.985 && maxDot > 0) {
                         dice.body.wakeUp(); 
@@ -1155,7 +1209,50 @@
         }
 
         animate();
+</script>
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+    import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+    import { getFirestore, doc, setDoc, updateDoc, increment, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-    </script>
+    const firebaseConfig = {
+        apiKey: "AIzaSyB4fpt6ffIuTBDJo_9g37kYr6KOWNgIcEY",
+        authDomain: "otatoolssite.firebaseapp.com",
+        projectId: "otatoolssite",
+        storageBucket: "otatoolssite.firebasestorage.app",
+        messagingSenderId: "20522292752",
+        appId: "1:20522292752:web:22fba7fecb61736593dc95"
+    };
+
+    // アプリ固有のID
+    const THIS_APP_ID = "24"; 
+    
+    const PORTAL_APP_ID = "otatoolssite-v1";
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+    const auth = getAuth(app);
+    signInAnonymously(auth).then(async () => {
+        const todayStr = new Date().toISOString().split('T')[0];
+        const storageKey = `ota_visited_${THIS_APP_ID}`;
+        
+        if (localStorage.getItem(storageKey) === todayStr) {
+            return;
+        }
+        const docRef = doc(db, 'artifacts', PORTAL_APP_ID, 'public', 'data', 'app_views', THIS_APP_ID);
+                try {
+            const docSnap = await getDoc(docRef);
+            if (docSnap.exists()) {
+                await updateDoc(docRef, { count: increment(1) });
+            } else {
+                await setDoc(docRef, { count: 1 }); 
+            }
+            localStorage.setItem(storageKey, todayStr);
+        } catch (e) { 
+            console.error("閲覧数のカウントに失敗しました:", e); 
+        }
+    }).catch((error) => {
+        console.error("Firebase認証エラー:", error);
+    });
+</script>
 </body>
 </html>
