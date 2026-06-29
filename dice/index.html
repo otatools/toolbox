@@ -1,0 +1,1161 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>3D サイコロローラー</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { 
+            margin: 0; 
+            overflow: hidden; 
+            background-color: #1a202c; 
+            user-select: none; 
+            -webkit-user-select: none; 
+            touch-action: none; /* スマホのスワイプによる意図しないスクロールを防止 */
+            overscroll-behavior: none;
+        }
+        #canvas-container { 
+            width: 100vw; 
+            height: 100vh; /* 古いブラウザ用フォールバック */
+            height: 100dvh; /* スマホのアドレスバーを考慮した正確な高さ */
+            position: absolute; 
+            top: 0; 
+            left: 0; 
+            z-index: 1; 
+        }
+        #ui-container {
+            position: absolute;
+            bottom: calc(1.5rem + env(safe-area-inset-bottom, 0px)); /* iPhoneのホームバー被り回避 */
+            left: 0;
+            width: 100%;
+            display: flex;
+            justify-content: center;
+            z-index: 10;
+            pointer-events: none;
+        }
+        .btn-roll {
+            pointer-events: auto;
+            position: relative;
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            color: #ffffff;
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.4);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            overflow: hidden;
+            letter-spacing: 0.1em;
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+        }
+        /* マウスホバー時に光が走るエフェクト */
+        .btn-roll::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -150%;
+            width: 50%;
+            height: 100%;
+            background: linear-gradient(to right, transparent, rgba(255, 255, 255, 0.4), transparent);
+            transform: skewX(-25deg);
+            transition: left 0.6s ease;
+        }
+        .btn-roll:hover {
+            background: rgba(255, 255, 255, 0.2);
+            border-color: rgba(255, 255, 255, 0.6);
+            transform: translateY(-3px);
+            box-shadow: 0 12px 40px 0 rgba(0, 0, 0, 0.5), 0 0 20px rgba(255, 255, 255, 0.2);
+        }
+        .btn-roll:hover::before {
+            left: 150%;
+        }
+        .btn-roll:active {
+            transform: scale(0.95) translateY(2px);
+            box-shadow: 0 4px 16px 0 rgba(0, 0, 0, 0.3);
+        }
+    </style>
+</head>
+<body>
+
+    <div id="canvas-container"></div>
+
+    <!-- 右上の設定ボタン (スマホでは少し小さく・端に寄せる) -->
+    <button id="settings-btn" class="absolute top-4 right-4 sm:top-6 sm:right-6 text-white p-2.5 sm:p-3 rounded-full cursor-pointer z-20 shadow-lg bg-white/10 backdrop-blur-md border border-white/20 hover:bg-white/20 transition-all hover:rotate-90 pointer-events-auto">
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
+    </button>
+
+    <!-- 設定モーダル -->
+    <div id="settings-modal" class="hidden fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center transition-opacity pointer-events-auto">
+        <div class="bg-gray-800 border border-gray-700 p-6 sm:p-8 rounded-2xl shadow-2xl text-white w-80 max-w-[90vw]">
+            <h2 class="text-xl sm:text-2xl font-bold mb-6 flex items-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
+                サイコロ設定
+            </h2>
+            
+            <div class="mb-8">
+                <label class="block text-sm text-gray-400 mb-2 font-bold">サイコロの数</label>
+                <div class="flex gap-2" id="setting-count-group">
+                    <button type="button" class="flex-1 py-2 sm:py-3 rounded-lg border border-gray-600 bg-gray-900 text-gray-300 font-bold hover:bg-gray-700 transition-all dice-count-btn" data-value="1">1個</button>
+                    <button type="button" class="flex-1 py-2 sm:py-3 rounded-lg border border-blue-500 bg-blue-600/20 text-blue-400 font-bold hover:bg-blue-600/30 transition-all dice-count-btn" data-value="2">2個</button>
+                    <button type="button" class="flex-1 py-2 sm:py-3 rounded-lg border border-gray-600 bg-gray-900 text-gray-300 font-bold hover:bg-gray-700 transition-all dice-count-btn" data-value="3">3個</button>
+                </div>
+            </div>
+    
+            <div class="mb-8">
+                <label class="block text-sm text-gray-400 mb-2 font-bold">サイコロの種類</label>
+                <div class="flex gap-2" id="setting-type-group">
+                    <button type="button" class="flex-1 py-2 sm:py-3 rounded-lg border border-blue-500 bg-blue-600/20 text-blue-400 font-bold hover:bg-blue-600/30 transition-all dice-type-btn" data-value="d6">6面体</button>
+                    <button type="button" class="flex-1 py-2 sm:py-3 rounded-lg border border-gray-600 bg-gray-900 text-gray-300 font-bold hover:bg-gray-700 transition-all dice-type-btn" data-value="d10">10面体</button>
+                </div>
+            </div>
+
+            <div class="flex justify-center gap-3">
+                <button id="btn-ok" class="px-8 py-2.5 bg-blue-600 hover:bg-blue-500 rounded-lg transition-colors font-bold shadow-lg shadow-blue-500/30 text-base">OK</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="ui-container">
+        <!-- スマホではボタンを少し小さめに、PCでは大きく表示 -->
+        <button id="roll-btn" class="btn-roll font-bold py-3 px-8 sm:py-4 sm:px-10 rounded-full text-lg sm:text-xl flex items-center gap-2 sm:gap-3">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="filter: drop-shadow(0px 2px 2px rgba(0,0,0,0.5));" class="w-5 h-5 sm:w-6 sm:h-6"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><path d="M9 9h.01"/><path d="M15 9h.01"/><path d="M9 15h.01"/><path d="M15 15h.01"/><path d="M12 12h.01"/></svg>
+            サイコロを振る
+        </button>
+    </div>
+
+    <script type="module">
+        import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.module.js';
+        import * as CANNON from 'https://cdn.jsdelivr.net/npm/cannon-es@0.20.0/dist/cannon-es.js';
+
+        // 衝突グループの定義
+        const GROUP_DEFAULT = 1;
+        const GROUP_INVISIBLE = 2;
+
+        // --- 1. セットアップ (Three.js & Cannon-es) ---
+        
+        const container = document.getElementById('canvas-container');
+        
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x1a202c);
+        scene.fog = new THREE.Fog(0x1a202c, 30, 60);
+
+        const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
+        
+        // ★ 追加: 画面サイズに応じてカメラの距離を自動調整する関数
+        function updateCamera() {
+            const aspect = window.innerWidth / window.innerHeight;
+            
+            // 基準となるカメラの距離（PCなど横長画面用）
+            let distance = 21.5; 
+
+            if (aspect < 1.0) {
+                // スマホなどの縦長画面の場合、トレイの左右が切れないように
+                // 画面の細さに比例してカメラを後ろに引く
+                distance = 21.5 / aspect;
+                
+                // 極端に細長い端末で小さくなりすぎないよう上限を設定
+                distance = Math.min(distance, 50.0);
+            }
+
+            // 元々のカメラ角度 (Y:14, Z:16) の比率を維持したまま配置
+            const yRatio = 14.0 / Math.sqrt(14*14 + 16*16);
+            const zRatio = 16.0 / Math.sqrt(14*14 + 16*16);
+
+            camera.position.set(0, distance * yRatio, distance * zRatio);
+            camera.lookAt(0, -1, 0);
+        }
+
+        // 初期化時にカメラ位置を調整
+        updateCamera();
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        container.appendChild(renderer.domElement);
+
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.50); 
+        scene.add(ambientLight);
+
+        const dirLight = new THREE.DirectionalLight(0xffffff, 0.75);
+        dirLight.position.set(10, 22, 10);
+        dirLight.castShadow = true;
+        dirLight.shadow.mapSize.width = 2048;
+        dirLight.shadow.mapSize.height = 2048;
+        dirLight.shadow.camera.near = 0.5;
+        dirLight.shadow.camera.far = 50;
+        const d = 12;
+        dirLight.shadow.camera.left = -d;
+        dirLight.shadow.camera.right = d;
+        dirLight.shadow.camera.top = d;
+        dirLight.shadow.camera.bottom = -d;
+        dirLight.shadow.bias = -0.0015;
+        scene.add(dirLight);
+
+        const fillLight = new THREE.DirectionalLight(0xffffff, 0.45);
+        fillLight.position.set(-12, 18, -12);
+        scene.add(fillLight);
+
+        const world = new CANNON.World({
+            gravity: new CANNON.Vec3(0, -45, 0), 
+        });
+        world.broadphase = new CANNON.SAPBroadphase(world);
+        world.solver.iterations = 35; 
+        world.allowSleep = true;
+
+        const diceMaterial = new CANNON.Material("dice");
+        const trayMaterial = new CANNON.Material("tray");
+        const wallMaterial = new CANNON.Material("wall"); 
+
+        const diceTrayContact = new CANNON.ContactMaterial(diceMaterial, trayMaterial, {
+            friction: 0.3,    
+            restitution: 0.3 
+        });
+        world.addContactMaterial(diceTrayContact);
+
+        const diceWallContact = new CANNON.ContactMaterial(diceMaterial, wallMaterial, {
+            friction: 0.0,    
+            restitution: 0.4 
+        });
+        world.addContactMaterial(diceWallContact);
+
+        const diceDiceContact = new CANNON.ContactMaterial(diceMaterial, diceMaterial, {
+            friction: 0.0,    
+            restitution: 0.8 
+        });
+        world.addContactMaterial(diceDiceContact);
+
+
+        // --- 2. リアルなプロシージャルテクスチャの生成 ---
+
+        function generateFeltTexture() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 512;
+            canvas.height = 512;
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = '#1b4d2a'; 
+            ctx.fillRect(0, 0, 512, 512);
+            ctx.globalAlpha = 0.3;
+            for(let i=0; i<60000; i++) {
+                ctx.fillStyle = Math.random() > 0.5 ? '#246b3b' : '#0e2b17';
+                ctx.fillRect(Math.random()*512, Math.random()*512, 2, 2);
+            }
+            const tex = new THREE.CanvasTexture(canvas);
+            tex.wrapS = THREE.RepeatWrapping;
+            tex.wrapT = THREE.RepeatWrapping;
+            tex.repeat.set(3, 3);
+            return tex;
+        }
+
+        function generateFeltBumpMap() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 512;
+            canvas.height = 512;
+            const ctx = canvas.getContext('2d');
+            const imgData = ctx.createImageData(512, 512);
+            for(let i=0; i<imgData.data.length; i+=4) {
+                const val = 128 + (Math.random() - 0.5) * 80; 
+                imgData.data[i] = val;
+                imgData.data[i+1] = val;
+                imgData.data[i+2] = val;
+                imgData.data[i+3] = 255;
+            }
+            ctx.putImageData(imgData, 0, 0);
+            const tex = new THREE.CanvasTexture(canvas);
+            tex.wrapS = THREE.RepeatWrapping;
+            tex.wrapT = THREE.RepeatWrapping;
+            tex.repeat.set(3, 3);
+            return tex;
+        }
+
+        function generateLeatherTexture() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 512;
+            canvas.height = 512;
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = '#3a2012'; 
+            ctx.fillRect(0, 0, 512, 512);
+            ctx.globalAlpha = 0.2;
+            for(let i=0; i<15000; i++) {
+                ctx.fillStyle = Math.random() > 0.5 ? '#4f2c19' : '#231209';
+                ctx.beginPath();
+                ctx.ellipse(Math.random()*512, Math.random()*512, Math.random()*6+2, Math.random()*6+2, Math.random()*Math.PI, 0, Math.PI*2);
+                ctx.fill();
+            }
+            const tex = new THREE.CanvasTexture(canvas);
+            tex.wrapS = THREE.RepeatWrapping;
+            tex.wrapT = THREE.RepeatWrapping;
+            tex.repeat.set(2, 2);
+            return tex;
+        }
+
+        function generateLeatherBumpMap() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 512;
+            canvas.height = 512;
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = '#808080';
+            ctx.fillRect(0, 0, 512, 512);
+            ctx.globalAlpha = 0.15;
+            for(let i=0; i<25000; i++) {
+                ctx.fillStyle = Math.random() > 0.5 ? '#ffffff' : '#000000';
+                ctx.beginPath();
+                ctx.ellipse(Math.random()*512, Math.random()*512, Math.random()*8+2, Math.random()*8+2, Math.random()*Math.PI, 0, Math.PI*2);
+                ctx.fill();
+            }
+            const tex = new THREE.CanvasTexture(canvas);
+            tex.wrapS = THREE.RepeatWrapping;
+            tex.wrapT = THREE.RepeatWrapping;
+            tex.repeat.set(2, 2);
+            return tex;
+        }
+
+        function generateWoodTexture() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 512;
+            canvas.height = 512;
+            const ctx = canvas.getContext('2d');
+            
+            ctx.fillStyle = '#4a2f1d'; 
+            ctx.fillRect(0, 0, 512, 512);
+            
+            ctx.lineWidth = 3;
+            ctx.globalAlpha = 0.25;
+            for (let i = 0; i < 400; i++) {
+                ctx.strokeStyle = Math.random() > 0.5 ? '#2b1a0f' : '#6b442a';
+                ctx.beginPath();
+                let x = Math.random() * 512;
+                ctx.moveTo(x, 0);
+                
+                let cp1x = x + (Math.random() - 0.5) * 40;
+                let cp1y = 170;
+                let cp2x = x + (Math.random() - 0.5) * 40;
+                let cp2y = 340;
+                let endX = x + (Math.random() - 0.5) * 20;
+                
+                ctx.bezierCurveTo(cp1x, cp1y, cp2x, cp2y, endX, 512);
+                ctx.stroke();
+            }
+            
+            const tex = new THREE.CanvasTexture(canvas);
+            // ★ 修正: ただの繰り返しではなく「鏡面反転」して繰り返すことで、上下左右の切れ目を完全に消す
+            tex.wrapS = THREE.MirroredRepeatWrapping;
+            tex.wrapT = THREE.MirroredRepeatWrapping;
+            tex.repeat.set(6, 6); 
+            return tex;
+        }
+
+        function createDiceTexture(number) {
+            const canvas = document.createElement('canvas');
+            canvas.width = 512;
+            canvas.height = 512;
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = '#faf9f5';
+            ctx.fillRect(0, 0, 512, 512);
+
+            const margin = 24;
+            const radius = 64;
+            ctx.beginPath();
+            ctx.moveTo(margin + radius, margin);
+            ctx.lineTo(512 - margin - radius, margin);
+            ctx.quadraticCurveTo(512 - margin, margin, 512 - margin, margin + radius);
+            ctx.lineTo(512 - margin, 512 - margin - radius);
+            ctx.quadraticCurveTo(512 - margin, 512 - margin, 512 - margin - radius, 512 - margin);
+            ctx.lineTo(margin + radius, 512 - margin);
+            ctx.quadraticCurveTo(margin, 512 - margin, margin, 512 - margin - radius);
+            ctx.lineTo(margin, margin + radius);
+            ctx.quadraticCurveTo(margin, margin, margin + radius, margin);
+            ctx.closePath();
+            ctx.fillStyle = '#fefefe';
+            ctx.fill();
+            ctx.lineWidth = 4;
+            ctx.strokeStyle = '#e2e8f0';
+            ctx.stroke();
+
+            ctx.fillStyle = number === 1 ? '#e11d48' : '#0f172a'; 
+            const drawDot = (x, y, r = 45) => {
+                ctx.beginPath();
+                ctx.arc(x, y, r, 0, Math.PI * 2);
+                ctx.fill();
+            };
+            const center = 256;
+            const offset = 120;
+            if ([1, 3, 5].includes(number)) drawDot(center, center, number === 1 ? 80 : 45);
+            if ([2, 3, 4, 5, 6].includes(number)) { drawDot(center - offset, center - offset); drawDot(center + offset, center + offset); }
+            if ([4, 5, 6].includes(number)) { drawDot(center - offset, center + offset); drawDot(center + offset, center - offset); }
+            if (number === 6) { drawDot(center - offset, center); drawDot(center + offset, center); }
+
+            const texture = new THREE.CanvasTexture(canvas);
+            texture.anisotropy = renderer.capabilities.getMaxAnisotropy(); 
+            return texture;
+        }
+
+        function createDiceNumberTexture(number, isRed = false) {
+            const canvas = document.createElement('canvas');
+            canvas.width = 512;
+            canvas.height = 512;
+            const ctx = canvas.getContext('2d');
+            
+            ctx.fillStyle = '#faf9f5';
+            ctx.fillRect(0, 0, 512, 512);
+
+            const topY = 24;
+            const bottomY = 488;
+            const leftX = 24;
+            const rightX = 488;
+            const centerY = 512 * (1 - 0.20); 
+
+            ctx.beginPath();
+            ctx.moveTo(256, topY); 
+            ctx.lineTo(rightX, centerY); 
+            ctx.lineTo(256, bottomY); 
+            ctx.lineTo(leftX, centerY); 
+            ctx.closePath();
+            
+            ctx.fillStyle = '#ffffff';
+            ctx.fill();
+            ctx.lineWidth = 10;
+            ctx.strokeStyle = '#cbd5e1'; 
+            ctx.stroke();
+
+            ctx.fillStyle = isRed ? '#e11d48' : '#0f172a';
+            const text = number.toString();
+            
+            ctx.font = `900 280px 'Arial Black', Impact, sans-serif`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            
+            const posY = (topY + centerY) / 2 + 95; 
+            ctx.fillText(text, 256, posY); 
+
+            if (number === 6 || number === 9) {
+                const textWidth = ctx.measureText(text).width;
+                ctx.lineWidth = 18; 
+                ctx.lineCap = 'round';
+                ctx.strokeStyle = ctx.fillStyle;
+                ctx.beginPath();
+                const lineY = posY + 130;
+                ctx.moveTo(256 - textWidth / 2.2, lineY);
+                ctx.lineTo(256 + textWidth / 2.2, lineY);
+                ctx.stroke();
+            }
+
+            const texture = new THREE.CanvasTexture(canvas);
+            texture.anisotropy = renderer.capabilities.getMaxAnisotropy(); 
+            return texture;
+        }
+
+        function createRoundedBoxGeometry(width, height, depth, radius, segments) {
+            const geometry = new THREE.BoxGeometry(width, height, depth, segments, segments, segments);
+            const position = geometry.attributes.position;
+            const normal = geometry.attributes.normal;
+            const tempNormal = new THREE.Vector3();
+            
+            const minX = -width / 2 + radius, maxX = width / 2 - radius;
+            const minY = -height / 2 + radius, maxY = height / 2 - radius;
+            const minZ = -depth / 2 + radius, maxZ = depth / 2 - radius;
+
+            for (let i = 0; i < position.count; i++) {
+                let x = position.getX(i), y = position.getY(i), z = position.getZ(i);
+                let newX = Math.min(maxX, Math.max(minX, x));
+                let newY = Math.min(maxY, Math.max(minY, y));
+                let newZ = Math.min(maxZ, Math.max(minZ, z));
+
+                tempNormal.set(x - newX, y - newY, z - newZ);
+                
+                if (Math.abs(x) > maxX || Math.abs(y) > maxY || Math.abs(z) > maxZ) {
+                    tempNormal.normalize();
+                    x = newX + tempNormal.x * radius;
+                    y = newY + tempNormal.y * radius;
+                    z = newZ + tempNormal.z * radius;
+                    position.setXYZ(i, x, y, z);
+                    normal.setXYZ(i, tempNormal.x, tempNormal.y, tempNormal.z);
+                }
+            }
+            geometry.computeVertexNormals();
+            return geometry;
+        }
+
+        // ★ 修正: 10面体の角を美しく丸めるために、メッシュの細分化とスムーズミンによる丸め処理を実装
+        function createD10Geometry(radius) {
+            const geometry = new THREE.BufferGeometry();
+            const positions = [];
+            const uvs = [];
+
+            // 10面体の基本比率（黄金比）
+            const phi = Math.PI / 5;
+            const ratio = (1 - Math.cos(phi)) / (1 + Math.cos(phi)); 
+            const h1 = 0.96, h2 = h1 * ratio, r_val = 1.0;
+            
+            const vTop = new THREE.Vector3(0, h1, 0);
+            const vBottom = new THREE.Vector3(0, -h1, 0);
+            const vP = [];
+            const vQ = [];
+            for(let i=0; i<5; i++) {
+                const a = i * Math.PI * 2 / 5;
+                vP.push(new THREE.Vector3(Math.cos(a)*r_val, h2, Math.sin(a)*r_val));
+            }
+            for(let i=0; i<5; i++) {
+                const a = (i + 0.5) * Math.PI * 2 / 5;
+                vQ.push(new THREE.Vector3(Math.cos(a)*r_val, -h2, Math.sin(a)*r_val));
+            }
+
+            // 10個の面の法線ベクトルと、原点からの距離を事前計算
+            const faceNormals = [];
+            let d0 = 0;
+            for(let i=0; i<5; i++) {
+                const p1 = vP[i];
+                const p2 = vP[(i+1)%5];
+                const n = new THREE.Vector3().subVectors(p2, vTop).cross(new THREE.Vector3().subVectors(p1, vTop)).normalize();
+                faceNormals.push(n);
+                d0 = n.dot(vTop);
+            }
+            for(let i=0; i<5; i++) {
+                const p2 = vP[(i+1)%5];
+                const q1 = vQ[i];
+                const q2 = vQ[(i+1)%5];
+                const n = new THREE.Vector3().subVectors(q1, vBottom).cross(new THREE.Vector3().subVectors(q2, vBottom)).normalize();
+                faceNormals.push(n);
+            }
+
+            // スムーズミン関数を用いて「角が滑らかに丸まった状態の頂点座標」を計算する魔法の関数
+            function getRoundedPosition(v) {
+                const dir = v.clone().normalize();
+                const values = [];
+                for(let n of faceNormals) {
+                    const dot = n.dot(dir);
+                    if(dot > 0.0001) {
+                        values.push(d0 / dot);
+                    }
+                }
+                if (values.length === 0) return dir.multiplyScalar(radius);
+                
+                const k = 16.0; // ★ 角の丸みの強さ（16.0 くらいが6面体の丸みに近い自然な削れ方になります）
+                let minV = Math.min(...values);
+                let sum = 0;
+                for(let val of values) {
+                    sum += Math.exp(-k * (val - minV));
+                }
+                const t_smooth = minV - Math.log(sum) / k;
+                return dir.multiplyScalar(t_smooth * radius);
+            }
+
+            // カイト面を細かく分割（テセレーション）して、丸みを表現できるポリゴン数にする
+            function subdivide(triangles, iterations) {
+                let current = triangles;
+                for (let it = 0; it < iterations; it++) {
+                    let nextTri = [];
+                    for (let tri of current) {
+                        let [vA, vB, vC, uvA, uvB, uvC] = tri;
+                        let vAB = vA.clone().lerp(vB, 0.5);
+                        let vBC = vB.clone().lerp(vC, 0.5);
+                        let vCA = vC.clone().lerp(vA, 0.5);
+                        let uvAB = uvA.clone().lerp(uvB, 0.5);
+                        let uvBC = uvB.clone().lerp(uvC, 0.5);
+                        let uvCA = uvC.clone().lerp(uvA, 0.5);
+                        nextTri.push([vA, vAB, vCA, uvA, uvAB, uvCA]);
+                        nextTri.push([vAB, vB, vBC, uvAB, uvB, uvBC]);
+                        nextTri.push([vCA, vBC, vC, uvCA, uvBC, uvC]);
+                        nextTri.push([vAB, vBC, vCA, uvAB, uvBC, uvCA]);
+                    }
+                    current = nextTri;
+                }
+                return current;
+            }
+
+            const uvTop = new THREE.Vector2(0.5, 1.0);
+            const uvBottom = new THREE.Vector2(0.5, 0.0);
+            const uvLeft = new THREE.Vector2(0.0, 0.20);
+            const uvRight = new THREE.Vector2(1.0, 0.20);
+            const uvCenter = new THREE.Vector2(0.5, 0.20);
+            const t = (h1 - h2) / (h1 + h2);
+
+            let groupStart = 0;
+
+            // 10面それぞれを分割・丸め処理してメッシュに追加
+            for(let i=0; i<10; i++) {
+                let baseTriangles = [];
+                
+                if (i < 5) { // 上半分
+                    const p1 = vP[i];        
+                    const p2 = vP[(i+1)%5];  
+                    const q1 = vQ[i];        
+                    const center = vTop.clone().lerp(q1, t); 
+                    baseTriangles.push([center, vTop, p2, uvCenter, uvTop, uvLeft]);
+                    baseTriangles.push([center, p2, q1, uvCenter, uvLeft, uvBottom]);
+                    baseTriangles.push([center, q1, p1, uvCenter, uvBottom, uvRight]);
+                    baseTriangles.push([center, p1, vTop, uvCenter, uvRight, uvTop]);
+                } else { // 下半分
+                    const idx = i - 5;
+                    const p2 = vP[(idx+1)%5];  
+                    const q1 = vQ[idx];        
+                    const q2 = vQ[(idx+1)%5];  
+                    const center = vBottom.clone().lerp(p2, t);
+                    baseTriangles.push([center, p2, q2, uvCenter, uvBottom, uvRight]);
+                    baseTriangles.push([center, q2, vBottom, uvCenter, uvRight, uvTop]);
+                    baseTriangles.push([center, vBottom, q1, uvCenter, uvTop, uvLeft]);
+                    baseTriangles.push([center, q1, p2, uvCenter, uvLeft, uvBottom]);
+                }
+
+                // 3回細分化（1面あたり 256個の小さな三角形になり、十分に滑らかな曲面が表現できます）
+                const subTriangles = subdivide(baseTriangles, 3); 
+
+                for (let tri of subTriangles) {
+                    const [vA, vB, vC, uvA, uvB, uvC] = tri;
+                    // 細分化された頂点すべてに丸め処理を適用
+                    const rA = getRoundedPosition(vA);
+                    const rB = getRoundedPosition(vB);
+                    const rC = getRoundedPosition(vC);
+                    
+                    positions.push(rA.x, rA.y, rA.z, rB.x, rB.y, rB.z, rC.x, rC.y, rC.z);
+                    uvs.push(uvA.x, uvA.y, uvB.x, uvB.y, uvC.x, uvC.y);
+                }
+
+                geometry.addGroup(groupStart, subTriangles.length * 3, i);
+                groupStart += subTriangles.length * 3;
+            }
+
+            geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+            geometry.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+            
+            // 丸められた頂点位置から法線を自動的に再計算（光が綺麗に回り込みます）
+            geometry.computeVertexNormals();
+            
+            return geometry;
+        }
+
+        function createD10Shape(radius) {
+            const phi = Math.PI / 5;
+            const ratio = (1 - Math.cos(phi)) / (1 + Math.cos(phi));
+            const h1 = 0.96 * radius;
+            const h2 = h1 * ratio;
+            const r = 1.0 * radius;
+            
+            const vertices = [];
+            vertices.push(new CANNON.Vec3(0, h1, 0)); 
+            vertices.push(new CANNON.Vec3(0, -h1, 0)); 
+            for(let i=0; i<5; i++) {
+                const a = i * Math.PI * 2 / 5;
+                vertices.push(new CANNON.Vec3(Math.cos(a)*r, h2, Math.sin(a)*r)); 
+            }
+            for(let i=0; i<5; i++) {
+                const a = (i + 0.5) * Math.PI * 2 / 5;
+                vertices.push(new CANNON.Vec3(Math.cos(a)*r, -h2, Math.sin(a)*r)); 
+            }
+
+            const faces = [];
+            for(let i=0; i<5; i++) {
+                const p1 = 2 + i;
+                const p2 = 2 + (i + 1) % 5;
+                const q1 = 7 + i;
+                faces.push([0, p2, q1, p1]);
+            }
+            for(let i=0; i<5; i++) {
+                const p2 = 2 + (i + 1) % 5;
+                const q1 = 7 + i;
+                const q2 = 7 + (i + 1) % 5;
+                faces.push([1, q1, p2, q2]);
+            }
+
+            const poly = new CANNON.ConvexPolyhedron({ vertices, faces });
+            poly.computeNormals();
+            return poly;
+        }
+
+        // --- 3. マテリアル・オブジェクトの作成 ---
+
+        const createDiceMaterial = (number) => new THREE.MeshPhysicalMaterial({
+            map: createDiceTexture(number),
+            roughness: 0.08,             
+            metalness: 0.0,              
+            clearcoat: 1.0,              
+            clearcoatRoughness: 0.03,    
+            transmission: 0.08,          
+            ior: 1.52,                   
+            thickness: 0.5,              
+            envMapIntensity: 1.2
+        });
+        
+        // ★ 修正: 1が上(+Y)、2が手前(+Z)、3が右(+X)になるように面の並びを変更
+        const diceThreeMaterials = [createDiceMaterial(3), createDiceMaterial(4), createDiceMaterial(1), createDiceMaterial(6), createDiceMaterial(2), createDiceMaterial(5)];
+
+        const d10FaceNumbers = [0, 7, 5, 3, 9, 8, 2, 4, 1, 6]; 
+        
+        const d10MaterialsBlack = d10FaceNumbers.map(n => new THREE.MeshPhysicalMaterial({
+            map: createDiceNumberTexture(n, false),
+            roughness: 0.08,             
+            metalness: 0.0,              
+            clearcoat: 1.0,              
+            clearcoatRoughness: 0.03,    
+            transmission: 0.08,          
+            ior: 1.52,                   
+            thickness: 0.5,              
+            envMapIntensity: 1.2
+        }));
+
+        const d10MaterialsRed = d10FaceNumbers.map(n => new THREE.MeshPhysicalMaterial({
+            map: createDiceNumberTexture(n, true),
+            roughness: 0.08,             
+            metalness: 0.0,              
+            clearcoat: 1.0,              
+            clearcoatRoughness: 0.03,    
+            transmission: 0.08,          
+            ior: 1.52,                   
+            thickness: 0.5,              
+            envMapIntensity: 1.2
+        }));
+
+        const dices = [];
+        const diceSize = 3.0;
+        
+        let invisibleWallActive = false; 
+        
+        // ★ 追加: ブラウザの保存データから設定を読み込む（保存されていなければデフォルト値）
+        let currentDiceCount = 2; 
+        let currentDiceType = 'd6'; 
+        try {
+            if (localStorage.getItem('diceCount')) {
+                currentDiceCount = parseInt(localStorage.getItem('diceCount'));
+            }
+            if (localStorage.getItem('diceType')) {
+                currentDiceType = localStorage.getItem('diceType');
+            }
+        } catch(e) {
+            console.warn('設定の読み込みに失敗しました。', e);
+        }
+
+        function clearDices() {
+            dices.forEach(d => {
+                scene.remove(d.mesh);
+                world.removeBody(d.body);
+            });
+            dices.length = 0;
+        }
+
+        function createDice() {
+            let geometry, shape, material;
+
+            if (currentDiceType === 'd6') {
+                const cornerRadius = 0.45; 
+                geometry = createRoundedBoxGeometry(diceSize, diceSize, diceSize, cornerRadius, 16);
+                material = diceThreeMaterials;
+                shape = new CANNON.Box(new CANNON.Vec3(diceSize/2, diceSize/2, diceSize/2));
+            } else {
+                const radius = 2.2;
+                geometry = createD10Geometry(radius); 
+                material = [...d10MaterialsBlack]; 
+                shape = createD10Shape(radius); 
+            }
+
+            const mesh = new THREE.Mesh(geometry, material);
+            mesh.castShadow = true;
+            mesh.receiveShadow = true;
+            scene.add(mesh);
+
+            const body = new CANNON.Body({
+                mass: 40.0,            
+                material: diceMaterial,
+                shape: shape,
+                linearDamping: 0.05 + Math.random() * 0.15,    
+                angularDamping: 0.01 + Math.random() * 0.04,   
+                allowSleep: true,
+                sleepSpeedLimit: 0.01, 
+                sleepTimeLimit: 1.5,
+                collisionFilterGroup: GROUP_DEFAULT,
+                collisionFilterMask: GROUP_DEFAULT 
+            });
+
+            body.isDice = true; 
+            body.hasBoosted = false; 
+
+            body.addEventListener("collide", (e) => {
+                if (!e.body.isDice && !invisibleWallActive) {
+                    invisibleWallActive = true;
+                    dices.forEach(d => {
+                        d.body.collisionFilterMask = GROUP_DEFAULT | GROUP_INVISIBLE;
+                    });
+                }
+            });
+
+            world.addBody(body);
+            // ★ 修正: isSettled を削除し、現在赤くなっている面のインデックスを保持する currentRedIndex を追加
+            dices.push({ mesh, body, diceType: currentDiceType, stillTime: 0, currentRedIndex: -1 });
+        }
+
+        function initDices() {
+            clearDices();
+            for(let i=0; i<currentDiceCount; i++) {
+                createDice();
+            }
+            setInitialPosition();
+        }
+
+        function setInitialPosition() {
+            dices.forEach((dice, index) => {
+                let displayX = 0;
+                if (currentDiceCount === 2) displayX = index === 0 ? -3.5 : 3.5;
+                if (currentDiceCount === 3) displayX = (index - 1) * 4.5; 
+                
+                dice.body.position.set(displayX, diceSize / 2, 0);
+                dice.body.quaternion.set(0, 0, 0, 1);
+                dice.body.velocity.set(0, 0, 0);
+                dice.body.angularVelocity.set(0, 0, 0);
+                dice.mesh.position.copy(dice.body.position);
+                dice.mesh.quaternion.copy(dice.body.quaternion);
+            });
+        }
+        
+        initDices();
+
+        // --- 机（デスク）の作成 ---
+        const woodMaterial = new THREE.MeshStandardMaterial({
+            map: generateWoodTexture(),
+            roughness: 0.85,
+            metalness: 0.05
+        });
+        const deskGeometry = new THREE.PlaneGeometry(150, 150);
+        const deskMesh = new THREE.Mesh(deskGeometry, woodMaterial);
+        deskMesh.rotation.x = -Math.PI / 2; 
+        deskMesh.position.y = -0.5; 
+        deskMesh.receiveShadow = true;
+        scene.add(deskMesh);
+
+        // --- トレイ（台）の作成 ---
+        const trayRadius = 9;
+        const trayThickness = 0.5;
+        const wallHeight = 3.5;      
+        
+        const physWallHeight = 50.0; 
+        const wallThickness = 0.25;  
+
+        const feltMaterial = new THREE.MeshStandardMaterial({ 
+            map: generateFeltTexture(),
+            bumpMap: generateFeltBumpMap(),
+            bumpScale: 0.05,     
+            roughness: 1.0       
+        });
+        
+        const leatherMaterial = new THREE.MeshStandardMaterial({ 
+            map: generateLeatherTexture(),
+            bumpMap: generateLeatherBumpMap(),
+            bumpScale: 0.04,     
+            roughness: 0.55,     
+            metalness: 0.1       
+        });
+
+        const floorRadius = trayRadius + wallThickness; 
+        const floorGeometry = new THREE.CylinderGeometry(floorRadius, floorRadius, trayThickness, 8);
+        const floorMesh = new THREE.Mesh(floorGeometry, feltMaterial);
+        floorMesh.position.y = -trayThickness / 2;
+        floorMesh.rotation.y = Math.PI / 8; 
+        floorMesh.receiveShadow = true;
+        scene.add(floorMesh);
+
+        const floorShape = new CANNON.Box(new CANNON.Vec3(20, trayThickness/2, 20)); 
+        const floorBody = new CANNON.Body({ 
+            mass: 0, 
+            material: trayMaterial,
+            collisionFilterGroup: GROUP_DEFAULT,
+            collisionFilterMask: GROUP_DEFAULT
+        }); 
+        floorBody.addShape(floorShape);
+        floorBody.position.y = -trayThickness / 2;
+        world.addBody(floorBody);
+
+        const wallWidth = 2 * trayRadius * Math.tan(Math.PI / 8); 
+
+        for (let i = 0; i < 8; i++) {
+            const theta = i * (Math.PI / 4);
+            const x = trayRadius * Math.sin(theta);
+            const z = trayRadius * Math.cos(theta);
+            
+            const meshY = wallHeight / 2 - trayThickness;
+
+            const wMesh = new THREE.Mesh(new THREE.BoxGeometry(wallWidth, wallHeight, wallThickness), leatherMaterial);
+            wMesh.position.set(x, meshY, z);
+            wMesh.rotation.y = theta;
+            wMesh.castShadow = true;
+            wMesh.receiveShadow = true;
+            scene.add(wMesh);
+
+            const topGeo = new THREE.CylinderGeometry(wallThickness/2, wallThickness/2, wallWidth, 16);
+            const topMesh = new THREE.Mesh(topGeo, leatherMaterial);
+            topMesh.position.set(x, wallHeight - trayThickness, z);
+            topMesh.rotation.y = theta;
+            topMesh.rotation.z = Math.PI / 2;
+            topMesh.castShadow = true;
+            topMesh.receiveShadow = true;
+            scene.add(topMesh);
+
+            const wShape = new CANNON.Box(new CANNON.Vec3(wallWidth/2, wallHeight/2, wallThickness/2));
+            const wBody = new CANNON.Body({ 
+                mass: 0, 
+                material: wallMaterial,
+                collisionFilterGroup: GROUP_DEFAULT,
+                collisionFilterMask: GROUP_DEFAULT | GROUP_INVISIBLE
+            });
+            wBody.addShape(wShape);
+            wBody.position.set(x, meshY, z);
+            wBody.quaternion.setFromEuler(0, theta, 0);
+            world.addBody(wBody);
+
+            const invShape = new CANNON.Box(new CANNON.Vec3(wallWidth/2, physWallHeight/2, wallThickness/2));
+            const invBody = new CANNON.Body({ 
+                mass: 0, 
+                material: wallMaterial,
+                collisionFilterGroup: GROUP_INVISIBLE, 
+                collisionFilterMask: GROUP_DEFAULT     
+            });
+            invBody.addShape(invShape);
+            invBody.position.set(x, wallHeight + physWallHeight/2 - trayThickness, z);
+            invBody.quaternion.setFromEuler(0, theta, 0);
+            world.addBody(invBody);
+
+            const thetaCorner = theta + (Math.PI / 8);
+            const rCorner = trayRadius / Math.cos(Math.PI / 8);
+            const cX = rCorner * Math.sin(thetaCorner);
+            const cZ = rCorner * Math.cos(thetaCorner);
+            
+            const pillarGeo = new THREE.CylinderGeometry(wallThickness/2, wallThickness/2, wallHeight, 16);
+            const pillar = new THREE.Mesh(pillarGeo, leatherMaterial);
+            pillar.position.set(cX, meshY, cZ);
+            pillar.castShadow = true;
+            pillar.receiveShadow = true;
+            scene.add(pillar);
+
+            const sphereGeo = new THREE.SphereGeometry(wallThickness/2, 16, 16);
+            const sphere = new THREE.Mesh(sphereGeo, leatherMaterial);
+            sphere.position.set(cX, wallHeight - trayThickness, cZ);
+            sphere.castShadow = true;
+            sphere.receiveShadow = true;
+            scene.add(sphere);
+        }
+
+        // --- 4. アクションとアニメーション ---
+
+        function rollDices() {
+            invisibleWallActive = false; 
+
+            const sharedTime = 0.75 + Math.random() * 0.15; 
+            const sharedTargetX = (Math.random() - 0.5) * 0.4; 
+            const sharedTargetZ = -2.5 + (Math.random() - 0.5) * 1.0; 
+            const sharedStartY = 8.5 + Math.random() * 1.5; 
+            const sharedVelY = 4.0 + Math.random() * 1.5;   
+
+            dices.forEach((dice, index) => {
+                dice.body.wakeUp(); 
+                dice.body.hasBoosted = false; 
+                
+                // ★ 修正: タイマーと赤色インデックスをリセット
+                dice.stillTime = 0;     
+                dice.currentRedIndex = -1; 
+                
+                dice.body.collisionFilterMask = GROUP_DEFAULT; 
+
+                if (dice.diceType === 'd10') {
+                    dice.mesh.material = [...d10MaterialsBlack];
+                }
+
+                let startX = 0;
+                let startZ = trayRadius + 4.0; 
+
+                if (currentDiceCount === 2) {
+                    startX = index === 0 ? -6.0 : 6.0;
+                } else if (currentDiceCount === 3) {
+                    if (index === 0) { startX = -8.5; startZ = trayRadius + 2.0; } 
+                    if (index === 1) { startX = 0;    startZ = trayRadius + 6.0; } 
+                    if (index === 2) { startX = 8.5;  startZ = trayRadius + 2.0; } 
+                }
+                
+                dice.body.position.set(
+                    startX + (Math.random() - 0.5) * 0.2, 
+                    sharedStartY, 
+                    startZ 
+                );
+                dice.body.quaternion.setFromEuler(Math.random() * Math.PI * 2, Math.random() * Math.PI * 2, Math.random() * Math.PI * 2);
+                
+                const velX = (sharedTargetX - dice.body.position.x) / sharedTime;
+                const velZ = (sharedTargetZ - dice.body.position.z) / sharedTime;
+                
+                const randVelX = velX + (Math.random() - 0.5) * 1.5;
+                const randVelY = sharedVelY + (Math.random() - 0.5) * 1.0;
+                const randVelZ = velZ + (Math.random() - 0.5) * 1.5;
+
+                dice.body.velocity.set(randVelX, randVelY, randVelZ);
+                
+                const getRandomSpin = () => {
+                    const sign = Math.random() > 0.5 ? 1 : -1;
+                    return sign * (20 + Math.random() * 30); 
+                };
+                dice.body.angularVelocity.set(getRandomSpin(), getRandomSpin(), getRandomSpin());
+            });
+        }
+
+        // ★ 追加: ウィンドウリサイズイベント内でカメラも更新
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            updateCamera(); 
+        });
+
+        // 設定UIのイベントリスナー
+        let tempDiceCount = currentDiceCount;
+        let tempDiceType = currentDiceType;
+        const countBtns = document.querySelectorAll('.dice-count-btn');
+        const typeBtns = document.querySelectorAll('.dice-type-btn');
+
+        document.getElementById('settings-btn').addEventListener('click', () => {
+            tempDiceCount = currentDiceCount;
+            tempDiceType = currentDiceType;
+            
+            countBtns.forEach(b => {
+                if (parseInt(b.dataset.value) === tempDiceCount) {
+                    b.classList.remove('border-gray-600', 'bg-gray-900', 'text-gray-300');
+                    b.classList.add('border-blue-500', 'bg-blue-600/20', 'text-blue-400');
+                } else {
+                    b.classList.remove('border-blue-500', 'bg-blue-600/20', 'text-blue-400');
+                    b.classList.add('border-gray-600', 'bg-gray-900', 'text-gray-300');
+                }
+            });
+            
+            typeBtns.forEach(b => {
+                if (b.dataset.value === tempDiceType) {
+                    b.classList.remove('border-gray-600', 'bg-gray-900', 'text-gray-300');
+                    b.classList.add('border-blue-500', 'bg-blue-600/20', 'text-blue-400');
+                } else {
+                    b.classList.remove('border-blue-500', 'bg-blue-600/20', 'text-blue-400');
+                    b.classList.add('border-gray-600', 'bg-gray-900', 'text-gray-300');
+                }
+            });
+            
+            document.getElementById('settings-modal').classList.remove('hidden');
+        });
+
+        countBtns.forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                tempDiceCount = parseInt(e.target.dataset.value);
+                countBtns.forEach(b => {
+                    b.classList.remove('border-blue-500', 'bg-blue-600/20', 'text-blue-400');
+                    b.classList.add('border-gray-600', 'bg-gray-900', 'text-gray-300');
+                });
+                e.target.classList.remove('border-gray-600', 'bg-gray-900', 'text-gray-300');
+                e.target.classList.add('border-blue-500', 'bg-blue-600/20', 'text-blue-400');
+            });
+        });
+
+        typeBtns.forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                tempDiceType = e.target.dataset.value;
+                typeBtns.forEach(b => {
+                    b.classList.remove('border-blue-500', 'bg-blue-600/20', 'text-blue-400');
+                    b.classList.add('border-gray-600', 'bg-gray-900', 'text-gray-300');
+                });
+                e.target.classList.remove('border-gray-600', 'bg-gray-900', 'text-gray-300');
+                e.target.classList.add('border-blue-500', 'bg-blue-600/20', 'text-blue-400');
+            });
+        });
+
+        document.getElementById('btn-ok').addEventListener('click', () => {
+            currentDiceCount = tempDiceCount;
+            currentDiceType = tempDiceType;
+            
+            // ★ 追加: 設定をブラウザに保存する
+            try {
+                localStorage.setItem('diceCount', currentDiceCount);
+                localStorage.setItem('diceType', currentDiceType);
+            } catch(e) {
+                console.warn('設定の保存に失敗しました。', e);
+            }
+
+            initDices(); 
+            document.getElementById('settings-modal').classList.add('hidden');
+        });
+
+        document.getElementById('roll-btn').addEventListener('click', rollDices);
+
+        const clock = new THREE.Clock();
+        function animate() {
+            requestAnimationFrame(animate);
+            const deltaTime = Math.min(clock.getDelta(), 0.1);
+            world.step(1 / 60, deltaTime, 3);
+
+            dices.forEach(dice => {
+                dice.mesh.position.copy(dice.body.position);
+                dice.mesh.quaternion.copy(dice.body.quaternion);
+
+                // ★ 追加: 現在の全ての面の中から、一番上(Y軸)に近い面を常に特定する
+                let maxDot = -1;
+                let bestNormal = null;
+                let bestIndex = -1; 
+                
+                const normals = dice.diceType === 'd6' ? [
+                    new CANNON.Vec3(1, 0, 0), new CANNON.Vec3(-1, 0, 0),
+                    new CANNON.Vec3(0, 1, 0), new CANNON.Vec3(0, -1, 0),
+                    new CANNON.Vec3(0, 0, 1), new CANNON.Vec3(0, 0, -1)
+                ] : dice.body.shapes[0].faceNormals;
+                
+                for (let i = 0; i < normals.length; i++) {
+                    const worldNormal = dice.body.quaternion.vmult(normals[i]);
+                    if (worldNormal.y > maxDot) {
+                        maxDot = worldNormal.y;
+                        bestNormal = worldNormal; 
+                        bestIndex = i;
+                    }
+                }
+
+                // ★ 追加: サイコロの速度と回転速度から「ゆっくり動いている」かどうかを判定
+                const isSlow = dice.body.velocity.lengthSquared() < 4.0 && dice.body.angularVelocity.lengthSquared() < 4.0;
+
+                if (dice.diceType === 'd10') {
+                    if (isSlow) {
+                        // ゆっくり動いている、または静止しているときは一番上(になりそうな)面を即座に赤くする
+                        if (dice.currentRedIndex !== bestIndex) {
+                            const newMat = [...d10MaterialsBlack];
+                            newMat[bestIndex] = d10MaterialsRed[bestIndex];
+                            dice.mesh.material = newMat;
+                            dice.currentRedIndex = bestIndex; // 現在の赤い面を記憶
+                        }
+                    } else {
+                        // 勢いよく転がっているときはすべて黒に戻す
+                        if (dice.currentRedIndex !== -1) {
+                            dice.mesh.material = [...d10MaterialsBlack];
+                            dice.currentRedIndex = -1;
+                        }
+                    }
+                }
+
+                // 斜め止まり検知・補正
+                const isAlmostStill = dice.body.velocity.lengthSquared() < 0.05 && dice.body.angularVelocity.lengthSquared() < 0.5;
+                
+                if (dice.body.sleepState === CANNON.Body.SLEEPING || isAlmostStill) {
+                    dice.stillTime += deltaTime; 
+                } else {
+                    dice.stillTime = 0; 
+                }
+
+                // ★ 修正: 斜め状態(maxDot < 0.985)で静止しそうな時は自動で姿勢を補正する
+                if (dice.stillTime > 0.1 && dice.stillTime <= 2.5) {
+                    if (maxDot < 0.985 && maxDot > 0) {
+                        dice.body.wakeUp(); 
+                        
+                        const up = new CANNON.Vec3(0, 1, 0);
+                        const cross = bestNormal.cross(up); 
+                        
+                        const correctionStrength = 0.5;
+                        dice.body.angularVelocity.x += cross.x * correctionStrength;
+                        dice.body.angularVelocity.y += cross.y * correctionStrength;
+                        dice.body.angularVelocity.z += cross.z * correctionStrength;
+                    }
+                }
+            });
+
+            renderer.render(scene, camera);
+        }
+
+        animate();
+
+    </script>
+</body>
+</html>
