@@ -215,7 +215,10 @@
         dirLight.shadow.camera.right = d;
         dirLight.shadow.camera.top = d;
         dirLight.shadow.camera.bottom = -d;
-        dirLight.shadow.bias = -0.0015;
+        
+        // ★ 修正: 影のバイアス値を小さくし、normalBiasを追加して壁際からの光漏れを完全に塞ぐ
+        dirLight.shadow.bias = -0.0002; 
+        dirLight.shadow.normalBias = 0.03; 
         scene.add(dirLight);
 
         const fillLight = new THREE.DirectionalLight(0xffffff, 0.45);
@@ -447,12 +450,42 @@
             ctx.fillStyle = isRed ? '#e11d48' : '#0f172a';
             const text = number.toString();
             
-            ctx.font = `900 280px 'Arial Black', Impact, sans-serif`;
+            // ★ 修正: ベースのフォントを教科書体や明朝体などの視認性の高い和文フォント優先に変更
+            ctx.font = `900 280px 'UD Digi Kyokasho NP-B', 'UD Digi Kyokasho N-B', 'Yu Kyokasho Yoko', 'Klee One', 'Hiragino Mincho ProN', 'Noto Serif JP', 'Arial Black', Impact, sans-serif`;
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
             
             const posY = (topY + centerY) / 2 + 95; 
-            ctx.fillText(text, 256, posY); 
+
+            // ★ 修正: 1と7は環境によるフォントのブレを防ぐため、確実に「かぎなし」「かぎあり」になるよう専用の形を描画
+            if (number === 1) {
+                // かぎのない真っ直ぐな1
+                ctx.lineCap = 'round';
+                ctx.lineWidth = 42;
+                ctx.strokeStyle = ctx.fillStyle;
+                ctx.beginPath();
+                ctx.moveTo(256, posY - 100);
+                ctx.lineTo(256, posY + 110);
+                ctx.stroke();
+            } else if (number === 7) {
+                // かぎ（起筆）のある7
+                ctx.lineCap = 'round';
+                ctx.lineJoin = 'round';
+                ctx.lineWidth = 40;
+                ctx.strokeStyle = ctx.fillStyle;
+                ctx.beginPath();
+                // かぎ部分（下から上へ）
+                ctx.moveTo(195, posY - 60);
+                ctx.lineTo(195, posY - 105);
+                // 横棒
+                ctx.lineTo(325, posY - 105);
+                // 斜め払い
+                ctx.lineTo(240, posY + 110);
+                ctx.stroke();
+            } else {
+                // その他の数字はフォントで描画
+                ctx.fillText(text, 256, posY); 
+            }
 
             if (number === 6 || number === 9) {
                 const textWidth = ctx.measureText(text).width;
