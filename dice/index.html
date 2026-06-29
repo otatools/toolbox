@@ -30,6 +30,12 @@
     </script>  
   <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- ★ 追加: Google Fonts から「Kiwi Maru」を読み込む -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Kiwi+Maru:wght@500&display=swap" rel="stylesheet">
+
     <style>
         body { 
             margin: 0; 
@@ -104,7 +110,7 @@
 
     <div id="canvas-container"></div>
 
-    <!-- 右上の設定ボタン (スマホでは少し小さく・端に寄せる) -->
+    <!-- 右上の設定ボタン -->
     <button id="settings-btn" class="absolute top-4 right-4 sm:top-6 sm:right-6 text-white p-2.5 sm:p-3 rounded-full cursor-pointer z-20 shadow-lg bg-white/10 backdrop-blur-md border border-white/20 hover:bg-white/20 transition-all hover:rotate-90 pointer-events-auto">
         <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
     </button>
@@ -122,15 +128,15 @@
                 <div class="flex gap-2" id="setting-count-group">
                     <button type="button" class="flex-1 py-2 sm:py-3 rounded-lg border border-gray-600 bg-gray-900 text-gray-300 font-bold hover:bg-gray-700 transition-all dice-count-btn" data-value="1">1個</button>
                     <button type="button" class="flex-1 py-2 sm:py-3 rounded-lg border border-blue-500 bg-blue-600/20 text-blue-400 font-bold hover:bg-blue-600/30 transition-all dice-count-btn" data-value="2">2個</button>
-                    <button type="button" class="flex-1 py-2 sm:py-3 rounded-lg border border-gray-600 bg-gray-900 text-gray-300 font-bold hover:bg-gray-700 transition-all dice-count-btn" data-value="3">3個</button>
+                    <button type="button" class="flex-1 py-3 rounded-lg border border-gray-600 bg-gray-900 text-gray-300 font-bold hover:bg-gray-700 transition-all dice-count-btn" data-value="3">3個</button>
                 </div>
             </div>
     
             <div class="mb-8">
                 <label class="block text-sm text-gray-400 mb-2 font-bold">サイコロの種類</label>
                 <div class="flex gap-2" id="setting-type-group">
-                    <button type="button" class="flex-1 py-2 sm:py-3 rounded-lg border border-blue-500 bg-blue-600/20 text-blue-400 font-bold hover:bg-blue-600/30 transition-all dice-type-btn" data-value="d6">6面体</button>
-                    <button type="button" class="flex-1 py-2 sm:py-3 rounded-lg border border-gray-600 bg-gray-900 text-gray-300 font-bold hover:bg-gray-700 transition-all dice-type-btn" data-value="d10">10面体</button>
+                    <button type="button" class="flex-1 py-3 rounded-lg border border-blue-500 bg-blue-600/20 text-blue-400 font-bold hover:bg-blue-600/30 transition-all dice-type-btn" data-value="d6">6面体</button>
+                    <button type="button" class="flex-1 py-3 rounded-lg border border-gray-600 bg-gray-900 text-gray-300 font-bold hover:bg-gray-700 transition-all dice-type-btn" data-value="d10">10面体</button>
                 </div>
             </div>
 
@@ -166,23 +172,17 @@
 
         const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
         
-        // ★ 追加: 画面サイズに応じてカメラの距離を自動調整する関数
+        // ★ 画面サイズに応じてカメラの距離を自動調整する関数
         function updateCamera() {
             const aspect = window.innerWidth / window.innerHeight;
             
-            // 基準となるカメラの距離（PCなど横長画面用）
             let distance = 21.5; 
 
             if (aspect < 1.0) {
-                // スマホなどの縦長画面の場合、トレイの左右が切れないように
-                // 画面の細さに比例してカメラを後ろに引く
                 distance = 21.5 / aspect;
-                
-                // 極端に細長い端末で小さくなりすぎないよう上限を設定
                 distance = Math.min(distance, 50.0);
             }
 
-            // 元々のカメラ角度 (Y:14, Z:16) の比率を維持したまま配置
             const yRatio = 14.0 / Math.sqrt(14*14 + 16*16);
             const zRatio = 16.0 / Math.sqrt(14*14 + 16*16);
 
@@ -190,7 +190,6 @@
             camera.lookAt(0, -1, 0);
         }
 
-        // 初期化時にカメラ位置を調整
         updateCamera();
 
         const renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -216,7 +215,6 @@
         dirLight.shadow.camera.top = d;
         dirLight.shadow.camera.bottom = -d;
         
-        // ★ 修正: 影のバイアス値を小さくし、normalBiasを追加して壁際からの光漏れを完全に塞ぐ
         dirLight.shadow.bias = -0.0002; 
         dirLight.shadow.normalBias = 0.03; 
         scene.add(dirLight);
@@ -367,7 +365,6 @@
             }
             
             const tex = new THREE.CanvasTexture(canvas);
-            // ★ 修正: ただの繰り返しではなく「鏡面反転」して繰り返すことで、上下左右の切れ目を完全に消す
             tex.wrapS = THREE.MirroredRepeatWrapping;
             tex.wrapT = THREE.MirroredRepeatWrapping;
             tex.repeat.set(6, 6); 
@@ -419,6 +416,7 @@
             return texture;
         }
 
+        // 10面体用の数字テクスチャを生成
         function createDiceNumberTexture(number, isRed = false) {
             const canvas = document.createElement('canvas');
             canvas.width = 512;
@@ -449,51 +447,24 @@
 
             ctx.fillStyle = isRed ? '#e11d48' : '#0f172a';
             const text = number.toString();
-            
-            // ★ 修正: ベースのフォントを教科書体や明朝体などの視認性の高い和文フォント優先に変更
-            ctx.font = `900 280px 'UD Digi Kyokasho NP-B', 'UD Digi Kyokasho N-B', 'Yu Kyokasho Yoko', 'Klee One', 'Hiragino Mincho ProN', 'Noto Serif JP', 'Arial Black', Impact, sans-serif`;
+
+            // ★ 修正: 手描きパスを削除し、読み込んだ「Kiwi Maru」フォントを使用して文字を描画
+            ctx.font = `500 310px 'Kiwi Maru', serif`;
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
             
-            const posY = (topY + centerY) / 2 + 95; 
+            const posY = (topY + centerY) / 2 + 85; 
 
-            // ★ 修正: 1と7は環境によるフォントのブレを防ぐため、確実に「かぎなし」「かぎあり」になるよう専用の形を描画
-            if (number === 1) {
-                // かぎのない真っ直ぐな1
-                ctx.lineCap = 'round';
-                ctx.lineWidth = 42;
-                ctx.strokeStyle = ctx.fillStyle;
-                ctx.beginPath();
-                ctx.moveTo(256, posY - 100);
-                ctx.lineTo(256, posY + 110);
-                ctx.stroke();
-            } else if (number === 7) {
-                // かぎ（起筆）のある7
-                ctx.lineCap = 'round';
-                ctx.lineJoin = 'round';
-                ctx.lineWidth = 40;
-                ctx.strokeStyle = ctx.fillStyle;
-                ctx.beginPath();
-                // かぎ部分（下から上へ）
-                ctx.moveTo(195, posY - 60);
-                ctx.lineTo(195, posY - 105);
-                // 横棒
-                ctx.lineTo(325, posY - 105);
-                // 斜め払い
-                ctx.lineTo(240, posY + 110);
-                ctx.stroke();
-            } else {
-                // その他の数字はフォントで描画
-                ctx.fillText(text, 256, posY); 
-            }
+            ctx.fillText(text, 256, posY); 
 
+            // 6と9のアンダーライン
             if (number === 6 || number === 9) {
                 const textWidth = ctx.measureText(text).width;
                 ctx.lineWidth = 18; 
                 ctx.lineCap = 'round';
                 ctx.strokeStyle = ctx.fillStyle;
                 ctx.beginPath();
-                const lineY = posY + 130;
+                const lineY = posY + 130; 
                 ctx.moveTo(256 - textWidth / 2.2, lineY);
                 ctx.lineTo(256 + textWidth / 2.2, lineY);
                 ctx.stroke();
@@ -535,7 +506,7 @@
             return geometry;
         }
 
-        // ★ 修正: 10面体の角を美しく丸めるために、メッシュの細分化とスムーズミンによる丸め処理を実装
+        // 10面体の角を美しく丸めるために、メッシュの細分化とスムーズミンによる丸め処理を実装
         function createD10Geometry(radius) {
             const geometry = new THREE.BufferGeometry();
             const positions = [];
@@ -589,7 +560,7 @@
                 }
                 if (values.length === 0) return dir.multiplyScalar(radius);
                 
-                const k = 16.0; // ★ 角の丸みの強さ（16.0 くらいが6面体の丸みに近い自然な削れ方になります）
+                const k = 16.0; // 角の丸みの強さ
                 let minV = Math.min(...values);
                 let sum = 0;
                 for(let val of values) {
@@ -656,12 +627,11 @@
                     baseTriangles.push([center, q1, p2, uvCenter, uvLeft, uvBottom]);
                 }
 
-                // 3回細分化（1面あたり 256個の小さな三角形になり、十分に滑らかな曲面が表現できます）
+                // 3回細分化
                 const subTriangles = subdivide(baseTriangles, 3); 
 
                 for (let tri of subTriangles) {
                     const [vA, vB, vC, uvA, uvB, uvC] = tri;
-                    // 細分化された頂点すべてに丸め処理を適用
                     const rA = getRoundedPosition(vA);
                     const rB = getRoundedPosition(vB);
                     const rC = getRoundedPosition(vC);
@@ -677,7 +647,7 @@
             geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
             geometry.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
             
-            // 丸められた頂点位置から法線を自動的に再計算（光が綺麗に回り込みます）
+            // 丸められた頂点位置から法線を自動的に再計算
             geometry.computeVertexNormals();
             
             return geometry;
@@ -735,7 +705,7 @@
             envMapIntensity: 1.2
         });
         
-        // ★ 修正: 1が上(+Y)、2が手前(+Z)、3が右(+X)になるように面の並びを変更
+        // 1が上(+Y)、2が手前(+Z)、3が右(+X)になるように面の並びを変更
         const diceThreeMaterials = [createDiceMaterial(3), createDiceMaterial(4), createDiceMaterial(1), createDiceMaterial(6), createDiceMaterial(2), createDiceMaterial(5)];
 
         const d10FaceNumbers = [0, 7, 5, 3, 9, 8, 2, 4, 1, 6]; 
@@ -769,7 +739,7 @@
         
         let invisibleWallActive = false; 
         
-        // ★ 追加: ブラウザの保存データから設定を読み込む（保存されていなければデフォルト値）
+        // ブラウザの保存データから設定を読み込む
         let currentDiceCount = 2; 
         let currentDiceType = 'd6'; 
         try {
@@ -837,7 +807,6 @@
             });
 
             world.addBody(body);
-            // ★ 修正: isSettled を削除し、現在赤くなっている面のインデックスを保持する currentRedIndex を追加
             dices.push({ mesh, body, diceType: currentDiceType, stillTime: 0, currentRedIndex: -1 });
         }
 
@@ -855,7 +824,6 @@
                 if (currentDiceCount === 2) displayX = index === 0 ? -3.5 : 3.5;
                 if (currentDiceCount === 3) displayX = (index - 1) * 4.5; 
                 
-                // ★ 修正: 10面体の大きさに合わせてY座標（高さ）を調整
                 let posY = 1.5;
                 if (dice.diceType === 'd10') {
                     posY = 2.05; 
@@ -863,7 +831,6 @@
 
                 dice.body.position.set(displayX, posY, 0);
                 
-                // ★ 修正: 10面体の場合は「0」の面が真上を向くように角度をセットする
                 if (dice.diceType === 'd10') {
                     const faceNormal = dice.body.shapes[0].faceNormals[0];
                     const targetNormal = new CANNON.Vec3(0, 1, 0);
@@ -874,18 +841,15 @@
                 
                 dice.body.velocity.set(0, 0, 0);
                 dice.body.angularVelocity.set(0, 0, 0);
-                dice.body.sleep(); // ★ 修正: 最初からピタッと完全に静止(スリープ)させる
+                dice.body.sleep(); 
                 
                 dice.mesh.position.copy(dice.body.position);
                 dice.mesh.quaternion.copy(dice.body.quaternion);
                 
-                // ★ 修正: 最初から確定状態（赤色）にするために静止時間を長めに設定
                 dice.stillTime = 1.0;
                 dice.currentRedIndex = -1;
             });
         }
-        
-        initDices();
 
         // --- 机（デスク）の作成 ---
         const woodMaterial = new THREE.MeshStandardMaterial({
@@ -923,7 +887,6 @@
             metalness: 0.1       
         });
 
-        // ★ 修正: 緑の床が外にはみ出さないよう、壁の厚みの「中心」にピッタリ収まるサイズに再計算
         const floorRadius = trayRadius / Math.cos(Math.PI / 8); 
         const floorGeometry = new THREE.CylinderGeometry(floorRadius, floorRadius, trayThickness, 8);
         const floorMesh = new THREE.Mesh(floorGeometry, feltMaterial);
@@ -1027,7 +990,6 @@
                 dice.body.wakeUp(); 
                 dice.body.hasBoosted = false; 
                 
-                // ★ 修正: タイマーと赤色インデックスをリセット
                 dice.stillTime = 0;     
                 dice.currentRedIndex = -1; 
                 
@@ -1072,7 +1034,6 @@
             });
         }
 
-        // ★ 追加: ウィンドウリサイズイベント内でカメラも更新
         window.addEventListener('resize', () => {
             camera.aspect = window.innerWidth / window.innerHeight;
             camera.updateProjectionMatrix();
@@ -1141,7 +1102,6 @@
             currentDiceCount = tempDiceCount;
             currentDiceType = tempDiceType;
             
-            // ★ 追加: 設定をブラウザに保存する
             try {
                 localStorage.setItem('diceCount', currentDiceCount);
                 localStorage.setItem('diceType', currentDiceType);
@@ -1155,13 +1115,17 @@
 
         document.getElementById('roll-btn').addEventListener('click', rollDices);
 
+        // ★ 修正: Webフォント「Kiwi Maru」の読み込みが完了するのを待ってからサイコロを描画する
+        document.fonts.ready.then(() => {
+            initDices();
+        });
+
         const clock = new THREE.Clock();
         function animate() {
             requestAnimationFrame(animate);
             const deltaTime = Math.min(clock.getDelta(), 0.1);
             world.step(1 / 60, deltaTime, 3);
 
-            // ★ 修正: まず各サイコロの「静止時間」を更新する
             dices.forEach(dice => {
                 dice.mesh.position.copy(dice.body.position);
                 dice.mesh.quaternion.copy(dice.body.quaternion);
@@ -1174,10 +1138,10 @@
                 }
             });
 
-            // ★ 追加: 「すべての」サイコロが静止(またはほぼ静止)しているかを判定
+            // 「すべての」サイコロが静止(またはほぼ静止)しているかを判定
             let allSettled = true;
             for (let dice of dices) {
-                if (dice.stillTime < 0.2) { // 全てが0.2秒以上落ち着いていれば確定
+                if (dice.stillTime < 0.2) { 
                     allSettled = false;
                     break;
                 }
@@ -1206,7 +1170,6 @@
 
                 if (dice.diceType === 'd10') {
                     if (allSettled) {
-                        // ★ 修正: 全てのサイコロが落ち着いた状態になって初めて赤くする
                         if (dice.currentRedIndex !== bestIndex) {
                             const newMat = [...d10MaterialsBlack];
                             newMat[bestIndex] = d10MaterialsRed[bestIndex];
@@ -1214,7 +1177,6 @@
                             dice.currentRedIndex = bestIndex; 
                         }
                     } else {
-                        // 1つでも動いているサイコロがあれば全て黒に戻す
                         if (dice.currentRedIndex !== -1) {
                             dice.mesh.material = [...d10MaterialsBlack];
                             dice.currentRedIndex = -1;
