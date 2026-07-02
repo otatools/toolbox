@@ -1,0 +1,541 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>かん電池アプリ 問題作成ツール</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        ruby rt {
+            font-size: 0.6em;
+            color: #6b7280;
+        }
+        /* 方眼紙風の背景 */
+        .grid-bg {
+            background-color: #f8fafc;
+            background-image: 
+                linear-gradient(#cbd5e1 1px, transparent 1px), 
+                linear-gradient(90deg, #cbd5e1 1px, transparent 1px);
+            background-size: 20px 20px;
+        }
+        canvas {
+            touch-action: none; /* スマホでのスクロール防止 */
+        }
+    </style>
+</head>
+<body class="bg-gray-100 font-sans min-h-screen flex items-center justify-center p-4">
+
+    <div class="bg-white p-6 sm:p-10 rounded-2xl shadow-xl w-full max-w-4xl border-4 border-orange-300 my-8">
+        <h1 class="text-2xl sm:text-3xl font-bold text-orange-500 mb-6 text-center">
+            🛠️ かん電池アプリ 問題作成ツール（配置エディタ付き）
+        </h1>
+
+        <!-- フォームエリア -->
+        <div class="space-y-6">
+            
+            <!-- 1. 正解のつなぎ方選択 -->
+            <div>
+                <label class="block text-gray-700 font-bold mb-2 text-lg">1. 正解のつなぎ方（お題）を選んでください</label>
+                <select id="select-type" class="w-full p-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-orange-500 text-lg font-bold">
+                    <option value="single">🔋 電池１こだけ (single)</option>
+                    <option value="series">🔋🔋 直列つなぎ (series)</option>
+                    <option value="parallel">🔋🔋 並列つなぎ (parallel)</option>
+                    <option value="any">✨ 自由なつなぎ方（光ればOK）(any)</option>
+                </select>
+            </div>
+
+            <!-- 2. 問題文の入力 -->
+            <div>
+                <label class="block text-gray-700 font-bold mb-2 text-lg">2. 問題文を入力してください</label>
+                
+                <div class="mb-2 p-3 bg-blue-50 rounded-lg border border-blue-200 flex flex-wrap items-center gap-2">
+                    <span class="text-sm text-blue-700 font-bold">💡 ふりがな追加ツール：</span>
+                    <input type="text" id="kanji-input" placeholder="漢字 (例: 乾電池)" class="px-2 py-1 border rounded w-32 text-sm">
+                    <input type="text" id="ruby-input" placeholder="ふりがな (例: かんでんち)" class="px-2 py-1 border rounded w-40 text-sm">
+                    <button id="btn-add-ruby" class="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded shadow text-sm font-bold transition active:scale-95">
+                        追加
+                    </button>
+                </div>
+
+                <textarea id="instruction-input" rows="2" class="w-full p-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-orange-500 text-lg" placeholder="例: 乾電池２こを「直列つなぎ」にしよう！"></textarea>
+            </div>
+
+            <!-- 3. 配置設定エリア -->
+            <div class="bg-blue-50 p-4 rounded-xl border-2 border-blue-200">
+                <label class="block text-blue-800 font-bold mb-2 text-lg">3. 電池と電球の配置を設定</label>
+                
+                <div class="flex items-center gap-4 mb-3 bg-white p-3 rounded-lg border border-blue-100 shadow-sm inline-flex">
+                    <span class="font-bold text-gray-700">電池の数：</span>
+                    <label class="flex items-center gap-1 cursor-pointer font-bold text-gray-700">
+                        <input type="radio" name="bat_count" value="1" class="w-5 h-5 text-orange-500"> 1個
+                    </label>
+                    <label class="flex items-center gap-1 cursor-pointer font-bold text-gray-700">
+                        <input type="radio" name="bat_count" value="2" checked class="w-5 h-5 text-orange-500"> 2個
+                    </label>
+                </div>
+                
+                <p class="text-sm text-gray-600 mb-2 font-bold">💡 キャンバスの中の部品をドラッグして移動したり、選択して回転ボタンを押せます。</p>
+                
+                <!-- エディタキャンバス -->
+                <div class="relative w-full border-4 border-gray-300 rounded-xl overflow-hidden bg-white grid-bg aspect-[3/2] shadow-inner max-h-[500px]">
+                    <canvas id="editor-canvas" class="absolute top-0 left-0 w-full h-full cursor-grab"></canvas>
+                </div>
+                
+                <div class="mt-4 flex justify-center">
+                    <button id="btn-rotate" class="px-6 py-3 bg-blue-500 hover:bg-blue-600 text-white font-bold rounded-full shadow-md transition active:scale-95 flex items-center gap-2 text-lg disabled:bg-gray-400 disabled:cursor-not-allowed">
+                        🔄 選択した部品を回転する
+                    </button>
+                </div>
+            </div>
+
+            <!-- プレビュー表示 -->
+            <div class="p-4 bg-orange-50 rounded-lg border-2 border-orange-200">
+                <p class="text-sm text-orange-600 font-bold mb-2">👀 画面での見え方（問題文）：</p>
+                <h2 id="preview-text" class="text-xl sm:text-2xl font-bold text-gray-800 text-center min-h-[2rem]">
+                    ここにプレビューが出ます
+                </h2>
+            </div>
+
+            <!-- 生成ボタン -->
+            <button id="btn-generate" class="w-full py-4 bg-green-500 hover:bg-green-600 text-white font-bold rounded-xl shadow-lg transform transition active:scale-95 text-2xl">
+                ⚙️ コードを作る
+            </button>
+            
+        </div>
+
+        <!-- コード出力エリア -->
+        <div class="mt-8 border-t-2 pt-6 border-gray-200">
+            <div class="flex justify-between items-center mb-2">
+                <label class="text-gray-700 font-bold text-lg">4. 作成されたコード</label>
+                <button id="btn-copy" class="bg-gray-800 hover:bg-gray-700 text-white px-4 py-2 rounded-lg font-bold shadow flex items-center gap-2 transition active:scale-95">
+                    📋 コピーする
+                </button>
+            </div>
+            <p class="text-sm text-gray-500 mb-2">
+                コピーしたコードを、元のアプリの <code class="bg-gray-200 px-1 rounded text-red-500">const levels = [</code> のリストの中に貼り付けてください。
+            </p>
+            <textarea id="code-output" rows="3" readonly class="w-full p-4 bg-gray-900 text-green-400 font-mono text-sm sm:text-base rounded-lg outline-none break-all" placeholder="ここにコードが出力されます"></textarea>
+        </div>
+
+    </div>
+
+    <script>
+        // ==========================================
+        // 1. テキスト・UI処理
+        // ==========================================
+        const instructionInput = document.getElementById('instruction-input');
+        const previewText = document.getElementById('preview-text');
+        const codeOutput = document.getElementById('code-output');
+        const selectType = document.getElementById('select-type');
+
+        // デフォルトの問題文リスト（ふりがな付き）
+        const defaultInstructions = {
+            single: "<ruby>乾電池<rt>かんでんち</rt></ruby>１こで、豆電きゅうを光らせよう！",
+            series: "<ruby>乾電池<rt>かんでんち</rt></ruby>２こを「<ruby>直列<rt>ちょくれつ</rt></ruby>つなぎ」にしよう！",
+            parallel: "<ruby>乾電池<rt>かんでんち</rt></ruby>２こを「<ruby>並列<rt>へいれつ</rt></ruby>つなぎ」にしよう！",
+            any: "じゆうにつないで、豆電きゅうを光らせよう！"
+        };
+
+        // お題が選ばれたら、自動的に問題文と電池の数をセットする
+        selectType.addEventListener('change', (e) => {
+            const type = e.target.value;
+            instructionInput.value = defaultInstructions[type];
+            previewText.innerHTML = instructionInput.value;
+
+            // 電池の数も自動で切り替える
+            if (type === 'single') {
+                document.querySelector('input[name="bat_count"][value="1"]').click();
+            } else if (type === 'series' || type === 'parallel') {
+                document.querySelector('input[name="bat_count"][value="2"]').click();
+            }
+        });
+
+        // ページを開いた時の初期セット
+        instructionInput.value = defaultInstructions[selectType.value];
+        previewText.innerHTML = instructionInput.value;
+        if (selectType.value === 'single') {
+            document.querySelector('input[name="bat_count"][value="1"]').click();
+        } else {
+            document.querySelector('input[name="bat_count"][value="2"]').click();
+        }
+
+        instructionInput.addEventListener('input', () => {
+            previewText.innerHTML = instructionInput.value || 'ここにプレビューが出ます';
+        });
+
+        document.getElementById('btn-add-ruby').addEventListener('click', () => {
+            const kanji = document.getElementById('kanji-input').value;
+            const ruby = document.getElementById('ruby-input').value;
+            if (!kanji) { alert("漢字を入力してください。"); return; }
+            let insertText = ruby ? `<ruby>${kanji}<rt>${ruby}</rt></ruby>` : kanji;
+
+            const startPos = instructionInput.selectionStart;
+            const endPos = instructionInput.selectionEnd;
+            const text = instructionInput.value;
+            instructionInput.value = text.substring(0, startPos) + insertText + text.substring(endPos, text.length);
+            previewText.innerHTML = instructionInput.value;
+            document.getElementById('kanji-input').value = '';
+            document.getElementById('ruby-input').value = '';
+            document.getElementById('kanji-input').focus();
+        });
+
+        // ==========================================
+        // 2. キャンバス エディタ処理
+        // ==========================================
+        const canvas = document.getElementById('editor-canvas');
+        const ctx = canvas.getContext('2d');
+        const LOGICAL_WIDTH = 900;
+        const LOGICAL_HEIGHT = 600;
+
+        // アプリと同じデフォルト配置
+        let components = [
+            { id: 'b1', type: 'battery', x: 240, y: 150, angle: 0 },
+            { id: 'b2', type: 'battery', x: 240, y: 350, angle: 0 },
+            { id: 'bulb', type: 'bulb', x: 675, y: 230, angle: 0 }
+        ];
+
+        let batCount = 2;
+        let selectedId = null;
+        let draggingId = null;
+        let dragOffsetX = 0;
+        let dragOffsetY = 0;
+
+        document.querySelectorAll('input[name="bat_count"]').forEach(radio => {
+            radio.addEventListener('change', (e) => {
+                batCount = parseInt(e.target.value);
+                if (batCount === 1 && selectedId === 'b2') selectedId = null;
+                updateRotateButton();
+                draw();
+            });
+        });
+
+        function resizeCanvas() {
+            canvas.width = LOGICAL_WIDTH;
+            canvas.height = LOGICAL_HEIGHT;
+            draw();
+        }
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+
+        function getMousePos(e) {
+            const rect = canvas.getBoundingClientRect();
+            const scaleX = canvas.width / rect.width;
+            const scaleY = canvas.height / rect.height;
+            const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+            const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+            return {
+                x: (clientX - rect.left) * scaleX,
+                y: (clientY - rect.top) * scaleY
+            };
+        }
+
+        function updateRotateButton() {
+            const btn = document.getElementById('btn-rotate');
+            btn.disabled = !selectedId;
+        }
+
+        // マウスダウン・タッチ開始
+        function handleStart(e) {
+            e.preventDefault();
+            const pos = getMousePos(e);
+            let hit = false;
+            
+            // 手前に描画されるもの（配列の後ろ）から判定
+            for (let i = components.length - 1; i >= 0; i--) {
+                const c = components[i];
+                if (c.id === 'b2' && batCount === 1) continue;
+
+                // 部品の回転を逆算してローカル座標で当たり判定
+                const rad = -c.angle * Math.PI / 180;
+                const localX = Math.cos(rad) * (pos.x - c.x) - Math.sin(rad) * (pos.y - c.y);
+                const localY = Math.sin(rad) * (pos.x - c.x) + Math.cos(rad) * (pos.y - c.y);
+
+                let isHit = false;
+                if (c.type === 'battery') {
+                    if (localX >= -80 && localX <= 80 && localY >= -30 && localY <= 30) isHit = true;
+                } else if (c.type === 'bulb') {
+                    if (localX >= -50 && localX <= 50 && localY >= -50 && localY <= 80) isHit = true; // 電球の当たり判定範囲
+                }
+
+                if (isHit) {
+                    selectedId = c.id;
+                    draggingId = c.id;
+                    dragOffsetX = pos.x - c.x;
+                    dragOffsetY = pos.y - c.y;
+                    hit = true;
+                    break;
+                }
+            }
+            if (!hit) selectedId = null;
+            updateRotateButton();
+            canvas.style.cursor = draggingId ? 'grabbing' : 'crosshair';
+            draw();
+        }
+
+        function handleMove(e) {
+            if (draggingId) {
+                e.preventDefault();
+                const pos = getMousePos(e);
+                const c = components.find(c => c.id === draggingId);
+                // 枠外に出ないように少し制限する
+                c.x = Math.max(50, Math.min(LOGICAL_WIDTH - 50, pos.x - dragOffsetX));
+                c.y = Math.max(50, Math.min(LOGICAL_HEIGHT - 50, pos.y - dragOffsetY));
+                draw();
+            }
+        }
+
+        function handleEnd(e) {
+            draggingId = null;
+            canvas.style.cursor = selectedId ? 'grab' : 'crosshair';
+        }
+
+        canvas.addEventListener('mousedown', handleStart);
+        canvas.addEventListener('mousemove', handleMove);
+        window.addEventListener('mouseup', handleEnd);
+        canvas.addEventListener('mouseleave', handleEnd);
+
+        canvas.addEventListener('touchstart', handleStart, {passive: false});
+        canvas.addEventListener('touchmove', handleMove, {passive: false});
+        window.addEventListener('touchend', handleEnd);
+        window.addEventListener('touchcancel', handleEnd);
+
+        document.getElementById('btn-rotate').addEventListener('click', () => {
+            if (selectedId) {
+                const c = components.find(c => c.id === selectedId);
+                c.angle = (c.angle + 90) % 360;
+                draw();
+            }
+        });
+
+        // --- 描画関数 ---
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            components.forEach(c => {
+                if (c.id === 'b2' && batCount === 1) return;
+
+                if (c.type === 'battery') drawBattery(c);
+                else if (c.type === 'bulb') drawBulb(c);
+
+                // 選択枠の描画
+                if (c.id === selectedId) {
+                    ctx.save();
+                    ctx.translate(c.x, c.y);
+                    ctx.rotate(c.angle * Math.PI / 180);
+                    ctx.strokeStyle = '#3b82f6'; // 青色
+                    ctx.lineWidth = 4;
+                    ctx.setLineDash([8, 8]);
+                    if (c.type === 'battery') ctx.strokeRect(-90, -40, 180, 80);
+                    if (c.type === 'bulb') ctx.strokeRect(-60, -60, 120, 150);
+                    ctx.restore();
+                }
+            });
+        }
+
+        function drawBattery(c) {
+            ctx.save();
+            ctx.translate(c.x, c.y);
+            ctx.rotate(c.angle * Math.PI / 180);
+            
+            const bw = 160;
+            const bh = 60;
+            const left = -bw/2;
+            const top = -bh/2;
+
+            ctx.fillStyle = '#D1D5DB';
+            ctx.beginPath();
+            ctx.roundRect(left - 12, -15, 20, 30, 4);
+            ctx.fill();
+            ctx.strokeStyle = '#9CA3AF';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+
+            const cylinderGrad = ctx.createLinearGradient(0, top, 0, top + bh);
+            cylinderGrad.addColorStop(0, '#4B5563');   
+            cylinderGrad.addColorStop(0.2, '#9CA3AF'); 
+            cylinderGrad.addColorStop(0.5, '#374151'); 
+            cylinderGrad.addColorStop(0.8, '#1F2937'); 
+            cylinderGrad.addColorStop(1, '#030712');   
+
+            ctx.fillStyle = cylinderGrad;
+            ctx.beginPath();
+            ctx.roundRect(left, top, bw, bh, 8);
+            ctx.fill();
+            
+            ctx.strokeStyle = '#111827';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+
+            ctx.fillStyle = '#FFFFFF';
+            ctx.font = 'bold 36px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('＋', left + 30, 2);
+            ctx.fillText('－', left + bw - 30, 2);
+
+            // 端子ノードを描画（ガイド用）
+            drawNodePoint(-80, 0, '#1F2937'); // ＋端子
+            drawNodePoint(80, 0, '#1F2937');  // －端子
+
+            ctx.restore();
+        }
+
+        function drawBulb(c) {
+            ctx.save();
+            ctx.translate(c.x, c.y);
+            ctx.rotate(c.angle * Math.PI / 180);
+
+            const socketTop = 20;
+
+            ctx.lineWidth = 6;
+            ctx.lineCap = 'round';
+            
+            ctx.strokeStyle = '#10B981';
+            ctx.beginPath();
+            ctx.moveTo(-5, socketTop + 45); 
+            ctx.bezierCurveTo(-20, socketTop + 100, -95, 100, -125, 120);
+            ctx.stroke();
+
+            ctx.strokeStyle = '#EF4444';
+            ctx.beginPath();
+            ctx.moveTo(5, socketTop + 45);
+            ctx.bezierCurveTo(20, socketTop + 100, 95, 100, 125, 120);
+            ctx.stroke();
+
+            const goldGrad = ctx.createLinearGradient(-18, socketTop, 18, socketTop);
+            goldGrad.addColorStop(0, '#B45309');
+            goldGrad.addColorStop(0.3, '#FCD34D');
+            goldGrad.addColorStop(0.7, '#FBBF24');
+            goldGrad.addColorStop(1, '#92400E');
+            
+            ctx.fillStyle = goldGrad;
+            ctx.fillRect(-18, socketTop, 36, 35);
+            
+            ctx.strokeStyle = '#92400E';
+            ctx.lineWidth = 1.5;
+            for(let i=0; i<4; i++) {
+                ctx.beginPath();
+                ctx.moveTo(-18, socketTop + 6 + i*7);
+                ctx.lineTo(18, socketTop + 3 + i*7);
+                ctx.stroke();
+            }
+
+            ctx.fillStyle = '#1F2937';
+            ctx.fillRect(-10, socketTop + 35, 20, 6);
+            ctx.fillStyle = '#D1D5DB';
+            ctx.beginPath();
+            ctx.arc(0, socketTop + 41, 4, 0, Math.PI*2);
+            ctx.fill();
+
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.35)'; 
+            ctx.strokeStyle = 'rgba(209, 213, 219, 0.6)'; 
+            ctx.lineWidth = 1.5;
+            ctx.beginPath(); ctx.roundRect(-23, socketTop - 5, 46, 52, 3); ctx.fill(); ctx.stroke();
+            ctx.beginPath(); ctx.roundRect(-26, socketTop - 12, 52, 10, 2); ctx.fill(); ctx.stroke();
+
+            ctx.fillStyle = 'rgba(243, 244, 246, 0.8)';
+            ctx.strokeStyle = 'rgba(209, 213, 219, 0.8)';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.arc(0, -15, 30, 0, Math.PI * 2); 
+            ctx.fill(); ctx.stroke();
+            
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+            ctx.beginPath();
+            ctx.ellipse(-10, -30, 10, 5, Math.PI / 4, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.strokeStyle = '#6B7280';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(-6, 5); ctx.lineTo(-8, -15);
+            ctx.moveTo(6, 5); ctx.lineTo(8, -15);
+            ctx.stroke();
+
+            ctx.strokeStyle = '#9CA3AF'; 
+            ctx.lineWidth = 1.5;
+            ctx.beginPath();
+            ctx.moveTo(-8, -15);
+            ctx.quadraticCurveTo(0, -25, 8, -15);
+            ctx.stroke();
+
+            // 端子ノードを描画（ガイド用）
+            drawNodePoint(-125, 120, '#10B981'); // 緑端子
+            drawNodePoint(125, 120, '#EF4444');  // 赤端子
+
+            ctx.restore();
+        }
+
+        function drawNodePoint(x, y, innerColor) {
+            ctx.fillStyle = '#E5E7EB';
+            ctx.strokeStyle = '#374151';
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.arc(x, y, 12, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+
+            ctx.fillStyle = innerColor;
+            ctx.beginPath();
+            ctx.arc(x, y, 6, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        updateRotateButton();
+
+        // ==========================================
+        // 3. コード生成とコピー処理
+        // ==========================================
+        document.getElementById('btn-generate').addEventListener('click', () => {
+            const type = document.getElementById('select-type').value;
+            let instruction = instructionInput.value;
+
+            if (!instruction.trim()) {
+                alert("問題文を入力してください。");
+                return;
+            }
+
+            instruction = instruction.replace(/"/g, '\\"');
+            instruction = instruction.replace(/\r?\n/g, '');
+
+            let outBatteries = [];
+            const b1 = components.find(c => c.id === 'b1');
+            outBatteries.push(`{ x: ${Math.round(b1.x)}, y: ${Math.round(b1.y)}, angle: ${b1.angle} }`);
+            
+            if (batCount === 2) {
+                const b2 = components.find(c => c.id === 'b2');
+                outBatteries.push(`{ x: ${Math.round(b2.x)}, y: ${Math.round(b2.y)}, angle: ${b2.angle} }`);
+            }
+            
+            const b = components.find(c => c.id === 'bulb');
+            const bulbStr = `{ x: ${Math.round(b.x)}, y: ${Math.round(b.y)}, angle: ${b.angle} }`;
+
+            const batteriesStr = `[${outBatteries.join(", ")}]`;
+
+            const code = `{ type: "${type}", instruction: "${instruction}", batteries: ${batteriesStr}, bulb: ${bulbStr} }`;
+            
+            codeOutput.value = code;
+        });
+
+        document.getElementById('btn-copy').addEventListener('click', () => {
+            if (!codeOutput.value) {
+                alert("先にコードを作成してください。");
+                return;
+            }
+            
+            codeOutput.select();
+            document.execCommand('copy');
+            
+            const originalText = document.getElementById('btn-copy').innerHTML;
+            document.getElementById('btn-copy').innerHTML = "✅ コピーしました！";
+            document.getElementById('btn-copy').classList.replace('bg-gray-800', 'bg-green-600');
+            
+            setTimeout(() => {
+                document.getElementById('btn-copy').innerHTML = originalText;
+                document.getElementById('btn-copy').classList.replace('bg-green-600', 'bg-gray-800');
+            }, 2000);
+        });
+
+    </script>
+</body>
+</html>

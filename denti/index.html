@@ -1,0 +1,1252 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>かん電池のつなぎ方 マスター</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* 方眼紙風の背景パターン */
+        .grid-bg {
+            background-color: #f8fafc;
+            background-image: 
+                linear-gradient(#cbd5e1 1px, transparent 1px), 
+                linear-gradient(90deg, #cbd5e1 1px, transparent 1px);
+            background-size: 20px 20px;
+        }
+        /* キャンバス上のタッチ操作による画面スクロールを防止、アスペクト比を3:2に完全固定 */
+        canvas {
+            touch-action: none;
+            cursor: crosshair;
+            width: auto;  /* 横幅を自動調整に */
+            height: auto; /* 縦幅を自動調整に */
+            max-width: 100%;
+            max-height: 100%;
+            aspect-ratio: 3 / 2; /* 常に3:2の比率を維持 */
+            box-shadow: 0 10px 15px -3px rgba(0,0,0,0.15), 0 4px 6px -4px rgba(0,0,0,0.15);
+        }
+        /* ルビのサイズ調整 */
+        ruby rt {
+            font-size: 0.6em;
+            color: #6b7280;
+        }
+
+        /* ---------------------------------
+           メインメニューのキラキラエフェクト
+           --------------------------------- */
+        @keyframes bulb-glow {
+            0% { filter: drop-shadow(0 0 5px rgba(253, 224, 71, 0.8)); }
+            100% { filter: drop-shadow(0 0 25px rgba(253, 224, 71, 1)); }
+        }
+        .cleared-bulb {
+            animation: bulb-glow 1s infinite alternate;
+        }
+
+        @keyframes rainbow-bg {
+            0% { filter: hue-rotate(0deg); }
+            100% { filter: hue-rotate(360deg); }
+        }
+        .super-party-mode {
+            animation: rainbow-bg 3s linear infinite;
+            background: linear-gradient(45deg, #ff9a9e 0%, #fecfef 50%, #ffecd2 100%);
+        }
+
+        @keyframes title-pulse {
+            0% { transform: scale(1); text-shadow: 0 0 10px #fde047; }
+            50% { transform: scale(1.05); text-shadow: 0 0 30px #f59e0b; }
+            100% { transform: scale(1); text-shadow: 0 0 10px #fde047; }
+        }
+        .super-title {
+            animation: title-pulse 1s infinite;
+            color: #ffffff !important;
+        }
+    </style>
+</head>
+<body id="app-body" class="bg-yellow-50 font-sans h-screen flex flex-col overflow-hidden relative transition-colors duration-500">
+
+    <!-- ==========================================
+         問題データ設定（問題作成ツールのコードをここに貼ります！）
+         ========================================== -->
+    <script>
+        const levels = [
+{ type: "series", instruction: "<ruby>乾電池<rt>かんでんち</rt></ruby>２こを「<ruby>直列<rt>ちょくれつ</rt></ruby>つなぎ」にしよう！", batteries: [{ x: 624, y: 498, angle: 0 }, { x: 274, y: 495, angle: 0 }], bulb: { x: 449, y: 73, angle: 0 } },
+{ type: "parallel", instruction: "<ruby>乾電池<rt>かんでんち</rt></ruby>２こを「<ruby>並列<rt>へいれつ</rt></ruby>つなぎ」にしよう！", batteries: [{ x: 446, y: 502, angle: 0 }, { x: 447, y: 357, angle: 0 }], bulb: { x: 449, y: 73, angle: 0 } },
+{ type: "series", instruction: "<ruby>乾電池<rt>かんでんち</rt></ruby>２こを「<ruby>直列<rt>ちょくれつ</rt></ruby>つなぎ」にしよう！", batteries: [{ x: 446, y: 502, angle: 0 }, { x: 447, y: 357, angle: 0 }], bulb: { x: 449, y: 73, angle: 0 } },
+{ type: "parallel", instruction: "<ruby>乾電池<rt>かんでんち</rt></ruby>２こを「<ruby>並列<rt>へいれつ</rt></ruby>つなぎ」にしよう！", batteries: [{ x: 632, y: 430, angle: 0 }, { x: 262, y: 434, angle: 0 }], bulb: { x: 449, y: 73, angle: 0 } },
+{ type: "series", instruction: "<ruby>乾電池<rt>かんでんち</rt></ruby>２こを「<ruby>直列<rt>ちょくれつ</rt></ruby>つなぎ」にしよう！", batteries: [{ x: 262, y: 296, angle: 270 }, { x: 94, y: 295, angle: 270 }], bulb: { x: 712, y: 296, angle: 90 } },
+{ type: "parallel", instruction: "<ruby>乾電池<rt>かんでんち</rt></ruby>２こを「<ruby>並列<rt>へいれつ</rt></ruby>つなぎ」にしよう！", batteries: [{ x: 262, y: 296, angle: 90 }, { x: 94, y: 295, angle: 270 }], bulb: { x: 712, y: 296, angle: 90 } },
+{ type: "series", instruction: "<ruby>乾電池<rt>かんでんち</rt></ruby>２こを「<ruby>直列<rt>ちょくれつ</rt></ruby>つなぎ」にしよう！", batteries: [{ x: 262, y: 296, angle: 90 }, { x: 94, y: 295, angle: 270 }], bulb: { x: 712, y: 296, angle: 90 } },
+{ type: "parallel", instruction: "<ruby>乾電池<rt>かんでんち</rt></ruby>２こを「<ruby>並列<rt>へいれつ</rt></ruby>つなぎ」にしよう！", batteries: [{ x: 763, y: 290, angle: 90 }, { x: 138, y: 289, angle: 270 }], bulb: { x: 449, y: 164, angle: 0 } },
+{ type: "series", instruction: "<ruby>乾電池<rt>かんでんち</rt></ruby>２こを「<ruby>直列<rt>ちょくれつ</rt></ruby>つなぎ」にしよう！", batteries: [{ x: 160, y: 240, angle: 90 }, { x: 447, y: 93, angle: 0 }], bulb: { x: 449, y: 309, angle: 0 } },
+{ type: "parallel", instruction: "<ruby>乾電池<rt>かんでんち</rt></ruby>２こを「<ruby>並列<rt>へいれつ</rt></ruby>つなぎ」にしよう！", batteries: [{ x: 585, y: 337, angle: 270 }, { x: 641, y: 117, angle: 0 }], bulb: { x: 177, y: 293, angle: 270 } }
+        ];
+    </script>
+
+    <!-- ヘッダー兼お題表示エリア -->
+    <header class="bg-orange-400 text-white px-3 py-2 sm:px-4 sm:py-3 shadow-md flex flex-col sm:flex-row sm:items-center justify-between gap-1 sm:gap-4 z-20 relative">
+        <div class="flex items-center justify-between sm:justify-start gap-2 sm:gap-4">
+            <button id="btn-back-menu" class="hidden px-3 py-1 bg-white text-orange-500 font-bold rounded-full shadow hover:bg-gray-100 transition transform active:scale-95 text-xs sm:text-sm">
+                🔙 メニュー
+            </button>
+            <h1 class="text-sm sm:text-base font-bold whitespace-nowrap">🔋 かん電池のつなぎ方</h1>
+            <div id="header-level-display" class="hidden text-xs sm:text-sm font-bold bg-white text-orange-500 px-2 py-0.5 rounded-full shadow-inner whitespace-nowrap">
+                問題 <span id="level-display">1 / 10</span>
+            </div>
+        </div>
+        
+        <div id="header-instruction-container" class="hidden flex-1 sm:ml-4 bg-orange-500 bg-opacity-40 border border-orange-300 rounded-lg px-3 py-1 text-center text-xs sm:text-sm font-semibold max-w-2xl overflow-hidden text-ellipsis">
+            <span id="instruction-text" class="text-white"></span>
+        </div>
+    </header>
+
+    <!-- メインメニュー -->
+    <div id="main-menu" class="flex-1 flex flex-col items-center justify-center p-4 z-10 w-full h-full overflow-y-auto relative">
+        <h2 id="menu-title" class="text-2xl sm:text-4xl font-bold text-orange-500 mb-6 sm:mb-10 text-center drop-shadow-md transition-all duration-300 leading-tight">
+            あそぶステージをえらんでね！
+        </h2>
+        <div id="stage-grid" class="grid grid-cols-2 sm:grid-cols-5 gap-3 sm:gap-6 max-w-4xl w-full px-4 pb-12"></div>
+    </div>
+
+    <!-- ゲーム画面 -->
+    <main id="game-screen" class="hidden flex-1 flex flex-col items-center p-2 relative w-full h-full min-h-0 overflow-hidden">
+        <div class="bg-white border-2 border-orange-200 rounded-lg py-1 px-4 mb-2 w-full max-w-4xl shadow-sm text-center z-10">
+            <p id="feedback-text" class="text-xs sm:text-sm font-bold h-5 transition-colors duration-300 flex items-center justify-center gap-1"></p>
+        </div>
+
+        <div id="canvas-container" class="relative w-full max-w-4xl flex-1 min-h-0 bg-yellow-100/50 rounded-xl border-4 border-gray-300 flex justify-center items-center overflow-hidden">
+            <canvas id="gameCanvas" class="grid-bg rounded-lg"></canvas>
+        </div>
+
+        <div class="flex flex-wrap justify-center gap-2 mt-2 z-10 pb-2">
+            <button id="btn-undo" class="px-3 py-1.5 sm:px-5 sm:py-2 bg-blue-500 hover:bg-blue-600 text-white font-bold rounded-full shadow-md transform transition active:scale-95 text-xs sm:text-sm">
+                ↩️ １つ戻す
+            </button>
+            <button id="btn-clear" class="px-3 py-1.5 sm:px-5 sm:py-2 bg-red-500 hover:bg-red-600 text-white font-bold rounded-full shadow-md transform transition active:scale-95 text-xs sm:text-sm">
+                🗑️ 全部消す
+            </button>
+            <button id="btn-check" class="px-5 py-1.5 sm:px-8 sm:py-2 bg-green-500 hover:bg-green-600 text-white font-bold rounded-full shadow-lg transform transition active:scale-95 text-xs sm:text-sm animate-pulse ring-4 ring-green-300">
+                ✨ できた！
+            </button>
+        </div>
+    </main>
+
+    <!-- モーダル群 -->
+    <div id="clear-modal" class="fixed inset-0 bg-black bg-opacity-60 hidden flex items-center justify-center z-50 transition-opacity duration-300 opacity-0">
+        <div id="modal-content" class="bg-white p-6 sm:p-10 rounded-3xl shadow-2xl text-center transform scale-90 transition-transform duration-300 border-8 border-yellow-400 max-w-lg w-[90%]">
+            <h2 class="text-2xl sm:text-4xl font-bold text-yellow-500 mb-3" id="modal-title">大せいかい！🎉</h2>
+            <p class="text-sm sm:text-xl text-gray-700 mb-6 font-bold" id="modal-msg">すごいぞ！その調子だ！</p>
+            <div class="flex flex-col sm:flex-row justify-center gap-3">
+                <button id="btn-modal-menu" class="px-5 py-2 sm:px-6 sm:py-3 bg-gray-400 hover:bg-gray-500 text-white font-bold rounded-full shadow-lg transform transition active:scale-95 text-sm sm:text-base">
+                    メニューへ 🔙
+                </button>
+                <button id="btn-next" class="px-6 py-2 sm:px-8 sm:py-3 bg-orange-500 hover:bg-orange-600 text-white font-bold rounded-full shadow-lg transform transition active:scale-95 text-base sm:text-lg">
+                    次の問題へ ➡️
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div id="mistake-modal" class="fixed inset-0 bg-black bg-opacity-60 hidden flex items-center justify-center z-50 transition-opacity duration-300 opacity-0">
+        <div id="mistake-content" class="bg-white p-6 sm:p-10 rounded-3xl shadow-2xl text-center transform scale-90 transition-transform duration-300 border-8 border-blue-400 max-w-lg w-[90%]">
+            <h2 class="text-2xl sm:text-4xl font-bold text-blue-500 mb-3">ざんねん！✖</h2>
+            <p class="text-sm sm:text-lg text-gray-700 mb-3 font-bold" id="mistake-msg-1"></p>
+            <p class="text-xs sm:text-base text-red-500 mb-6 font-bold" id="mistake-msg-2"></p>
+            <button id="btn-retry" class="px-6 py-2 sm:px-8 sm:py-3 bg-blue-500 hover:bg-blue-600 text-white font-bold rounded-full shadow-lg transform transition active:scale-95 text-base sm:text-lg">
+                やり直す ↩️
+            </button>
+        </div>
+    </div>
+
+    <!-- アプリのロジック -->
+    <script>
+        let clearedLevels = Array(levels.length).fill(false);
+        let currentLevelIndex = 0;
+        let isGameActive = false;
+        let animationFrameId = null;
+
+        let strokes = []; 
+        let currentStroke = null; 
+        let isDrawing = false;
+        let isLit = false;
+        let currentCircuitType = null;
+        let currentBulbFlowDir = 0; 
+        let dashOffset = 0; 
+        let circuitEdges = []; 
+        let feedbackLockedUntil = 0; 
+        
+        const wireColor = '#EF4444';
+
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const LOGICAL_WIDTH = 900;
+        const LOGICAL_HEIGHT = 600;
+
+        const nodes = [
+            { id: 0, x: -1000, y: -1000, type: 'battery_plus' },
+            { id: 1, x: -1000, y: -1000, type: 'battery_minus' },
+            { id: 2, x: -1000, y: -1000, type: 'battery_plus' },
+            { id: 3, x: -1000, y: -1000, type: 'battery_minus' },
+            { id: 4, x: -1000, y: -1000, type: 'bulb_wire_green' },
+            { id: 5, x: -1000, y: -1000, type: 'bulb_wire_red' }
+        ];
+
+        function init() {
+            setupEvents();
+            showMenu();
+            window.addEventListener('resize', () => {
+                if(isGameActive) resizeCanvas();
+            });
+        }
+
+        function resizeCanvas() {
+            canvas.width = LOGICAL_WIDTH;
+            canvas.height = LOGICAL_HEIGHT;
+
+            const container = document.getElementById('canvas-container');
+            if (!container) return;
+
+            const containerWidth = container.clientWidth - 16;
+            const containerHeight = container.clientHeight - 16;
+
+            let targetWidth = containerWidth;
+            let targetHeight = targetWidth * (2 / 3);
+
+            if (targetHeight > containerHeight) {
+                targetHeight = containerHeight;
+                targetWidth = targetHeight * (3 / 2);
+            }
+
+            canvas.style.width = `${targetWidth}px`;
+            canvas.style.height = `${targetHeight}px`;
+        }
+
+        function showMenu() {
+            isGameActive = false;
+            if(animationFrameId) cancelAnimationFrame(animationFrameId);
+            
+            document.getElementById('main-menu').classList.remove('hidden');
+            const gameScreen = document.getElementById('game-screen');
+            gameScreen.classList.add('hidden');
+            gameScreen.classList.remove('flex');
+            
+            document.getElementById('btn-back-menu').classList.add('hidden');
+            document.getElementById('header-level-display').classList.add('hidden');
+            document.getElementById('header-instruction-container').classList.add('hidden');
+            
+            renderMainMenu();
+        }
+
+        function renderMainMenu() {
+            const grid = document.getElementById('stage-grid');
+            grid.innerHTML = '';
+            
+            levels.forEach((level, index) => {
+                const isCleared = clearedLevels[index];
+                
+                const btn = document.createElement('button');
+                btn.className = `relative flex flex-col items-center justify-center w-full aspect-square rounded-2xl shadow-lg border-4 transition transform hover:scale-105 active:scale-95 ${
+                    isCleared ? 'bg-yellow-100 border-yellow-400 shadow-[0_0_15px_rgba(253,224,71,0.6)]' : 'bg-white border-gray-300'
+                }`;
+                
+                btn.innerHTML = `
+                    <span class="text-4xl sm:text-6xl ${isCleared ? 'cleared-bulb' : 'filter grayscale opacity-50'}">💡</span>
+                    <span class="mt-2 text-sm sm:text-base font-bold ${isCleared ? 'text-yellow-600' : 'text-gray-500'}">ステージ ${index + 1}</span>
+                    ${isCleared ? '<span class="absolute top-1 right-2 text-xl sm:text-2xl filter drop-shadow">⭐</span>' : ''}
+                `;
+                
+                btn.onclick = () => startGame(index);
+                grid.appendChild(btn);
+            });
+
+            checkAllCleared();
+        }
+
+        function checkAllCleared() {
+            const allCleared = clearedLevels.every(v => v === true);
+            const body = document.getElementById('app-body');
+            const title = document.getElementById('menu-title');
+            
+            if (allCleared) {
+                body.classList.add('super-party-mode');
+                title.classList.add('super-title');
+                title.innerHTML = '🌟 全ステージクリア！おめでとう！ 🌟<br><span class="text-xl sm:text-2xl text-white">きみは 真のかん電池マスターだ！</span>';
+            } else {
+                body.classList.remove('super-party-mode');
+                title.classList.remove('super-title');
+                title.innerHTML = 'あそぶステージをえらんでね！';
+            }
+        }
+
+        function startGame(levelIndex) {
+            currentLevelIndex = levelIndex;
+            isGameActive = true;
+            
+            document.getElementById('main-menu').classList.add('hidden');
+            const gameScreen = document.getElementById('game-screen');
+            gameScreen.classList.remove('hidden');
+            gameScreen.classList.add('flex'); 
+            
+            document.getElementById('btn-back-menu').classList.remove('hidden');
+            document.getElementById('header-level-display').classList.remove('hidden');
+            document.getElementById('header-instruction-container').classList.remove('hidden');
+            
+            resizeCanvas(); 
+            loadLevel();
+            
+            if(animationFrameId) cancelAnimationFrame(animationFrameId);
+            drawLoop();
+        }
+
+        function getAbsolutePos(cx, cy, lx, ly, angle) {
+            const rad = angle * Math.PI / 180;
+            const cos = Math.cos(rad);
+            const sin = Math.sin(rad);
+            return {
+                x: cx + lx * cos - ly * sin,
+                y: cy + lx * sin + ly * cos
+            };
+        }
+
+        function loadLevel() {
+            strokes = [];
+            isLit = false;
+            currentCircuitType = null;
+            currentBulbFlowDir = 0;
+            feedbackLockedUntil = 0; 
+            
+            const level = levels[currentLevelIndex];
+            document.getElementById('level-display').innerText = `${currentLevelIndex + 1} / ${levels.length}`;
+            document.getElementById('instruction-text').innerHTML = level.instruction;
+
+            setFeedback(level.instruction, "text-blue-600", true);
+
+            for(let i=0; i<6; i++) { nodes[i].x = -1000; nodes[i].y = -1000; } 
+            
+            if (level.batteries) {
+                if (level.batteries.length > 0) {
+                    let b = level.batteries[0];
+                    let p1 = getAbsolutePos(b.x, b.y, -95, 0, b.angle);
+                    let p2 = getAbsolutePos(b.x, b.y, 80, 0, b.angle);
+                    nodes[0].x = p1.x; nodes[0].y = p1.y;
+                    nodes[1].x = p2.x; nodes[1].y = p2.y;
+                }
+                if (level.batteries.length > 1) {
+                    let b = level.batteries[1];
+                    let p1 = getAbsolutePos(b.x, b.y, -95, 0, b.angle);
+                    let p2 = getAbsolutePos(b.x, b.y, 80, 0, b.angle);
+                    nodes[2].x = p1.x; nodes[2].y = p1.y;
+                    nodes[3].x = p2.x; nodes[3].y = p2.y;
+                }
+            }
+            if (level.bulb) {
+                let blb = level.bulb;
+                let p1 = getAbsolutePos(blb.x, blb.y, -125, 120, blb.angle);
+                let p2 = getAbsolutePos(blb.x, blb.y, 125, 120, blb.angle);
+                nodes[4].x = p1.x; nodes[4].y = p1.y;
+                nodes[5].x = p2.x; nodes[5].y = p2.y;
+            }
+        }
+
+        function getLineIntersection(p0_x, p0_y, p1_x, p1_y, p2_x, p2_y, p3_x, p3_y) {
+            let s1_x = p1_x - p0_x;
+            let s1_y = p1_y - p0_y;
+            let s2_x = p3_x - p2_x;
+            let s2_y = p3_y - p2_y;
+            let denom = -s2_x * s1_y + s1_x * s2_y;
+            if (denom === 0) return false;
+
+            let s = (-s1_y * (p0_x - p2_x) + s1_x * (p0_y - p2_y)) / denom;
+            let t = ( s2_x * (p0_y - p2_y) - s2_y * (p0_x - p2_x)) / denom;
+
+            return (s >= 0 && s <= 1 && t >= 0 && t <= 1);
+        }
+
+        function checkBBOverlap(bb1, bb2) {
+            return !(bb1.max.x < bb2.min.x || bb1.min.x > bb2.max.x || bb1.max.y < bb2.min.y || bb1.min.y > bb2.max.y);
+        }
+
+        function calculateBB(points) {
+            let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+            for (let p of points) {
+                if (p.x < minX) minX = p.x;
+                if (p.y < minY) minY = p.y;
+                if (p.x > maxX) maxX = p.x;
+                if (p.y > maxY) maxY = p.y;
+            }
+            return { min: { x: minX, y: minY }, max: { x: maxX, y: maxY } };
+        }
+
+        function distToSegmentSquared(p, v, w) {
+            let l2 = (v.x - w.x)**2 + (v.y - w.y)**2;
+            if (l2 === 0) return (p.x - v.x)**2 + (p.y - v.y)**2;
+            let t = ((p.x - v.x) * (w.x - v.x) + (p.y - v.y) * (w.y - v.y)) / l2;
+            t = Math.max(0, Math.min(1, t));
+            return (p.x - (v.x + t * (w.x - v.x)))**2 + (p.y - (v.y + t * (w.y - v.y)))**2;
+        }
+
+        function checkCircuit() {
+            circuitEdges = []; 
+            
+            const numNodes = nodes.length;
+            let vertexCount = numNodes;
+            let strokeEvents = Array(strokes.length).fill(null).map(() => []);
+
+            const HIT_RADIUS_SQ = 40 * 40;
+            for (let i = 0; i < strokes.length; i++) {
+                const stroke = strokes[i];
+                for (const node of nodes) {
+                    if (node.x < 0 || node.y < 0) continue;
+
+                    if (stroke.bb && (node.x < stroke.bb.min.x - 40 || node.x > stroke.bb.max.x + 40 ||
+                                      node.y < stroke.bb.min.y - 40 || node.y > stroke.bb.max.y + 40)) {
+                        continue;
+                    }
+                    for (let k = 0; k < stroke.points.length; k++) {
+                        const dx = stroke.points[k].x - node.x;
+                        const dy = stroke.points[k].y - node.y;
+                        if (dx * dx + dy * dy <= HIT_RADIUS_SQ) {
+                            strokeEvents[i].push({ k: k, vid: node.id });
+                        }
+                    }
+                }
+            }
+
+            for (let i = 0; i < strokes.length; i++) {
+                for (let j = i; j < strokes.length; j++) {
+                    const s1 = strokes[i];
+                    const s2 = strokes[j];
+                    if (i !== j && s1.bb && s2.bb && !checkBBOverlap(s1.bb, s2.bb)) continue;
+
+                    let lOffset = (i === j) ? 20 : 0; 
+                    
+                    for (let k = 0; k < s1.points.length; k++) {
+                        let hitL = -1;
+                        let minDistSq = 144; 
+                        let lStart = (i === j) ? k + lOffset : 0;
+                        if (lStart >= s2.points.length - 1) continue;
+
+                        for (let l = lStart; l < s2.points.length - 1; l++) {
+                            let d2 = distToSegmentSquared(s1.points[k], s2.points[l], s2.points[l+1]);
+                            if (d2 < minDistSq) {
+                                minDistSq = d2;
+                                hitL = l;
+                            }
+                        }
+                        if (hitL !== -1) {
+                            let vid = vertexCount++;
+                            strokeEvents[i].push({ k: k, vid: vid });
+                            strokeEvents[j].push({ k: hitL, vid: vid });
+                            k += 15; 
+                        }
+                    }
+
+                    if (i !== j) {
+                        for (let l = 0; l < s2.points.length; l++) {
+                            let hitK = -1;
+                            let minDistSq = 144;
+                            for (let k = 0; k < s1.points.length - 1; k++) {
+                                let d2 = distToSegmentSquared(s2.points[l], s1.points[k], s1.points[k+1]);
+                                if (d2 < minDistSq) {
+                                    minDistSq = d2;
+                                    hitK = k;
+                                }
+                            }
+                            if (hitK !== -1) {
+                                let vid = vertexCount++;
+                                strokeEvents[i].push({ k: hitK, vid: vid });
+                                strokeEvents[j].push({ k: l, vid: vid });
+                                l += 15;
+                            }
+                        }
+                        for (let k = 0; k < s1.points.length - 1; k++) {
+                            let intersected = false;
+                            for (let l = 0; l < s2.points.length - 1; l++) {
+                                if (getLineIntersection(
+                                    s1.points[k].x, s1.points[k].y, s1.points[k+1].x, s1.points[k+1].y,
+                                    s2.points[l].x, s2.points[l].y, s2.points[l+1].x, s2.points[l+1].y
+                                )) {
+                                    let vid = vertexCount++;
+                                    strokeEvents[i].push({ k: k, vid: vid });
+                                    strokeEvents[j].push({ k: l, vid: vid });
+                                    intersected = true;
+                                    break;
+                                }
+                            }
+                            if (intersected) k += 15;
+                        }
+                    }
+                }
+            }
+
+            let extraEdges = [];
+            for (let i = 0; i < strokes.length; i++) {
+                strokeEvents[i].sort((a, b) => a.k - b.k);
+                
+                let mergedEvents = [];
+                if (strokeEvents[i].length > 0) {
+                    let currentGroup = [strokeEvents[i][0]];
+                    for (let e = 1; e < strokeEvents[i].length; e++) {
+                        if (strokeEvents[i][e].k - currentGroup[0].k <= 15) {
+                            currentGroup.push(strokeEvents[i][e]);
+                        } else {
+                            mergedEvents.push(currentGroup);
+                            currentGroup = [strokeEvents[i][e]];
+                        }
+                    }
+                    mergedEvents.push(currentGroup);
+                }
+
+                let keypoints = mergedEvents.map(group => {
+                    let nodeEvent = group.find(e => e.vid < numNodes);
+                    let repVid = nodeEvent ? nodeEvent.vid : group[0].vid;
+                    let avgK = Math.floor(group.reduce((sum, e) => sum + e.k, 0) / group.length);
+                    
+                    for (let event of group) {
+                        if (event.vid !== repVid) extraEdges.push({ u: repVid, v: event.vid });
+                    }
+                    return { k: avgK, vid: repVid };
+                });
+
+                for (let m = 0; m < keypoints.length - 1; m++) {
+                    let p1 = keypoints[m];
+                    let p2 = keypoints[m+1];
+                    if (p1.vid !== p2.vid) {
+                        circuitEdges.push({
+                            u: p1.vid,
+                            v: p2.vid,
+                            points: strokes[i].points.slice(p1.k, p2.k + 1)
+                        });
+                    }
+                }
+            }
+
+            const parent = Array.from({length: vertexCount}, (_, i) => i);
+            function find(i) {
+                if (parent[i] === i) return i;
+                return parent[i] = find(parent[i]);
+            }
+            function unite(i, j) {
+                let ri = find(i), rj = find(j);
+                if (ri !== rj) parent[ri] = rj;
+            }
+
+            for (let edge of circuitEdges) unite(edge.u, edge.v);
+            for (let edge of extraEdges) unite(edge.u, edge.v);
+
+            // 🚫 ショート回路検知
+            if (find(0) === find(1)) return { error: "short", msg: "あぶない！上の電池がショートしているよ！線を消すね。" };
+            if (nodes[2].x > -500 && find(2) === find(3)) return { error: "short", msg: "あぶない！下の電池がショートしているよ！線を消すね。" };
+
+            if (nodes[2].x > -500) {
+                if (find(0) === find(3) && find(1) === find(2)) {
+                    return { error: "short", msg: "あぶない！電池同士が逆向きのループで繋がってショートしているよ！線を消すね。" };
+                }
+            }
+
+            if (find(4) === find(5)) return { status: "off" }; 
+
+            let status = "off";
+            let type = null;
+            let bulbFlowDir = 0; 
+
+            const bulbBot = find(4);
+            const bulbSide = find(5);
+            const isB1Circuit = (find(0) === bulbBot && find(1) === bulbSide) || (find(0) === bulbSide && find(1) === bulbBot);
+            const isB2Circuit = (find(2) === bulbBot && find(3) === bulbSide) || (find(2) === bulbSide && find(3) === bulbBot);
+            const isSeries1 = (find(1) === find(2)) && ((find(0) === bulbBot && find(3) === bulbSide) || (find(0) === bulbSide && find(3) === bulbBot));
+            const isSeries2 = (find(0) === find(3)) && ((find(1) === bulbBot && find(2) === bulbSide) || (find(1) === bulbSide && find(2) === bulbBot));
+            const isParallel = (find(0) === find(2)) && (find(1) === find(3)) && (isB1Circuit || isB2Circuit); 
+
+            if (isSeries1 || isSeries2) { status = "lit"; type = "series"; }
+            else if (isParallel) { status = "lit"; type = "parallel"; }
+            else if (isB1Circuit && !isB2Circuit) { status = "lit"; type = "single"; }
+            else if (isB2Circuit && !isB1Circuit) { status = "lit"; type = "single"; }
+            else if (isB1Circuit || isB2Circuit) { status = "lit"; type = "any"; }
+
+            circuitEdges.forEach(e => { e.isPartOfCircuit = false; e.reverseFlow = false; });
+
+            // 5. 【究極完成版】ユーザー様のアイデアを完全反映した「ロールベース・最短距離モデル」
+            // 複雑な計算を捨て、領域ごとに純粋な「湧き出し口（SOURCE）」と「吸い込み口（SINK）」を定義し、
+            // その2つの間を繋ぐ最短距離によってのみグラデーション（流れる向き）を決定します。
+            if (status === "lit") {
+                let role = Array(6).fill('NONE');
+
+                if (type === 'parallel' || type === 'single' || type === 'any') {
+                    // プラス極(0, 2)は SOURCE になる
+                    if (find(0) === find(4) || find(0) === find(5)) role[0] = 'SOURCE';
+                    if (nodes[2].x > -500 && (find(2) === find(4) || find(2) === find(5))) role[2] = 'SOURCE';
+                    
+                    // マイナス極(1, 3)は SINK になる
+                    if (find(1) === find(4) || find(1) === find(5)) role[1] = 'SINK';
+                    if (nodes[2].x > -500 && (find(3) === find(4) || find(3) === find(5))) role[3] = 'SINK';
+                    
+                    // 電球端子(4, 5)は、プラス領域に接していれば SINK（プラスから吸い込む）、
+                    // マイナス領域に接していれば SOURCE（マイナスへ吐き出す）になる。
+                    if (find(4) === find(0) || find(4) === find(2)) role[4] = 'SINK';
+                    if (find(4) === find(1) || find(4) === find(3)) role[4] = 'SOURCE';
+                    
+                    if (find(5) === find(0) || find(5) === find(2)) role[5] = 'SINK';
+                    if (find(5) === find(1) || find(5) === find(3)) role[5] = 'SOURCE';
+                }
+                else if (type === 'series') {
+                    if (isSeries1) { // 1(マイナス)と2(プラス)が繋がっている中間線
+                        role[0] = 'SOURCE'; // 外側のプラス
+                        role[3] = 'SINK';   // 外側のマイナス
+                        role[2] = 'SOURCE'; // 中間線のプラス
+                        role[1] = 'SINK';   // 中間線のマイナス
+                    } else if (isSeries2) { // 3(マイナス)と0(プラス)が繋がっている中間線
+                        role[2] = 'SOURCE';
+                        role[1] = 'SINK';
+                        role[0] = 'SOURCE';
+                        role[3] = 'SINK';
+                    }
+                    
+                    // 電球端子の役割
+                    if (find(4) === find(0) || find(4) === find(2)) role[4] = 'SINK';
+                    if (find(4) === find(1) || find(4) === find(3)) role[4] = 'SOURCE';
+                    
+                    if (find(5) === find(0) || find(5) === find(2)) role[5] = 'SINK';
+                    if (find(5) === find(1) || find(5) === find(3)) role[5] = 'SOURCE';
+                }
+
+                // 電球の内部ルートなどは追加せず、ユーザーが引いた「本物の導線」だけでグラフを作る
+                let adjList = Array.from({length: vertexCount}, () => []);
+                for (let edge of circuitEdges) {
+                    let weight = Math.max(edge.points.length, 1);
+                    adjList[edge.u].push({ v: edge.v, w: weight });
+                    adjList[edge.v].push({ v: edge.u, w: weight });
+                }
+                for (let edge of extraEdges) {
+                    adjList[edge.u].push({ v: edge.v, w: 1 });
+                    adjList[edge.v].push({ v: edge.u, w: 1 });
+                }
+
+                let sources = [];
+                let sinks = [];
+                for(let i=0; i<6; i++) {
+                    if (role[i] === 'SOURCE' && nodes[i].x > -500) sources.push(i);
+                    if (role[i] === 'SINK' && nodes[i].x > -500) sinks.push(i);
+                }
+
+                function getDistances(startNodes) {
+                    let dist = Array(vertexCount).fill(Infinity);
+                    let pq = []; 
+                    startNodes.forEach(n => {
+                        dist[n] = 0;
+                        pq.push({ node: n, d: 0 });
+                    });
+
+                    while(pq.length > 0) {
+                        pq.sort((a, b) => a.d - b.d); 
+                        let cur = pq.shift();
+                        let u = cur.node;
+                        
+                        if (cur.d > dist[u]) continue;
+                        
+                        for (let neighbor of adjList[u]) {
+                            let v = neighbor.v;
+                            let alt = dist[u] + neighbor.w;
+                            if (alt < dist[v]) {
+                                dist[v] = alt;
+                                pq.push({ node: v, d: alt });
+                            }
+                        }
+                    }
+                    return dist;
+                }
+
+                // 各線から見て、「自分の領域のSOURCEからの距離」と「自分の領域のSINKからの距離」を計算
+                let distSrc = getDistances(sources);
+                let distSnk = getDistances(sinks);
+
+                // 電球の光る向きを決定 (4が緑、5が赤)
+                if (role[4] === 'SINK' && role[5] === 'SOURCE') bulbFlowDir = 1;
+                else if (role[5] === 'SINK' && role[4] === 'SOURCE') bulbFlowDir = -1;
+                else bulbFlowDir = 1;
+
+                // 各線のアニメーション方向を完璧に設定！
+                for (let edge of circuitEdges) {
+                    let u = edge.u;
+                    let v = edge.v;
+
+                    // SOURCE と SINK の両方に到達可能な線(つまりユーザーが引いた意味のある線)のみアニメーション対象
+                    if (distSrc[u] !== Infinity && distSnk[u] !== Infinity &&
+                        distSrc[v] !== Infinity && distSnk[v] !== Infinity) {
+                        
+                        // ユーザーが引いた「電気の通っている線」全てにアニメーションをオン！
+                        edge.isPartOfCircuit = true;
+
+                        // Source(湧き出し口)から遠ざかり、Sink(吸い込み口)へ近づく方向に流す
+                        if (distSrc[u] < distSrc[v]) {
+                            edge.reverseFlow = false; // u -> v
+                        } else if (distSrc[u] > distSrc[v]) {
+                            edge.reverseFlow = true;  // v -> u
+                        } else {
+                            // Sourceからの距離が等しい場合 (例えば横に引いた合流点など)は、Sinkへの近さで決める
+                            if (distSnk[u] > distSnk[v]) {
+                                edge.reverseFlow = false;
+                            } else {
+                                edge.reverseFlow = true;
+                            }
+                        }
+                    }
+                }
+            }
+
+            return { status, type, bulbFlowDir };
+        }
+
+        function updateCircuitState() {
+            const result = checkCircuit();
+            
+            if (result.error === "short") {
+                strokes.pop(); 
+                isLit = false;
+                currentCircuitType = null;
+                currentBulbFlowDir = 0;
+                
+                feedbackLockedUntil = Date.now() + 3000;
+                setFeedback(result.msg, "text-red-600", true);
+                
+                setTimeout(updateCircuitState, 3050);
+                return;
+            }
+
+            isLit = (result.status === "lit");
+            currentCircuitType = result.type || null;
+            currentBulbFlowDir = result.bulbFlowDir || 0;
+
+            if (isLit) {
+                let currentName = getTypeName(currentCircuitType);
+                setFeedback(`ピカッ！いまは ${currentName} だよ。「できた！」でおしえてね！`, "text-yellow-600");
+            } else {
+                const level = levels[currentLevelIndex];
+                setFeedback(level.instruction, "text-blue-600");
+            }
+        }
+
+        function setFeedback(msg, colorClass, force = false) {
+            if (Date.now() < feedbackLockedUntil && !force) {
+                return;
+            }
+            const fb = document.getElementById('feedback-text');
+            if (fb) {
+                fb.innerHTML = msg;
+                fb.className = `text-xs sm:text-sm font-bold h-5 transition-colors duration-300 ${colorClass}`;
+            }
+        }
+
+        function setupEvents() {
+            const getPos = (e) => {
+                const rect = canvas.getBoundingClientRect();
+                const scaleX = canvas.width / rect.width;
+                const scaleY = canvas.height / rect.height;
+                const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+                const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+                return {
+                    x: (clientX - rect.left) * scaleX,
+                    y: (clientY - rect.top) * scaleY
+                };
+            };
+
+            const startDraw = (e) => {
+                if (!isGameActive) return;
+                e.preventDefault();
+                isDrawing = true;
+                const pos = getPos(e);
+                currentStroke = {
+                    points: [pos],
+                    color: wireColor 
+                };
+            };
+
+            const moveDraw = (e) => {
+                if (!isDrawing || !currentStroke || !isGameActive) return;
+                e.preventDefault();
+                const pos = getPos(e);
+                
+                const lastPoint = currentStroke.points[currentStroke.points.length - 1];
+                const dx = pos.x - lastPoint.x;
+                const dy = pos.y - lastPoint.y;
+                if (dx*dx + dy*dy > 9) { 
+                    currentStroke.points.push(pos);
+                }
+            };
+
+            const endDraw = (e) => {
+                if (!isDrawing || !isGameActive) return;
+                e.preventDefault();
+                isDrawing = false;
+                
+                if (currentStroke && currentStroke.points.length > 2) {
+                    currentStroke.bb = calculateBB(currentStroke.points);
+                    strokes.push(currentStroke);
+                    updateCircuitState();
+                }
+                currentStroke = null;
+            };
+
+            canvas.addEventListener('mousedown', startDraw);
+            canvas.addEventListener('mousemove', moveDraw);
+            window.addEventListener('mouseup', endDraw);
+            canvas.addEventListener('mouseleave', endDraw);
+
+            canvas.addEventListener('touchstart', startDraw, {passive: false});
+            canvas.addEventListener('touchmove', moveDraw, {passive: false});
+            window.addEventListener('touchend', endDraw);
+            window.addEventListener('touchcancel', endDraw);
+
+            document.getElementById('btn-undo').addEventListener('click', () => {
+                if (strokes.length > 0) {
+                    strokes.pop();
+                    updateCircuitState();
+                }
+            });
+
+            document.getElementById('btn-clear').addEventListener('click', () => {
+                strokes = [];
+                updateCircuitState();
+            });
+
+            document.getElementById('btn-check').addEventListener('click', () => {
+                const level = levels[currentLevelIndex];
+                if (!isLit) {
+                    alert("まだ正しくつながっていないか、電気がとおっていないみたい。");
+                    return;
+                }
+
+                if (level.type === "any" || level.type === currentCircuitType) {
+                    clearedLevels[currentLevelIndex] = true; 
+                    showClearModal();
+                } else {
+                    showMistakeModal(currentCircuitType, level.type);
+                }
+            });
+
+            document.getElementById('btn-next').addEventListener('click', () => {
+                hideClearModal();
+                currentLevelIndex++;
+                if (currentLevelIndex >= levels.length) {
+                    currentLevelIndex = 0;
+                    showMenu(); 
+                } else {
+                    loadLevel();
+                }
+            });
+
+            document.getElementById('btn-retry').addEventListener('click', () => {
+                hideMistakeModal();
+            });
+
+            document.getElementById('btn-back-menu').addEventListener('click', showMenu);
+            
+            document.getElementById('btn-modal-menu').addEventListener('click', () => {
+                hideClearModal();
+                showMenu();
+            });
+        }
+
+        function showClearModal() {
+            const modal = document.getElementById('clear-modal');
+            const content = document.getElementById('modal-content');
+            modal.classList.remove('hidden');
+            requestAnimationFrame(() => {
+                modal.classList.remove('opacity-0');
+                content.classList.remove('scale-90');
+                content.classList.add('scale-100');
+            });
+
+            const isLast = (currentLevelIndex === levels.length - 1);
+            document.getElementById('modal-title').innerText = isLast ? "全問クリア！🎊" : "大せいかい！🎉";
+            document.getElementById('modal-msg').innerText = isLast ? "君はかん電池マスターだ！" : "完璧だ！その調子で次もいこう！";
+            document.getElementById('btn-next').innerText = isLast ? "最初からあそぶ 🔄" : "次の問題へ ➡️";
+        }
+
+        function hideClearModal() {
+            const modal = document.getElementById('clear-modal');
+            const content = document.getElementById('modal-content');
+            modal.classList.add('opacity-0');
+            content.classList.remove('scale-100');
+            content.classList.add('scale-90');
+            setTimeout(() => { modal.classList.add('hidden'); }, 300);
+        }
+
+        function showMistakeModal(currentType, targetType) {
+            const modal = document.getElementById('mistake-modal');
+            const content = document.getElementById('mistake-content');
+            modal.classList.remove('hidden');
+            requestAnimationFrame(() => {
+                modal.classList.remove('opacity-0');
+                content.classList.remove('scale-90');
+                content.classList.add('scale-100');
+            });
+
+            let currentName = getTypeName(currentType);
+            let targetName = getTypeName(targetType);
+
+            document.getElementById('mistake-msg-1').innerText = `光ったけど、これは ${currentName} だよ。`;
+            document.getElementById('mistake-msg-2').innerText = `お題は ${targetName} だよ！`;
+        }
+
+        function hideMistakeModal() {
+            const modal = document.getElementById('mistake-modal');
+            const content = document.getElementById('mistake-content');
+            modal.classList.add('opacity-0');
+            content.classList.remove('scale-100');
+            content.classList.add('scale-90');
+            setTimeout(() => { modal.classList.add('hidden'); }, 300);
+        }
+
+        function getTypeName(type) {
+            if(type === "series") return "「直列（ちょくれつ）つなぎ」";
+            if(type === "parallel") return "「並列（へいれつ）つなぎ」";
+            if(type === "single") return "「電池１こだけ」";
+            if(type === "any") return "「自由なつなぎ方」";
+            return "「よくわからないつなぎ方」";
+        }
+
+        function drawLoop() {
+            if (!isGameActive) return; 
+            
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            if (isLit) {
+                let speed = (currentCircuitType === 'series') ? 2.5 : 1.5;
+                dashOffset += speed; 
+            } else {
+                dashOffset = 0;
+            }
+
+            const level = levels[currentLevelIndex];
+
+            if (level.batteries) {
+                level.batteries.forEach(b => drawRealisticBattery(ctx, b));
+            }
+            if (level.bulb) {
+                drawRealisticBulb(ctx, level.bulb, isLit, currentBulbFlowDir, currentCircuitType);
+            }
+
+            strokes.forEach(stroke => drawStrokeBase(ctx, stroke));
+
+            if (isDrawing && currentStroke) {
+                drawStrokeBase(ctx, currentStroke);
+            }
+
+            if (isLit) {
+                circuitEdges.forEach(edge => {
+                    if (edge.isPartOfCircuit) {
+                        ctx.beginPath();
+                        if (edge.reverseFlow) {
+                            ctx.moveTo(edge.points[edge.points.length-1].x, edge.points[edge.points.length-1].y);
+                            for (let i = edge.points.length - 2; i >= 0; i--) {
+                                ctx.lineTo(edge.points[i].x, edge.points[i].y);
+                            }
+                        } else {
+                            ctx.moveTo(edge.points[0].x, edge.points[0].y);
+                            for (let i = 1; i < edge.points.length; i++) {
+                                ctx.lineTo(edge.points[i].x, edge.points[i].y);
+                            }
+                        }
+                        
+                        ctx.strokeStyle = '#FEF08A'; 
+                        ctx.lineWidth = 4;
+                        ctx.setLineDash([15, 25]); 
+                        ctx.lineDashOffset = -dashOffset; 
+                        ctx.stroke();
+                        ctx.setLineDash([]); 
+                    }
+                });
+            }
+
+            nodes.forEach(n => drawNodePoint(ctx, n));
+
+            animationFrameId = requestAnimationFrame(drawLoop);
+        }
+
+        function drawStrokeBase(ctx, stroke) {
+            if (!stroke || stroke.points.length < 1) return;
+            
+            ctx.beginPath();
+            ctx.moveTo(stroke.points[0].x, stroke.points[0].y);
+            for (let i = 1; i < stroke.points.length; i++) {
+                ctx.lineTo(stroke.points[i].x, stroke.points[i].y);
+            }
+            
+            ctx.shadowColor = 'rgba(0, 0, 0, 0.2)';
+            ctx.shadowBlur = 4;
+            ctx.shadowOffsetX = 2;
+            ctx.shadowOffsetY = 2;
+
+            ctx.strokeStyle = stroke.color;
+            ctx.lineWidth = 10;
+            ctx.lineCap = 'round';
+            ctx.lineJoin = 'round';
+            ctx.stroke();
+
+            ctx.shadowColor = 'transparent'; 
+
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+            ctx.lineWidth = 3;
+            ctx.stroke();
+        }
+
+        function drawRealisticBattery(ctx, c) {
+            ctx.save();
+            ctx.translate(c.x, c.y);
+            ctx.rotate(c.angle * Math.PI / 180);
+            
+            const bw = 160;
+            const bh = 60;
+            const left = -bw/2;
+            const top = -bh/2;
+
+            ctx.fillStyle = '#D1D5DB';
+            ctx.beginPath();
+            ctx.roundRect(left - 12, -15, 20, 30, 4);
+            ctx.fill();
+            ctx.strokeStyle = '#9CA3AF';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+
+            const cylinderGrad = ctx.createLinearGradient(0, top, 0, top + bh);
+            cylinderGrad.addColorStop(0, '#4B5563');   
+            cylinderGrad.addColorStop(0.2, '#9CA3AF'); 
+            cylinderGrad.addColorStop(0.5, '#374151'); 
+            cylinderGrad.addColorStop(0.8, '#1F2937'); 
+            cylinderGrad.addColorStop(1, '#030712');   
+
+            ctx.fillStyle = cylinderGrad;
+            ctx.beginPath();
+            ctx.roundRect(left, top, bw, bh, 8);
+            ctx.fill();
+            
+            ctx.strokeStyle = '#111827';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+
+            ctx.fillStyle = '#FFFFFF';
+            ctx.font = 'bold 36px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('＋', left + 30, 2);
+            ctx.fillText('－', left + bw - 30, 2);
+
+            ctx.restore();
+        }
+
+        function drawRealisticBulb(ctx, c, isLit, flowDir, circuitType) {
+            ctx.save();
+            ctx.translate(c.x, c.y);
+            ctx.rotate(c.angle * Math.PI / 180);
+
+            const socketTop = 20;
+
+            ctx.lineWidth = 6;
+            ctx.lineCap = 'round';
+            
+            ctx.strokeStyle = '#10B981';
+            ctx.beginPath();
+            ctx.moveTo(-5, socketTop + 45); 
+            ctx.bezierCurveTo(-20, socketTop + 100, -95, 100, -125, 120);
+            ctx.stroke();
+
+            ctx.strokeStyle = '#EF4444';
+            ctx.beginPath();
+            ctx.moveTo(5, socketTop + 45);
+            ctx.bezierCurveTo(20, socketTop + 100, 95, 100, 125, 120);
+            ctx.stroke();
+
+            const goldGrad = ctx.createLinearGradient(-18, socketTop, 18, socketTop);
+            goldGrad.addColorStop(0, '#B45309');
+            goldGrad.addColorStop(0.3, '#FCD34D');
+            goldGrad.addColorStop(0.7, '#FBBF24');
+            goldGrad.addColorStop(1, '#92400E');
+            
+            ctx.fillStyle = goldGrad;
+            ctx.fillRect(-18, socketTop, 36, 35);
+            
+            ctx.strokeStyle = '#92400E';
+            ctx.lineWidth = 1.5;
+            for(let i=0; i<4; i++) {
+                ctx.beginPath();
+                ctx.moveTo(-18, socketTop + 6 + i*7);
+                ctx.lineTo(18, socketTop + 3 + i*7);
+                ctx.stroke();
+            }
+
+            ctx.fillStyle = '#1F2937';
+            ctx.fillRect(-10, socketTop + 35, 20, 6);
+            ctx.fillStyle = '#D1D5DB';
+            ctx.beginPath();
+            ctx.arc(0, socketTop + 41, 4, 0, Math.PI*2);
+            ctx.fill();
+
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.35)'; 
+            ctx.strokeStyle = 'rgba(209, 213, 219, 0.6)'; 
+            ctx.lineWidth = 1.5;
+            
+            ctx.beginPath();
+            ctx.roundRect(-23, socketTop - 5, 46, 52, 3);
+            ctx.fill();
+            ctx.stroke();
+            
+            ctx.beginPath();
+            ctx.roundRect(-26, socketTop - 12, 52, 10, 2);
+            ctx.fill();
+            ctx.stroke();
+
+            if (isLit) {
+                let glowRadius = (circuitType === 'series') ? 250 : 150;
+                let coreAlpha = (circuitType === 'series') ? 1.0 : 0.9;
+                let midAlpha = (circuitType === 'series') ? 0.6 : 0.5;
+
+                const gradient = ctx.createRadialGradient(0, -20, 10, 0, -20, glowRadius);
+                gradient.addColorStop(0, `rgba(253, 224, 71, ${coreAlpha})`); 
+                gradient.addColorStop(0.3, `rgba(253, 224, 71, ${midAlpha})`);
+                gradient.addColorStop(1, 'rgba(253, 224, 71, 0)');
+                ctx.fillStyle = gradient;
+                ctx.beginPath();
+                ctx.arc(0, -20, glowRadius, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            let bulbColor = 'rgba(243, 244, 246, 0.4)'; 
+            if (isLit) {
+                bulbColor = (circuitType === 'series') ? 'rgba(255, 255, 180, 0.95)' : 'rgba(254, 240, 138, 0.8)';
+            }
+            ctx.fillStyle = bulbColor;
+            ctx.strokeStyle = 'rgba(209, 213, 219, 0.8)';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.arc(0, -15, 30, 0, Math.PI * 2); 
+            ctx.fill();
+            ctx.stroke();
+            
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+            ctx.beginPath();
+            ctx.ellipse(-10, -30, 10, 5, Math.PI / 4, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.strokeStyle = '#6B7280';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(-6, 5); ctx.lineTo(-8, -15);
+            ctx.moveTo(6, 5); ctx.lineTo(8, -15);
+            ctx.stroke();
+
+            ctx.strokeStyle = isLit ? ((circuitType === 'series') ? '#FFFFFF' : '#F59E0B') : '#9CA3AF'; 
+            ctx.lineWidth = isLit ? ((circuitType === 'series') ? 4 : 3) : 1.5;
+            ctx.beginPath();
+            ctx.moveTo(-8, -15);
+            ctx.quadraticCurveTo(0, -25, 8, -15);
+            ctx.stroke();
+            
+            if(isLit) {
+                ctx.shadowColor = (circuitType === 'series') ? '#FEF08A' : '#F59E0B';
+                ctx.shadowBlur = (circuitType === 'series') ? 16 : 8;
+                ctx.stroke();
+                ctx.shadowColor = 'transparent';
+            }
+
+            if (isLit && flowDir !== 0) {
+                ctx.beginPath();
+                if (flowDir === 1) { 
+                    ctx.moveTo(-125, 120);
+                    ctx.bezierCurveTo(-95, 100, -20, socketTop + 100, -5, socketTop + 45);
+                    ctx.lineTo(5, socketTop + 45);
+                    ctx.bezierCurveTo(20, socketTop + 100, 95, 100, 125, 120);
+                } else { 
+                    ctx.moveTo(125, 120);
+                    ctx.bezierCurveTo(95, 100, 20, socketTop + 100, 5, socketTop + 45);
+                    ctx.lineTo(-5, socketTop + 45);
+                    ctx.bezierCurveTo(-20, socketTop + 100, -95, 100, -125, 120);
+                }
+                ctx.strokeStyle = '#FEF08A';
+                ctx.lineWidth = 4;
+                ctx.setLineDash([15, 25]);
+                ctx.lineDashOffset = -dashOffset;
+                ctx.stroke();
+                ctx.setLineDash([]);
+            }
+
+            ctx.restore();
+        }
+
+        function drawNodeBase(ctx, node) {
+            if (node.x < -500) return; 
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+            ctx.beginPath();
+            ctx.arc(node.x, node.y, 20, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        function drawNodePoint(ctx, node) {
+            if (node.x < -500) return; 
+            ctx.fillStyle = '#E5E7EB';
+            ctx.strokeStyle = '#374151';
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.arc(node.x, node.y, 12, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+
+            if (node.type === 'battery_plus') ctx.fillStyle = '#1F2937'; 
+            else if (node.type === 'battery_minus') ctx.fillStyle = '#1F2937'; 
+            else if (node.type === 'bulb_wire_green') ctx.fillStyle = '#10B981'; 
+            else if (node.type === 'bulb_wire_red') ctx.fillStyle = '#EF4444'; 
+
+            ctx.beginPath();
+            ctx.arc(node.x, node.y, 6, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        init();
+    </script>
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+    import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+    import { getFirestore, doc, setDoc, updateDoc, increment, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+    const firebaseConfig = {
+        apiKey: "AIzaSyB4fpt6ffIuTBDJo_9g37kYr6KOWNgIcEY",
+        authDomain: "otatoolssite.firebaseapp.com",
+        projectId: "otatoolssite",
+        storageBucket: "otatoolssite.firebasestorage.app",
+        messagingSenderId: "20522292752",
+        appId: "1:20522292752:web:22fba7fecb61736593dc95"
+    };
+
+    // アプリ固有のID
+    const THIS_APP_ID = "25"; 
+    
+    const PORTAL_APP_ID = "otatoolssite-v1";
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+    const auth = getAuth(app);
+    signInAnonymously(auth).then(async () => {
+        const todayStr = new Date().toISOString().split('T')[0];
+        const storageKey = `ota_visited_${THIS_APP_ID}`;
+        
+        if (localStorage.getItem(storageKey) === todayStr) {
+            return;
+        }
+        const docRef = doc(db, 'artifacts', PORTAL_APP_ID, 'public', 'data', 'app_views', THIS_APP_ID);
+                try {
+            const docSnap = await getDoc(docRef);
+            if (docSnap.exists()) {
+                await updateDoc(docRef, { count: increment(1) });
+            } else {
+                await setDoc(docRef, { count: 1 }); 
+            }
+            localStorage.setItem(storageKey, todayStr);
+        } catch (e) { 
+            console.error("閲覧数のカウントに失敗しました:", e); 
+        }
+    }).catch((error) => {
+        console.error("Firebase認証エラー:", error);
+    });
+</script>
+</body>
+</html>
+</body>
+</html>
