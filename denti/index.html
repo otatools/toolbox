@@ -35,11 +35,30 @@
            メインメニューのキラキラエフェクト
            --------------------------------- */
         @keyframes bulb-glow {
-            0% { filter: drop-shadow(0 0 5px rgba(253, 224, 71, 0.8)); }
-            100% { filter: drop-shadow(0 0 25px rgba(253, 224, 71, 1)); }
+            0% { 
+                filter: drop-shadow(0 0 5px rgba(253, 224, 71, 0.4)); 
+                transform: scale(0.95);
+            }
+            100% { 
+                filter: drop-shadow(0 0 30px rgba(253, 224, 71, 1)) drop-shadow(0 0 60px rgba(255, 165, 0, 0.8)); 
+                transform: scale(1.15);
+            }
         }
         .cleared-bulb {
-            animation: bulb-glow 1s infinite alternate;
+            animation: bulb-glow 0.8s ease-in-out infinite alternate;
+            display: inline-block; /* 大きさを変えるために必要 */
+        }
+
+        /* 全面クリア時の降ってくる星のアニメーション */
+        @keyframes star-fall {
+            0% { transform: translateY(-10vh) rotate(0deg); opacity: 1; }
+            100% { transform: translateY(110vh) rotate(360deg); opacity: 0; }
+        }
+        .super-star {
+            position: absolute;
+            z-index: 5;
+            pointer-events: none;
+            animation: star-fall 3s linear infinite;
         }
 
         @keyframes rainbow-bg {
@@ -269,7 +288,7 @@
                 }`;
                 
                 btn.innerHTML = `
-                    <span class="text-4xl sm:text-6xl ${isCleared ? 'cleared-bulb' : 'filter grayscale opacity-50'}">💡</span>
+                    <span class="text-4xl sm:text-6xl ${isCleared ? 'cleared-bulb' : 'filter grayscale opacity-50'}" ${isCleared ? `style="animation-delay: ${index * 0.15}s;"` : ''}>💡</span>
                     <span class="mt-2 text-sm sm:text-base font-bold ${isCleared ? 'text-yellow-600' : 'text-gray-500'}">ステージ ${index + 1}</span>
                     ${isCleared ? '<span class="absolute top-1 right-2 text-xl sm:text-2xl filter drop-shadow">⭐</span>' : ''}
                 `;
@@ -290,10 +309,31 @@
                 body.classList.add('super-party-mode');
                 title.classList.add('super-title');
                 title.innerHTML = '🌟 全ステージクリア！おめでとう！ 🌟<br><span class="text-xl sm:text-2xl text-white">きみは 真のかん電池マスターだ！</span>';
+                
+                // キラキラエフェクトを追加
+                if (!document.getElementById('stars-container')) {
+                    const starsContainer = document.createElement('div');
+                    starsContainer.id = 'stars-container';
+                    starsContainer.className = 'absolute inset-0 pointer-events-none overflow-hidden';
+                    for (let i = 0; i < 40; i++) {
+                        const star = document.createElement('div');
+                        star.className = 'super-star';
+                        // 星やクラッカー、電球をランダムで降らせる
+                        star.innerHTML = ['✨', '🌟', '🎉', '💡', '🎊'][Math.floor(Math.random() * 5)];
+                        star.style.left = Math.random() * 100 + 'vw';
+                        star.style.animationDuration = (Math.random() * 2 + 2) + 's';
+                        star.style.animationDelay = (Math.random() * 2) + 's';
+                        star.style.fontSize = (Math.random() * 1.5 + 1) + 'rem';
+                        starsContainer.appendChild(star);
+                    }
+                    body.appendChild(starsContainer);
+                }
             } else {
                 body.classList.remove('super-party-mode');
                 title.classList.remove('super-title');
                 title.innerHTML = 'あそぶステージをえらんでね！';
+                const starsContainer = document.getElementById('stars-container');
+                if (starsContainer) starsContainer.remove();
             }
         }
 
