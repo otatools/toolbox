@@ -1097,8 +1097,8 @@
             }
         }
 
-        function shootSandParticles(fromX, fromY, toX, toY, onImpact) {
-            const count = 12;
+        function shootSandParticles(fromX, fromY, toX, toY, onImpact, particleCountOverride) {
+            const count = particleCountOverride || 12;
             let finished = 0;
             
             for (let i = 0; i < count; i++) {
@@ -1334,7 +1334,7 @@
                 }
             }
 
-            xpGainDisplay.innerHTML = "<ruby>星<rt>ほし</rt></ruby>のすなをチャージ<ruby>中<rt>ちゅう</rt></ruby>！ ✨";
+            xpGainDisplay.innerHTML = "星のすなをチャージ中！ ✨";
             xpGainDisplay.className = "text-base sm:text-xl text-yellow-300 font-bold mb-2 animate-pulseFast h-8 flex items-center justify-center md:justify-start";
 
             for (let i = 0; i < particleCount; i++) {
@@ -1361,7 +1361,7 @@
                             saveData();
                             updateStartScreenInfo();
 
-                            xpGainDisplay.innerHTML = `+ ${earnedXp} pt チャージ<ruby>完了<rt>かんりょう</rt></ruby>！ 🌟`;
+                            xpGainDisplay.innerHTML = `+ ${earnedXp} pt チャージ完了！ 🌟`;
                             xpGainDisplay.className = "text-base sm:text-xl text-green-300 font-bold mb-2 h-8 flex items-center justify-center md:justify-start";
 
                             const nextBtn = document.getElementById('next-attempt-btn');
@@ -1369,7 +1369,7 @@
                             nextBtn.classList.remove('opacity-50', 'cursor-not-allowed');
                             nextBtn.innerText = "つぎの挑戦へ 🚀";
                         }
-                    });
+                    }, 2); // リザルト画面での砂パーティクル生成を軽量化
                 }, i * 150);
             }
         }
@@ -1386,11 +1386,14 @@
             
             const previouslyShownTitle = rankTitle.innerHTML;
             
-            rankIcon.innerText = rank.icon;
-            rankTitle.innerHTML = rank.title;
-            
-            if (previouslyShownTitle && previouslyShownTitle !== rank.title) {
-                triggerRankUpCelebration();
+            if (rankIcon.innerText !== rank.icon) {
+                rankIcon.innerText = rank.icon;
+            }
+            if (previouslyShownTitle !== rank.title) {
+                rankTitle.innerHTML = rank.title;
+                if (previouslyShownTitle) {
+                    triggerRankUpCelebration();
+                }
             }
             
             if (nextRank) {
@@ -1399,12 +1402,24 @@
                 const percent = Math.min(100, Math.max(0, (current / range) * 100));
                 
                 bar.style.width = `${percent}%`;
-                nextText.innerHTML = `つぎの<ruby>称号<rt>しょうごう</rt></ruby>まで あと ${nextRank.min - currentXp} pt`;
-                numericalXp.innerText = `${currentXp} / ${nextRank.min} pt`;
+                const nextStr = `つぎの<ruby>称号<rt>しょうごう</rt></ruby>まで あと ${nextRank.min - currentXp} pt`;
+                if (nextText.innerHTML !== nextStr) {
+                    nextText.innerHTML = nextStr;
+                }
+                const numStr = `${currentXp} / ${nextRank.min} pt`;
+                if (numericalXp.innerText !== numStr) {
+                    numericalXp.innerText = numStr;
+                }
             } else {
                 bar.style.width = '100%';
-                nextText.innerHTML = "MAXレベル<ruby>到達<rt>とうたつ</rt></ruby>！すごい！";
-                numericalXp.innerText = `${currentXp} pt`;
+                const maxStr = "MAXレベル<ruby>到達<rt>とうたつ</rt></ruby>！すごい！";
+                if (nextText.innerHTML !== maxStr) {
+                    nextText.innerHTML = maxStr;
+                }
+                const maxNumStr = `${currentXp} pt`;
+                if (numericalXp.innerText !== maxNumStr) {
+                    numericalXp.innerText = maxNumStr;
+                }
             }
         }
 
