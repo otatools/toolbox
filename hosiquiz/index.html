@@ -1,0 +1,1719 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>教育アプリ｜夏の夜空 クイズマスター</title>
+    <meta name="description" content="小学校４年理科の夏の夜空の単元への興味関心に役立つ大阪市の現役小学校教員が制作した、クイズアプリです。ota toolsのアプリの１つです。">
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "SoftwareApplication",
+      "name": "ota tools",
+      "operatingSystem": "Web",
+      "applicationCategory": "EducationalApplication",
+      "offers": {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "JPY"
+      },
+      "author": {
+        "@type": "Person",
+        "name": "太田圭一"
+      },
+      "description": "大阪市の現役小学校教員が制作した、授業や家庭で使える無料の教育・学習用アプリです。",
+      "audience": {
+        "@type": "Audience",
+        "audienceType": "小学校教員, 児童, 保護者"
+      }
+    }
+    </script>  
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    animation: {
+                        twinkle: 'twinkle 3s ease-in-out infinite',
+                        pop: 'pop 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards',
+                        shake: 'shake 0.4s ease-in-out',
+                        floatUp: 'floatUp 4s ease-in forwards',
+                        pulseFast: 'pulse 1s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+                        jiggle: 'jiggle 0.5s ease-in-out infinite alternate',
+                        float: 'float 4s ease-in-out infinite',
+                        spinSlow: 'spin 12s linear infinite',
+                    },
+                    keyframes: {
+                        twinkle: {
+                            '0%, 100%': { opacity: 1, transform: 'scale(1)' },
+                            '50%': { opacity: 0.2, transform: 'scale(0.8)' },
+                        },
+                        pop: {
+                            '0%': { transform: 'scale(0.5)', opacity: 0 },
+                            '100%': { transform: 'scale(1)', opacity: 1 },
+                        },
+                        shake: {
+                            '0%, 100%': { transform: 'translateX(0)' },
+                            '20%, 60%': { transform: 'translateX(-10px)' },
+                            '40%, 80%': { transform: 'translateX(10px)' },
+                        },
+                        floatUp: {
+                            '0%': { transform: 'translateY(100vh) rotate(0deg)', opacity: 1 },
+                            '100%': { transform: 'translateY(-20vh) rotate(360deg)', opacity: 0 },
+                        },
+                        jiggle: {
+                            '0%': { transform: 'rotate(-3deg) scale(1)' },
+                            '100%': { transform: 'rotate(3deg) scale(1.05)' }
+                        },
+                        float: {
+                            '0%, 100%': { transform: 'translateY(0px) rotate(0deg)' },
+                            '50%': { transform: 'translateY(-10px) rotate(3deg)' }
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style type="text/tailwindcss">
+        @layer utilities {
+            .glass-panel {
+                @apply bg-white/10 backdrop-blur-md border border-white/20 shadow-2xl rounded-3xl;
+            }
+            ruby {
+                @apply leading-relaxed;
+            }
+            rt {
+                @apply text-[11px] text-blue-200 font-normal;
+            }
+            .modal-content rt {
+                @apply text-gray-500;
+            }
+        }
+        
+        * {
+            -webkit-tap-highlight-color: transparent;
+        }
+        
+        /* スクロールバーのカスタマイズ（ノート画面用） */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.1); 
+            border-radius: 10px;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.3); 
+            border-radius: 10px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.5); 
+        }
+        
+        /* 称号リスト用スクロールバー */
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 6px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.05); 
+            border-radius: 10px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: rgba(139, 92, 246, 0.5); 
+            border-radius: 10px;
+        }
+
+        /* ================= 高さ（縦幅）が低い画面向けのアダプティブ調整 ================= */
+        @media (max-height: 740px) {
+            /* 全体の余白・パディング調整 */
+            .glass-panel {
+                padding: 1rem 1.25rem !important;
+                border-radius: 1.5rem !important;
+            }
+
+            /* タイトル画面 */
+            #start-screen h1 {
+                font-size: 1.5rem !important;
+                line-height: 1.25 !important;
+            }
+            #start-screen h1 .text-xl, #start-screen h1 .text-2xl {
+                font-size: 1.15rem !important;
+            }
+            #start-screen .text-4xl, #start-screen .text-5xl, #start-screen .text-6xl {
+                font-size: 2.5rem !important;
+            }
+            #start-screen .py-4 {
+                padding-top: 0.25rem !important;
+                padding-bottom: 0.25rem !important;
+                margin-bottom: 0.5rem !important;
+            }
+            #start-screen .p-4 {
+                padding: 0.75rem !important;
+                margin-bottom: 0.75rem !important;
+            }
+            #start-screen .space-y-4 {
+                margin-top: 0.25rem !important;
+            }
+            #start-screen .space-y-4 > button {
+                padding-top: 0.75rem !important;
+                padding-bottom: 0.75rem !important;
+                font-size: 1rem !important;
+            }
+
+            /* クイズ画面 */
+            #quiz-screen {
+                padding: 1rem !important;
+            }
+            #question-text {
+                font-size: 1.25rem !important;
+                margin-bottom: 1rem !important;
+            }
+            #choices-container {
+                @apply space-y-2.5 !important;
+            }
+            #choices-container button {
+                padding-top: 0.75rem !important;
+                padding-bottom: 0.75rem !important;
+            }
+            #choices-container button span.text-lg, #choices-container button span.text-xl {
+                font-size: 1rem !important;
+            }
+            #quiz-bottle-container {
+                padding-top: 0.25rem !important;
+                padding-bottom: 0.25rem !important;
+            }
+
+            /* リザルト（結果画面） */
+            #result-screen {
+                padding: 1rem !important;
+            }
+            #result-screen h2 {
+                font-size: 1.5rem !important;
+                margin-bottom: 0.25rem !important;
+            }
+            #result-screen .text-5xl {
+                font-size: 2.25rem !important;
+                margin-bottom: 0.25rem !important;
+            }
+            #result-bottle-container {
+                width: 6.5rem !important;
+                height: 7.5rem !important;
+                padding: 0.4rem !important;
+                border-radius: 1rem !important;
+            }
+            #result-bottle-container .w-20 {
+                width: 4rem !important;
+                height: 4.8rem !important;
+            }
+            #xp-gain-display {
+                font-size: 1rem !important;
+                margin-bottom: 0.25rem !important;
+                height: auto !important;
+            }
+            #result-screen .bg-black\/30 {
+                padding: 0.75rem !important;
+                margin-top: 0.25rem;
+            }
+            #result-screen .text-5xl {
+                font-size: 2.25rem;
+            }
+            
+            /* モーダル類のパディング調整 */
+            #explanation-modal #modal-content {
+                padding: 1.25rem !important;
+            }
+            #note-modal-content {
+                padding: 1.25rem !important;
+            }
+        }
+
+        /* 画面が非常に短い（スマホの横持ちなど）の時の極端な高密度表示 */
+        @media (max-height: 600px) {
+            #start-screen h1 {
+                font-size: 1.25rem !important;
+            }
+            #start-screen .text-3xl, #start-screen .text-4xl {
+                font-size: 1.5rem !important;
+            }
+            #start-screen .text-4xl, #start-screen .text-5xl, #start-screen .text-6xl {
+                font-size: 1.8rem !important;
+            }
+            #question-text {
+                font-size: 1.1rem !important;
+                margin-bottom: 0.5rem !important;
+            }
+            #choices-container button {
+                padding-top: 0.5rem !important;
+                padding-bottom: 0.5rem !important;
+            }
+            #choices-container button span.text-lg, #choices-container button span.text-xl {
+                font-size: 0.9rem !important;
+            }
+            #choices-container button .w-8 {
+                width: 1.5rem !important;
+                height: 1.5rem !important;
+                margin-right: 0.5rem !important;
+            }
+        }
+    </style>
+</head>
+<body class="bg-gradient-to-b from-gray-900 via-indigo-950 to-blue-900 text-white min-h-screen h-[100dvh] overflow-hidden font-sans select-none flex items-center justify-center">
+
+    <!-- 背景の星々 -->
+    <div id="stars-container" class="absolute inset-0 pointer-events-none overflow-hidden z-0"></div>
+
+    <!-- メインコンテナ：縦幅制限を加え、スクロールさせず一画面に完全にフィット -->
+    <div class="relative z-10 w-full max-w-lg md:max-w-2xl mx-auto p-3 sm:p-4 flex flex-col h-full max-h-[100dvh] sm:h-auto sm:max-h-[95dvh] transition-all duration-300">
+        
+        <!-- ================= START SCREEN ================= -->
+        <div id="start-screen" class="glass-panel p-6 sm:p-8 text-center flex-grow flex flex-col justify-center transform transition-all duration-500 max-h-full overflow-y-auto">
+            
+            <div class="relative py-4 mb-2 select-none">
+                <!-- 星雲をイメージしたバックグロー効果 -->
+                <div class="absolute inset-0 bg-gradient-to-r from-blue-500/10 via-purple-500/15 to-pink-500/10 blur-3xl rounded-full scale-75 -z-10"></div>
+                
+                <!-- イラストをタイトルの左右に配置する横並びコンテナ -->
+                <div class="flex items-center justify-center gap-3 sm:gap-6 max-w-full">
+                    
+                    <!-- 左側のイラスト：ゆらゆら浮かぶ望遠鏡ときらめく星 -->
+                    <div class="flex-shrink-0 relative animate-float select-none">
+                        <div class="text-4xl sm:text-5xl md:text-6xl">🔭</div>
+                        <span class="absolute -left-2 -top-2 text-lg sm:text-xl animate-pulseFast">✨</span>
+                    </div>
+
+                    <!-- 中央のタイトル部分 -->
+                    <div class="text-center">
+                        <h1 class="text-2xl sm:text-3xl md:text-4xl font-black tracking-wider leading-tight drop-shadow-[0_0_15px_rgba(253,224,71,0.4)] transition-transform duration-300 hover:scale-105">
+                            <span class="inline-block text-transparent bg-clip-text bg-gradient-to-r from-yellow-200 via-amber-300 to-yellow-400">
+                                <ruby>夏<rt class="tracking-normal">なつ</rt></ruby>の<ruby>夜空<rt class="tracking-normal">よぞら</rt></ruby>
+                            </span>
+                            <br>
+                            <span class="inline-block text-xl sm:text-2xl md:text-3xl mt-1 text-transparent bg-clip-text bg-gradient-to-r from-cyan-300 via-teal-200 to-yellow-200 drop-shadow-[0_0_8px_rgba(34,211,238,0.3)]">
+                                クイズマスター
+                            </span>
+                        </h1>
+                    </div>
+
+                    <!-- 右側のイラスト：宇宙をただよう土星ときらめく星 -->
+                    <div class="flex-shrink-0 relative animate-float select-none" style="animation-delay: 0.5s;">
+                        <div class="text-4xl sm:text-5xl md:text-6xl">🪐</div>
+                        <span class="absolute -right-2 -top-2 text-lg sm:text-xl animate-pulse">✨</span>
+                        <span class="absolute -right-3 bottom-1 text-md sm:text-lg animate-twinkle">🌟</span>
+                    </div>
+
+                </div>
+            </div>
+            
+            <!-- プレイヤー情報パネル -->
+            <div onclick="showRankModal()" class="bg-black/40 hover:bg-black/60 cursor-pointer rounded-2xl p-4 mb-4 border border-white/10 backdrop-blur-sm max-w-md mx-auto w-full transition-all duration-300 group relative shadow-lg hover:shadow-blue-500/20 transform hover:-translate-y-1">
+                <div class="text-sm text-blue-200 mb-1 flex justify-between items-center">
+                    <span>いまの<ruby>称号<rt>しょうごう</rt></ruby></span>
+                    <span class="text-xs bg-blue-900/50 text-blue-300 px-2 py-1 rounded-full flex items-center gap-1 group-hover:bg-blue-600 group-hover:text-white transition-colors shadow-inner"><span>🏆</span> ずかんを見る</span>
+                </div>
+                <div class="flex items-center justify-center gap-2 mb-2">
+                    <span id="start-rank-icon" class="text-3xl transition-transform group-hover:scale-110"></span>
+                    <span id="start-rank-title" class="text-xl font-bold text-yellow-300"></span>
+                </div>
+                <div class="w-full bg-gray-700 rounded-full h-2.5 mb-1 overflow-hidden">
+                    <div id="start-xp-bar" class="bg-gradient-to-r from-blue-400 to-purple-500 h-2.5 rounded-full transition-all duration-500 relative" style="width: 0%">
+                        <div class="absolute right-0 top-0 bottom-0 w-4 bg-white/30 blur-[2px]"></div>
+                    </div>
+                </div>
+                <div class="text-xs flex justify-between text-gray-300">
+                    <span id="start-next-rank-hint" class="text-blue-300 font-mono"></span>
+                    <span><span id="start-xp-text" class="font-mono font-bold">0</span> pt</span>
+                </div>
+            </div>
+
+            <div class="space-y-3 sm:space-y-4 max-w-md mx-auto w-full">
+                <button onclick="startQuiz()" class="bg-gradient-to-r from-yellow-400 to-orange-500 hover:from-yellow-300 hover:to-orange-400 text-yellow-900 font-black text-xl py-3.5 px-8 rounded-full shadow-[0_0_15px_rgba(250,204,21,0.5)] transform transition hover:scale-105 active:scale-95 w-full">
+                    クイズに<ruby>挑戦<rt>ちょうせん</rt></ruby>！ ✨
+                </button>
+                
+                <button onclick="showNoteScreen()" class="bg-blue-600/80 hover:bg-blue-500/80 border border-blue-400 text-white font-bold text-lg py-2.5 px-8 rounded-full shadow-lg transform transition hover:scale-105 active:scale-95 w-full flex items-center justify-center gap-2">
+                    <span>📖</span> 星空ノートをみる
+                </button>
+            </div>
+        </div>
+
+        <!-- ================= QUIZ SCREEN ================= -->
+        <div id="quiz-screen" class="hidden glass-panel p-6 sm:p-8 flex-grow flex flex-col justify-between transform transition-all duration-500 max-h-full overflow-y-auto">
+            <div class="flex justify-between items-center mb-4 flex-shrink-0">
+                <span class="text-yellow-300 font-bold tracking-wider text-lg" id="question-counter">だい 1 もん</span>
+                
+                <!-- クイズ中の砂の小瓶 -->
+                <div id="quiz-bottle-container" class="relative flex items-center gap-2 bg-black/40 px-3 py-1 rounded-2xl border border-white/10 backdrop-blur-sm transform transition duration-300">
+                    <span class="text-[10px] text-blue-200 font-bold tracking-widest">星のすな</span>
+                    <div class="relative w-8 h-10 flex items-center justify-center">
+                        <!-- ガラス瓶＆砂 一体型SVG -->
+                        <svg viewBox="0 0 100 120" class="absolute inset-0 w-full h-full z-10 pointer-events-none drop-shadow-[0_0_4px_rgba(253,186,116,0.3)]">
+                            <defs>
+                                <clipPath id="quiz-bottle-clip">
+                                    <path d="M35 15 H65 V25 L80 40 V100 A15 15 0 0 1 65 115 H35 A15 15 0 0 1 20 100 V40 L35 25 Z" />
+                                </clipPath>
+                                <linearGradient id="quiz-sand-grad" x1="0" y1="1" x2="0" y2="0">
+                                    <stop offset="0%" stop-color="#f97316" />
+                                    <stop offset="50%" stop-color="#facc15" />
+                                    <stop offset="100%" stop-color="#fef08a" />
+                                </linearGradient>
+                            </defs>
+                            <!-- 砂の矩形 -->
+                            <rect id="quiz-bottle-sand" x="20" y="115" width="60" height="0" fill="url(#quiz-sand-grad)" clip-path="url(#quiz-bottle-clip)" class="transition-all duration-1000 ease-out" />
+                            <!-- 外枠ストローク -->
+                            <path d="M35 15 H65 V25 L80 40 V100 A15 15 0 0 1 65 115 H35 A15 15 0 0 1 20 100 V40 L35 25 Z" fill="none" stroke="rgba(255,255,255,0.7)" stroke-width="6" />
+                            <rect x="38" y="5" width="24" height="10" rx="3" fill="#854d0e" />
+                        </svg>
+                    </div>
+                    <span id="quiz-sand-count" class="text-sm font-black text-yellow-300">0</span>
+                </div>
+            </div>
+            
+            <div class="w-full bg-gray-700/50 rounded-full h-2.5 mb-6 overflow-hidden flex-shrink-0">
+                <div class="bg-gradient-to-r from-yellow-400 to-yellow-300 h-2.5 rounded-full transition-all duration-500 ease-out w-0" id="progress-bar"></div>
+            </div>
+
+            <div class="flex-grow flex flex-col justify-center min-h-0">
+                <h2 id="question-text" class="text-2xl sm:text-3xl font-bold mb-6 leading-tight drop-shadow-md text-center overflow-y-auto max-h-[30dvh] custom-scrollbar px-1">
+                    <!-- 問題文 -->
+                </h2>
+
+                <div id="choices-container" class="space-y-4 flex-shrink-0">
+                    <!-- 選択肢 -->
+                </div>
+            </div>
+        </div>
+
+        <!-- ================= RESULT SCREEN ================= -->
+        <div id="result-screen" class="hidden glass-panel p-6 sm:p-8 text-center flex-grow flex flex-col justify-center relative overflow-hidden transform transition-all duration-500 max-h-full overflow-y-auto">
+            <div id="celebration-container" class="absolute inset-0 pointer-events-none z-0"></div>
+            <div class="relative z-10 w-full flex flex-col justify-between h-full">
+                <div>
+                    <h2 class="text-3xl font-black mb-1 text-yellow-300 drop-shadow-lg"><ruby>結果発表<rt>けっかはっぴょう</rt></ruby>！</h2>
+                    <div class="text-5xl font-black mb-3">
+                        <span id="final-score" class="text-white"></span> <span class="text-2xl text-blue-200">/ 5 <ruby>問正解<rt>もんせいかい</rt></ruby></span>
+                    </div>
+                </div>
+
+                <!-- 左右2カラム構造 of コンテンツエリア -->
+                <div class="flex flex-col md:flex-row items-center justify-center gap-4 sm:gap-6 my-2 w-full flex-grow min-h-0">
+                    
+                    <!-- 左カラム: 集めた星の砂ボトル -->
+                    <div class="flex flex-col items-center justify-center w-full md:w-1/3 flex-shrink-0">
+                        <div id="result-bottle-container" class="relative bg-black/40 p-5 rounded-3xl border border-white/10 backdrop-blur-sm flex flex-col items-center gap-1 transform transition duration-500 w-36 h-40 flex-shrink-0 justify-center">
+                            <div class="relative w-20 h-24">
+                                <!-- 大きなボトル＆砂 一体型SVG -->
+                                <svg viewBox="0 0 100 120" class="absolute inset-0 w-full h-full z-10 pointer-events-none drop-shadow-[0_0_10px_rgba(253,186,116,0.6)]">
+                                    <defs>
+                                        <clipPath id="result-bottle-clip">
+                                            <path d="M35 15 H65 V25 L80 40 V100 A15 15 0 0 1 65 115 H35 A15 15 0 0 1 20 100 V40 L35 25 Z" />
+                                        </clipPath>
+                                        <linearGradient id="result-sand-grad" x1="0" y1="1" x2="0" y2="0">
+                                            <stop offset="0%" stop-color="#f97316" />
+                                            <stop offset="50%" stop-color="#facc15" />
+                                            <stop offset="100%" stop-color="#fef08a" />
+                                        </linearGradient>
+                                    </defs>
+                                    <rect id="result-bottle-sand" x="20" y="115" width="60" height="0" fill="url(#result-sand-grad)" clip-path="url(#result-bottle-clip)" class="transition-all duration-1000 ease-out" />
+                                    <path d="M35 15 H65 V25 L80 40 V100 A15 15 0 0 1 65 115 H35 A15 15 0 0 1 20 100 V40 L35 25 Z" fill="none" stroke="rgba(255,255,255,0.8)" stroke-width="5" />
+                                    <rect id="result-cork" x="38" y="5" width="24" height="10" rx="3" fill="#854d0e" class="transition-all duration-700 origin-bottom" />
+                                </svg>
+                            </div>
+                            <div class="text-[10px] text-yellow-300 font-bold tracking-widest mt-1">集めた星のすな</div>
+                        </div>
+                    </div>
+
+                    <!-- 右カラム: 獲得XPと称号カード -->
+                    <div class="flex-grow w-full md:w-2/3 flex flex-col justify-center min-h-0">
+                        <div class="text-lg sm:text-xl text-green-300 font-bold mb-1.5 animate-pulseFast h-8 flex items-center justify-center md:justify-start" id="xp-gain-display">
+                            すなをXPに変えるよ！
+                        </div>
+                        
+                        <div class="bg-black/30 rounded-2xl p-4 sm:p-5 border border-white/10 backdrop-blur-sm relative text-left">
+                            <div id="rank-up-badge" class="hidden absolute -top-4 -right-4 bg-red-500 text-white font-bold text-sm px-4 py-1.5 rounded-full animate-bounce shadow-lg rotate-12 border-2 border-white z-20">ランクアップ!</div>
+                            
+                            <div class="text-xs text-blue-200 mb-1 text-center md:text-left">きみの<ruby>称号<rt>しょうごう</rt></ruby>は...</div>
+                            
+                            <div class="flex flex-col sm:flex-row items-center gap-3 justify-center sm:justify-start">
+                                <div id="rank-icon" class="text-5xl transition-transform duration-300"></div>
+                                <div id="rank-title" class="text-xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-yellow-200 to-yellow-400 text-center sm:text-left"></div>
+                            </div>
+                            
+                            <!-- 経験値バー -->
+                            <div class="mt-3 w-full bg-gray-700 rounded-full h-3 mb-1 overflow-visible relative">
+                                <div id="result-xp-bar" class="bg-gradient-to-r from-blue-400 to-purple-500 h-3 rounded-full relative transition-[width] duration-75 ease-linear" style="width: 0%">
+                                    <div class="absolute right-0 top-1/2 -translate-y-1/2 flex h-3 w-3 items-center justify-center translate-x-1/2 z-10">
+                                        <div class="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75"></div>
+                                        <div class="relative inline-flex rounded-full h-2 w-2 bg-white shadow-[0_0_8px_#fff]"></div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="flex justify-between items-center text-[10px] text-gray-400 px-1 mt-1 font-mono">
+                                <span id="next-rank-text"></span>
+                                <span id="numerical-xp-display">0 pt</span>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+
+                <!-- ボタンエリア -->
+                <div class="flex flex-col sm:flex-row gap-3 mt-3 max-w-lg mx-auto w-full flex-shrink-0">
+                    <button id="next-attempt-btn" onclick="startQuiz()" class="bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-400 hover:to-indigo-500 text-white font-bold text-lg py-2.5 px-8 rounded-full shadow-lg transform transition hover:scale-105 active:scale-95 flex-grow opacity-50 cursor-not-allowed" disabled>
+                        チャージ中... ⏳
+                    </button>
+                    <button onclick="returnToStart()" class="bg-gray-600 hover:bg-gray-500 text-white font-bold text-sm py-2.5 px-8 rounded-full transform transition hover:scale-105 active:scale-95 flex-grow">
+                        スタート画面にもどる
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- ================= NOTE SCREEN (図鑑) ================= -->
+        <div id="note-screen" class="hidden glass-panel p-6 sm:p-8 flex-grow flex flex-col transform transition-all duration-500 h-full max-h-full overflow-hidden">
+            <div class="flex justify-between items-center mb-4 flex-shrink-0">
+                <h2 class="text-2xl font-black text-yellow-300 flex items-center gap-2"><span>📖</span> 星空ノート</h2>
+                <div class="text-sm text-blue-200">クリア: <span id="note-clear-count" class="font-bold text-white text-lg">0</span>/<span id="note-total-count">30</span></div>
+            </div>
+            
+            <p class="text-sm text-gray-300 mb-3 flex-shrink-0">
+                クイズに出た問題がここにきろくされるよ。全問クリアめざしてがんばろう！
+            </p>
+
+            <div id="note-container" class="flex-grow overflow-y-auto space-y-3 px-2 pb-2 -mx-2 custom-scrollbar">
+                <!-- ノートのリストが入ります -->
+            </div>
+
+            <div class="mt-4 flex-shrink-0">
+                <button onclick="returnToStart()" class="bg-gray-600 hover:bg-gray-500 text-white font-bold text-lg py-2.5 px-8 rounded-full shadow-lg transform transition hover:scale-105 active:scale-95 w-full">
+                    スタートにもどる
+                </button>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- ================= 解説モーダル (クイズ中) ================= -->
+    <div id="explanation-modal" class="hidden fixed inset-0 bg-gray-900/80 backdrop-blur-sm flex items-center justify-center z-50 p-4 opacity-0 transition-opacity duration-300">
+        <div class="bg-white text-gray-800 rounded-3xl p-5 sm:p-6 w-full max-w-sm text-center transform scale-90 transition-transform duration-300 shadow-2xl flex flex-col max-h-[90dvh]" id="modal-content">
+            <div class="overflow-y-auto flex-grow pr-1 custom-scrollbar">
+                <div id="result-icon" class="text-5xl mb-1"></div>
+                <h3 id="result-title" class="text-2xl font-black mb-2"></h3>
+                
+                <!-- 解説画像表示スペース (ライトボックス対応。ホバーで拡大、タップで大画面へ) -->
+                <div id="explanation-image-container" class="hidden w-full mb-3 rounded-xl overflow-hidden border border-gray-200 bg-gray-50 shadow-inner group">
+                    <img id="explanation-img" src="" alt="解説画像" class="w-full h-auto object-cover max-h-[160px] transition-all duration-300 opacity-0 cursor-zoom-in hover:brightness-95 hover:scale-[1.02] active:scale-[0.98]" onerror="handleImageError(this)" onclick="openLightbox(this.src)">
+                </div>
+
+                <p id="explanation-text" class="text-base mb-2 text-gray-600 font-medium leading-relaxed modal-content text-left bg-gray-50 p-4 rounded-xl border border-gray-100"></p>
+            </div>
+            <button onclick="nextQuestion()" class="bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-400 hover:to-indigo-500 text-white font-bold py-3 px-8 rounded-full shadow-lg transform transition hover:scale-105 active:scale-95 w-full text-lg mt-3 flex-shrink-0">
+                つぎへ！ 🚀
+            </button>
+        </div>
+    </div>
+
+    <!-- ================= ノート詳細モーダル (図鑑用) ================= -->
+    <div id="note-modal" class="hidden fixed inset-0 bg-gray-900/90 backdrop-blur-md flex items-center justify-center z-50 p-4 opacity-0 transition-opacity duration-300">
+        <div class="bg-gradient-to-b from-indigo-900 to-blue-900 border border-blue-400/30 text-white rounded-3xl p-5 w-full max-w-sm transform scale-90 transition-transform duration-300 shadow-[0_0_30px_rgba(59,130,246,0.5)] flex flex-col max-h-[90dvh]" id="note-modal-content">
+            <div class="flex justify-between items-start mb-2 flex-shrink-0">
+                <div class="text-2xl">⭐</div>
+                <button onclick="closeNoteModal()" class="text-gray-400 hover:text-white text-2xl font-bold leading-none">&times;</button>
+            </div>
+            <div class="overflow-y-auto flex-grow pr-1 custom-scrollbar">
+                <h3 class="text-base font-bold mb-3 leading-tight border-b border-blue-500/50 pb-3" id="note-modal-q"></h3>
+                
+                <!-- 図鑑用解説画像表示スペース (ライトボックス対応。ホバーで拡大、タップで大画面へ) -->
+                <div id="note-image-container" class="hidden w-full mb-3 rounded-xl overflow-hidden border border-blue-400/30 bg-black/20 shadow-inner">
+                    <img id="note-img" src="" alt="解説画像" class="w-full h-auto object-cover max-h-[160px] transition-all duration-300 opacity-0 cursor-zoom-in hover:brightness-90 hover:scale-[1.02] active:scale-[0.98]" onerror="handleImageError(this)" onclick="openLightbox(this.src)">
+                </div>
+
+                <div class="bg-black/30 rounded-xl p-4 mb-2">
+                    <div class="text-[11px] text-blue-300 mb-1">こたえ</div>
+                    <div class="text-lg font-bold text-yellow-300 mb-3" id="note-modal-a"></div>
+                    <div class="text-[11px] text-blue-300 mb-1">かいせつ</div>
+                    <p class="text-xs text-gray-200 leading-relaxed modal-content" id="note-modal-e"></p>
+                </div>
+            </div>
+            <button onclick="closeNoteModal()" class="bg-blue-600 hover:bg-blue-500 text-white font-bold py-2.5 px-8 rounded-full w-full mt-3 flex-shrink-0">
+                とじる
+            </button>
+        </div>
+    </div>
+
+    <!-- ================= 称号ずかんモーダル ================= -->
+    <div id="rank-modal" class="hidden fixed inset-0 bg-gray-900/90 backdrop-blur-md flex items-center justify-center z-50 p-4 opacity-0 transition-opacity duration-300">
+        <div class="bg-gradient-to-b from-slate-900 to-indigo-950 border border-purple-500/30 text-white rounded-3xl p-5 sm:p-6 w-full max-w-lg transform scale-90 transition-transform duration-300 shadow-[0_0_30px_rgba(139,92,246,0.3)] flex flex-col max-h-[90dvh]" id="rank-modal-content">
+            <div class="flex justify-between items-center mb-3 flex-shrink-0">
+                <h3 class="text-2xl font-black text-transparent bg-clip-text bg-gradient-to-r from-yellow-300 to-yellow-500 flex items-center gap-2">
+                    <span>🏆</span> 称号ずかん
+                </h3>
+                <button onclick="closeRankModal()" class="text-gray-400 hover:text-white text-3xl font-bold leading-none">&times;</button>
+            </div>
+            
+            <div class="bg-black/40 rounded-xl p-2.5 mb-3 text-center border border-white/10 flex-shrink-0 shadow-inner">
+                <div id="rank-modal-summary" class="text-sm text-blue-200 font-bold mb-0.5">
+                    <!-- まだ見ぬ称号はあと〇〇個！ -->
+                </div>
+                <div id="rank-modal-next-hint" class="text-xs text-gray-300">
+                    <!-- 次の称号まであと〇〇pt -->
+                </div>
+            </div>
+
+            <div class="flex-grow overflow-y-auto custom-scrollbar min-h-0">
+                <div class="relative pl-6 pr-6 pb-2">
+                    <!-- タイムラインのベース線 -->
+                    <div class="absolute left-[49px] top-[36px] bottom-[36px] w-1.5 bg-gray-700/50 rounded-full z-0"></div>
+                    <!-- タイムラインの進行線 -->
+                    <div id="rank-progress-line" class="absolute left-[49px] top-[36px] w-1.5 bg-gradient-to-b from-yellow-400 via-purple-500 to-blue-500 rounded-full z-0 transition-all duration-1000 shadow-[0_0_10px_rgba(168,85,247,0.5)]" style="height: 0px;"></div>
+                    
+                    <div id="rank-list-container" class="relative z-10 flex flex-col gap-3 py-2">
+                        <!-- 称号リスト -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ================= 大画面画像表示モーダル (Lightbox) ================= -->
+    <div id="lightbox-modal" class="hidden fixed inset-0 bg-black/95 backdrop-blur-sm flex flex-col items-center justify-center z-[100] opacity-0 transition-opacity duration-300" onclick="closeLightbox()">
+        <!-- 閉じるボタン -->
+        <button onclick="event.stopPropagation(); closeLightbox();" class="absolute top-4 right-4 text-white hover:text-gray-300 text-4xl font-bold leading-none z-[110] p-3 transition-transform duration-200 active:scale-90">&times;</button>
+        
+        <!-- 画像拡大コンテナ -->
+        <div class="p-4 max-w-full max-h-[90dvh] flex items-center justify-center relative select-none">
+            <img id="lightbox-img" src="" alt="拡大解説画像" class="max-w-full max-h-[80dvh] md:max-h-[85dvh] object-contain rounded-2xl shadow-2xl border border-white/10 transform scale-95 transition-all duration-300" onclick="event.stopPropagation()">
+        </div>
+        
+        <div class="text-xs text-gray-400 mt-2 tracking-wider pointer-events-none select-none">
+            タップして閉じる
+        </div>
+    </div>
+
+    <!-- ================= カスタムメッセージトースト ================= -->
+    <div id="toast" class="hidden fixed top-6 max-w-xs mx-auto left-4 right-4 bg-yellow-400 border border-yellow-300 text-yellow-950 font-bold py-3 px-6 rounded-2xl shadow-2xl z-50 text-center animate-bounce">
+        まだ正解していないよ！
+    </div>
+
+    <script>
+        // 全30問の問題データ
+        const allQuestions = [
+            {
+                id: "q1",
+                q: "1<ruby>等星<rt>とうせい</rt></ruby>と3<ruby>等星<rt>とうせい</rt></ruby>では、どちらが<ruby>明<rt>あか</rt></ruby>るいかな？",
+                c: ["1<ruby>等星<rt>とうせい</rt></ruby>", "3<ruby>等星<rt>とうせい</rt></ruby>", "おなじ<ruby>明<rt>あか</rt></ruby>るさ"],
+                a: 0,
+                e: "<ruby>星<rt>ほし</rt></ruby>は1<ruby>等星<rt>とうせい</rt></ruby>、2<ruby>等星<rt>とうせい</rt></ruby>、3<ruby>等星<rt>とうせい</rt></ruby>…と、<ruby>数<rt>かず</rt></ruby>が<ruby>小<rt>ちい</rt></ruby>さいほど<ruby>明<rt>あか</rt></ruby>るく<ruby>見<rt>み</rt></ruby>えるんだよ。"
+            },
+            {
+                id: "q2",
+                q: "<ruby>星<rt>ほし</rt></ruby>の<ruby>明<rt>あか</rt></ruby>るさを表す<ruby>数<rt>かず</rt></ruby>（○<ruby>等星<rt>とうせい</rt></ruby>）は、<ruby>星<rt>ほし</rt></ruby>が<ruby>暗<rt>くら</rt></ruby>くなるほどどうなるかな？",
+                c: ["<ruby>小<rt>ちい</rt></ruby>さくなる", "<ruby>大<rt>おお</rt></ruby>きくなる", "変わらない"],
+                a: 1,
+                e: "1<ruby>等星<rt>とうせい</rt></ruby>より2<ruby>等星<rt>とうせい</rt></ruby>、2<ruby>等星<rt>とうせい</rt></ruby>より3<ruby>等星<rt>とうせい</rt></ruby>の<ruby>方<rt>ほう</rt></ruby>が<ruby>暗<rt>くら</rt></ruby>いよ。<ruby>数字<rt>すうじ</rt></ruby>が大きくなるほど<ruby>暗<rt>くら</rt></ruby>い<ruby>星<rt>ほし</rt></ruby>なんだ。"
+            },
+            {
+                id: "q3",
+                q: "デネブ、ベガ、アルタイルという3つの<ruby>星<rt>ほし</rt></ruby>を<ruby>結<rt>むす</rt></ruby>んだ大きな<ruby>三角形<rt>さんかくけい</rt></ruby>を<ruby>何<rt>なん</rt></ruby>というかな？",
+                c: ["<ruby>春<rt>はる</rt></ruby>の<ruby>大三角<rt>だいさんかく</rt></ruby>", "<ruby>夏<rt>なつ</rt></ruby>の<ruby>大三角<rt>だいさんかく</rt></ruby>", "<ruby>冬<rt>ふゆ</rt></ruby>の<ruby>大三角<rt>だいさんかく</rt></ruby>"],
+                a: 1,
+                e: "<ruby>夏<rt>なつ</rt></ruby>の<ruby>夜空<rt>よぞら</rt></ruby>に見える、とても<ruby>目立<rt>めだ</rt></ruby>つ3つの1<ruby>等星<rt>とうせい</rt></ruby>を<ruby>結<rt>むす</rt></ruby>んだ<ruby>形<rt>かたち</rt></ruby>のことだよ。"
+            },
+            {
+                id: "q4",
+                q: "はくちょう<ruby>座<rt>ざ</rt></ruby>のしっぽにある1<ruby>等星<rt>とうせい</rt></ruby>の<ruby>名前<rt>なまえ</rt></ruby>は<ruby>何<rt>なに</rt></ruby>かな？",
+                c: ["デネブ", "アルタイル", "ベガ"],
+                a: 0,
+                e: "デネブは「しっぽ」という<ruby>意味<rt>いみ</rt></ruby>があるよ。はくちょう<ruby>座<rt>ざ</rt></ruby>の1<ruby>等星<rt>とうせい</rt></ruby>だよ。"
+            },
+            {
+                id: "q5",
+                q: "こと<ruby>座<rt>ざ</rt></ruby>にある、とても<ruby>明<rt>あか</rt></ruby>るい1<ruby>等星<rt>とうせい</rt></ruby>の<ruby>名前<rt>なまえ</rt></ruby>は<ruby>何<rt>なに</rt></ruby>かな？",
+                c: ["デネブ", "アルタイル", "ベガ"],
+                a: 2,
+                e: "こと<ruby>座<rt>ざ</rt></ruby>の1<ruby>等星<rt>とうせい</rt></ruby>がベガだよ。おりひめ<ruby>星<rt>ぼし</rt></ruby>としても<ruby>有名<rt>ゆうめい</rt></ruby>だね。"
+            },
+            {
+                id: "q6",
+                q: "わし<ruby>座<rt>ざ</rt></ruby>にある1<ruby>等星<rt>とうせい</rt></ruby>の<ruby>名前<rt>なまえ</rt></ruby>は<ruby>何<rt>なに</rt></ruby>かな？",
+                c: ["デネブ", "アルタイル", "ベガ"],
+                a: 1,
+                e: "わし<ruby>座<rt>ざ</rt></ruby>の1<ruby>等星<rt>とうせい</rt></ruby>がアルタイルだよ。ひこ<ruby>星<rt>ぼし</rt></ruby>の<ruby>名前<rt>なまえ</rt></ruby>でもあるね。"
+            },
+            {
+                id: "q7",
+                q: "さそり<ruby>座<rt>ざ</rt></ruby>にある、<ruby>赤<rt>あか</rt></ruby>っぽい<ruby>色<rt>いろ</rt></ruby>をした1<ruby>等星<rt>とうせい</rt></ruby>の<ruby>名前<rt>なまえ</rt></ruby>は<ruby>何<rt>なに</rt></ruby>かな？",
+                c: ["アンタレス", "シリウス", "スピカ"],
+                a: 0,
+                e: "<ruby>夏<rt>なつ</rt></ruby>の<ruby>南<rt>みなみ</rt></ruby>の空の<ruby>低<rt>ひく</rt></ruby>いところに見える、<ruby>赤<rt>あか</rt></ruby>い<ruby>星<rt>ほし</rt></ruby>がアンタレスだよ。"
+            },
+            {
+                id: "q8",
+                q: "<ruby>七夕<rt>たなばた</rt></ruby>の<ruby>物語<rt>ものがたり</rt></ruby>に出てくる「おりひめ<ruby>星<rt>ぼし</rt></ruby>」は、どの<ruby>星<rt>ほし</rt></ruby>のことかな？",
+                c: ["デネブ", "アルタイル", "ベガ"],
+                a: 2,
+                e: "こと<ruby>座<rt>ざ</rt></ruby>のベガが「おりひめ<ruby>星<rt>ぼし</rt></ruby>」だよ。とても<ruby>明<rt>あか</rt></ruby>るくてきれいな<ruby>青白<rt>あおじろ</rt></ruby>い<ruby>星<rt>ほし</rt></ruby>だね。"
+            },
+            {
+                id: "q9",
+                q: "<ruby>七夕<rt>たなばた</rt></ruby>の<ruby>物語<rt>ものがたり</rt></ruby>に出てくる「ひこ<ruby>星<rt>ぼし</rt></ruby>」は、どの<ruby>星<rt>ほし</rt></ruby>のことかな？",
+                c: ["デネブ", "アルタイル", "ベガ"],
+                a: 1,
+                e: "わし<ruby>座<rt>ざ</rt></ruby>のアルタイルが「ひこ<ruby>星<rt>ぼし</rt></ruby>」だよ。天の川の向こう側で光っているよ。"
+            },
+            {
+                id: "q10",
+                q: "さそり<ruby>座<rt>ざ</rt></ruby>のアンタレスは、どんな<ruby>色<rt>いろ</rt></ruby>をしているかな？",
+                c: ["<ruby>赤<rt>あか</rt></ruby>っぽい<ruby>色<rt>いろ</rt></ruby>", "<ruby>青白<rt>あおじろ</rt></ruby>い<ruby>色<rt>いろ</rt></ruby>", "<ruby>黄色<rt>きいろ</rt></ruby>っぽい<ruby>色<rt>いろ</rt></ruby>"],
+                a: 0,
+                e: "アンタレスは<ruby>赤<rt>あか</rt></ruby>っぽい<ruby>色<rt>いろ</rt></ruby>をしている1<ruby>等星<rt>とうせい</rt></ruby>だよ。"
+            },
+            {
+                id: "q11",
+                q: "こと<ruby>座<rt>ざ</rt></ruby>のベガは、どんな<ruby>色<rt>いろ</rt></ruby>をしているかな？",
+                c: ["<ruby>赤<rt>あか</rt></ruby>っぽい<ruby>色<rt>いろ</rt></ruby>", "<ruby>青白<rt>あおじろ</rt></ruby>い<ruby>色<rt>いろ</rt></ruby>", "<ruby>黄色<rt>きいろ</rt></ruby>っぽい<ruby>色<rt>いろ</rt></ruby>"],
+                a: 1,
+                e: "ベガはとても<ruby>温度<rt>おんど</rt></ruby>が高いため、<ruby>青白<rt>あおじろ</rt></ruby>く光って見えるよ。"
+            },
+            {
+                id: "q12",
+                q: "<ruby>星<rt>ほし</rt></ruby>によって<ruby>色<rt>いろ</rt></ruby>がちがうのは、<ruby>星<rt>ほし</rt></ruby>の何がちがうからかな？",
+                c: ["<ruby>星<rt>ほし</rt></ruby>の大きさ", "<ruby>星<rt>ほし</rt></ruby>の表面の<ruby>温度<rt>おんど</rt></ruby>", "<ruby>地球<rt>ちきゅう</rt></ruby>からのきょり"],
+                a: 1,
+                e: "<ruby>星<rt>ほし</rt></ruby>は表面の<ruby>温度<rt>おんど</rt></ruby>によって<ruby>色<rt>いろ</rt></ruby>が変わるよ。<ruby>温度<rt>おんど</rt></ruby>が高いと<ruby>青白<rt>あおじろ</rt></ruby>く、低いと<ruby>赤<rt>あか</rt></ruby>っぽくなるんだ。"
+            },
+            {
+                id: "q13",
+                q: "つぎのうち、<ruby>夏<rt>なつ</rt></ruby>の<ruby>大三角<rt>だいさんかく</rt></ruby>を作らない<ruby>星<rt>ほし</rt></ruby>はどれかな？",
+                c: ["デネブ", "アンタレス", "ベガ"],
+                a: 1,
+                e: "<ruby>夏<rt>なつ</rt></ruby>の<ruby>大三角<rt>だいさんかく</rt></ruby>はデネブ、ベガ、アルタイルの3つだよ。アンタレスはさそり<ruby>座<rt>ざ</rt></ruby>の<ruby>星<rt>ほし</rt></ruby>だね。"
+            },
+            {
+                id: "q14",
+                q: "つぎのうち、<ruby>夏<rt>なつ</rt></ruby>の<ruby>大三角<rt>だいさんかく</rt></ruby>を作らない<ruby>星座<rt>せいざ</rt></ruby>はどれかな？",
+                c: ["はくちょう<ruby>座<rt>ざ</rt></ruby>", "さそり<ruby>座<rt>ざ</rt></ruby>", "こと<ruby>座<rt>ざ</rt></ruby>"],
+                a: 1,
+                e: "<ruby>夏<rt>なつ</rt></ruby>の<ruby>大三角<rt>だいさんかく</rt></ruby>は「はくちょう<ruby>座<rt>ざ</rt></ruby>」「こと<ruby>座<rt>ざ</rt></ruby>」「わし<ruby>座<rt>ざ</rt></ruby>」の<ruby>星<rt>ほし</rt></ruby>で作られるよ。"
+            },
+            {
+                id: "q15",
+                q: "<ruby>星座早見<rt>せいざはやみ</rt></ruby><ruby>盤<rt>ばん</rt></ruby>を使うとき、円ばんで合わせるのは「<ruby>月日<rt>つきひ</rt></ruby>」と何かな？",
+                c: ["<ruby>温度<rt>おんど</rt></ruby>", "<ruby>時<rt>じ</rt></ruby>こく", "天気"],
+                a: 1,
+                e: "<ruby>観察<rt>かんさつ</rt></ruby>したい「<ruby>月日<rt>つきひ</rt></ruby>」と「<ruby>時<rt>じ</rt></ruby>こく」の目もりを合わせて使うよ。"
+            },
+            {
+                id: "q16",
+                q: "<ruby>星座早見<rt>せいざはやみ</rt></ruby><ruby>盤<rt>ばん</rt></ruby>を使うとき、見たい<ruby>方位<rt>ほうい</rt></ruby>の文字をどうやって<ruby>持<rt>も</rt></ruby>つかな？",
+                c: ["<ruby>上<rt>うえ</rt></ruby>にする", "<ruby>右<rt>みぎ</rt></ruby>にする", "<ruby>下<rt>した</rt></ruby>にする"],
+                a: 2,
+                e: "見たい<ruby>方位<rt>ほうい</rt></ruby>の文字を<ruby>下<rt>した</rt></ruby>（自分のおなかの方）に向けて、空にかざして使うのが<ruby>正<rt>ただ</rt></ruby>しい使い方だよ。"
+            },
+            {
+                id: "q17",
+                q: "<ruby>方位<rt>ほうい</rt></ruby>じしんを使うとき、まずどうやって<ruby>持<rt>も</rt></ruby>つかな？",
+                c: ["ななめにかたむける", "<ruby>水平<rt>すいへい</rt></ruby>（たいら）にする", "立てて<ruby>持<rt>も</rt></ruby>つ"],
+                a: 1,
+                e: "<ruby>針<rt>はり</rt></ruby>が<ruby>自由<rt>じゆう</rt></ruby>に動けるように、<ruby>水平<rt>すいへい</rt></ruby>（たいら）に<ruby>持<rt>も</rt></ruby>つか、平らな<ruby>場所<rt>ばしょ</rt></ruby>に置くのが<ruby>正<rt>ただ</rt></ruby>しい使い方だよ。"
+            },
+            {
+                id: "q18",
+                q: "<ruby>方位<rt>ほうい</rt></ruby>じしんの<ruby>針<rt>はり</rt></ruby>の<ruby>赤<rt>あか</rt></ruby>い<ruby>方<rt>ほう</rt></ruby>（N極）は、どの<ruby>方位<rt>ほうい</rt></ruby>をさして<ruby>止<rt>と</rt></ruby>まるかな？",
+                c: ["<ruby>東<rt>ひがし</rt></ruby>", "<ruby>南<rt>みなみ</rt></ruby>", "<ruby>北<rt>きた</rt></ruby>"],
+                a: 2,
+                e: "<ruby>方位<rt>ほうい</rt></ruby>じしんの<ruby>針<rt>はり</rt></ruby>はじしゃくになっていて、N極（赤い方）はいつでも<ruby>北<rt>きた</rt></ruby>をさして止まるんだよ。"
+            },
+            {
+                id: "q19",
+                q: "<ruby>方位<rt>ほうい</rt></ruby>じしんの<ruby>針<rt>はり</rt></ruby>が<ruby>止<rt>と</rt></ruby>まったあと、どうするかな？",
+                c: ["文字ばんを回して「<ruby>北<rt>きた</rt></ruby>」を<ruby>赤<rt>あか</rt></ruby>い<ruby>針<rt>はり</rt></ruby>に合わせる", "<ruby>針<rt>はり</rt></ruby>を<ruby>指<rt>ゆび</rt></ruby>で回して「<ruby>北<rt>きた</rt></ruby>」に合わせる", "そのままにしておく"],
+                a: 0,
+                e: "<ruby>針<rt>はり</rt></ruby>は<ruby>北<rt>きた</rt></ruby>をさして<ruby>止<rt>と</rt></ruby>まるから、文字ばんを回して「<ruby>北<rt>きた</rt></ruby>」の文字を<ruby>針<rt>はり</rt></ruby>に合わせると、ほかの<ruby>方角<rt>ほうがく</rt></ruby>もわかるよ。"
+            },
+            {
+                id: "q20",
+                q: "<ruby>夏<rt>なつ</rt></ruby>の<ruby>大三角<rt>だいさんかく</rt></ruby>を作る「デネブ」「ベガ」「アルタイル」のうち、一番<ruby>暗<rt>くら</rt></ruby>い<ruby>星<rt>ほし</rt></ruby>はどれかな？",
+                c: ["デネブ", "ベガ", "どれも同じ1<ruby>等星<rt>とうせい</rt></ruby>"],
+                a: 2,
+                e: "デネブ, ベガ, アルタイルは、どれも1等星だよ。だから夏の大三角はとても目立つんだね。"
+            },
+            {
+                id: "q21",
+                q: "はくちょう<ruby>座<rt>ざ</rt></ruby>の<ruby>星<rt>ほし</rt></ruby>をつなぐと、どんな<ruby>形<rt>かたち</rt></ruby>に見えるかな？",
+                c: ["大きな十字の<ruby>形<rt>かたち</rt></ruby>", "まん丸の<ruby>形<rt>かたち</rt></ruby>", "四角形"],
+                a: 0,
+                e: "はくちょう<ruby>座<rt>ざ</rt></ruby>の<ruby>星<rt>ほし</rt></ruby>をつなぐと、大きな十字の<ruby>形<rt>かたち</rt></ruby>（<ruby>鳥<rt>とり</rt></ruby>が<ruby>羽<rt>はね</rt></ruby>を広げた<ruby>形<rt>かたち</rt></ruby>）になるよ。<ruby>北十字<rt>きたじゅうじ</rt></ruby>ともよばれるんだ。"
+            },
+            {
+                id: "q22",
+                q: "さそり<ruby>座<rt>ざ</rt></ruby>は、<ruby>夏<rt>なつ</rt></ruby>の<ruby>夜空<rt>よぞら</rt></ruby>のどのあたりに見えるかな？",
+                c: ["<ruby>北<rt>きた</rt></ruby>の空のたかいところ", "<ruby>南<rt>みなみ</rt></ruby>の空のひくいところ", "ま上（天頂）"],
+                a: 1,
+                e: "さそり<ruby>座<rt>ざ</rt></ruby>は、<ruby>夏<rt>なつ</rt></ruby>の<ruby>南<rt>みなみ</rt></ruby>の空のひくいところに見える大きな<ruby>星座<rt>せいざ</rt></ruby>だよ。"
+            },
+            {
+                id: "q23",
+                q: "おりひめ<ruby>星<rt>ぼし</rt></ruby>とひこ<ruby>星<rt>ぼし</rt></ruby>の<ruby>間<rt>あいだ</rt></ruby>を流れるように見える、白っぽい<ruby>星<rt>ほし</rt></ruby>の集まりを何というかな？",
+                c: ["<ruby>天<rt>あま</rt></ruby>の<ruby>川<rt>がわ</rt></ruby>", "<ruby>流<rt>なが</rt></ruby>れ<ruby>星<rt>ぼし</rt></ruby>", "<ruby>星<rt>ほし</rt></ruby>の<ruby>海<rt>うみ</rt></ruby>"],
+                a: 0,
+                e: "晴れた暗い<ruby>夜空<rt>よぞら</rt></ruby>では、おりひめ<ruby>星<rt>ぼし</rt></ruby>とひこ<ruby>星<rt>ぼし</rt></ruby>の<ruby>間<rt>あいだ</rt></ruby>に「天の川」という<ruby>白<rt>しろ</rt></ruby>い帯のような<ruby>星<rt>ほし</rt></ruby>の集まりが見えるよ。"
+            },
+            {
+                id: "q24",
+                q: "さそり<ruby>座<rt>ざ</rt></ruby>の1<ruby>等星<rt>とうせい</rt></ruby>「アンタレス」は、さそりの体のどの<ruby>部分<rt>ぶぶん</rt></ruby>にあるかな？",
+                c: ["むね（心臓）", "しっぽの先", "はさみの先"],
+                a: 0,
+                e: "アンタレスはさそりの「むね（<ruby>心臓<rt>しんぞう</rt></ruby>）」の<ruby>位置<rt>いち</rt></ruby>にあって、赤くあやしく光ることから、さそりの<ruby>心臓<rt>しんぞう</rt></ruby>にたとえられているよ。"
+            },
+            {
+                id: "q25",
+                q: "<ruby>夜空<rt>よぞら</rt></ruby>の<ruby>星<rt>ほし</rt></ruby>をきれいに<ruby>観察<rt>かんさつ</rt></ruby>するには、どんな<ruby>場所<rt>ばしょ</rt></ruby>がよいかな？",
+                c: ["まわりが明るくてにぎやかな場所", "まわりが暗くて、空が広く見わたせる場所", "大きな木や建物のすぐ下"],
+                a: 1,
+                e: "<ruby>街灯<rt>がいとう</rt></ruby>などの光が少なくて、まわりが暗く、空が広く見える開けた場所が、<ruby>星<rt>ほし</rt></ruby>をきれいに見るのにぴったりだよ。"
+            },
+            {
+                id: "q26",
+                q: "<ruby>夏<rt>なつ</rt></ruby>の<ruby>大三角<rt>だいさんかく</rt></ruby>を作るデネブ、ベガ、アルタイルは、すべて何<ruby>等星<rt>とうせい</rt></ruby>かな？",
+                c: ["すべて1<ruby>等星<rt>とうせい</rt></ruby>", "すべて2<ruby>等星<rt>とうせい</rt></ruby>", "すべて3<ruby>等星<rt>とうせい</rt></ruby>"],
+                a: 0,
+                e: "どれも空でとても<ruby>明<rt>あか</rt></ruby>るくかがやく「1<ruby>等星<rt>とうせい</rt></ruby>」だよ。"
+            },
+            {
+                id: "q27",
+                q: "デネブという<ruby>名前<rt>なまえ</rt></ruby>には「しっぽ」という<ruby>意味<rt>いみ</rt></ruby>があります。何という動物のしっぽかな？",
+                c: ["さそり", "わし", "はくちょう"],
+                a: 2,
+                e: "デネブは、はくちょう<ruby>座<rt>ざ</rt></ruby>のしっぽの<ruby>位置<rt>いち</rt></ruby>で光っているよ。"
+            },
+            {
+                id: "q28",
+                q: "<ruby>夜空<rt>よぞら</rt></ruby>の<ruby>星<rt>ほし</rt></ruby>をつないで、動物や人のすがたなどに見立てたものを何というかな？",
+                c: ["<ruby>星座<rt>せいざ</rt></ruby>", "<ruby>銀河<rt>ぎんが</rt></ruby>", "<ruby>星雲<rt>せいうん</rt></ruby>"],
+                a: 0,
+                e: "昔の人が、<ruby>星<rt>ほし</rt></ruby>のならび<ruby>方<rt>かた</rt></ruby>をいろいろなものに見立てて<ruby>星座<rt>せいざ</rt></ruby>を作ったんだよ。"
+            },
+            {
+                id: "q29",
+                q: "<ruby>北斗七星<rt>ほくとしちせい</rt></ruby>が、長いしっぽの<ruby>一部<rt>いちぶ</rt></ruby>になっている<ruby>星座<rt>せいざ</rt></ruby>は何かな？",
+                c: ["おおぐま<ruby>座<rt>ざ</rt></ruby>", "こぐま<ruby>座<rt>ざ</rt></ruby>", "はくちょう<ruby>座<rt>ざ</rt></ruby>"],
+                a: 0,
+                e: "ひしゃくの<ruby>形<rt>かたち</rt></ruby>をした「<ruby>北斗七星<rt>ほくとしちせい</rt></ruby>」は、おおぐま<ruby>座<rt>ざ</rt></ruby>という大きなクマの<ruby>星座<rt>せいざ</rt></ruby>の、長〜いしっぽの<ruby>部分<rt>ぶぶん</rt></ruby>にあたるんだよ。"
+            },
+            {
+                id: "q30",
+                q: "<ruby>星座早見<rt>せいざはやみ</rt></ruby><ruby>盤<rt>ばん</rt></ruby>のまわりのふち（<ruby>外側<rt>そとがわ</rt></ruby>）には、何が書かれているかな？",
+                c: ["月と日", "<ruby>時<rt>じ</rt></ruby>こく", "<ruby>星座<rt>せいざ</rt></ruby>の<ruby>名前<rt>なまえ</rt></ruby>"],
+                a: 0,
+                e: "まわりのふちには「月と日」が書かれていて、回す円ばんの<ruby>方<rt>ほう</rt></ruby>に「<ruby>時<rt>じ</rt></ruby>こく」が書かれているよ。"
+            }
+        ];
+
+        // 称号データ
+        const ranks = [
+            { min: 0, title: "<ruby>見習<rt>みなら</rt></ruby>いウォッチャー", icon: "🐣" },
+            { min: 900, title: "<ruby>星空<rt>ほしぞら</rt></ruby>たんけんたい", icon: "👀" },
+            { min: 2400, title: "<ruby>流<rt>なが</rt></ruby>れ<ruby>星<rt>ぼし</rt></ruby>ハンター", icon: "🌠" },
+            { min: 3900, title: "<ruby>一人前<rt>いちにんまえ</rt></ruby>の<ruby>星空案内人<rt>ほしぞらあんないにん</rt></ruby>", icon: "🔭" },
+            { min: 5900, title: "ときめき<ruby>太陽系<rt>たいようけい</rt></ruby>ガイド", icon: "🪐" },
+            { min: 8400, title: "<ruby>天<rt>あま</rt></ruby>の<ruby>川<rt>がわ</rt></ruby>のナビゲーター", icon: "🌌" },
+            { min: 11400, title: "スターライトマスター", icon: "✨" },
+            { min: 14900, title: "<ruby>銀河<rt>ぎんが</rt></ruby>を<ruby>旅<rt>たび</rt></ruby>する<ruby>者<rt>もの</rt></ruby>", icon: "🚀" },
+            { min: 18900, title: "<ruby>宇宙<rt>うちゅう</rt></ruby>の<ruby>探検家<rt>たんけんか</rt></ruby>", icon: "🛸" },
+            { min: 25000, title: "銀河を統べるマスター", icon: "👑" }
+        ];
+
+        let currentQuestions = [];
+        let currentQuestionIndex = 0;
+        let score = 0;
+        let starSandCount = 0; // クイズ中に獲得した砂の量（＝正解数）
+        const TOTAL_QUESTIONS = 5;
+
+        // --- データ管理 ---
+        let userData = {
+            xp: 0,
+            history: {} // 例: { "q1": "cleared", "q2": "seen" }
+        };
+
+        function loadData() {
+            const saved = localStorage.getItem('starQuizData_v5');
+            if (saved) {
+                try {
+                    userData = JSON.parse(saved);
+                    if (typeof userData.xp !== 'number') userData.xp = 0;
+                    if (!userData.history) userData.history = {};
+                } catch (e) {
+                    console.error("データの読み込みに失敗しました", e);
+                }
+            }
+        }
+
+        function saveData() {
+            localStorage.setItem('starQuizData_v5', JSON.stringify(userData));
+        }
+
+        function getRankObj(xp) {
+            return ranks.slice().reverse().find(r => xp >= r.min) || ranks[0];
+        }
+
+        // --- UI初期化 ---
+        function createBackgroundStars() {
+            const container = document.getElementById('stars-container');
+            container.innerHTML = '';
+            const numStars = 80;
+            
+            for (let i = 0; i < numStars; i++) {
+                const star = document.createElement('div');
+                star.className = 'absolute bg-white rounded-full animate-twinkle';
+                const size = Math.random() * 2 + 1;
+                star.style.width = `${size}px`;
+                star.style.height = `${size}px`;
+                star.style.left = `${Math.random() * 100}%`;
+                star.style.top = `${Math.random() * 100}%`;
+                star.style.animationDelay = `${Math.random() * 3}s`;
+                star.style.animationDuration = `${Math.random() * 2 + 2}s`;
+                const colors = ['#ffffff', '#bfdbfe', '#fef08a'];
+                star.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
+                container.appendChild(star);
+            }
+        }
+
+        function updateStartScreenInfo() {
+            const rank = getRankObj(userData.xp);
+            const nextRank = ranks.find(r => r.min > userData.xp) || null;
+            
+            document.getElementById('start-rank-icon').innerText = rank.icon;
+            document.getElementById('start-rank-title').innerHTML = rank.title; 
+            document.getElementById('start-xp-text').innerText = userData.xp;
+            
+            const nextHintEl = document.getElementById('start-next-rank-hint');
+            
+            if (nextRank) {
+                const range = nextRank.min - rank.min;
+                const current = userData.xp - rank.min;
+                const percent = Math.min(100, Math.max(0, (current / range) * 100));
+                document.getElementById('start-xp-bar').style.width = `${percent}%`;
+                
+                if (nextHintEl) {
+                    nextHintEl.innerText = `NEXT: あと ${nextRank.min - userData.xp} pt`;
+                }
+            } else {
+                document.getElementById('start-xp-bar').style.width = '100%';
+                if (nextHintEl) {
+                    nextHintEl.innerText = 'MAXレベル到達！';
+                }
+            }
+        }
+
+        function initApp() {
+            loadData();
+            createBackgroundStars();
+            updateStartScreenInfo();
+            showScreen('start-screen');
+        }
+
+        // --- 画面遷移 ---
+        function showScreen(screenId) {
+            ['start-screen', 'quiz-screen', 'result-screen', 'note-screen'].forEach(id => {
+                const el = document.getElementById(id);
+                if (id === screenId) {
+                    el.classList.remove('hidden');
+                    setTimeout(() => {
+                        el.classList.remove('opacity-0', 'scale-95');
+                        el.classList.add('opacity-100', 'scale-100');
+                    }, 50);
+                } else {
+                    el.classList.add('hidden', 'opacity-0', 'scale-95');
+                    el.classList.remove('opacity-100', 'scale-100');
+                }
+            });
+        }
+
+        function returnToStart() {
+            updateStartScreenInfo();
+            showScreen('start-screen');
+            document.getElementById('celebration-container').innerHTML = '';
+        }
+
+        function shuffleArray(array) {
+            const newArray = [...array];
+            for (let i = newArray.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [newArray[i], newArray[j]] = [newArray[j], newArray[i]];
+            }
+            return newArray;
+        }
+
+        // --- 重み付けを用いたスマート問題選択システム ---
+        function selectQuestionsWeighted(questions, count) {
+            const candidates = [...questions];
+            const selected = [];
+            
+            for (let step = 0; step < count; step++) {
+                if (candidates.length === 0) break;
+                
+                // 各問題の重みを計算
+                const weights = candidates.map(q => {
+                    const status = userData.history[q.id] || "unseen";
+                    if (status === "seen") {
+                        return 10; // 間違えた問題を最優先（重み10）
+                    } else if (status === "unseen") {
+                        return 5;  // 見たことがない問題を優先（重み5）
+                    } else {
+                        return 1;  // すでに正解した問題は低めに出現（重み1）
+                    }
+                });
+                
+                // 総重量を計算
+                const totalWeight = weights.reduce((sum, w) => sum + w, 0);
+                let randomValue = Math.random() * totalWeight;
+                
+                let selectedIndex = 0;
+                for (let i = 0; i < candidates.length; i++) {
+                    randomValue -= weights[i];
+                    if (randomValue <= 0) {
+                        selectedIndex = i;
+                        break;
+                    }
+                }
+                
+                // 選択された問題を決定
+                selected.push(candidates[selectedIndex]);
+                // 重複して出題されないように、今回のクイズの候補リストから除外
+                candidates.splice(selectedIndex, 1);
+            }
+            
+            return selected;
+        }
+
+        // --- クイズロジック ---
+        function startQuiz() {
+            currentQuestions = selectQuestionsWeighted(allQuestions, TOTAL_QUESTIONS);
+            currentQuestionIndex = 0;
+            score = 0;
+            starSandCount = 0;
+            
+            // クイズ中の小瓶リセット
+            document.getElementById('quiz-bottle-sand').setAttribute('height', '0');
+            document.getElementById('quiz-bottle-sand').setAttribute('y', '115');
+            document.getElementById('quiz-sand-count').innerText = '0';
+            
+            showScreen('quiz-screen');
+            loadQuestion();
+        }
+
+        function loadQuestion() {
+            const q = currentQuestions[currentQuestionIndex];
+            
+            document.getElementById('question-counter').innerText = `だい ${currentQuestionIndex + 1} もん`;
+            document.getElementById('progress-bar').style.width = `${(currentQuestionIndex / TOTAL_QUESTIONS) * 100}%`;
+            document.getElementById('question-text').innerHTML = q.q;
+            
+            const choicesContainer = document.getElementById('choices-container');
+            choicesContainer.innerHTML = '';
+            
+            // 選択肢をシャッフルするために、元のインデックスを持たせたオブジェクト配列を作成
+            const mappedChoices = q.c.map((text, idx) => ({ text, originalIndex: idx }));
+            const shuffledChoices = shuffleArray(mappedChoices);
+            
+            shuffledChoices.forEach((choiceObj, displayIndex) => {
+                const btn = document.createElement('button');
+                btn.className = 'w-full bg-white/10 hover:bg-white/20 border-2 border-white/30 text-white font-bold py-3.5 px-6 rounded-2xl text-left transition-all duration-200 shadow-md flex items-center relative overflow-hidden group z-10';
+                
+                btn.dataset.originalIndex = choiceObj.originalIndex;
+                
+                const numIcon = document.createElement('span');
+                numIcon.className = 'flex-shrink-0 w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center mr-4 text-sm shadow-inner';
+                numIcon.innerText = displayIndex + 1;
+                
+                const textSpan = document.createElement('span');
+                textSpan.className = 'text-lg sm:text-xl flex-grow';
+                textSpan.innerHTML = choiceObj.text;
+
+                btn.appendChild(numIcon);
+                btn.appendChild(textSpan);
+                
+                btn.onclick = (e) => checkAnswer(choiceObj.originalIndex, btn, e, q);
+                choicesContainer.appendChild(btn);
+            });
+        }
+
+        function checkAnswer(selectedIndex, buttonElement, event, q) {
+            const isCorrect = (selectedIndex === q.a);
+            
+            if (isCorrect) {
+                userData.history[q.id] = "cleared";
+            } else if (userData.history[q.id] !== "cleared") {
+                userData.history[q.id] = "seen"; 
+            }
+            saveData();
+
+            const buttons = document.getElementById('choices-container').querySelectorAll('button');
+            buttons.forEach(btn => btn.disabled = true);
+
+            if (isCorrect) {
+                score++;
+                buttonElement.classList.replace('bg-white/10', 'bg-green-500/80');
+                buttonElement.classList.replace('border-white/30', 'border-green-400');
+                
+                const rect = buttonElement.getBoundingClientRect();
+                const btnX = rect.left + rect.width / 2;
+                const btnY = rect.top + rect.height / 2;
+                
+                const bottleContainer = document.getElementById('quiz-bottle-container');
+                const bRect = bottleContainer.getBoundingClientRect();
+                const bottleX = bRect.left + bRect.width / 2;
+                const bottleY = bRect.top + bRect.height / 2;
+                
+                shootSandParticles(btnX, btnY, bottleX, bottleY, () => {
+                    starSandCount++;
+                    document.getElementById('quiz-sand-count').innerText = starSandCount;
+                    
+                    const quizHeight = 100 * (starSandCount * 20 / 100);
+                    document.getElementById('quiz-bottle-sand').setAttribute('height', quizHeight);
+                    document.getElementById('quiz-bottle-sand').setAttribute('y', 115 - quizHeight);
+                    
+                    bottleContainer.classList.add('animate-jiggle');
+                    setTimeout(() => bottleContainer.classList.remove('animate-jiggle'), 500);
+                });
+
+                setTimeout(() => {
+                    showModal(true, q);
+                }, 1000);
+                
+            } else {
+                buttonElement.classList.replace('bg-white/10', 'bg-red-500/80');
+                buttonElement.classList.replace('border-white/30', 'border-red-400');
+                buttonElement.classList.add('animate-shake');
+                
+                const correctButton = Array.from(buttons).find(btn => parseInt(btn.dataset.originalIndex) === q.a);
+                if (correctButton) {
+                    correctButton.classList.replace('bg-white/10', 'bg-green-500/50');
+                }
+                
+                setTimeout(() => { showModal(false, q); }, 800);
+            }
+        }
+
+        function shootSandParticles(fromX, fromY, toX, toY, onImpact) {
+            const count = 12;
+            let finished = 0;
+            
+            for (let i = 0; i < count; i++) {
+                setTimeout(() => {
+                    const particle = document.createElement('div');
+                    particle.innerHTML = ['⭐','✨','🌟','·'][Math.floor(Math.random() * 4)];
+                    particle.className = 'fixed text-xl z-50 pointer-events-none select-none text-yellow-300 drop-shadow-[0_0_5px_rgba(253,186,116,0.8)]';
+                    particle.style.left = '0px';
+                    particle.style.top = '0px';
+                    particle.style.transform = `translate3d(${fromX}px, ${fromY}px, 0)`;
+                    document.body.appendChild(particle);
+
+                    const startTime = performance.now();
+                    const duration = 600 + Math.random() * 300; 
+
+                    const cpX = (fromX + toX) / 2 + (Math.random() - 0.5) * 160;
+                    const cpY = Math.min(fromY, toY) - 100 - Math.random() * 80;
+
+                    function update(time) {
+                        const elapsed = time - startTime;
+                        const t = Math.min(elapsed / duration, 1);
+
+                        const x = (1 - t) * (1 - t) * fromX + 2 * (1 - t) * t * cpX + t * t * toX;
+                        const y = (1 - t) * (1 - t) * fromY + 2 * (1 - t) * t * cpY + t * t * toY;
+
+                        particle.style.transform = `translate3d(${x}px, ${y}px, 0) scale(${1.2 * (1 - t) + 0.3}) rotate(${t * 360}deg)`;
+                        particle.style.opacity = 1 - t * 0.4;
+
+                        if (t < 1) {
+                            requestAnimationFrame(update);
+                        } else {
+                            particle.remove();
+                            finished++;
+                            if (finished === 1) {
+                                if (onImpact) onImpact();
+                            }
+                        }
+                    }
+                    requestAnimationFrame(update);
+                }, i * 50);
+            }
+        }
+
+        function getImageFilename(questionId) {
+            const num = questionId.replace("q", "");
+            const paddedNum = num.padStart(2, "0");
+            return `${paddedNum}.jpg`;
+        }
+
+        function handleImageError(imgElement) {
+            imgElement.classList.add('opacity-0');
+            const container = imgElement.parentElement;
+            if (container) {
+                container.classList.add('hidden');
+                container.classList.remove('block');
+            }
+        }
+
+        // --- 大画面画像表示 (Lightbox) ロジック ---
+        function openLightbox(src) {
+            const modal = document.getElementById('lightbox-modal');
+            const img = document.getElementById('lightbox-img');
+            img.src = src;
+            
+            modal.classList.remove('hidden');
+            requestAnimationFrame(() => {
+                modal.classList.remove('opacity-0');
+                img.classList.replace('scale-95', 'scale-100');
+            });
+        }
+
+        function closeLightbox() {
+            const modal = document.getElementById('lightbox-modal');
+            const img = document.getElementById('lightbox-img');
+            
+            modal.classList.add('opacity-0');
+            img.classList.replace('scale-100', 'scale-95');
+            setTimeout(() => {
+                modal.classList.add('hidden');
+            }, 300);
+        }
+
+        function showModal(isCorrect, q) {
+            const modal = document.getElementById('explanation-modal');
+            const content = document.getElementById('modal-content');
+            const icon = document.getElementById('result-icon');
+            const title = document.getElementById('result-title');
+            
+            if (isCorrect) {
+                icon.innerText = '⭕️';
+                title.innerText = 'せいかい！';
+                title.className = 'text-2xl font-black mb-2 text-green-500';
+            } else {
+                icon.innerText = '❌';
+                title.innerText = 'ざんねん...';
+                title.className = 'text-2xl font-black mb-2 text-red-500';
+            }
+            
+            document.getElementById('explanation-text').innerHTML = q.e;
+            
+            const imgContainer = document.getElementById('explanation-image-container');
+            const imgElement = document.getElementById('explanation-img');
+            
+            imgElement.classList.remove('opacity-100');
+            imgElement.classList.add('opacity-0');
+            
+            const filename = getImageFilename(q.id);
+            imgElement.src = filename;
+            
+            imgContainer.classList.remove('hidden');
+            imgContainer.classList.add('block');
+            
+            imgElement.onload = function() {
+                imgElement.classList.remove('opacity-0');
+                imgElement.classList.add('opacity-100');
+            };
+            
+            modal.classList.remove('hidden');
+            requestAnimationFrame(() => {
+                modal.classList.remove('opacity-0');
+                content.classList.remove('scale-90');
+                content.classList.add('animate-pop');
+            });
+        }
+
+        function nextQuestion() {
+            const modal = document.getElementById('explanation-modal');
+            const content = document.getElementById('modal-content');
+            
+            modal.classList.add('opacity-0');
+            content.classList.add('scale-90');
+            content.classList.remove('animate-pop');
+            
+            setTimeout(() => {
+                modal.classList.add('hidden');
+                currentQuestionIndex++;
+                if (currentQuestionIndex < TOTAL_QUESTIONS) {
+                    loadQuestion();
+                } else {
+                    processResult();
+                }
+            }, 300);
+        }
+
+        // --- 結果処理と称号判定 ---
+        function processResult() {
+            document.getElementById('progress-bar').style.width = '100%';
+            
+            const earnedXp = score * 100;
+            const oldXp = userData.xp;
+            const targetXp = oldXp + earnedXp;
+
+            const nextBtn = document.getElementById('next-attempt-btn');
+            nextBtn.disabled = true;
+            nextBtn.classList.add('opacity-50', 'cursor-not-allowed');
+            nextBtn.innerText = "チャージ中... ⏳";
+            
+            showScreen('result-screen');
+            document.getElementById('final-score').innerText = score;
+            
+            const resBottleSand = document.getElementById('result-bottle-sand');
+            const initialHeight = 100 * (score * 20 / 100);
+            resBottleSand.setAttribute('height', initialHeight);
+            resBottleSand.setAttribute('y', 115 - initialHeight);
+            
+            const cork = document.getElementById('result-cork');
+            cork.style.transform = 'translateY(0px) rotate(0deg)';
+            cork.style.opacity = '1';
+
+            updateXPBarAndRankRealtime(oldXp);
+
+            setTimeout(() => {
+                pourSandAndChargeXP(earnedXp, oldXp, targetXp);
+            }, 1500);
+        }
+
+        function pourSandAndChargeXP(earnedXp, oldXp, targetXp) {
+            const bottleContainer = document.getElementById('result-bottle-container');
+            const resBottleSand = document.getElementById('result-bottle-sand');
+            const cork = document.getElementById('result-cork');
+            const xpGainDisplay = document.getElementById('xp-gain-display');
+            
+            if (earnedXp === 0) {
+                xpGainDisplay.innerHTML = "<ruby>今回<rt>こんかい</rt></ruby>は<ruby>星<rt>ほし</rt></ruby>のすながたまりませんでした 🪐";
+                xpGainDisplay.className = "text-base sm:text-xl text-orange-300 font-bold mb-2 h-8 flex items-center justify-center md:justify-start";
+                
+                userData.xp = targetXp;
+                saveData();
+                updateStartScreenInfo();
+
+                const nextBtn = document.getElementById('next-attempt-btn');
+                nextBtn.disabled = false;
+                nextBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+                nextBtn.innerText = "つぎの挑戦へ 🚀";
+                return;
+            }
+
+            cork.style.transform = 'translateY(-40px) rotate(30deg) scale(0.8)';
+            cork.style.opacity = '0';
+            bottleContainer.classList.add('animate-jiggle');
+            
+            const bRect = bottleContainer.getBoundingClientRect();
+            const xpBar = document.getElementById('result-xp-bar');
+            const xRect = xpBar.getBoundingClientRect();
+            
+            const fromX = bRect.left + bRect.width / 2;
+            const fromY = bRect.top + 30;
+            const toX = xRect.left + xRect.width / 2;
+            const toY = xRect.top + xRect.height / 2;
+
+            const particleCount = 10 + score * 3;
+            let activeCount = particleCount;
+            let isAnimating = false;
+            let animationStartTime = null;
+            const animationDuration = particleCount * 150 + 300;
+
+            function animateXp(timestamp) {
+                if (!isAnimating) return;
+                if (!animationStartTime) animationStartTime = timestamp;
+                
+                const elapsed = timestamp - animationStartTime;
+                let progress = Math.min(elapsed / animationDuration, 1);
+                progress = 1 - Math.pow(1 - progress, 3); // easeOutCubic
+                
+                const currentDisplayXp = oldXp + (targetXp - oldXp) * progress;
+                updateXPBarAndRankRealtime(Math.floor(currentDisplayXp));
+                
+                if (progress < 1) {
+                    requestAnimationFrame(animateXp);
+                } else {
+                    isAnimating = false;
+                    updateXPBarAndRankRealtime(targetXp);
+                }
+            }
+
+            xpGainDisplay.innerHTML = "<ruby>星<rt>ほし</rt></ruby>のすなをチャージ<ruby>中<rt>ちゅう</rt></ruby>！ ✨";
+            xpGainDisplay.className = "text-base sm:text-xl text-yellow-300 font-bold mb-2 animate-pulseFast h-8 flex items-center justify-center md:justify-start";
+
+            for (let i = 0; i < particleCount; i++) {
+                setTimeout(() => {
+                    const percentLeft = Math.max(0, (score * 20) * (1 - (i + 1) / particleCount));
+                    const currentHeight = 100 * (percentLeft / 100);
+                    resBottleSand.setAttribute('height', currentHeight);
+                    resBottleSand.setAttribute('y', 115 - currentHeight);
+
+                    shootSandParticles(fromX, fromY, toX, toY, () => {
+                        if (!isAnimating && activeCount === particleCount) {
+                            isAnimating = true;
+                            requestAnimationFrame(animateXp);
+                        }
+
+                        activeCount--;
+                        if (activeCount === 0) {
+                            isAnimating = false;
+                            updateXPBarAndRankRealtime(targetXp);
+                            
+                            bottleContainer.classList.remove('animate-jiggle');
+                            
+                            userData.xp = targetXp;
+                            saveData();
+                            updateStartScreenInfo();
+
+                            xpGainDisplay.innerHTML = `+ ${earnedXp} pt チャージ<ruby>完了<rt>かんりょう</rt></ruby>！ 🌟`;
+                            xpGainDisplay.className = "text-base sm:text-xl text-green-300 font-bold mb-2 h-8 flex items-center justify-center md:justify-start";
+
+                            const nextBtn = document.getElementById('next-attempt-btn');
+                            nextBtn.disabled = false;
+                            nextBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+                            nextBtn.innerText = "つぎの挑戦へ 🚀";
+                        }
+                    });
+                }, i * 150);
+            }
+        }
+
+        function updateXPBarAndRankRealtime(currentXp) {
+            const rank = getRankObj(currentXp);
+            const nextRank = ranks.find(r => r.min > currentXp) || null;
+            
+            const rankIcon = document.getElementById('rank-icon');
+            const rankTitle = document.getElementById('rank-title');
+            const nextText = document.getElementById('next-rank-text');
+            const bar = document.getElementById('result-xp-bar');
+            const numericalXp = document.getElementById('numerical-xp-display');
+            
+            const previouslyShownTitle = rankTitle.innerHTML;
+            
+            rankIcon.innerText = rank.icon;
+            rankTitle.innerHTML = rank.title;
+            
+            if (previouslyShownTitle && previouslyShownTitle !== rank.title) {
+                triggerRankUpCelebration();
+            }
+            
+            if (nextRank) {
+                const range = nextRank.min - rank.min;
+                const current = currentXp - rank.min;
+                const percent = Math.min(100, Math.max(0, (current / range) * 100));
+                
+                bar.style.width = `${percent}%`;
+                nextText.innerHTML = `つぎの<ruby>称号<rt>しょうごう</rt></ruby>まで あと ${nextRank.min - currentXp} pt`;
+                numericalXp.innerText = `${currentXp} / ${nextRank.min} pt`;
+            } else {
+                bar.style.width = '100%';
+                nextText.innerHTML = "MAXレベル<ruby>到達<rt>とうたつ</rt></ruby>！すごい！";
+                numericalXp.innerText = `${currentXp} pt`;
+            }
+        }
+
+        function triggerRankUpCelebration() {
+            const badge = document.getElementById('rank-up-badge');
+            badge.classList.remove('hidden');
+            shootStars();
+            
+            const rankIcon = document.getElementById('rank-icon');
+            rankIcon.classList.add('animate-ping');
+            setTimeout(() => rankIcon.classList.remove('animate-ping'), 1000);
+        }
+
+        function shootStars() {
+            const container = document.getElementById('celebration-container');
+            container.innerHTML = '';
+            for (let i = 0; i < 30; i++) {
+                const star = document.createElement('div');
+                star.innerHTML = ['⭐','✨','🌟','🪐','🚀'][Math.floor(Math.random()*5)];
+                star.className = 'absolute text-3xl opacity-0 animate-floatUp';
+                star.style.left = `${Math.random() * 100}%`;
+                star.style.bottom = `-10%`;
+                star.style.animationDelay = `${Math.random() * 1.5}s`;
+                star.style.animationDuration = `${Math.random() * 2 + 3}s`;
+                container.appendChild(star);
+            }
+        }
+
+        // --- 星空ノート（図鑑）ロジック ---
+        function showNoteScreen() {
+            showScreen('note-screen');
+            renderNoteList();
+        }
+
+        function renderNoteList() {
+            const container = document.getElementById('note-container');
+            container.innerHTML = '';
+            
+            let clearCount = 0;
+            document.getElementById('note-total-count').innerText = allQuestions.length;
+
+            allQuestions.forEach((q, index) => {
+                const status = userData.history[q.id] || "unseen";
+                const item = document.createElement('div');
+                item.className = 'w-full rounded-2xl p-3.5 flex items-center transition-all shadow-md flex-shrink-0 ';
+                
+                let iconStr = '';
+                let contentHTML = '';
+                
+                if (status === "cleared") {
+                    clearCount++;
+                    item.className += 'bg-gradient-to-r from-blue-800 to-indigo-800 border border-blue-400 cursor-pointer hover:bg-blue-700 transform hover:scale-[1.01] active:scale-[0.99]';
+                    iconStr = '<div class="w-11 h-11 flex-shrink-0 bg-yellow-400 rounded-full flex items-center justify-center text-xl shadow-[0_0_10px_rgba(250,204,21,0.5)]">⭐</div>';
+                    
+                    const plainQ = q.q.replace(/<rt[^>]*>.*?<\/rt>/g, '').replace(/<[^>]*>?/gm, '');
+                    const shortQ = plainQ.length > 20 ? plainQ.substring(0, 20) + '...' : plainQ;
+                    
+                    contentHTML = `
+                        <div class="ml-3 flex-grow text-left">
+                            <div class="text-[11px] text-yellow-300 font-bold mb-0.5">クリア済み！</div>
+                            <div class="text-sm font-medium text-white">${shortQ}</div>
+                        </div>
+                    `;
+                    item.onclick = () => openNoteModal(q);
+                    
+                } else if (status === "seen") {
+                    item.className += 'bg-gray-800/80 border border-gray-500 cursor-pointer opacity-80 hover:bg-gray-700/80';
+                    iconStr = '<div class="w-11 h-11 flex-shrink-0 bg-gray-600 rounded-full flex items-center justify-center text-xl">👀</div>';
+                    
+                    const plainQ = q.q.replace(/<rt[^>]*>.*?<\/rt>/g, '').replace(/<[^>]*>?/gm, '');
+                    const shortQ = plainQ.length > 20 ? plainQ.substring(0, 20) + '...' : plainQ;
+
+                    contentHTML = `
+                        <div class="ml-3 flex-grow text-left">
+                            <div class="text-[11px] text-gray-400 mb-0.5">みつけたけど、まだ正解していない</div>
+                            <div class="text-sm text-gray-300">${shortQ}</div>
+                        </div>
+                    `;
+                    item.onclick = () => showToast("この問題はまだ正解していないよ。クイズで正解して解説をアンロックしよう！");
+                } else {
+                    item.className += 'bg-black/50 border border-dashed border-gray-600 opacity-50';
+                    iconStr = '<div class="w-11 h-11 flex-shrink-0 bg-gray-800 rounded-full flex items-center justify-center text-xl text-gray-500">🔒</div>';
+                    contentHTML = `
+                        <div class="ml-3 flex-grow text-left">
+                            <div class="text-sm text-gray-500 font-bold tracking-widest">？？？？？？</div>
+                        </div>
+                    `;
+                    item.onclick = () => showToast("この問題はまだ見つけていないよ。クイズを何度も遊んで探してみよう！");
+                }
+                
+                item.innerHTML = iconStr + contentHTML;
+                container.appendChild(item);
+            });
+            
+            document.getElementById('note-clear-count').innerText = clearCount;
+        }
+
+        function showToast(message) {
+            const toast = document.getElementById('toast');
+            toast.innerText = message;
+            toast.classList.remove('hidden');
+            setTimeout(() => {
+                toast.classList.add('hidden');
+            }, 3000);
+        }
+
+        function openNoteModal(q) {
+            document.getElementById('note-modal-q').innerHTML = q.q;
+            document.getElementById('note-modal-a').innerHTML = q.c[q.a];
+            document.getElementById('note-modal-e').innerHTML = q.e;
+            
+            const imgContainer = document.getElementById('note-image-container');
+            const imgElement = document.getElementById('note-img');
+            
+            imgElement.classList.remove('opacity-100');
+            imgElement.classList.add('opacity-0');
+            
+            const filename = getImageFilename(q.id);
+            imgElement.src = filename;
+            
+            imgContainer.classList.remove('hidden');
+            imgContainer.classList.add('block');
+            
+            imgElement.onload = function() {
+                imgElement.classList.remove('opacity-0');
+                imgElement.classList.add('opacity-100');
+            };
+            
+            const modal = document.getElementById('note-modal');
+            const content = document.getElementById('note-modal-content');
+            
+            modal.classList.remove('hidden');
+            requestAnimationFrame(() => {
+                modal.classList.remove('opacity-0');
+                content.classList.remove('scale-90');
+            });
+        }
+
+        function closeNoteModal() {
+            const modal = document.getElementById('note-modal');
+            const content = document.getElementById('note-modal-content');
+            
+            modal.classList.add('opacity-0');
+            content.classList.add('scale-90');
+            setTimeout(() => {
+                modal.classList.add('hidden');
+            }, 300);
+        }
+
+        // --- 称号ずかんモーダルロジック ---
+        function showRankModal() {
+            const modal = document.getElementById('rank-modal');
+            const content = document.getElementById('rank-modal-content');
+            const container = document.getElementById('rank-list-container');
+            
+            const currentXp = userData.xp;
+            const currentRankObj = getRankObj(currentXp);
+            const currentRankIndex = ranks.findIndex(r => r.min === currentRankObj.min);
+            const nextRank = ranks.find(r => r.min > currentXp) || null;
+            const remainingCount = ranks.length - 1 - currentRankIndex;
+            
+            const summaryEl = document.getElementById('rank-modal-summary');
+            if (remainingCount > 0) {
+                summaryEl.innerHTML = `まだ見ぬ称号は あと <span class="text-xl text-yellow-300 mx-1">${remainingCount}</span> 個！`;
+            } else {
+                summaryEl.innerHTML = `<span class="text-yellow-300">すべての称号をあつめた！きみは真のマスターだ！</span>`;
+            }
+            
+            const hintEl = document.getElementById('rank-modal-next-hint');
+            if (nextRank) {
+                hintEl.innerHTML = `つぎの称号まで あと <span class="font-bold text-white text-sm">${nextRank.min - currentXp}</span> pt`;
+            } else {
+                hintEl.innerHTML = "";
+            }
+
+            container.innerHTML = '';
+            
+            ranks.forEach((r, idx) => {
+                const isUnlocked = currentXp >= r.min;
+                const isCurrent = idx === currentRankIndex;
+                
+                const item = document.createElement('div');
+                item.className = `relative flex items-center gap-4 ${isCurrent ? 'my-1' : ''}`;
+                
+                const iconBox = document.createElement('div');
+                iconBox.className = `w-14 h-14 rounded-full flex items-center justify-center text-2xl flex-shrink-0 border-4 relative z-10 transition-transform ${
+                    isCurrent ? 'bg-purple-900 border-purple-400 shadow-[0_0_15px_rgba(168,85,247,0.8)] scale-110' :
+                    isUnlocked ? 'bg-gray-800 border-gray-500' : 'bg-gray-900 border-gray-700 opacity-60'
+                }`;
+                iconBox.innerText = isUnlocked ? r.icon : '🔒';
+                
+                const card = document.createElement('div');
+                card.className = `flex-grow p-3 rounded-xl border transition-all relative ${
+                    isCurrent ? 'bg-gradient-to-r from-blue-900 to-purple-900 border-purple-400 shadow-[0_0_15px_rgba(168,85,247,0.4)] scale-[1.02]' : 
+                    isUnlocked ? 'bg-gray-800/80 border-gray-600' : 'bg-black/50 border-gray-800 opacity-60'
+                }`;
+                
+                const connector = document.createElement('div');
+                connector.className = `absolute -left-4 top-1/2 -translate-y-1/2 w-4 h-1 ${
+                    isUnlocked ? (isCurrent ? 'bg-purple-400' : 'bg-gray-500') : 'bg-gray-700'
+                }`;
+                card.appendChild(connector);
+                
+                const textBox = document.createElement('div');
+                
+                if (isUnlocked) {
+                    textBox.innerHTML = `
+                        <div class="text-[10px] text-gray-400 mb-0.5 font-mono">${r.min} pt 〜</div>
+                        <div class="text-sm sm:text-base font-bold ${isCurrent ? 'text-yellow-300' : 'text-gray-200'}">${r.title}</div>
+                    `;
+                } else {
+                    textBox.innerHTML = `
+                        <div class="text-[10px] text-gray-500 mb-0.5 font-mono tracking-widest">？？？ pt 〜</div>
+                        <div class="text-sm sm:text-base font-bold text-gray-500 tracking-widest">？？？？？？</div>
+                    `;
+                }
+                card.appendChild(textBox);
+                
+                if (isCurrent) {
+                    const badge = document.createElement('div');
+                    badge.className = 'absolute -top-3 -right-2 text-[10px] bg-yellow-400 text-yellow-900 font-bold px-3 py-1 rounded-full whitespace-nowrap shadow-md transform rotate-12 z-20 animate-pulseFast';
+                    badge.innerText = 'いまここ！';
+                    card.appendChild(badge);
+                }
+                
+                item.appendChild(iconBox);
+                item.appendChild(card);
+                container.appendChild(item);
+            });
+
+            const progressLine = document.getElementById('rank-progress-line');
+            
+            modal.classList.remove('hidden');
+            requestAnimationFrame(() => {
+                const currentItem = container.children[currentRankIndex];
+                if (currentItem) {
+                    const lineStartTop = 36;
+                    const itemCenterY = currentItem.offsetTop + (currentItem.offsetHeight / 2);
+                    progressLine.style.height = Math.max(0, itemCenterY - lineStartTop) + 'px';
+                }
+                modal.classList.remove('opacity-0');
+                content.classList.remove('scale-90');
+                
+                setTimeout(() => {
+                    const currentItem = container.children[currentRankIndex];
+                    if (currentItem) {
+                        currentItem.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    }
+                }, 300);
+            });
+        }
+
+        function closeRankModal() {
+            const modal = document.getElementById('rank-modal');
+            const content = document.getElementById('rank-modal-content');
+            
+            modal.classList.add('opacity-0');
+            content.classList.add('scale-90');
+            setTimeout(() => {
+                modal.classList.add('hidden');
+            }, 300);
+        }
+
+        window.onload = initApp;
+
+    </script>
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+    import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+    import { getFirestore, doc, setDoc, updateDoc, increment, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+    const firebaseConfig = {
+        apiKey: "AIzaSyB4fpt6ffIuTBDJo_9g37kYr6KOWNgIcEY",
+        authDomain: "otatoolssite.firebaseapp.com",
+        projectId: "otatoolssite",
+        storageBucket: "otatoolssite.firebasestorage.app",
+        messagingSenderId: "20522292752",
+        appId: "1:20522292752:web:22fba7fecb61736593dc95"
+    };
+
+    // アプリ固有のID
+    const THIS_APP_ID = "26"; 
+    
+    const PORTAL_APP_ID = "otatoolssite-v1";
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+    const auth = getAuth(app);
+    signInAnonymously(auth).then(async () => {
+        const todayStr = new Date().toISOString().split('T')[0];
+        const storageKey = `ota_visited_${THIS_APP_ID}`;
+        
+        if (localStorage.getItem(storageKey) === todayStr) {
+            return;
+        }
+        const docRef = doc(db, 'artifacts', PORTAL_APP_ID, 'public', 'data', 'app_views', THIS_APP_ID);
+                try {
+            const docSnap = await getDoc(docRef);
+            if (docSnap.exists()) {
+                await updateDoc(docRef, { count: increment(1) });
+            } else {
+                await setDoc(docRef, { count: 1 }); 
+            }
+            localStorage.setItem(storageKey, todayStr);
+        } catch (e) { 
+            console.error("閲覧数のカウントに失敗しました:", e); 
+        }
+    }).catch((error) => {
+        console.error("Firebase認証エラー:", error);
+    });
+</script>
+</body>
+</html>
