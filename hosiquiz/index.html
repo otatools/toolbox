@@ -59,8 +59,8 @@
                             '40%, 80%': { transform: 'translateX(10px)' },
                         },
                         floatUp: {
-                            '0%': { transform: 'translateY(100vh) rotate(0deg)', opacity: 1 },
-                            '100%': { transform: 'translateY(-20vh) rotate(360deg)', opacity: 0 },
+                            '0%': { transform: 'translateY(10vh) rotate(0deg)', opacity: 0.25 },
+                            '100%': { transform: 'translateY(-120vh) rotate(360deg)', opacity: 0 },
                         },
                         jiggle: {
                             '0%': { transform: 'rotate(-3deg) scale(1)' },
@@ -386,7 +386,7 @@
 
         <!-- ================= RESULT SCREEN ================= -->
         <div id="result-screen" class="hidden glass-panel p-6 sm:p-8 text-center flex-grow flex flex-col justify-center relative overflow-hidden transform transition-all duration-500 max-h-full overflow-y-auto">
-            <div id="celebration-container" class="absolute inset-0 pointer-events-none z-0"></div>
+            <div id="celebration-container" class="absolute inset-0 pointer-events-none z-0 overflow-hidden rounded-3xl"></div>
             <div class="relative z-10 w-full flex flex-col justify-between h-full">
                 <div>
                     <h2 class="text-3xl font-black mb-1 text-yellow-300 drop-shadow-lg"><ruby>結果発表<rt>けっかはっぴょう</rt></ruby>！</h2>
@@ -829,6 +829,7 @@
         let currentQuestionIndex = 0;
         let score = 0;
         let starSandCount = 0; // クイズ中に獲得した砂の量（＝正解数）
+        let lastPlayedQuestions = []; // 直前のクイズで出た問題ID
         const TOTAL_QUESTIONS = 5;
 
         // --- データ管理 ---
@@ -970,7 +971,7 @@
                 const totalWeight = weights.reduce((sum, w) => sum + w, 0);
                 let randomValue = Math.random() * totalWeight;
                 
-                let selectedIndex = 0;
+                let selectedIndex = candidates.length - 1;
                 for (let i = 0; i < candidates.length; i++) {
                     randomValue -= weights[i];
                     if (randomValue <= 0) {
@@ -990,7 +991,13 @@
 
         // --- クイズロジック ---
         function startQuiz() {
-            currentQuestions = selectQuestionsWeighted(allQuestions, TOTAL_QUESTIONS);
+            let availableQuestions = allQuestions.filter(q => !lastPlayedQuestions.includes(q.id));
+            if (availableQuestions.length < TOTAL_QUESTIONS) {
+                availableQuestions = allQuestions;
+            }
+            currentQuestions = selectQuestionsWeighted(availableQuestions, TOTAL_QUESTIONS);
+            lastPlayedQuestions = currentQuestions.map(q => q.id);
+            
             currentQuestionIndex = 0;
             score = 0;
             starSandCount = 0;
@@ -1246,6 +1253,7 @@
         // --- 結果処理と称号判定 ---
         function processResult() {
             document.getElementById('progress-bar').style.width = '100%';
+            document.getElementById('rank-up-badge').classList.add('hidden');
             
             const earnedXp = score * 100;
             const oldXp = userData.xp;
@@ -1384,16 +1392,17 @@
             const bar = document.getElementById('result-xp-bar');
             const numericalXp = document.getElementById('numerical-xp-display');
             
-            const previouslyShownTitle = rankTitle.innerHTML;
+            const previouslyShownMin = rankTitle.dataset.currentMin;
             
             if (rankIcon.innerText !== rank.icon) {
                 rankIcon.innerText = rank.icon;
             }
-            if (previouslyShownTitle !== rank.title) {
+            if (previouslyShownMin !== String(rank.min)) {
                 rankTitle.innerHTML = rank.title;
-                if (previouslyShownTitle) {
+                if (previouslyShownMin !== undefined && previouslyShownMin !== "") {
                     triggerRankUpCelebration();
                 }
+                rankTitle.dataset.currentMin = rank.min;
             }
             
             if (nextRank) {
@@ -1403,8 +1412,9 @@
                 
                 bar.style.width = `${percent}%`;
                 const nextStr = `つぎの<ruby>称号<rt>しょうごう</rt></ruby>まで あと ${nextRank.min - currentXp} pt`;
-                if (nextText.innerHTML !== nextStr) {
+                if (nextText.dataset.lastStr !== nextStr) {
                     nextText.innerHTML = nextStr;
+                    nextText.dataset.lastStr = nextStr;
                 }
                 const numStr = `${currentXp} / ${nextRank.min} pt`;
                 if (numericalXp.innerText !== numStr) {
@@ -1413,8 +1423,9 @@
             } else {
                 bar.style.width = '100%';
                 const maxStr = "MAXレベル<ruby>到達<rt>とうたつ</rt></ruby>！すごい！";
-                if (nextText.innerHTML !== maxStr) {
+                if (nextText.dataset.lastStr !== maxStr) {
                     nextText.innerHTML = maxStr;
+                    nextText.dataset.lastStr = maxStr;
                 }
                 const maxNumStr = `${currentXp} pt`;
                 if (numericalXp.innerText !== maxNumStr) {
