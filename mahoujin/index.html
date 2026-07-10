@@ -1,0 +1,642 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>魔方陣パズル</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@500;700&family=M+PLUS+Rounded+1c:wght@700;800&display=swap');
+        body {
+            font-family: 'Fredoka', 'M PLUS Rounded 1c', sans-serif;
+            background-color: #f8fafc;
+        }
+
+        /* 動く背景グラデーション */
+        @keyframes gradientBG {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+        .animated-bg {
+            background: linear-gradient(-45deg, #a18cd1, #fbc2eb, #8fd3f4, #84fab0);
+            background-size: 400% 400%;
+            animation: gradientBG 15s ease infinite;
+        }
+
+        /* ぽよんと跳ねるアニメーション */
+        @keyframes float {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-8px); }
+        }
+        .animate-float {
+            animation: float 3s ease-in-out infinite;
+        }
+
+        /* 不正解時のシェイクアニメーション */
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            20% { transform: translateX(-6px) rotate(-2deg); }
+            40% { transform: translateX(6px) rotate(2deg); }
+            60% { transform: translateX(-6px) rotate(-2deg); }
+            80% { transform: translateX(6px) rotate(2deg); }
+        }
+        .shake {
+            animation: shake 0.4s ease-in-out;
+        }
+
+        /* 数字が入った時のポップアニメーション */
+        @keyframes pop {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.15); }
+            100% { transform: scale(1); }
+        }
+        .pop {
+            animation: pop 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        /* クリア時の紙吹雪 */
+        @keyframes confetti-fall {
+            0% { transform: translateY(-100vh) rotate(0deg); opacity: 1; }
+            100% { transform: translateY(100vh) rotate(720deg); opacity: 0; }
+        }
+        .confetti {
+            position: absolute;
+            width: 12px;
+            height: 12px;
+            background-color: #fcd34d;
+            animation: confetti-fall 3s linear infinite;
+        }
+
+        /* 立体ボタンの押し込み用クラス */
+        .btn-3d {
+            transition: transform 0.1s, box-shadow 0.1s;
+        }
+        .btn-3d:active {
+            transform: translateY(4px);
+            box-shadow: 0 0px 0 0 transparent !important;
+        }
+
+        /* 画面サイズに合わせて絶対にはみ出さないための魔法のサイズ計算 */
+        .puzzle-board-size {
+            width: 100%;
+            /* 縦並びの時（スマホなど）: 上下に2つ並ぶので、高さ制限を厳しくして見切れを防ぐ */
+            max-width: min(85vw, 32vh); 
+        }
+        @media (min-width: 768px) {
+            .puzzle-board-size {
+                /* 横並びの時（PCなど）: 左右に並ぶので、幅を画面半分以下にしつつ、高さは余裕を持たせる */
+                max-width: min(42vw, 60vh);
+            }
+        }
+    </style>
+</head>
+<body class="animated-bg h-screen w-screen overflow-hidden flex items-center justify-center p-2 sm:p-4 text-slate-800 box-border">
+
+    <!-- アプリのメインコンテナ (絶対に画面サイズを超えないように h-full に固定) -->
+    <div class="relative w-full h-full max-w-4xl max-h-[850px] bg-white/95 backdrop-blur-sm rounded-2xl sm:rounded-[2rem] md:rounded-[3rem] shadow-[0_20px_50px_rgba(0,0,0,0.2)] overflow-hidden flex flex-col border-[2px] sm:border-[3px] md:border-4 border-white/50">
+        
+        <!-- ================= タイトル画面 ================= -->
+        <div id="screen-title" class="absolute inset-0 flex flex-col p-4 sm:p-6 md:p-10 z-20 transition-opacity duration-500 bg-white/40 overflow-y-auto">
+            <div class="flex-grow flex flex-col items-center justify-center py-2">
+                <!-- タイトルロゴ -->
+                <div class="animate-float flex flex-col items-center mb-6 sm:mb-8 md:mb-12">
+                    <h1 class="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-purple-500 tracking-wider drop-shadow-sm text-center leading-tight">
+                        魔方陣パズル
+                    </h1>
+                    <p class="text-[10px] sm:text-xs md:text-lg text-indigo-900 mt-2 sm:mt-4 font-bold bg-white/60 px-3 sm:px-6 py-1 sm:py-2 rounded-full shadow-sm text-center">
+                        縦・横・斜めの和を全てそろえよう！
+                    </p>
+                </div>
+                
+                <!-- 難易度選択 -->
+                <div class="w-full max-w-3xl flex flex-col md:flex-row gap-3 sm:gap-4 md:gap-6 justify-center">
+                    <button onclick="showStageSelect('easy')" class="btn-3d flex-1 py-3 sm:py-4 md:py-6 bg-emerald-400 hover:bg-emerald-300 text-white border-b-[4px] sm:border-b-[6px] md:border-b-[8px] border-emerald-600 rounded-[1rem] sm:rounded-[1.5rem] md:rounded-3xl text-lg sm:text-xl md:text-3xl font-bold shadow-lg flex flex-col items-center gap-1 sm:gap-2">
+                        <span><i class="fa-solid fa-seedling"></i> 初級</span>
+                        <span class="text-[10px] sm:text-xs md:text-base font-normal bg-black/10 px-2 sm:px-3 py-0.5 sm:py-1 rounded-full">ヒントいっぱい</span>
+                    </button>
+                    <button onclick="showStageSelect('normal')" class="btn-3d flex-1 py-3 sm:py-4 md:py-6 bg-blue-500 hover:bg-blue-400 text-white border-b-[4px] sm:border-b-[6px] md:border-b-[8px] border-blue-700 rounded-[1rem] sm:rounded-[1.5rem] md:rounded-3xl text-lg sm:text-xl md:text-3xl font-bold shadow-lg flex flex-col items-center gap-1 sm:gap-2">
+                        <span><i class="fa-solid fa-fire"></i> 中級</span>
+                        <span class="text-[10px] sm:text-xs md:text-base font-normal bg-black/10 px-2 sm:px-3 py-0.5 sm:py-1 rounded-full">ヒント3つ</span>
+                    </button>
+                    <button onclick="showStageSelect('hard')" class="btn-3d flex-1 py-3 sm:py-4 md:py-6 bg-rose-500 hover:bg-rose-400 text-white border-b-[4px] sm:border-b-[6px] md:border-b-[8px] border-rose-700 rounded-[1rem] sm:rounded-[1.5rem] md:rounded-3xl text-lg sm:text-xl md:text-3xl font-bold shadow-lg flex flex-col items-center gap-1 sm:gap-2">
+                        <span><i class="fa-solid fa-skull"></i> 上級</span>
+                        <span class="text-[10px] sm:text-xs md:text-base font-normal bg-black/10 px-2 sm:px-3 py-0.5 sm:py-1 rounded-full">究極の推理！</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- ================= ステージ選択画面 ================= -->
+        <div id="screen-stages" class="absolute inset-0 flex flex-col p-4 sm:p-6 z-10 hidden transition-opacity duration-500 bg-white/90">
+            <div class="flex items-center relative mb-2 sm:mb-4 h-10 sm:h-12 flex-shrink-0">
+                <button onclick="showTitle()" class="btn-3d absolute left-0 w-10 h-10 sm:w-12 sm:h-12 flex items-center justify-center text-slate-500 bg-slate-200 hover:bg-slate-100 border-b-[3px] md:border-b-4 border-slate-400 rounded-xl sm:rounded-2xl text-lg sm:text-xl z-10">
+                    <i class="fa-solid fa-chevron-left"></i>
+                </button>
+                <h2 id="stage-select-title" class="w-full text-center text-xl sm:text-2xl md:text-4xl font-extrabold text-slate-700 tracking-wide">難易度 - ステージ</h2>
+            </div>
+            
+            <div class="flex-grow flex items-center justify-center overflow-y-auto">
+                <div class="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-3 sm:gap-4 md:gap-6 max-w-3xl w-full p-2" id="stage-buttons">
+                    <!-- JSで動的に生成 -->
+                </div>
+            </div>
+        </div>
+
+        <!-- ================= ゲーム画面 ================= -->
+        <div id="screen-game" class="absolute inset-0 flex flex-col z-0 hidden transition-opacity duration-500 bg-white/95">
+            
+            <!-- 上部ナビゲーション (高さ固定で安定化) -->
+            <div class="flex items-center justify-between w-full h-[12%] min-h-[50px] px-4 md:px-8 mt-2 flex-shrink-0">
+                <button onclick="backToStageSelect()" class="btn-3d w-10 h-10 md:w-12 md:h-12 flex items-center justify-center text-slate-500 bg-slate-200 hover:bg-slate-100 border-b-[3px] md:border-b-4 border-slate-400 rounded-xl sm:rounded-2xl text-lg sm:text-xl z-10">
+                    <i class="fa-solid fa-chevron-left"></i>
+                </button>
+                
+                <div class="flex flex-col items-center justify-center bg-indigo-100 px-4 sm:px-6 md:px-8 py-1 rounded-xl sm:rounded-2xl border-[2px] border-indigo-200">
+                    <span class="text-indigo-500 text-[9px] sm:text-[10px] md:text-xs font-bold leading-none mb-0.5">パズル</span>
+                    <h2 id="game-title" class="text-base sm:text-lg md:text-2xl font-extrabold text-indigo-700 tracking-wider leading-none">ステージ 1</h2>
+                </div>
+
+                <button onclick="resetBoard()" class="btn-3d h-10 md:h-12 px-2 sm:px-3 md:px-4 flex items-center justify-center gap-1 sm:gap-2 text-rose-500 bg-rose-100 hover:bg-rose-50 border-b-[3px] md:border-b-4 border-rose-300 rounded-xl sm:rounded-2xl text-[9px] sm:text-[10px] md:text-sm font-bold shadow-sm z-10" title="最初に戻す">
+                    <i class="fa-solid fa-rotate-right"></i>
+                    <span class="whitespace-nowrap hidden sm:inline">最初に戻す</span>
+                </button>
+            </div>
+            
+            <!-- エラーメッセージ領域 (盤面に被らないように専用のスペースを用意) -->
+            <div class="w-full h-[6%] min-h-[30px] flex items-center justify-center flex-shrink-0">
+                <div id="error-msg" class="bg-rose-500 text-white px-4 py-1.5 rounded-full font-bold text-[10px] md:text-sm opacity-0 transition-opacity shadow-md flex items-center gap-2 pointer-events-none">
+                    <i class="fa-solid fa-triangle-exclamation"></i> 合計が15にならない列があるよ！
+                </div>
+            </div>
+            
+            <!-- メイン領域: CSSのmin()を使って、どんな画面サイズでも絶対に見切れないように計算 -->
+            <div class="flex-grow flex flex-col md:flex-row items-center justify-center gap-2 md:gap-10 w-full px-2 pb-4 overflow-hidden">
+                
+                <!-- 左側：盤面エリア -->
+                <div class="puzzle-board-size flex flex-col items-center justify-center relative">
+                    <!-- 3x3 盤面 -->
+                    <div id="board" class="grid grid-cols-3 gap-1.5 md:gap-2 aspect-square w-full bg-slate-300 p-2 md:p-3 rounded-[1.25rem] md:rounded-[2rem] shadow-inner border-[3px] md:border-4 border-slate-300 flex-shrink-0">
+                        <!-- JSで動的に生成 -->
+                    </div>
+
+                    <!-- 高さ合わせのダミーブロック (右側の消すボタンと同じ比率で高さを確保) -->
+                    <div class="w-full aspect-[6/1] mt-1.5 md:mt-2 hidden md:block opacity-0 pointer-events-none flex-shrink-0"></div>
+                </div>
+
+                <!-- 右側：数字入力パッド -->
+                <div class="puzzle-board-size flex flex-col justify-center items-center">
+                    <!-- テンキーパッド -->
+                    <div id="number-pad" class="grid grid-cols-3 gap-1.5 md:gap-2 aspect-square w-full bg-indigo-50/50 p-2 md:p-3 rounded-[1.25rem] md:rounded-[2rem] border-[3px] md:border-4 border-indigo-100/50 flex-shrink-0">
+                        <!-- JSで動的に生成 -->
+                    </div>
+
+                    <!-- 消すボタンのコンテナ (アスペクト比で高さを自動決定) -->
+                    <div id="delete-pad" class="w-full aspect-[6/1] mt-1.5 md:mt-2 flex-shrink-0">
+                        <!-- JSで生成 -->
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+        <!-- ================= クリアモーダル ================= -->
+        <div id="modal-clear" class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm z-50 hidden flex items-center justify-center opacity-0 transition-opacity duration-500 overflow-hidden p-4">
+            <div id="confetti-container" class="absolute inset-0 pointer-events-none"></div>
+
+            <div class="bg-gradient-to-b from-yellow-50 to-white rounded-[1.5rem] md:rounded-[2rem] p-6 sm:p-8 w-full max-w-[350px] text-center shadow-[0_0_100px_rgba(250,204,21,0.5)] transform scale-90 transition-transform duration-500 relative border-[4px] md:border-[6px] border-yellow-300 mx-auto" id="modal-content">
+                
+                <div class="absolute -top-10 md:-top-12 left-1/2 transform -translate-x-1/2 text-5xl sm:text-6xl md:text-7xl text-yellow-400 drop-shadow-lg animate-bounce">
+                    <i class="fa-solid fa-crown"></i>
+                </div>
+                
+                <h3 class="text-2xl sm:text-3xl md:text-4xl font-extrabold text-yellow-600 mb-1 mt-4 sm:mt-6 tracking-wide">クリア！</h3>
+                <p class="text-sm sm:text-base md:text-lg text-slate-500 mb-4 sm:mb-6 font-bold">すごい！大正解！</p>
+                
+                <div class="flex flex-col gap-2 sm:gap-3">
+                    <button onclick="nextStage()" class="btn-3d w-full py-3 sm:py-4 bg-indigo-500 hover:bg-indigo-400 text-white font-extrabold rounded-xl sm:rounded-2xl text-base sm:text-lg shadow-lg border-b-[4px] border-indigo-700 flex items-center justify-center gap-2">
+                        <span>次のステージへ</span> <i class="fa-solid fa-forward-step"></i>
+                    </button>
+                    <button onclick="backToStageSelect()" class="btn-3d w-full py-2 sm:py-3 bg-slate-200 hover:bg-slate-100 text-slate-600 font-extrabold rounded-xl sm:rounded-2xl text-sm sm:text-base shadow-md border-b-[4px] border-slate-400">
+                        一覧に戻る
+                    </button>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- JavaScript ロジック -->
+    <script>
+        // ====== SVG数字描画関数 ======
+        function getDigitSvg(num) {
+            const paths = {
+                1: "M.42333985 .69921877V.061035158C.42333985 .045735677 .4181315 .033040365 .40771485 .022949219 .394694 .010253906 .37695313 .00390625 .3544922 .00390625 .32617188 .00390625 .30566407 .013671875 .29296876 .033203126 .2877604 .041015626 .28515626 .05029297 .28515626 .061035158V.69921877C.28515626 .71940109 .2944336 .7347005 .31298829 .7451172 .32600913 .7522786 .3400065 .7558594 .35498048 .7558594 .3725586 .7558594 .3881836 .75113937 .40185548 .7416992 .41617839 .73128256 .42333985 .7171224 .42333985 .69921877Z",
+                2: "M.23876953 .13623047H.5756836C.58935549 .13623047 .60058596 .13167317 .609375 .122558597 .62109377 .11051432 .6269531 .09488932 .6269531 .075683597 .6269531 .05061849 .61832687 .032714845 .6010742 .021972657 .5939128 .017415366 .5854492 .015136719 .5756836 .015136719H.15966797C.106933597 .015136719 .080566409 .038411458 .080566409 .08496094 .080566409 .115885417 .095052089 .14827474 .12402344 .1821289 .16210938 .22705078 .23242188 .29134117 .33496095 .375 .38216148 .41341148 .4153646 .4441732 .4345703 .46728517 .4580078 .49560548 .46972657 .5232747 .46972657 .55029299 .46972657 .58414718 .45507813 .61051437 .42578126 .62939456 .4046224 .6427409 .37972007 .64941409 .35107423 .64941409 .29345704 .64941409 .25 .6228841 .22070313 .5698242 .20735677 .54573568 .1883138 .5336914 .16357422 .5336914 .15185547 .5336914 .140625 .5367839 .12988281 .54296877 .110677089 .55403646 .10107422 .5703125 .10107422 .5917969 .10107422 .6142578 .110188808 .63753256 .12841797 .6616211 .14729817 .6870117 .17252605 .7081706 .20410156 .72509768 .24934896 .7498372 .29899089 .76220706 .35302735 .76220706 .41259767 .76220706 .46484376 .7480469 .5097656 .71972659 .5751953 .67871096 .60791018 .62190756 .60791018 .5493164 .60791018 .5024414 .5939128 .4609375 .56591799 .4248047 .5447591 .3971354 .5027669 .35953776 .4399414 .31201173 .3569336 .2491862 .2898763 .19059246 .23876953 .13623047Z",
+                3: "M.4580078 .4008789C.50423178 .39339195 .5415039 .3763021 .5698242 .34960938 .6066081 .31510417 .625 .27278648 .625 .22265625 .625 .14811199 .5940755 .09000651 .53222659 .048339845 .48177085 .014811198 .41959635-.001953125 .34570313-.001953125 .24804688-.001953125 .17252605 .025227866 .119140628 .079589847 .09472656 .104003909 .08251953 .12727864 .08251953 .14941406 .08251953 .16503906 .087890628 .17789714 .09863281 .18798828 .1110026 .19970703 .12548828 .2055664 .14208985 .2055664 .15673828 .2055664 .16910808 .20084636 .17919922 .19140625 .18147786 .18945313 .18636067 .18375652 .19384766 .1743164 .22932942 .13134766 .27978517 .10986328 .34521485 .10986328 .38134767 .10986328 .41145835 .11702474 .43554688 .13134766 .4703776 .15218099 .48779298 .18310547 .48779298 .2241211 .48779298 .25797526 .4777018 .28548179 .45751954 .30664063 .44091798 .32421876 .41878257 .33544923 .39111329 .34033204 .3712565 .34391276 .3400065 .34586589 .29736329 .3461914 .25439454 .3461914 .23291016 .36442057 .23291016 .4008789 .23291016 .4350586 .25520835 .45214845 .2998047 .45214845 .3388672 .45214845 .37239585 .45833335 .40039063 .47070313 .44140626 .48860679 .46191407 .5182292 .46191407 .5595703 .46191407 .5882161 .4501953 .6110026 .4267578 .6279297 .4046224 .64420577 .37597657 .65234377 .3408203 .65234377 .28450523 .65234377 .24121094 .63134768 .2109375 .58935549 .19954427 .57340499 .18457031 .5654297 .16601563 .5654297 .15104167 .5654297 .13785808 .5703125 .12646485 .5800781 .114095058 .5904948 .107910159 .60335287 .107910159 .61865237 .107910159 .6352539 .11604818 .65315756 .13232422 .6723633 .1508789 .69384768 .1743164 .71207687 .20263672 .7270508 .24593099 .7498372 .29345704 .76123049 .34521485 .76123049 .4051107 .76123049 .45670573 .74820968 .5 .72216799 .5625 .68408206 .59375 .62906906 .59375 .5571289 .59375 .51676437 .5802409 .48177085 .55322268 .45214845 .53011068 .4267578 .5001628 .41015626 .4633789 .40234376L.4580078 .4008789Z",
+                4: "M.40185548 .16601563H.12207031C.09863281 .16601563 .080566409 .17285156 .067871097 .18652344 .056803388 .19889324 .05126953 .21435547 .05126953 .23291016 .05126953 .25048829 .057454427 .27148438 .06982422 .29589845L.2939453 .7368164C.30436198 .7573242 .32096354 .7675781 .34375 .7675781 .3580729 .7675781 .3712565 .7635091 .38330079 .7553711 .40055339 .74332687 .4091797 .7281901 .4091797 .70996096 .4091797 .69921877 .40608726 .6878255 .39990235 .67578127L.19482422 .27978517H.40185548V.5576172C.40185548 .5703125 .40576173 .5810547 .41357423 .58984377 .42496745 .60253909 .44140626 .6088867 .46289063 .6088867 .48990885 .6088867 .5083008 .5994466 .5180664 .5805664 .5213216 .57373049 .5229492 .56608077 .5229492 .5576172V.27978517H.62109377C.6529948 .27978517 .6689453 .26090495 .6689453 .22314453 .6689453 .19677735 .66015627 .17936199 .6425781 .17089844 .63639327 .16764324 .62923178 .16601563 .62109377 .16601563H.5229492V.057128908C.5229492 .04378255 .51904299 .032714845 .51123049 .023925782 .4991862 .010579427 .48291017 .00390625 .46240235 .00390625 .43603517 .00390625 .41764323 .013671875 .40722657 .033203126 .40364585 .040039064 .40185548 .048014326 .40185548 .057128908V.16601563Z",
+                5: "M.22802735 .44677735C.27034507 .48225913 .32047526 .5 .37841798 .5 .44254557 .5 .49690757 .480306 .5415039 .44091798 .5939128 .394694 .6201172 .3334961 .6201172 .25732423 .6201172 .17399089 .5904948 .107910159 .53125 .05908203 .4814453 .017740885 .41975913-.0029296876 .3461914-.0029296876 .2902018-.0029296876 .23876953 .0087890629 .19189453 .032226564 .13492839 .060546876 .10644531 .09342448 .10644531 .13085938 .10644531 .1451823 .11165365 .15820313 .12207031 .16992188 .13346355 .18261719 .14729817 .18896485 .16357422 .18896485 .17985027 .18896485 .19628906 .18017578 .21289063 .16259766 .24446614 .12874349 .2874349 .111816409 .34179688 .111816409 .3844401 .111816409 .41927085 .12613933 .44628907 .15478516 .47200523 .1821289 .48486329 .21728516 .48486329 .2602539 .48486329 .3022461 .47314454 .33544923 .44970704 .35986329 .42529298 .38460288 .39208985 .39697267 .35009767 .39697267 .30485026 .39697267 .26513673 .37858073 .23095703 .34179688 .21533203 .32486979 .19759114 .31640626 .17773438 .31640626 .15104167 .31640626 .13151042 .3251953 .119140628 .34277345 .11165365 .35416667 .107910159 .3688151 .107910159 .38671876 .107910159 .39127604 .107910159 .39404298 .107910159 .39501954L.119140628 .6621094C.12141927 .71744796 .15234375 .7451172 .21191406 .7451172H.54003909C.54817709 .7451172 .5555013 .74316409 .5620117 .7392578 .5779622 .7294922 .5859375 .71223959 .5859375 .6875 .5859375 .6669922 .5802409 .6512044 .56884768 .6401367 .56103518 .6326497 .5514323 .62890627 .54003909 .62890627H.26416017C.24527996 .62890627 .23551433 .62158206 .23486328 .6069336L.22802735 .44677735Z",
+                6: "M.22216797 .42285157C.2618815 .4671224 .31770835 .4892578 .38964845 .4892578 .4436849 .4892578 .49153648 .47444663 .5332031 .44482423 .5970052 .3992513 .62890627 .3351237 .62890627 .2524414 .62890627 .18570964 .60872396 .12906902 .5683594 .08251953 .5185547 .025553385 .4519857-.0029296876 .36865235-.0029296876 .28304038-.0029296876 .21402996 .026041666 .1616211 .083984378 .10986328 .14160156 .083984378 .21712239 .083984378 .31054688 .083984378 .3984375 .111328128 .48388673 .16601563 .56689456 .22460938 .6560872 .29899089 .72233077 .38916017 .765625 .40445964 .77278646 .41878257 .7763672 .4321289 .7763672 .45263673 .7763672 .46891276 .7679036 .48095704 .75097659 .48909507 .7395833 .49316407 .72753909 .49316407 .71484377 .49316407 .6923828 .4778646 .67301437 .44726563 .6567383 .3798828 .62158206 .3227539 .57389327 .2758789 .5136719 .2524414 .48404948 .23453777 .45377604 .22216797 .42285157M.36376954 .3881836C.33251954 .3881836 .30403648 .37841798 .2783203 .35888673 .24348958 .33251954 .22607422 .29720054 .22607422 .2529297 .22607422 .21321614 .23746746 .18033855 .2602539 .15429688 .28597007 .12467448 .32080079 .10986328 .3647461 .10986328 .40771485 .10986328 .441569 .12565105 .4663086 .15722656 .48616538 .1829427 .49609376 .21500652 .49609376 .25341798 .49609376 .30452476 .4781901 .3421224 .4423828 .36621095 .42089845 .38085938 .394694 .3881836 .36376954 .3881836Z",
+                7: "M.17236328 .7451172H.5493164C.5727539 .7451172 .5914714 .7397461 .60546877 .7290039 .6220703 .7163086 .6303711 .6985677 .6303711 .67578127 .6303711 .66308596 .6266276 .64713546 .6191406 .6279297 .5494792 .44596354 .48388673 .25716148 .42236329 .061523439 .410319 .022460938 .3898112 .0029296876 .36083985 .0029296876 .3474935 .0029296876 .3351237 .005859375 .32373048 .01171875 .30517579 .020833334 .29589845 .03531901 .29589845 .05517578 .29589845 .06526693 .30208335 .088378909 .31445313 .12451172 .40559898 .38883464 .46126304 .54833987 .4814453 .60302737 .48470054 .61116537 .48632813 .6170247 .48632813 .62060549 .48632813 .62679037 .480306 .6298828 .46826173 .6298828H.21923828C.20719402 .6298828 .20117188 .62386068 .20117188 .6118164V.5058594C.20117188 .49316407 .19710286 .48242188 .18896485 .4736328 .17757161 .46126304 .1616211 .45507813 .14111328 .45507813 .115722659 .45507813 .09798177 .46419273 .087890628 .48242188 .083984378 .4892578 .08203125 .4970703 .08203125 .5058594V.65185549C.08203125 .71402999 .11214193 .7451172 .17236328 .7451172Z",
+                8: "M.22314453 .4008789C.13330078 .44189454 .088378909 .4988607 .088378909 .57177737 .088378909 .62125656 .109375 .6638997 .15136719 .69970706 .20117188 .7420247 .2664388 .7631836 .34716798 .7631836 .42659507 .7631836 .49690757 .74039718 .55810549 .6948242 .5851237 .6746419 .6070964 .65201827 .62402346 .6269531 .6357422 .61002609 .64160159 .5935872 .64160159 .5776367 .64160159 .5652669 .6381836 .5546875 .63134768 .54589846 .61865237 .53027346 .60253909 .52246096 .5830078 .52246096 .57877609 .52246096 .57421877 .5229492 .56933596 .5239258 .53548178 .4930013 .49251304 .45898438 .4404297 .421875 .49479167 .3997396 .53597006 .37565104 .56396487 .34960938 .60563156 .3111979 .62646487 .26497398 .62646487 .2109375 .62646487 .14778646 .6020508 .09667969 .55322268 .057617189 .5024414 .017252604 .43391929-.0029296876 .34765626-.0029296876 .2705078-.0029296876 .20719402 .013509114 .15771485 .04638672 .10139974 .08414713 .07324219 .13704427 .07324219 .20507813 .07324219 .24934896 .08935547 .2903646 .12158203 .328125 .14697266 .3577474 .18082683 .3819987 .22314453 .4008789M.48828126 .5961914C.4501953 .6401367 .4025065 .6621094 .34521485 .6621094 .30810548 .6621094 .2775065 .65511068 .25341798 .6411133 .22607422 .6251628 .21240235 .6044922 .21240235 .57910159 .21240235 .5328776 .2513021 .49544273 .32910157 .46679688 .39290367 .50911459 .44596354 .5522461 .48828126 .5961914M.3413086 .35009767C.29182945 .32828776 .25358073 .30110679 .2265625 .2685547 .20703125 .24511719 .19726563 .22233074 .19726563 .20019531 .19726563 .16438802 .21370442 .1381836 .24658203 .12158203 .2709961 .10921224 .30322267 .103027347 .34326173 .103027347 .3898112 .103027347 .42708335 .11165365 .45507813 .12890625 .48470054 .14746094 .49951173 .1726888 .49951173 .20458985 .49951173 .23258464 .48535157 .25992839 .45703126 .2866211 .43066407 .3113607 .39697267 .33089195 .35595704 .34521485 .35302735 .3461914 .34814454 .347819 .3413086 .35009767Z",
+                9: "M.4169922 .30908204C.37955729 .27783204 .33268229 .26220704 .2763672 .26220704 .1998698 .26220704 .14192708 .2898763 .10253906 .34521485 .07356771 .38590495 .05908203 .4363607 .05908203 .49658204 .05908203 .57633468 .09016927 .64208987 .15234375 .69384768 .20735677 .7394206 .2722982 .76220706 .34716798 .76220706 .42399089 .76220706 .48225913 .74121096 .52197268 .69921877 .5362956 .72005209 .5541992 .73046877 .5756836 .73046877 .58968099 .73046877 .60221359 .726237 .61328127 .71777346 .62630209 .7083333 .6328125 .6944987 .6328125 .67626956 .6328125 .6694336 .63183596 .66227218 .6298828 .65478518L.47314454 .036132814C.46598307 .0081380209 .44710288-.005859375 .4165039-.005859375 .40608726-.005859375 .3955078-.004231771 .38476563-.0009765625 .3577474 .0078125 .34423829 .025390625 .34423829 .051757814 .34423829 .057942708 .34521485 .06429037 .34716798 .07080078L.4169922 .30908204M.48486329 .59716799C.44677735 .6352539 .39860026 .6542969 .34033204 .6542969 .30908204 .6542969 .28141276 .6464844 .25732423 .6308594 .21110027 .60091146 .18798828 .5571289 .18798828 .49951173 .18798828 .4165039 .22363281 .375 .29492188 .375 .38541667 .375 .4482422 .4466146 .48339845 .58984377L.48486329 .59716799Z",
+                0: "M.35498048 .76220706C.44840495 .76220706 .52164718 .72233077 .57470706 .6425781 .6196289 .5748698 .64208987 .4881185 .64208987 .38232423 .64208987 .29085288 .62613937 .21354167 .5942383 .15039063 .5727539 .1077474 .5447591 .07373047 .5102539 .048339845 .46533204 .014811198 .4132487-.001953125 .3540039-.001953125 .25830079-.001953125 .18408203 .038411458 .13134766 .119140628 .08772787 .18619792 .06591797 .27376304 .06591797 .38183595 .06591797 .49414063 .090657558 .5843099 .14013672 .65234377 .19319661 .72558596 .2648112 .76220706 .35498048 .76220706M.35302735 .64941409C.30908204 .64941409 .27360026 .62646487 .24658203 .5805664 .21761067 .5317383 .203125 .46484376 .203125 .3798828 .203125 .30501304 .21468099 .24430339 .23779297 .1977539 .26546226 .14208985 .30452476 .11425781 .35498048 .11425781 .39404298 .11425781 .42708335 .13297527 .45410157 .17041016 .48795573 .21761067 .5048828 .2874349 .5048828 .3798828 .5048828 .4700521 .48876954 .5395508 .45654298 .5883789 .42985026 .62906906 .39534507 .64941409 .35302735 .64941409Z"
+            };
+            // 文字の大きさを親の枠線に影響されず一定に保つ
+            return `<svg viewBox="0 0 0.7 0.8" class="w-[60%] h-[60%] drop-shadow-sm"><g transform="matrix(1, 0, 0, -1, 0, 0.78)"><path d="${paths[num]}" fill="currentColor"/></g></svg>`;
+        }
+
+        let clearedStages = { easy: [], normal: [], hard: [] };
+        try {
+            const saved = localStorage.getItem('magicSquareCleared');
+            if (saved) {
+                clearedStages = JSON.parse(saved);
+            }
+        } catch (e) {
+            console.error("Local storage error:", e);
+        }
+
+        function saveClearStatus(difficulty, stageIdx) {
+            if (!clearedStages[difficulty].includes(stageIdx)) {
+                clearedStages[difficulty].push(stageIdx);
+                try {
+                    localStorage.setItem('magicSquareCleared', JSON.stringify(clearedStages));
+                } catch (e) {}
+            }
+        }
+
+        const SOLUTIONS = [
+            [8, 1, 6, 3, 5, 7, 4, 9, 2], // 0: 基本
+            [6, 1, 8, 7, 5, 3, 2, 9, 4], // 1: 左右反転
+            [4, 9, 2, 3, 5, 7, 8, 1, 6], // 2: 上下反転
+            [2, 9, 4, 7, 5, 3, 6, 1, 8], // 3: 対角反転
+            [8, 3, 4, 1, 5, 9, 6, 7, 2], // 4: 回転
+            [4, 3, 8, 9, 5, 1, 2, 7, 6], // 5: 回転+反転
+            [6, 7, 2, 1, 5, 9, 8, 3, 4], // 6: 回転+反転
+            [2, 7, 6, 9, 5, 1, 4, 3, 8]  // 7: 回転+反転
+        ];
+
+        const STAGE_DATA = {
+            easy: [
+                { solIdx: 0, hints: [0, 1, 4, 5] },
+                { solIdx: 1, hints: [0, 2, 4, 8] },
+                { solIdx: 2, hints: [1, 3, 5, 7] },
+                { solIdx: 3, hints: [0, 4, 6, 8] },
+                { solIdx: 4, hints: [2, 3, 4, 7] },
+                { solIdx: 5, hints: [1, 2, 4, 6] },
+                { solIdx: 6, hints: [0, 1, 2, 4] },
+                { solIdx: 7, hints: [0, 3, 4, 7] },
+                { solIdx: 0, hints: [3, 4, 5, 6] },
+                { solIdx: 1, hints: [2, 4, 7, 8] }
+            ],
+            normal: [
+                { solIdx: 0, hints: [2, 4, 6] },
+                { solIdx: 1, hints: [0, 4, 8] },
+                { solIdx: 2, hints: [1, 3, 4] },
+                { solIdx: 3, hints: [0, 2, 7] },
+                { solIdx: 4, hints: [4, 5, 8] },
+                { solIdx: 5, hints: [2, 3, 6] },
+                { solIdx: 6, hints: [1, 2, 3] },
+                { solIdx: 7, hints: [0, 5, 6] },
+                { solIdx: 0, hints: [3, 7, 8] },
+                { solIdx: 1, hints: [1, 4, 6] }
+            ],
+            hard: [
+                { solIdx: 0, hints: [4, 8] },
+                { solIdx: 1, hints: [0, 8] },
+                { solIdx: 2, hints: [1, 7] },
+                { solIdx: 3, hints: [0, 4] },
+                { solIdx: 4, hints: [2, 6] },
+                { solIdx: 5, hints: [3, 5] },
+                { solIdx: 6, hints: [1, 4] },
+                { solIdx: 7, hints: [2, 7] },
+                { solIdx: 0, hints: [0, 7] },
+                { solIdx: 1, hints: [4] } // 究極: ヒント1つ
+            ]
+        };
+
+        let currentDifficulty = 'normal';
+        let currentStageIdx = 0;
+        let board = Array(9).fill(0);
+        let lockedCells = [];
+        let selectedCell = null;
+        let selectedNumber = null;
+
+        const screenTitle = document.getElementById('screen-title');
+        const screenStages = document.getElementById('screen-stages');
+        const screenGame = document.getElementById('screen-game');
+        const boardEl = document.getElementById('board');
+        const numpadEl = document.getElementById('number-pad');
+        const errorMsg = document.getElementById('error-msg');
+        const modalClear = document.getElementById('modal-clear');
+        const modalContent = document.getElementById('modal-content');
+        const confettiContainer = document.getElementById('confetti-container');
+
+        function showTitle() {
+            screenStages.classList.add('hidden');
+            screenGame.classList.add('hidden');
+            screenTitle.classList.remove('hidden');
+        }
+
+        function showStageSelect(difficulty) {
+            currentDifficulty = difficulty;
+            screenTitle.classList.add('hidden');
+            screenGame.classList.add('hidden');
+            screenStages.classList.remove('hidden');
+
+            const titleMap = { 'easy': '初級', 'normal': '中級', 'hard': '上級' };
+            const colorMap = { 'easy': 'text-emerald-500', 'normal': 'text-blue-500', 'hard': 'text-rose-500' };
+            
+            const titleEl = document.getElementById('stage-select-title');
+            titleEl.innerText = `${titleMap[difficulty]} ステージ`;
+            titleEl.className = `w-full text-center text-xl sm:text-2xl md:text-4xl font-extrabold tracking-wide ${colorMap[difficulty]}`;
+
+            const stageButtons = document.getElementById('stage-buttons');
+            stageButtons.innerHTML = '';
+            
+            STAGE_DATA[difficulty].forEach((_, idx) => {
+                const isCleared = clearedStages[difficulty].includes(idx);
+                const btn = document.createElement('button');
+                
+                if (isCleared) {
+                    btn.className = 'btn-3d relative aspect-square flex flex-col items-center justify-center rounded-2xl md:rounded-[2rem] bg-amber-50 hover:bg-amber-100 border-b-[4px] md:border-b-[6px] border-amber-300 text-amber-600 transition shadow-sm';
+                    btn.innerHTML = `
+                        <div class="absolute -top-2 -right-2 sm:-top-3 sm:-right-3 md:-top-4 md:-right-4 text-2xl sm:text-3xl md:text-5xl text-yellow-400 drop-shadow-md transform rotate-12">
+                            <i class="fa-solid fa-medal"></i>
+                        </div>
+                        <span class="text-[10px] sm:text-xs md:text-sm font-bold opacity-70">ステージ</span>
+                        <span class="text-2xl sm:text-3xl md:text-5xl font-extrabold">${idx + 1}</span>
+                    `;
+                } else {
+                    btn.className = 'btn-3d aspect-square flex flex-col items-center justify-center rounded-2xl md:rounded-[2rem] bg-indigo-50 hover:bg-indigo-100 border-b-[4px] md:border-b-[6px] border-indigo-200 text-indigo-600 transition shadow-sm';
+                    btn.innerHTML = `<span class="text-[10px] sm:text-xs md:text-sm font-bold opacity-70">ステージ</span><span class="text-2xl sm:text-3xl md:text-5xl font-extrabold">${idx + 1}</span>`;
+                }
+
+                btn.onclick = () => startGame(idx);
+                stageButtons.appendChild(btn);
+            });
+        }
+
+        function backToStageSelect() {
+            modalClear.classList.add('hidden');
+            modalClear.classList.remove('opacity-100');
+            confettiContainer.innerHTML = '';
+            showStageSelect(currentDifficulty);
+        }
+
+        function startGame(stageIdx) {
+            currentStageIdx = stageIdx;
+            screenStages.classList.add('hidden');
+            screenGame.classList.remove('hidden');
+            
+            document.getElementById('game-title').innerText = `ステージ ${stageIdx + 1}`;
+            hideError();
+            
+            boardEl.classList.remove('shake');
+            
+            const stageData = STAGE_DATA[currentDifficulty][stageIdx];
+            const solution = SOLUTIONS[stageData.solIdx];
+            
+            board = Array(9).fill(0);
+            lockedCells = [...stageData.hints];
+            
+            lockedCells.forEach(idx => {
+                board[idx] = solution[idx];
+            });
+            
+            selectedCell = null;
+            selectedNumber = null;
+
+            renderBoard();
+            renderNumpad();
+        }
+
+        function resetBoard() {
+            startGame(currentStageIdx);
+        }
+
+        function renderBoard() {
+            boardEl.innerHTML = '';
+            
+            for (let i = 0; i < 9; i++) {
+                const cell = document.createElement('div');
+                const val = board[i];
+                const isLocked = lockedCells.includes(i);
+                
+                let classes = 'aspect-square w-full h-full flex items-center justify-center rounded-xl md:rounded-2xl lg:rounded-3xl transition-all duration-200 select-none border-[3px] md:border-4 ';
+                
+                if (isLocked) {
+                    classes += 'bg-slate-400 text-slate-100 shadow-[inset_0_4px_10px_rgba(0,0,0,0.3)] border-slate-400';
+                } else {
+                    classes += 'bg-slate-100 text-slate-700 border-dashed border-slate-400 cursor-pointer hover:bg-white';
+                    
+                    if (selectedCell === i) {
+                        classes = classes.replace('border-slate-400', 'border-yellow-400').replace('bg-slate-100', 'bg-yellow-100');
+                        classes += ' ring-4 ring-yellow-400 ring-offset-4 ring-offset-slate-300';
+                    }
+                    
+                    cell.onclick = () => {
+                        if (isLocked) return;
+
+                        if (selectedNumber !== null) {
+                            hideError();
+                            board[i] = selectedNumber;
+                            
+                            if (selectedNumber !== 0) {
+                                setTimeout(() => {
+                                    const animCell = document.getElementById(`cell-${i}`);
+                                    if(animCell) {
+                                        animCell.classList.remove('pop');
+                                        void animCell.offsetWidth;
+                                        animCell.classList.add('pop');
+                                    }
+                                }, 10);
+                            }
+                            
+                            selectedNumber = null;
+                            selectedCell = null;
+                            
+                            renderBoard();
+                            renderNumpad();
+                            
+                            if (!board.includes(0)) {
+                                checkWin();
+                            }
+                        } else {
+                            if (selectedCell === i) {
+                                selectedCell = null;
+                            } else {
+                                selectedCell = i;
+                            }
+                            renderBoard();
+                        }
+                    };
+                }
+                
+                cell.className = classes;
+                if (val !== 0) {
+                    cell.innerHTML = getDigitSvg(val);
+                } else {
+                    cell.innerHTML = '';
+                }
+                
+                cell.id = `cell-${i}`;
+                boardEl.appendChild(cell);
+            }
+        }
+
+        function renderNumpad() {
+            numpadEl.innerHTML = '';
+            
+            for (let i = 1; i <= 9; i++) {
+                const wrapper = document.createElement('div');
+                wrapper.className = 'aspect-square w-full h-full';
+
+                const btn = document.createElement('button');
+                const isUsed = board.includes(i);
+                
+                let classes = `w-full h-full rounded-xl md:rounded-2xl lg:rounded-3xl transition-all select-none flex items-center justify-center border-[3px] md:border-4 `;
+                
+                if (isUsed) {
+                    classes += 'bg-slate-200 text-slate-400 cursor-not-allowed opacity-50 translate-y-[3px] md:translate-y-[6px] border-slate-300';
+                } else {
+                    classes += 'bg-indigo-100 hover:bg-indigo-200 text-indigo-800 border-b-[4px] md:border-b-[6px] border-indigo-300 shadow-sm btn-3d pb-0.5 md:pb-1';
+                    if (selectedNumber === i) {
+                        classes += ' ring-4 ring-indigo-500 ring-offset-2 ring-offset-transparent border-indigo-500';
+                    }
+                }
+                
+                btn.className = classes;
+                btn.innerHTML = getDigitSvg(i);
+                btn.disabled = isUsed;
+                btn.onclick = () => handleNumberInput(i);
+                
+                wrapper.appendChild(btn);
+                numpadEl.appendChild(wrapper);
+            }
+            
+            const deletePad = document.getElementById('delete-pad');
+            if(deletePad) {
+                deletePad.innerHTML = '';
+                const delBtn = document.createElement('button');
+                let delClasses = 'w-full aspect-[6/1] mt-1.5 md:mt-2 text-sm sm:text-base md:text-xl font-extrabold rounded-xl sm:rounded-2xl transition-all shadow-sm border-[3px] md:border-4 bg-rose-500 hover:bg-rose-400 text-white border-rose-700 btn-3d active:border-b-0 flex items-center justify-center gap-1 sm:gap-2 pb-0.5 sm:pb-1';
+                if (selectedNumber === 0) {
+                    delClasses += ' ring-4 ring-rose-400 ring-offset-2 ring-offset-transparent border-rose-600';
+                }
+                delBtn.className = delClasses;
+                delBtn.innerHTML = '<i class="fa-solid fa-eraser"></i> 消す';
+                delBtn.onclick = () => handleNumberInput(0);
+                deletePad.appendChild(delBtn);
+            }
+        }
+
+        function handleNumberInput(num) {
+            if (selectedCell !== null) {
+                if (lockedCells.includes(selectedCell)) return;
+
+                hideError();
+                board[selectedCell] = num;
+                
+                if (num !== 0) {
+                    setTimeout(() => {
+                        const cell = document.getElementById(`cell-${selectedCell}`);
+                        if(cell) {
+                            cell.classList.remove('pop');
+                            void cell.offsetWidth;
+                            cell.classList.add('pop');
+                        }
+                    }, 10);
+                }
+
+                selectedCell = null;
+                selectedNumber = null;
+                
+                renderBoard();
+                renderNumpad();
+                
+                if (!board.includes(0)) {
+                    checkWin();
+                }
+            } else {
+                if (selectedNumber === num) {
+                    selectedNumber = null;
+                } else {
+                    selectedNumber = num;
+                }
+                renderNumpad();
+            }
+        }
+
+        function checkWin() {
+            const sums = [
+                board[0] + board[1] + board[2],
+                board[3] + board[4] + board[5],
+                board[6] + board[7] + board[8],
+                board[0] + board[3] + board[6],
+                board[1] + board[4] + board[7],
+                board[2] + board[5] + board[8],
+                board[0] + board[4] + board[8],
+                board[2] + board[4] + board[6]
+            ];
+            
+            const isAll15 = sums.every(sum => sum === 15);
+            const isUnique = new Set(board).size === 9; 
+
+            if (isAll15 && isUnique) {
+                saveClearStatus(currentDifficulty, currentStageIdx);
+
+                createConfetti();
+                setTimeout(() => {
+                    modalClear.classList.remove('hidden');
+                    setTimeout(() => {
+                        modalClear.classList.add('opacity-100');
+                        modalContent.classList.remove('scale-90');
+                        modalContent.classList.add('scale-100');
+                    }, 50);
+                }, 300);
+            } else {
+                errorMsg.classList.remove('opacity-0');
+                boardEl.classList.remove('shake');
+                void boardEl.offsetWidth;
+                boardEl.classList.add('shake');
+            }
+        }
+
+        function hideError() {
+            errorMsg.classList.add('opacity-0');
+            boardEl.classList.remove('shake');
+        }
+
+        function nextStage() {
+            modalClear.classList.add('hidden');
+            modalClear.classList.remove('opacity-100');
+            modalContent.classList.add('scale-90');
+            modalContent.classList.remove('scale-100');
+            confettiContainer.innerHTML = '';
+            
+            if (currentStageIdx < STAGE_DATA[currentDifficulty].length - 1) {
+                startGame(currentStageIdx + 1);
+            } else {
+                alert("全ステージ完全クリア！魔方陣マスターだ！");
+                showStageSelect(currentDifficulty);
+            }
+        }
+
+        function createConfetti() {
+            confettiContainer.innerHTML = '';
+            const colors = ['#fcd34d', '#34d399', '#60a5fa', '#f472b6', '#a78bfa'];
+            
+            for (let i = 0; i < 50; i++) {
+                const conf = document.createElement('div');
+                conf.className = 'confetti rounded-sm md:rounded-md';
+                conf.style.left = Math.random() * 100 + 'vw';
+                conf.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
+                conf.style.animationDuration = (Math.random() * 2 + 2) + 's';
+                conf.style.animationDelay = (Math.random() * 0.5) + 's';
+                confettiContainer.appendChild(conf);
+            }
+        }
+    </script>
+</body>
+</html>
