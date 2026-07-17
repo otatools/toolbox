@@ -27,18 +27,123 @@
         "audienceType": "小学校教員, 児童, 保護者"
       }
     }
-    </script>  
-  <!-- Tailwind CSS -->
-  <script src="https://cdn.tailwindcss.com"></script>
+    </script>
+    
+    <!-- Google Fonts ロード -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@700;800;900&display=swap" rel="stylesheet">
+    
+    <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@500;700&family=M+PLUS+Rounded+1c:wght@700;800&display=swap');
-        body {
-            font-family: 'Fredoka', 'M PLUS Rounded 1c', sans-serif;
-            background-color: #f8fafc;
+        /* アイコン(Font Awesome)を保護しつつ、それ以外のすべての要素に M PLUS Rounded 1c を強力に完全適用 */
+        *:not(i):not([class*="fa-"]) {
+            font-family: 'M PLUS Rounded 1c', sans-serif !important;
+            font-weight: 900;
         }
 
-        /* 動く背景グラデーション */
+        /* フッタークレジットは太字を解除して、すっきりと見やすく表示する */
+        #title-footer {
+            font-weight: 500 !important;
+        }
+
+        body {
+            background-color: #f8fafc;
+            transition: background-color 0.5s ease;
+        }
+
+        /* 標準のフォーカス、ハイライト等を削除 */
+        * {
+            outline: none !important;
+            -webkit-focus-ring-color: transparent !important;
+            -webkit-tap-highlight-color: transparent !important;
+            -webkit-user-select: none !important;
+            user-select: none !important;
+        }
+
+        button, .btn-3d, .key-pad-btn, [onclick], #board div, #delete-pad button {
+            touch-action: manipulation !important;
+        }
+
+        button, div, svg, span, h1, h2, h3, p, i {
+            cursor: default;
+        }
+
+        button, 
+        .btn-3d, 
+        .cursor-pointer, 
+        [onclick],
+        [onclick] *,
+        button * {
+            cursor: pointer !important;
+        }
+
+        .cursor-default,
+        .cursor-default * {
+            cursor: default !important;
+        }
+
+        /* タイトルロゴを画面幅制限に関わらず、確実に超特大（96px）で描画 (PC用基準) JSでスマホ時に上書きされます */
+        #title-main {
+            font-size: 96px;
+            line-height: 1.1;
+            display: block;
+            transition: font-size 0.2s ease, line-height 0.2s ease;
+        }
+
+        /* 3Dボタンの立体感と押し込み演出 */
+        .btn-3d {
+            transition: transform 0.04s ease, opacity 0.04s ease;
+        }
+        .btn-3d:active {
+            transform: scale(0.96) !important;
+            filter: brightness(0.92);
+        }
+
+        .key-pad-btn {
+            transition: background-color 0.03s, border-color 0.03s, color 0.03s;
+            cursor: pointer !important;
+        }
+        .key-pad-btn:active:not(:disabled) {
+            transform: scale(0.96);
+            filter: brightness(1.2) contrast(0.95);
+        }
+
+        .key-selected-normal {
+            background-color: #4f46e5 !important;
+            color: #ffffff !important;
+            border: 4px solid #4f46e5 !important;
+        }
+        .key-selected-underworld {
+            background-color: #ef4444 !important;
+            color: #ffffff !important;
+            border: 4px solid #fecdd3 !important;
+        }
+
+        /* セル選択時の美しいアニメーションとグロー効果 */
+        @keyframes selectedPulse {
+            0%, 100% { border-color: #4f46e5; box-shadow: 0 0 10px rgba(79, 70, 229, 0.4), inset 0 2px 5px rgba(0,0,0,0.1); }
+            50% { border-color: #4f46e5; box-shadow: 0 0 20px rgba(79, 70, 229, 0.8), inset 0 2px 5px rgba(0,0,0,0.15); }
+        }
+        .cell-selected-normal {
+            animation: selectedPulse 1s infinite ease-in-out !important;
+            background-color: #f8fafc !important; 
+            border-style: solid !important;
+        }
+
+        @keyframes selectedPulseUnderworld {
+            0%, 100% { border-color: #ef4444; box-shadow: 0 0 10px rgba(239, 68, 68, 0.5), inset 0 2px 6px rgba(0,0,0,0.5); }
+            50% { border-color: #ec7299; box-shadow: 0 0 25px rgba(236, 114, 153, 1), inset 0 2px 6px rgba(0,0,0,0.6); }
+        }
+        .cell-selected-underworld {
+            animation: selectedPulseUnderworld 0.9s infinite ease-in-out !important;
+            background-color: rgba(220, 38, 38, 0.25) !important;
+            border-style: solid !important;
+        }
+
+        /* 通常モードのアニメーション背景 */
         @keyframes gradientBG {
             0% { background-position: 0% 50%; }
             50% { background-position: 100% 50%; }
@@ -50,7 +155,83 @@
             animation: gradientBG 15s ease infinite;
         }
 
-        /* ぽよんと跳ねるアニメーション */
+        .animated-bg::before {
+            content: "";
+            position: fixed;
+            top: -10px; left: -10px; width: calc(100vw + 20px); height: calc(100vh + 20px);
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+            opacity: 0.05;
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        /* 裏モード(ダークテーマ)の妖しい炎とグロー背景 */
+        @keyframes fireGradientBG {
+            0% { background-position: 50% 0%; }
+            50% { background-position: 50% 100%; }
+            100% { background-position: 50% 0%; }
+        }
+        @keyframes flameWobble {
+            0%, 100% { transform: scale(1) translateY(0) rotate(0deg); opacity: 0.35; }
+            50% { transform: scale(1.1) translateY(-12px) rotate(2deg); opacity: 0.55; }
+        }
+        .dark-mode-bg {
+            background: linear-gradient(180deg, #100118, #280205, #550404, #180026) !important;
+            background-size: 100% 300% !important;
+            animation: fireGradientBG 10s ease infinite !important;
+            position: relative;
+            overflow: hidden;
+        }
+        .dark-mode-bg::before {
+            content: "" !important;
+            position: fixed !important;
+            bottom: -15%;
+            left: -10%;
+            width: 120%;
+            height: 100%;
+            background: radial-gradient(circle at 50% 100%, rgba(239, 68, 68, 0.45), rgba(168, 85, 247, 0.22) 50%, transparent 80%) !important;
+            filter: blur(45px) !important;
+            animation: flameWobble 6s ease-in-out infinite !important;
+            pointer-events: none !important;
+            z-index: 0 !important;
+        }
+        .dark-mode-bg::after {
+            content: "" !important;
+            position: fixed !important;
+            bottom: -20%;
+            right: -10%;
+            width: 130%;
+            height: 90%;
+            background: radial-gradient(circle at 75% 100%, rgba(220, 38, 38, 0.35), rgba(236, 72, 153, 0.18) 45%, transparent 75%) !important;
+            filter: blur(55px) !important;
+            animation: flameWobble 8s ease-in-out infinite alternate !important;
+            pointer-events: none !important;
+            z-index: 0 !important;
+        }
+
+        /* 火の粉アニメーション */
+        @keyframes floatSparks {
+            0% { transform: translateY(110vh) translateX(0) scale(0.6); opacity: 0; }
+            15% { opacity: 0.85; }
+            85% { opacity: 0.85; }
+            100% { transform: translateY(-10vh) translateX(40px) scale(0.3); opacity: 0; }
+        }
+        .spark {
+            position: fixed;
+            bottom: -30px;
+            background: radial-gradient(circle, rgba(244,63,94,1) 0%, rgba(249,115,22,0.85) 40%, transparent 100%);
+            border-radius: 50%;
+            pointer-events: none;
+            z-index: 1;
+            filter: blur(0.5px);
+            animation: floatSparks 10s linear infinite;
+            display: none;
+        }
+        .dark-mode-bg .spark {
+            display: block;
+        }
+
+        /* 浮遊・揺れ・出現アニメーション */
         @keyframes float {
             0%, 100% { transform: translateY(0); }
             50% { transform: translateY(-8px); }
@@ -59,7 +240,6 @@
             animation: float 3s ease-in-out infinite;
         }
 
-        /* 不正解時のシェイクアニメーション */
         @keyframes shake {
             0%, 100% { transform: translateX(0); }
             20% { transform: translateX(-6px) rotate(-2deg); }
@@ -71,7 +251,6 @@
             animation: shake 0.4s ease-in-out;
         }
 
-        /* 数字が入った時のポップアニメーション */
         @keyframes pop {
             0% { transform: scale(1); }
             50% { transform: scale(1.15); }
@@ -81,7 +260,6 @@
             animation: pop 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
         }
 
-        /* クリア時の紙吹雪 */
         @keyframes confetti-fall {
             0% { transform: translateY(-100vh) rotate(0deg); opacity: 1; }
             100% { transform: translateY(100vh) rotate(720deg); opacity: 0; }
@@ -94,192 +272,420 @@
             animation: confetti-fall 3s linear infinite;
         }
 
-        /* 立体ボタンの押し込み用クラス */
-        .btn-3d {
-            transition: transform 0.1s, box-shadow 0.1s;
-        }
-        .btn-3d:active {
-            transform: translateY(4px);
-            box-shadow: 0 0px 0 0 transparent !important;
-        }
-
-        /* 画面サイズに合わせて絶対にはみ出さないための魔法のサイズ計算 */
+        /* 限界まで大きく広がるレスポンシブボード設計 */
         .puzzle-board-size {
             width: 100%;
-            /* 縦並びの時（スマホなど）: 上下に2つ並ぶので、高さ制限を厳しくして見切れを防ぐ */
-            max-width: min(85vw, 32vh); 
+            max-width: min(90vw, 36vh); /* モバイル時は1画面(縦並び)に完璧に収まるよう36vh以下に設定 */
+            transition: max-width 0.3s ease;
         }
         @media (min-width: 768px) {
             .puzzle-board-size {
-                /* 横並びの時（PCなど）: 左右に並ぶので、幅を画面半分以下にしつつ、高さは余裕を持たせる */
-                max-width: min(42vw, 60vh);
+                /* PCなどの横長画面(MD以上)では最大530pxまで大きく表示 */
+                max-width: 530px !important;
             }
+        }
+
+        @keyframes glitch {
+            0% { text-shadow: 2px -2px 0 #ff0055, -2px 2px 0 #00ffcc, 0 0 8px rgba(239,68,68,0.7); }
+            25% { text-shadow: -2px 2px 0 #ff0055, -2px -2px 0 #00ffcc, 0 0 12px rgba(239,68,68,0.7); }
+            50% { text-shadow: 2px 2px 0 #ff0055, -2px -2px 0 #00ffcc, 0 0 8px rgba(239,68,68,0.7); }
+            75% { text-shadow: -2px -2px 0 #ff0055, 2px 2px 0 #00ffcc, 0 0 12px rgba(239,68,68,0.7); }
+            100% { text-shadow: 2px -2px 0 #ff0055, -2px 2px 0 #00ffcc, 0 0 8px rgba(239,68,68,0.7); }
+        }
+        .glitch-text {
+            animation: glitch 1s infinite linear;
+        }
+
+        #corruption-canvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: 100;
+            pointer-events: none;
+        }
+
+        /* ================= ブラウン管（CRT）テレビ起動風アニメーション ================= */
+        @keyframes crtOn {
+            0% {
+                transform: scaleX(0) scaleY(0.005);
+                filter: brightness(12) contrast(3) saturate(2);
+                opacity: 0;
+            }
+            15% {
+                transform: scaleX(1) scaleY(0.005);
+                filter: brightness(12) contrast(3) saturate(2);
+                opacity: 1;
+            }
+            45% {
+                transform: scaleX(1) scaleY(0.008);
+                filter: brightness(10) contrast(3) saturate(2);
+                opacity: 1;
+            }
+            55% {
+                transform: scaleX(1) scaleY(1.15);
+                filter: brightness(5) contrast(2.5) saturate(1.8);
+            }
+            70% {
+                transform: scaleX(1) scaleY(0.92);
+                filter: brightness(2.5) contrast(1.8) saturate(1.5);
+            }
+            82% {
+                transform: scaleX(1) scaleY(1.03) translateY(-3px);
+                filter: brightness(1.6) contrast(1.3);
+            }
+            92% {
+                transform: scaleX(1) scaleY(0.99) translateY(1px);
+                filter: brightness(1.1) contrast(1.05);
+            }
+            100% {
+                transform: scaleX(1) scaleY(1) translateY(0);
+                filter: brightness(1) contrast(1);
+                opacity: 1;
+            }
+        }
+        
+        /* 相似スケール枠に干渉せず、内側のコンテンツだけを「ブンッ！」と綺麗に起動させるための専用クラス */
+        .crt-on-effect {
+            animation: crtOn 0.68s cubic-bezier(0.23, 1, 0.32, 1) forwards !important;
+            transform-origin: center center !important;
         }
     </style>
 </head>
-<body class="animated-bg h-screen w-screen overflow-hidden flex items-center justify-center p-2 sm:p-4 text-slate-800 box-border">
+<body id="main-body" class="animated-bg h-screen w-screen overflow-hidden flex items-center justify-center p-2 sm:p-4 text-slate-800 box-border relative">
 
-    <!-- アプリのメインコンテナ (絶対に画面サイズを超えないように h-full に固定) -->
-    <div class="relative w-full h-full max-w-4xl max-h-[850px] bg-white/95 backdrop-blur-sm rounded-2xl sm:rounded-[2rem] md:rounded-[3rem] shadow-[0_20px_50px_rgba(0,0,0,0.2)] overflow-hidden flex flex-col border-[2px] sm:border-[3px] md:border-4 border-white/50">
-        
-        <!-- ================= タイトル画面 ================= -->
-        <div id="screen-title" class="absolute inset-0 flex flex-col p-4 sm:p-6 md:p-10 z-20 transition-opacity duration-500 bg-white/40 overflow-y-auto">
-            <div class="flex-grow flex flex-col items-center justify-center py-2">
-                <!-- タイトルロゴ -->
-                <div class="animate-float flex flex-col items-center mb-6 sm:mb-8 md:mb-12">
-                    <h1 class="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-purple-500 tracking-wider drop-shadow-sm text-center leading-tight">
-                        魔方陣パズル
-                    </h1>
-                    <p class="text-[10px] sm:text-xs md:text-lg text-indigo-900 mt-2 sm:mt-4 font-bold bg-white/60 px-3 sm:px-6 py-1 sm:py-2 rounded-full shadow-sm text-center">
-                        縦・横・斜めの和を全てそろえよう！
-                    </p>
-                </div>
-                
-                <!-- 難易度選択 -->
-                <div class="w-full max-w-3xl flex flex-col md:flex-row gap-3 sm:gap-4 md:gap-6 justify-center">
-                    <button onclick="showStageSelect('easy')" class="btn-3d flex-1 py-3 sm:py-4 md:py-6 bg-emerald-400 hover:bg-emerald-300 text-white border-b-[4px] sm:border-b-[6px] md:border-b-[8px] border-emerald-600 rounded-[1rem] sm:rounded-[1.5rem] md:rounded-3xl text-lg sm:text-xl md:text-3xl font-bold shadow-lg flex flex-col items-center gap-1 sm:gap-2">
-                        <span><i class="fa-solid fa-seedling"></i> 初級</span>
-                        <span class="text-[10px] sm:text-xs md:text-base font-normal bg-black/10 px-2 sm:px-3 py-0.5 sm:py-1 rounded-full">ヒントいっぱい</span>
-                    </button>
-                    <button onclick="showStageSelect('normal')" class="btn-3d flex-1 py-3 sm:py-4 md:py-6 bg-blue-500 hover:bg-blue-400 text-white border-b-[4px] sm:border-b-[6px] md:border-b-[8px] border-blue-700 rounded-[1rem] sm:rounded-[1.5rem] md:rounded-3xl text-lg sm:text-xl md:text-3xl font-bold shadow-lg flex flex-col items-center gap-1 sm:gap-2">
-                        <span><i class="fa-solid fa-fire"></i> 中級</span>
-                        <span class="text-[10px] sm:text-xs md:text-base font-normal bg-black/10 px-2 sm:px-3 py-0.5 sm:py-1 rounded-full">ヒント3つ</span>
-                    </button>
-                    <button onclick="showStageSelect('hard')" class="btn-3d flex-1 py-3 sm:py-4 md:py-6 bg-rose-500 hover:bg-rose-400 text-white border-b-[4px] sm:border-b-[6px] md:border-b-[8px] border-rose-700 rounded-[1rem] sm:rounded-[1.5rem] md:rounded-3xl text-lg sm:text-xl md:text-3xl font-bold shadow-lg flex flex-col items-center gap-1 sm:gap-2">
-                        <span><i class="fa-solid fa-skull"></i> 上級</span>
-                        <span class="text-[10px] sm:text-xs md:text-base font-normal bg-black/10 px-2 sm:px-3 py-0.5 sm:py-1 rounded-full">究極の推理！</span>
-                    </button>
-                </div>
+    <!-- 動的バックグラウンドの火の粉 -->
+    <div class="spark" style="left: 8%; width: 7px; height: 7px; animation-duration: 9s; animation-delay: 0s;"></div>
+    <div class="spark" style="left: 20%; width: 11px; height: 11px; animation-duration: 11s; animation-delay: 1.5s;"></div>
+    <div class="spark" style="left: 35%; width: 6px; height: 6px; animation-duration: 7.5s; animation-delay: 3s;"></div>
+    <div class="spark" style="left: 48%; width: 9px; height: 9px; animation-duration: 10s; animation-delay: 0.5s;"></div>
+    <div class="spark" style="left: 62%; width: 13px; height: 13px; animation-duration: 13s; animation-delay: 2s;"></div>
+    <div class="spark" style="left: 78%; width: 8px; height: 8px; animation-duration: 8.5s; animation-delay: 4s;"></div>
+    <div class="spark" style="left: 90%; width: 10px; height: 10px; animation-duration: 11s; animation-delay: 5s;"></div>
+    <div class="spark" style="left: 14%; width: 12px; height: 12px; animation-duration: 12.5s; animation-delay: 2.5s;"></div>
+    <div class="spark" style="left: 28%; width: 8px; height: 8px; animation-duration: 9.5s; animation-delay: 6s;"></div>
+    <div class="spark" style="left: 42%; width: 5px; height: 5px; animation-duration: 6s; animation-delay: 1.2s;"></div>
+    <div class="spark" style="left: 56%; width: 10px; height: 10px; animation-duration: 10.5s; animation-delay: 4.8s;"></div>
+    <div class="spark" style="left: 70%; width: 7px; height: 7px; animation-duration: 8s; animation-delay: 3.2s;"></div>
+    <div class="spark" style="left: 84%; width: 12px; height: 12px; animation-duration: 14s; animation-delay: 0.8s;"></div>
+
+    <!-- デバッグ用隠しボタン -->
+    <button onclick="debugForceClear()" class="absolute top-2 left-2 z-50 opacity-10 hover:opacity-100 bg-black/50 text-white rounded p-1 text-[10px]" title="[デバッグ] 通常ステージをすべてクリア状態にする">⚙️</button>
+
+    <!-- ダイナミックデジタル侵食スクリーン -->
+    <div id="corruption-screen" class="fixed inset-0 z-50 hidden bg-transparent flex flex-col items-center justify-center text-center p-4">
+        <canvas id="corruption-canvas"></canvas>
+        <div class="relative z-50">
+            <h1 id="corruption-text-1" class="text-rose-500 font-extrabold text-2xl sm:text-4xl md:text-5xl glitch-text mb-4 opacity-0 transition-opacity duration-300">SYSTEM OVERRIDE DETECTED...</h1>
+            <p id="corruption-text-2" class="text-slate-400 font-bold text-xs sm:text-sm md:text-lg mb-8 opacity-0 transition-opacity duration-300">DOWNLOADING DIGITAL CHASM CORE SYSTEM...</p>
+            <div id="corruption-progress-container" class="w-64 h-2 bg-slate-950 border border-rose-950 rounded-full mx-auto overflow-hidden opacity-0 transition-opacity duration-300">
+                <div id="corruption-progress" class="w-0 h-full bg-rose-600 shadow-[0_0_8px_rgba(239,68,68,0.8)]" style="width: 0%;"></div>
             </div>
         </div>
-
-        <!-- ================= ステージ選択画面 ================= -->
-        <div id="screen-stages" class="absolute inset-0 flex flex-col p-4 sm:p-6 z-10 hidden transition-opacity duration-500 bg-white/90">
-            <div class="flex items-center relative mb-2 sm:mb-4 h-10 sm:h-12 flex-shrink-0">
-                <button onclick="showTitle()" class="btn-3d absolute left-0 w-10 h-10 sm:w-12 sm:h-12 flex items-center justify-center text-slate-500 bg-slate-200 hover:bg-slate-100 border-b-[3px] md:border-b-4 border-slate-400 rounded-xl sm:rounded-2xl text-lg sm:text-xl z-10">
-                    <i class="fa-solid fa-chevron-left"></i>
-                </button>
-                <h2 id="stage-select-title" class="w-full text-center text-xl sm:text-2xl md:text-4xl font-extrabold text-slate-700 tracking-wide">難易度 - ステージ</h2>
-            </div>
-            
-            <div class="flex-grow flex items-center justify-center overflow-y-auto">
-                <div class="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-3 sm:gap-4 md:gap-6 max-w-3xl w-full p-2" id="stage-buttons">
-                    <!-- JSで動的に生成 -->
-                </div>
-            </div>
-        </div>
-
-        <!-- ================= ゲーム画面 ================= -->
-        <div id="screen-game" class="absolute inset-0 flex flex-col z-0 hidden transition-opacity duration-500 bg-white/95">
-            
-            <!-- 上部ナビゲーション (高さ固定で安定化) -->
-            <div class="flex items-center justify-between w-full h-[12%] min-h-[50px] px-4 md:px-8 mt-2 flex-shrink-0">
-                <button onclick="backToStageSelect()" class="btn-3d w-10 h-10 md:w-12 md:h-12 flex items-center justify-center text-slate-500 bg-slate-200 hover:bg-slate-100 border-b-[3px] md:border-b-4 border-slate-400 rounded-xl sm:rounded-2xl text-lg sm:text-xl z-10">
-                    <i class="fa-solid fa-chevron-left"></i>
-                </button>
-                
-                <div class="flex flex-col items-center justify-center bg-indigo-100 px-4 sm:px-6 md:px-8 py-1 rounded-xl sm:rounded-2xl border-[2px] border-indigo-200">
-                    <span class="text-indigo-500 text-[9px] sm:text-[10px] md:text-xs font-bold leading-none mb-0.5">パズル</span>
-                    <h2 id="game-title" class="text-base sm:text-lg md:text-2xl font-extrabold text-indigo-700 tracking-wider leading-none">ステージ 1</h2>
-                </div>
-
-                <button onclick="resetBoard()" class="btn-3d h-10 md:h-12 px-2 sm:px-3 md:px-4 flex items-center justify-center gap-1 sm:gap-2 text-rose-500 bg-rose-100 hover:bg-rose-50 border-b-[3px] md:border-b-4 border-rose-300 rounded-xl sm:rounded-2xl text-[9px] sm:text-[10px] md:text-sm font-bold shadow-sm z-10" title="最初に戻す">
-                    <i class="fa-solid fa-rotate-right"></i>
-                    <span class="whitespace-nowrap hidden sm:inline">最初に戻す</span>
-                </button>
-            </div>
-            
-            <!-- エラーメッセージ領域 (盤面に被らないように専用のスペースを用意) -->
-            <div class="w-full h-[6%] min-h-[30px] flex items-center justify-center flex-shrink-0">
-                <div id="error-msg" class="bg-rose-500 text-white px-4 py-1.5 rounded-full font-bold text-[10px] md:text-sm opacity-0 transition-opacity shadow-md flex items-center gap-2 pointer-events-none">
-                    <i class="fa-solid fa-triangle-exclamation"></i> 合計が15にならない列があるよ！
-                </div>
-            </div>
-            
-            <!-- メイン領域: CSSのmin()を使って、どんな画面サイズでも絶対に見切れないように計算 -->
-            <div class="flex-grow flex flex-col md:flex-row items-center justify-center gap-2 md:gap-10 w-full px-2 pb-4 overflow-hidden">
-                
-                <!-- 左側：盤面エリア -->
-                <div class="puzzle-board-size flex flex-col items-center justify-center relative">
-                    <!-- 3x3 盤面 -->
-                    <div id="board" class="grid grid-cols-3 gap-1.5 md:gap-2 aspect-square w-full bg-slate-300 p-2 md:p-3 rounded-[1.25rem] md:rounded-[2rem] shadow-inner border-[3px] md:border-4 border-slate-300 flex-shrink-0">
-                        <!-- JSで動的に生成 -->
-                    </div>
-
-                    <!-- 高さ合わせのダミーブロック (右側の消すボタンと同じ比率で高さを確保) -->
-                    <div class="w-full aspect-[6/1] mt-1.5 md:mt-2 hidden md:block opacity-0 pointer-events-none flex-shrink-0"></div>
-                </div>
-
-                <!-- 右側：数字入力パッド -->
-                <div class="puzzle-board-size flex flex-col justify-center items-center">
-                    <!-- テンキーパッド -->
-                    <div id="number-pad" class="grid grid-cols-3 gap-1.5 md:gap-2 aspect-square w-full bg-indigo-50/50 p-2 md:p-3 rounded-[1.25rem] md:rounded-[2rem] border-[3px] md:border-4 border-indigo-100/50 flex-shrink-0">
-                        <!-- JSで動的に生成 -->
-                    </div>
-
-                    <!-- 消すボタンのコンテナ (アスペクト比で高さを自動決定) -->
-                    <div id="delete-pad" class="w-full aspect-[6/1] mt-1.5 md:mt-2 flex-shrink-0">
-                        <!-- JSで生成 -->
-                    </div>
-                </div>
-
-            </div>
-        </div>
-
-        <!-- ================= クリアモーダル ================= -->
-        <div id="modal-clear" class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm z-50 hidden flex items-center justify-center opacity-0 transition-opacity duration-500 overflow-hidden p-4">
-            <div id="confetti-container" class="absolute inset-0 pointer-events-none"></div>
-
-            <div class="bg-gradient-to-b from-yellow-50 to-white rounded-[1.5rem] md:rounded-[2rem] p-6 sm:p-8 w-full max-w-[350px] text-center shadow-[0_0_100px_rgba(250,204,21,0.5)] transform scale-90 transition-transform duration-500 relative border-[4px] md:border-[6px] border-yellow-300 mx-auto" id="modal-content">
-                
-                <div class="absolute -top-10 md:-top-12 left-1/2 transform -translate-x-1/2 text-5xl sm:text-6xl md:text-7xl text-yellow-400 drop-shadow-lg animate-bounce">
-                    <i class="fa-solid fa-crown"></i>
-                </div>
-                
-                <h3 class="text-2xl sm:text-3xl md:text-4xl font-extrabold text-yellow-600 mb-1 mt-4 sm:mt-6 tracking-wide">クリア！</h3>
-                <p class="text-sm sm:text-base md:text-lg text-slate-500 mb-4 sm:mb-6 font-bold">すごい！大正解！</p>
-                
-                <div class="flex flex-col gap-2 sm:gap-3">
-                    <button onclick="nextStage()" class="btn-3d w-full py-3 sm:py-4 bg-indigo-500 hover:bg-indigo-400 text-white font-extrabold rounded-xl sm:rounded-2xl text-base sm:text-lg shadow-lg border-b-[4px] border-indigo-700 flex items-center justify-center gap-2">
-                        <span>次のステージへ</span> <i class="fa-solid fa-forward-step"></i>
-                    </button>
-                    <button onclick="backToStageSelect()" class="btn-3d w-full py-2 sm:py-3 bg-slate-200 hover:bg-slate-100 text-slate-600 font-extrabold rounded-xl sm:rounded-2xl text-sm sm:text-base shadow-md border-b-[4px] border-slate-400">
-                        一覧に戻る
-                    </button>
-                </div>
-            </div>
-        </div>
-
     </div>
 
-    <!-- JavaScript ロジック -->
+    <!-- アプリのメインコンテナ (初期状態は opacity-0。JSの100%安全フィット制御により、PC・スマホそれぞれの比率に合わせて拡大縮小) -->
+    <div id="app-container" class="relative z-10 w-[1152px] h-[820px] max-w-none max-h-none bg-white/60 backdrop-blur-md rounded-2xl sm:rounded-[2rem] md:rounded-[3rem] shadow-[0_20px_50px_rgba(0,0,0,0.2)] overflow-hidden flex flex-col border-[2px] sm:border-[3px] md:border-4 border-white/70 transition-all duration-300 opacity-0 flex-shrink-0">
+        
+        <!-- ブラウン管（CRT）起動風の二重レイヤーラッパー (アスペクト比維持と起動演出を完全に両立させる) -->
+        <div id="app-crt-wrapper" class="w-full h-full flex flex-col relative">
+
+            <!-- ================= タイトル画面 ================= -->
+            <div id="screen-title" class="absolute inset-0 flex flex-col pt-4 px-4 pb-2 sm:pt-6 sm:px-6 sm:pb-3 md:pt-10 md:px-10 md:pb-4 z-20 transition-opacity duration-500 bg-transparent overflow-y-auto">
+                <div class="flex-grow flex flex-col items-center justify-center py-2">
+                    
+                    <!-- タイトルロゴ -->
+                    <div class="animate-float flex flex-col items-center mb-6 sm:mb-8 md:mb-12">
+                        <h1 id="title-main" class="font-black text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-purple-500 tracking-wider drop-shadow-sm text-center leading-tight transition-all duration-500">
+                            魔方陣パズル
+                        </h1>
+                        <!-- サブタイトルをPC版でダイナミックに大きく（md:text-3xl / 30px相当）表現 -->
+                        <p id="title-sub" class="text-[10px] sm:text-xs md:text-3xl text-indigo-900 mt-4 sm:mt-6 font-black bg-white/60 px-3 sm:px-6 py-1 sm:py-2.5 rounded-full shadow-sm text-center transition-all duration-500">
+                            縦・横・斜めの和を全てそろえよう！
+                        </p>
+                    </div>
+                    
+                    <!-- 難易度選択 (通常モード - 動的にスマホ時は横並び/大きく書き換えます) -->
+                    <div id="title-difficulty-container" class="w-full max-w-5xl flex flex-col md:flex-row gap-3 sm:gap-4 md:gap-6 justify-center">
+                        <button id="btn-diff-easy" onclick="showStageSelect('easy')" class="btn-3d flex-1 py-3 sm:py-4 md:py-6 bg-emerald-400 hover:bg-emerald-300 text-white border-b-[4px] sm:border-b-[6px] md:border-b-[8px] border-emerald-600 rounded-[1rem] sm:rounded-[1.5rem] md:rounded-3xl text-lg sm:text-xl md:text-3xl font-black shadow-md flex flex-col items-center gap-1 sm:gap-2">
+                            <span><i class="fa-solid fa-seedling"></i> 初級</span>
+                            <span class="text-[10px] sm:text-xs md:text-base font-normal bg-black/10 px-2 sm:px-3 py-0.5 sm:py-1 rounded-full">ヒントいっぱい</span>
+                        </button>
+                        <button id="btn-diff-normal" onclick="showStageSelect('normal')" class="btn-3d flex-1 py-3 sm:py-4 md:py-6 bg-blue-500 hover:bg-blue-400 text-white border-b-[4px] sm:border-b-[6px] md:border-b-[8px] border-blue-700 rounded-[1rem] sm:rounded-[1.5rem] md:rounded-3xl text-lg sm:text-xl md:text-3xl font-black shadow-md flex flex-col items-center gap-1 sm:gap-2">
+                            <span><i class="fa-solid fa-fire"></i> 中級</span>
+                            <span class="text-[10px] sm:text-xs md:text-base font-normal bg-black/10 px-2 sm:px-3 py-0.5 sm:py-1 rounded-full">ヒント3つ</span>
+                        </button>
+                        <button id="btn-diff-hard" onclick="showStageSelect('hard')" class="btn-3d flex-1 py-3 sm:py-4 md:py-6 bg-rose-500 hover:bg-rose-400 text-white border-b-[4px] sm:border-b-[6px] md:border-b-[8px] border-rose-700 rounded-[1rem] sm:rounded-[1.5rem] md:rounded-3xl text-lg sm:text-xl md:text-3xl font-black shadow-md flex flex-col items-center gap-1 sm:gap-2">
+                            <span><i class="fa-solid fa-skull"></i> 上級</span>
+                            <span class="text-[10px] sm:text-xs md:text-base font-normal bg-black/10 px-2 sm:px-3 py-0.5 sm:py-1 rounded-full">究極の推理！</span>
+                        </button>
+                    </div>
+
+                    <!-- 難易度選択 (裏モード - 動的にスマホ時は横並び/大きく書き換えます) -->
+                    <div id="underworld-difficulty-container" class="w-full max-w-5xl flex-col md:flex-row gap-3 sm:gap-4 md:gap-6 justify-center hidden">
+                        <button id="btn-diff-super" onclick="showStageSelect('super')" class="btn-3d flex-1 py-3 sm:py-4 md:py-6 bg-red-950/60 hover:bg-red-900/40 text-red-400 rounded-[1rem] sm:rounded-[1.5rem] md:rounded-3xl text-lg sm:text-xl md:text-3xl font-black shadow-[0_0_15px_rgba(220,38,38,0.3)] flex flex-col items-center gap-1 sm:gap-2 border-[2px] border-b-[6px] sm:border-b-[8px] border-red-900">
+                            <span><i class="fa-solid fa-dragon animate-pulse"></i> 超級</span>
+                            <span class="text-[10px] sm:text-xs md:text-base font-bold bg-black/30 px-2 sm:px-3 py-0.5 sm:py-1 rounded-full border border-red-900/30">ヒント：10〜8</span>
+                        </button>
+                        <button id="btn-diff-oni" onclick="showStageSelect('oni')" class="btn-3d flex-1 py-3 sm:py-4 md:py-6 bg-purple-950/60 hover:bg-purple-900/40 text-purple-400 rounded-[1rem] sm:rounded-[1.5rem] md:rounded-3xl text-lg sm:text-xl md:text-3xl font-black shadow-[0_0_15px_rgba(147,51,234,0.3)] flex flex-col items-center gap-1 sm:gap-2 border-[2px] border-b-[6px] sm:border-b-[8px] border-purple-900">
+                            <span><i class="fa-solid fa-eye animate-pulse"></i> 鬼級</span>
+                            <span class="text-[10px] sm:text-xs md:text-base font-bold bg-black/30 px-2 sm:px-3 py-0.5 sm:py-1 rounded-full border border-purple-900/30">ヒント：7〜6</span>
+                        </button>
+                        <button id="btn-diff-god" onclick="showStageSelect('god')" class="btn-3d flex-1 py-3 sm:py-4 md:py-6 bg-amber-950/60 hover:bg-amber-900/40 text-amber-400 rounded-[1rem] sm:rounded-[1.5rem] md:rounded-3xl text-lg sm:text-xl md:text-3xl font-black shadow-[0_0_15px_rgba(245,158,11,0.4)] flex flex-col items-center gap-1 sm:gap-2 border-[2px] border-b-[6px] sm:border-b-[8px] border-amber-900">
+                            <span><i class="fa-solid fa-crown animate-pulse"></i> 神級</span>
+                            <span class="text-[10px] sm:text-xs md:text-base font-bold bg-black/30 px-2 sm:px-3 py-0.5 sm:py-1 rounded-full border border-amber-900/30">ヒント：5〜3</span>
+                        </button>
+                    </div>
+
+                    <!-- 裏モード起動ボタン -->
+                    <div id="underworld-trigger-container" class="w-full max-w-2xl mt-6 sm:mt-10 px-4 hidden">
+                        <button id="btn-underworld-trigger" onclick="triggerUnderworldTransition()" class="btn-3d w-full py-4 sm:py-6 bg-gradient-to-r from-red-600 via-purple-900 to-red-800 text-red-100 hover:text-white rounded-2xl sm:rounded-3xl text-xl sm:text-2xl md:text-3.5xl font-black tracking-widest shadow-[0_0_25px_rgba(185,28,28,0.6)] flex items-center justify-center gap-2 border-b-[6px] sm:border-b-[8px] border-red-950">
+                            <i class="fa-solid fa-circle-nodes animate-pulse"></i> 裏モードを起動
+                        </button>
+                    </div>
+
+                    <!-- 表モードに切り替えるボタン -->
+                    <div id="underworld-return-container" class="w-full max-w-2xl mt-6 sm:mt-8 px-4 hidden">
+                        <button onclick="revertToNormalMode()" class="btn-3d w-full py-4 sm:py-6 bg-gradient-to-r from-slate-900 via-purple-950 to-indigo-950 text-indigo-200 hover:text-white rounded-2xl sm:rounded-3xl text-xl sm:text-2xl md:text-3.5xl font-black tracking-widest shadow-[0_0_15px_rgba(99,102,241,0.25)] flex items-center justify-center gap-2 border-b-[6px] sm:border-b-[8px] border-slate-950">
+                            <i class="fa-solid fa-rotate-left animate-pulse"></i> 表モードに切り替える
+                        </button>
+                    </div>
+
+                </div>
+
+                <!-- さりげないフッタークレジット (中央の浮きを抑え、画面の最下端にピタッと揃うように flex 外に配置、太字font-blackを解除) -->
+                <div id="title-footer" class="text-[10px] sm:text-xs text-indigo-950/40 text-center tracking-widest transition-colors duration-500 select-none flex-shrink-0">
+                    魔方陣パズル　|　ver2.0　|　ota tools
+                </div>
+            </div>
+
+            <!-- ================= STAGE SELECT SCREEN ================= -->
+            <div id="screen-stages" class="absolute inset-0 flex flex-col p-4 sm:p-6 z-10 hidden transition-opacity duration-500 bg-transparent">
+                <!-- 上部ナビゲーション -->
+                <div class="flex items-center justify-between w-full mb-2 sm:mb-4 h-10 sm:h-12 flex-shrink-0 relative">
+                    <button id="stages-back-button" onclick="showTitle()" class="btn-3d w-10 h-10 sm:w-12 sm:h-12 flex items-center justify-center text-slate-500 bg-slate-200 hover:bg-slate-100 border-b-[3px] md:border-b-4 border-slate-400 rounded-xl sm:rounded-2xl text-lg sm:text-xl z-10 flex-shrink-0">
+                        <i class="fa-solid fa-chevron-left"></i>
+                    </button>
+                    
+                    <h2 id="stage-select-title" class="absolute inset-0 flex items-center justify-center text-xl sm:text-2xl md:text-4xl font-black text-slate-700 tracking-wide pointer-events-none">難易度 - ステージ</h2>
+                    
+                    <div class="w-10 h-10 sm:w-12 sm:h-12 flex-shrink-0"></div>
+                </div>
+                
+                <div class="flex-grow flex items-center justify-center overflow-y-auto">
+                    <div class="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-3 sm:gap-4 md:gap-6 max-w-4xl w-full p-2" id="stage-buttons">
+                        <!-- JSで動的に生成 -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- ================= GAME SCREEN ================= -->
+            <div id="screen-game" class="absolute inset-0 flex flex-col p-4 sm:p-6 z-0 hidden transition-opacity duration-500 bg-transparent">
+                
+                <!-- 上部ナビゲーション -->
+                <div class="flex items-center justify-between w-full mb-2 sm:mb-4 h-10 sm:h-12 flex-shrink-0 relative">
+                    <button id="game-back-button" onclick="backToStageSelect()" class="btn-3d w-10 h-10 sm:w-12 sm:h-12 flex items-center justify-center text-slate-500 bg-slate-200 hover:bg-slate-100 border-b-[3px] md:border-b-4 border-slate-400 rounded-xl sm:rounded-2xl text-lg sm:text-xl z-10 flex-shrink-0">
+                        <i class="fa-solid fa-chevron-left"></i>
+                    </button>
+                    
+                    <div class="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                        <div id="game-title-container" class="flex flex-col items-center justify-center bg-indigo-100 px-4 sm:px-6 md:px-8 py-1 rounded-xl sm:rounded-2xl border-[2px] border-indigo-200 pointer-events-auto shadow-sm transition-all duration-300">
+                            <span id="game-title-sub" class="text-indigo-500 text-[9px] sm:text-[10px] md:text-sm font-black leading-none mb-0.5">パズル</span>
+                            <h2 id="game-title" class="text-base sm:text-lg md:text-2xl font-black text-indigo-700 tracking-wider leading-none">ステージ 1</h2>
+                        </div>
+                    </div>
+
+                    <button id="reset-button" onclick="resetBoard()" class="btn-3d h-10 sm:h-12 px-2 sm:px-3 md:px-4 flex items-center justify-center gap-1 sm:gap-2 text-rose-500 bg-rose-100 hover:bg-rose-50 border-b-[3px] md:border-b-4 border-rose-300 rounded-xl sm:rounded-2xl text-[9px] sm:text-[10px] md:text-sm font-black shadow-sm z-10 flex-shrink-0" title="最初に戻す">
+                        <i class="fa-solid fa-rotate-right"></i>
+                        <span class="whitespace-nowrap hidden sm:inline">最初に戻す</span>
+                    </button>
+                </div>
+                
+                <!-- エラーメッセージ領域 -->
+                <div class="w-full h-[6%] min-h-[30px] flex items-center justify-center flex-shrink-0 mb-1">
+                    <div id="error-msg" class="bg-rose-500 text-white px-4 py-1.5 rounded-full font-black text-[10px] md:text-sm opacity-0 transition-opacity shadow-md flex items-center gap-2 pointer-events-none">
+                        <i class="fa-solid fa-triangle-exclamation"></i> <span id="error-text">合計が15にならない列があるよ！</span>
+                    </div>
+                </div>
+                
+                <!-- メインパズル領域 -->
+                <div class="flex-grow flex flex-col md:flex-row items-center justify-center gap-2 md:gap-14 w-full overflow-hidden">
+                    
+                    <!-- 左側：盤面エリア -->
+                    <div class="puzzle-board-size flex flex-col items-center justify-center relative">
+                        <div id="board" class="grid grid-cols-3 grid-rows-3 gap-1.5 md:gap-3 aspect-square w-full bg-slate-300 p-2 md:p-3.5 rounded-[1.25rem] md:rounded-[2rem] shadow-[inset_0_4px_10px_rgba(0,0,0,0.2)] border-[3px] md:border-4 border-slate-300 flex-shrink-0 transition-all duration-300 overflow-hidden relative">
+                            <!-- JSで動的に生成 -->
+                        </div>
+                        <div id="board-align-placeholder" class="w-full aspect-[6/1] mt-1.5 md:mt-2 hidden md:block opacity-0 pointer-events-none flex-shrink-0"></div>
+                    </div>
+
+                    <!-- 右側：数字入力パッド -->
+                    <div class="puzzle-board-size flex flex-col justify-center items-center">
+                        <div id="number-pad" class="grid grid-cols-3 grid-rows-3 gap-1.5 md:gap-3 aspect-square w-full bg-indigo-50/50 p-2 md:p-3.5 rounded-[1.25rem] md:rounded-[2rem] border-[3px] md:border-4 border-indigo-100/50 flex-shrink-0 transition-all duration-300">
+                            <!-- JSで動的に生成 -->
+                        </div>
+                        <div id="delete-pad" class="w-full aspect-[6/1] mt-1.5 md:mt-2 flex-shrink-0">
+                            <!-- JSで生成 -->
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+
+            <!-- CLEAR MODAL -->
+            <div id="modal-clear" class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm z-50 hidden flex items-center justify-center opacity-0 transition-opacity duration-500 overflow-hidden p-4">
+                <div id="confetti-container" class="absolute inset-0 pointer-events-none"></div>
+
+                <div class="bg-gradient-to-b from-yellow-50 to-white rounded-[1.5rem] md:rounded-[2rem] p-6 sm:p-8 w-full max-w-[350px] text-center shadow-[0_0_100px_rgba(250,204,21,0.5)] transform scale-90 transition-transform duration-500 relative border-[4px] md:border-[6px] border-yellow-300 mx-auto transition-all duration-300" id="modal-content">
+                    
+                    <div id="clear-icon" class="absolute -top-10 md:-top-12 left-1/2 transform -translate-x-1/2 text-5xl sm:text-6xl md:text-7xl text-yellow-400 drop-shadow-lg animate-bounce">
+                        <i class="fa-solid fa-crown"></i>
+                    </div>
+                    
+                    <h3 id="clear-headline" class="text-2xl sm:text-3xl md:text-4xl font-black text-yellow-600 mb-1 mt-4 sm:mt-6 tracking-wide">クリア！</h3>
+                    <p id="clear-subline" class="text-sm sm:text-base md:text-lg text-slate-500 mb-4 sm:mb-6 font-black">すごい！大正解！</p>
+                    
+                    <div class="flex flex-col gap-2 sm:gap-3" id="clear-modal-buttons">
+                        <button onclick="nextStage()" class="btn-3d w-full py-3 sm:py-4 bg-indigo-500 hover:bg-indigo-400 text-white font-black rounded-xl sm:rounded-2xl text-base sm:text-lg shadow-sm border-b-[4px] border-indigo-700 flex items-center justify-center gap-2">
+                            <span>次のステージへ</span> <i class="fa-solid fa-forward-step"></i>
+                        </button>
+                        <button onclick="backToStageSelect()" class="btn-3d w-full py-2 sm:py-3 bg-slate-200 hover:bg-slate-100 text-slate-600 font-black rounded-xl sm:rounded-2xl text-sm sm:text-base shadow-sm border-b-[4px] border-slate-400">
+                            一覧に戻る
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- ================= JAVASCRIPT LOGIC ================= -->
     <script>
-        // ====== SVG数字描画関数 ======
-        function getDigitSvg(num) {
-            const paths = {
-                1: "M.42333985 .69921877V.061035158C.42333985 .045735677 .4181315 .033040365 .40771485 .022949219 .394694 .010253906 .37695313 .00390625 .3544922 .00390625 .32617188 .00390625 .30566407 .013671875 .29296876 .033203126 .2877604 .041015626 .28515626 .05029297 .28515626 .061035158V.69921877C.28515626 .71940109 .2944336 .7347005 .31298829 .7451172 .32600913 .7522786 .3400065 .7558594 .35498048 .7558594 .3725586 .7558594 .3881836 .75113937 .40185548 .7416992 .41617839 .73128256 .42333985 .7171224 .42333985 .69921877Z",
-                2: "M.23876953 .13623047H.5756836C.58935549 .13623047 .60058596 .13167317 .609375 .122558597 .62109377 .11051432 .6269531 .09488932 .6269531 .075683597 .6269531 .05061849 .61832687 .032714845 .6010742 .021972657 .5939128 .017415366 .5854492 .015136719 .5756836 .015136719H.15966797C.106933597 .015136719 .080566409 .038411458 .080566409 .08496094 .080566409 .115885417 .095052089 .14827474 .12402344 .1821289 .16210938 .22705078 .23242188 .29134117 .33496095 .375 .38216148 .41341148 .4153646 .4441732 .4345703 .46728517 .4580078 .49560548 .46972657 .5232747 .46972657 .55029299 .46972657 .58414718 .45507813 .61051437 .42578126 .62939456 .4046224 .6427409 .37972007 .64941409 .35107423 .64941409 .29345704 .64941409 .25 .6228841 .22070313 .5698242 .20735677 .54573568 .1883138 .5336914 .16357422 .5336914 .15185547 .5336914 .140625 .5367839 .12988281 .54296877 .110677089 .55403646 .10107422 .5703125 .10107422 .5917969 .10107422 .6142578 .110188808 .63753256 .12841797 .6616211 .14729817 .6870117 .17252605 .7081706 .20410156 .72509768 .24934896 .7498372 .29899089 .76220706 .35302735 .76220706 .41259767 .76220706 .46484376 .7480469 .5097656 .71972659 .5751953 .67871096 .60791018 .62190756 .60791018 .5493164 .60791018 .5024414 .5939128 .4609375 .56591799 .4248047 .5447591 .3971354 .5027669 .35953776 .4399414 .31201173 .3569336 .2491862 .2898763 .19059246 .23876953 .13623047Z",
-                3: "M.4580078 .4008789C.50423178 .39339195 .5415039 .3763021 .5698242 .34960938 .6066081 .31510417 .625 .27278648 .625 .22265625 .625 .14811199 .5940755 .09000651 .53222659 .048339845 .48177085 .014811198 .41959635-.001953125 .34570313-.001953125 .24804688-.001953125 .17252605 .025227866 .119140628 .079589847 .09472656 .104003909 .08251953 .12727864 .08251953 .14941406 .08251953 .16503906 .087890628 .17789714 .09863281 .18798828 .1110026 .19970703 .12548828 .2055664 .14208985 .2055664 .15673828 .2055664 .16910808 .20084636 .17919922 .19140625 .18147786 .18945313 .18636067 .18375652 .19384766 .1743164 .22932942 .13134766 .27978517 .10986328 .34521485 .10986328 .38134767 .10986328 .41145835 .11702474 .43554688 .13134766 .4703776 .15218099 .48779298 .18310547 .48779298 .2241211 .48779298 .25797526 .4777018 .28548179 .45751954 .30664063 .44091798 .32421876 .41878257 .33544923 .39111329 .34033204 .3712565 .34391276 .3400065 .34586589 .29736329 .3461914 .25439454 .3461914 .23291016 .36442057 .23291016 .4008789 .23291016 .4350586 .25520835 .45214845 .2998047 .45214845 .3388672 .45214845 .37239585 .45833335 .40039063 .47070313 .44140626 .48860679 .46191407 .5182292 .46191407 .5595703 .46191407 .5882161 .4501953 .6110026 .4267578 .6279297 .4046224 .64420577 .37597657 .65234377 .3408203 .65234377 .28450523 .65234377 .24121094 .63134768 .2109375 .58935549 .19954427 .57340499 .18457031 .5654297 .16601563 .5654297 .15104167 .5654297 .13785808 .5703125 .12646485 .5800781 .114095058 .5904948 .107910159 .60335287 .107910159 .61865237 .107910159 .6352539 .11604818 .65315756 .13232422 .6723633 .1508789 .69384768 .1743164 .71207687 .20263672 .7270508 .24593099 .7498372 .29345704 .76123049 .34521485 .76123049 .4051107 .76123049 .45670573 .74820968 .5 .72216799 .5625 .68408206 .59375 .62906906 .59375 .5571289 .59375 .51676437 .5802409 .48177085 .55322268 .45214845 .53011068 .4267578 .5001628 .41015626 .4633789 .40234376L.4580078 .4008789Z",
-                4: "M.40185548 .16601563H.12207031C.09863281 .16601563 .080566409 .17285156 .067871097 .18652344 .056803388 .19889324 .05126953 .21435547 .05126953 .23291016 .05126953 .25048829 .057454427 .27148438 .06982422 .29589845L.2939453 .7368164C.30436198 .7573242 .32096354 .7675781 .34375 .7675781 .3580729 .7675781 .3712565 .7635091 .38330079 .7553711 .40055339 .74332687 .4091797 .7281901 .4091797 .70996096 .4091797 .69921877 .40608726 .6878255 .39990235 .67578127L.19482422 .27978517H.40185548V.5576172C.40185548 .5703125 .40576173 .5810547 .41357423 .58984377 .42496745 .60253909 .44140626 .6088867 .46289063 .6088867 .48990885 .6088867 .5083008 .5994466 .5180664 .5805664 .5213216 .57373049 .5229492 .56608077 .5229492 .5576172V.27978517H.62109377C.6529948 .27978517 .6689453 .26090495 .6689453 .22314453 .6689453 .19677735 .66015627 .17936199 .6425781 .17089844 .63639327 .16764324 .62923178 .16601563 .62109377 .16601563H.5229492V.057128908C.5229492 .04378255 .51904299 .032714845 .51123049 .023925782 .4991862 .010579427 .48291017 .00390625 .46240235 .00390625 .43603517 .00390625 .41764323 .013671875 .40722657 .033203126 .40364585 .040039064 .40185548 .048014326 .40185548 .057128908V.16601563Z",
-                5: "M.22802735 .44677735C.27034507 .48225913 .32047526 .5 .37841798 .5 .44254557 .5 .49690757 .480306 .5415039 .44091798 .5939128 .394694 .6201172 .3334961 .6201172 .25732423 .6201172 .17399089 .5904948 .107910159 .53125 .05908203 .4814453 .017740885 .41975913-.0029296876 .3461914-.0029296876 .2902018-.0029296876 .23876953 .0087890629 .19189453 .032226564 .13492839 .060546876 .10644531 .09342448 .10644531 .13085938 .10644531 .1451823 .11165365 .15820313 .12207031 .16992188 .13346355 .18261719 .14729817 .18896485 .16357422 .18896485 .17985027 .18896485 .19628906 .18017578 .21289063 .16259766 .24446614 .12874349 .2874349 .111816409 .34179688 .111816409 .3844401 .111816409 .41927085 .12613933 .44628907 .15478516 .47200523 .1821289 .48486329 .21728516 .48486329 .2602539 .48486329 .3022461 .47314454 .33544923 .44970704 .35986329 .42529298 .38460288 .39208985 .39697267 .35009767 .39697267 .30485026 .39697267 .26513673 .37858073 .23095703 .34179688 .21533203 .32486979 .19759114 .31640626 .17773438 .31640626 .15104167 .31640626 .13151042 .3251953 .119140628 .34277345 .11165365 .35416667 .107910159 .3688151 .107910159 .38671876 .107910159 .39127604 .107910159 .39404298 .107910159 .39501954L.119140628 .6621094C.12141927 .71744796 .15234375 .7451172 .21191406 .7451172H.54003909C.54817709 .7451172 .5555013 .74316409 .5620117 .7392578 .5779622 .7294922 .5859375 .71223959 .5859375 .6875 .5859375 .6669922 .5802409 .6512044 .56884768 .6401367 .56103518 .6326497 .5514323 .62890627 .54003909 .62890627H.26416017C.24527996 .62890627 .23551433 .62158206 .23486328 .6069336L.22802735 .44677735Z",
-                6: "M.22216797 .42285157C.2618815 .4671224 .31770835 .4892578 .38964845 .4892578 .4436849 .4892578 .49153648 .47444663 .5332031 .44482423 .5970052 .3992513 .62890627 .3351237 .62890627 .2524414 .62890627 .18570964 .60872396 .12906902 .5683594 .08251953 .5185547 .025553385 .4519857-.0029296876 .36865235-.0029296876 .28304038-.0029296876 .21402996 .026041666 .1616211 .083984378 .10986328 .14160156 .083984378 .21712239 .083984378 .31054688 .083984378 .3984375 .111328128 .48388673 .16601563 .56689456 .22460938 .6560872 .29899089 .72233077 .38916017 .765625 .40445964 .77278646 .41878257 .7763672 .4321289 .7763672 .45263673 .7763672 .46891276 .7679036 .48095704 .75097659 .48909507 .7395833 .49316407 .72753909 .49316407 .71484377 .49316407 .6923828 .4778646 .67301437 .44726563 .6567383 .3798828 .62158206 .3227539 .57389327 .2758789 .5136719 .2524414 .48404948 .23453777 .45377604 .22216797 .42285157M.36376954 .3881836C.33251954 .3881836 .30403648 .37841798 .2783203 .35888673 .24348958 .33251954 .22607422 .29720054 .22607422 .2529297 .22607422 .21321614 .23746746 .18033855 .2602539 .15429688 .28597007 .12467448 .32080079 .10986328 .3647461 .10986328 .40771485 .10986328 .441569 .12565105 .4663086 .15722656 .48616538 .1829427 .49609376 .21500652 .49609376 .25341798 .49609376 .30452476 .4781901 .3421224 .4423828 .36621095 .42089845 .38085938 .394694 .3881836 .36376954 .3881836Z",
-                7: "M.17236328 .7451172H.5493164C.5727539 .7451172 .5914714 .7397461 .60546877 .7290039 .6220703 .7163086 .6303711 .6985677 .6303711 .67578127 .6303711 .66308596 .6266276 .64713546 .6191406 .6279297 .5494792 .44596354 .48388673 .25716148 .42236329 .061523439 .410319 .022460938 .3898112 .0029296876 .36083985 .0029296876 .3474935 .0029296876 .3351237 .005859375 .32373048 .01171875 .30517579 .020833334 .29589845 .03531901 .29589845 .05517578 .29589845 .06526693 .30208335 .088378909 .31445313 .12451172 .40559898 .38883464 .46126304 .54833987 .4814453 .60302737 .48470054 .61116537 .48632813 .6170247 .48632813 .62060549 .48632813 .62679037 .480306 .6298828 .46826173 .6298828H.21923828C.20719402 .6298828 .20117188 .62386068 .20117188 .6118164V.5058594C.20117188 .49316407 .19710286 .48242188 .18896485 .4736328 .17757161 .46126304 .1616211 .45507813 .14111328 .45507813 .115722659 .45507813 .09798177 .46419273 .087890628 .48242188 .083984378 .4892578 .08203125 .4970703 .08203125 .5058594V.65185549C.08203125 .71402999 .11214193 .7451172 .17236328 .7451172Z",
-                8: "M.22314453 .4008789C.13330078 .44189454 .088378909 .4988607 .088378909 .57177737 .088378909 .62125656 .109375 .6638997 .15136719 .69970706 .20117188 .7420247 .2664388 .7631836 .34716798 .7631836 .42659507 .7631836 .49690757 .74039718 .55810549 .6948242 .5851237 .6746419 .6070964 .65201827 .62402346 .6269531 .6357422 .61002609 .64160159 .5935872 .64160159 .5776367 .64160159 .5652669 .6381836 .5546875 .63134768 .54589846 .61865237 .53027346 .60253909 .52246096 .5830078 .52246096 .57877609 .52246096 .57421877 .5229492 .56933596 .5239258 .53548178 .4930013 .49251304 .45898438 .4404297 .421875 .49479167 .3997396 .53597006 .37565104 .56396487 .34960938 .60563156 .3111979 .62646487 .26497398 .62646487 .2109375 .62646487 .14778646 .6020508 .09667969 .55322268 .057617189 .5024414 .017252604 .43391929-.0029296876 .34765626-.0029296876 .2705078-.0029296876 .20719402 .013509114 .15771485 .04638672 .10139974 .08414713 .07324219 .13704427 .07324219 .20507813 .07324219 .24934896 .08935547 .2903646 .12158203 .328125 .14697266 .3577474 .18082683 .3819987 .22314453 .4008789M.48828126 .5961914C.4501953 .6401367 .4025065 .6621094 .34521485 .6621094 .30810548 .6621094 .2775065 .65511068 .25341798 .6411133 .22607422 .6251628 .21240235 .6044922 .21240235 .57910159 .21240235 .5328776 .2513021 .49544273 .32910157 .46679688 .39290367 .50911459 .44596354 .5522461 .48828126 .5961914M.3413086 .35009767C.29182945 .32828776 .25358073 .30110679 .2265625 .2685547 .20703125 .24511719 .19726563 .22233074 .19726563 .20019531 .19726563 .16438802 .21370442 .1381836 .24658203 .12158203 .2709961 .10921224 .30322267 .103027347 .34326173 .103027347 .3898112 .103027347 .42708335 .11165365 .45507813 .12890625 .48470054 .14746094 .49951173 .1726888 .49951173 .20458985 .49951173 .23258464 .48535157 .25992839 .45703126 .2866211 .43066407 .3113607 .39697267 .33089195 .35595704 .34521485 .35302735 .3461914 .34814454 .347819 .3413086 .35009767Z",
-                9: "M.4169922 .30908204C.37955729 .27783204 .33268229 .26220704 .2763672 .26220704 .1998698 .26220704 .14192708 .2898763 .10253906 .34521485 .07356771 .38590495 .05908203 .4363607 .05908203 .49658204 .05908203 .57633468 .09016927 .64208987 .15234375 .69384768 .20735677 .7394206 .2722982 .76220706 .34716798 .76220706 .42399089 .76220706 .48225913 .74121096 .52197268 .69921877 .5362956 .72005209 .5541992 .73046877 .5756836 .73046877 .58968099 .73046877 .60221359 .726237 .61328127 .71777346 .62630209 .7083333 .6328125 .6944987 .6328125 .67626956 .6328125 .6694336 .63183596 .66227218 .6298828 .65478518L.47314454 .036132814C.46598307 .0081380209 .44710288-.005859375 .4165039-.005859375 .40608726-.005859375 .3955078-.004231771 .38476563-.0009765625 .3577474 .0078125 .34423829 .025390625 .34423829 .051757814 .34423829 .057942708 .34521485 .06429037 .34716798 .07080078L.4169922 .30908204M.48486329 .59716799C.44677735 .6352539 .39860026 .6542969 .34033204 .6542969 .30908204 .6542969 .28141276 .6464844 .25732423 .6308594 .21110027 .60091146 .18798828 .5571289 .18798828 .49951173 .18798828 .4165039 .22363281 .375 .29492188 .375 .38541667 .375 .4482422 .4466146 .48339845 .58984377L.48486329 .59716799Z",
-                0: "M.35498048 .76220706C.44840495 .76220706 .52164718 .72233077 .57470706 .6425781 .6196289 .5748698 .64208987 .4881185 .64208987 .38232423 .64208987 .29085288 .62613937 .21354167 .5942383 .15039063 .5727539 .1077474 .5447591 .07373047 .5102539 .048339845 .46533204 .014811198 .4132487-.001953125 .3540039-.001953125 .25830079-.001953125 .18408203 .038411458 .13134766 .119140628 .08772787 .18619792 .06591797 .27376304 .06591797 .38183595 .06591797 .49414063 .090657558 .5843099 .14013672 .65234377 .19319661 .72558596 .2648112 .76220706 .35498048 .76220706M.35302735 .64941409C.30908204 .64941409 .27360026 .62646487 .24658203 .5805664 .21761067 .5317383 .203125 .46484376 .203125 .3798828 .203125 .30501304 .21468099 .24430339 .23779297 .1977539 .26546226 .14208985 .30452476 .11425781 .35498048 .11425781 .39404298 .11425781 .42708335 .13297527 .45410157 .17041016 .48795573 .21761067 .5048828 .2874349 .5048828 .3798828 .5048828 .4700521 .48876954 .5395508 .45654298 .5883789 .42985026 .62906906 .39534507 .64941409 .35302735 .64941409Z"
-            };
-            // 文字の大きさを親の枠線に影響されず一定に保つ
-            return `<svg viewBox="0 0 0.7 0.8" class="w-[60%] h-[60%] drop-shadow-sm"><g transform="matrix(1, 0, 0, -1, 0, 0.78)"><path d="${paths[num]}" fill="currentColor"/></g></svg>`;
+        const svgPaths = {
+            0: "M.35498048 .76220706C.44840495 .76220706 .52164718 .72233077 .57470706 .6425781 .6196289 .5748698 .64208987 .4881185 .64208987 .38232423 .64208987 .29085288 .62613937 .21354167 .5942383 .15039063 .5727539 .1077474 .5447591 .07373047 .5102539 .048339845 .46533204 .014811198 .4132487-.001953125 .3540039-.001953125 .25830079-.001953125 .18408203 .038411458 .13134766 .119140628 .08772787 .18619792 .06591797 .27376304 .06591797 .38183595 .06591797 .49414063 .090657558 .5843099 .14013672 .65234377 .19319661 .72558596 .2648112 .76220706 .35498048 .76220706M.35302735 .64941409C.30908204 .64941409 .27360026 .62646487 .24658203 .5805664 .21761067 .5317383 .203125 .46484376 .203125 .3798828 .203125 .30501304 .21468099 .24430339 .23779297 .1977539 .26546226 .14208985 .30452476 .11425781 .35498048 .11425781 .39404298 .11425781 .42708335 .13297527 .45410157 .17041016 .48795573 .21761067 .5048828 .2874349 .5048828 .3798828 .5048828 .4700521 .48876954 .5395508 .45654298 .5883789 .42985026 .62906906 .39534507 .64941409 .35302735 .64941409Z",
+            1: "M.42333985 .69921877V.061035158C.42333985 .045735677 .4181315 .033040365 .40771485 .022949219 .394694 .010253906 .37695313 .00390625 .3544922 .00390625 .32617188 .00390625 .30566407 .013671875 .29296876 .033203126 .2877604 .041015626 .28515626 .05029297 .28515626 .061035158V.69921877C.28515626 .71940109 .2944336 .7347005 .31298829 .7451172 .32600913 .7522786 .3400065 .7558594 .35498048 .7558594 .3725586 .7558594 .3881836 .75113937 .40185548 .7416992 .41617839 .73128256 .42333985 .7171224 .42333985 .69921877Z",
+            2: "M.23876953 .13623047H.5756836C.58935549 .13623047 .60058596 .13167317 .609375 .122558597 .62109377 .11051432 .6269531 .09488932 .6269531 .075683597 .6269531 .05061849 .61832687 .032714845 .6010742 .021972657 .5939128 .017415366 .5854492 .015136719 .5756836 .015136719H.15966797C.106933597 .015136719 .080566409 .038411458 .080566409 .08496094 .080566409 .115885417 .095052089 .14827474 .12402344 .1821289 .16210938 .22705078 .23242188 .29134117 .33496095 .375 .38216148 .41341148 .4153646 .4441732 .4345703 .46728517 .4580078 .49560548 .46972657 .5232747 .46972657 .55029299 .46972657 .58414718 .45507813 .61051437 .42578126 .62939456 .4046224 .6427409 .37972007 .64941409 .35107423 .64941409 .29345704 .64941409 .25 .6228841 .22070313 .5698242 .20735677 .54573568 .1883138 .5336914 .16357422 .5336914 .15185547 .5336914 .140625 .5367839 .12988281 .54296877 .110677089 .55403646 .10107422 .5703125 .10107422 .5917969 .10107422 .6142578 .110188808 .63753256 .12841797 .6616211 .14729817 .6870117 .17252605 .7081706 .20410156 .72509768 .24934896 .7498372 .29899089 .76220706 .35302735 .76220706 .41259767 .76220706 .46484376 .7480469 .5097656 .71972659 .5751953 .67871096 .60791018 .62190756 .60791018 .5493164 .60791018 .5024414 .5939128 .4609375 .56591799 .4248047 .5447591 .3971354 .5027669 .35953776 .4399414 .31201173 .3569336 .2491862 .2898763 .19059246 .23876953 .13623047Z",
+            3: "M.4580078 .4008789C.50423178 .39339195 .5415039 .3763021 .5698242 .34960938 .6066081 .31510417 .625 .27278648 .625 .22265625 .625 .14811199 .5940755 .09000651 .53222659 .048339845 .48177085 .014811198 .41959635-.001953125 .34570313-.001953125 .24804688-.001953125 .17252605 .025227866 .119140628 .079589847 .09472656 .104003909 .08251953 .12727864 .08251953 .14941406 .08251953 .16503906 .087890628 .17789714 .09863281 .18798828 .1110026 .19970703 .12548828 .2055664 .14208985 .2055664 .15673828 .2055664 .16910808 .20084636 .17919922 .19140625 .18147786 .18945313 .18636067 .18375652 .19384766 .1743164 .22932942 .13134766 .27978517 .10986328 .34521485 .10986328 .38134767 .10986328 .41145835 .11702474 .43554688 .13134766 .4703776 .15218099 .48779298 .18310547 .48779298 .2241211 .48779298 .25797526 .4777018 .28548179 .45751954 .30664063 .44091798 .32421876 .41878257 .33544923 .39111329 .34033204 .3712565 .34391276 .3400065 .34586589 .29736329 .3461914 .25439454 .3461914 .23291016 .36442057 .23291016 .4008789 .23291016 .4350586 .25520835 .45214845 .2998047 .45214845 .3388672 .45214845 .37239585 .45833335 .40039063 .47070313 .44140626 .48860679 .46191407 .5182292 .46191407 .5595703 .46191407 .5882161 .4501953 .6110026 .4267578 .6279297 .4046224 .64420577 .37597657 .65234377 .3408203 .65234377 .28450523 .65234377 .24121094 .63134768 .2109375 .58935549 .19954427 .57340499 .18457031 .5654297 .16601563 .5654297 .15104167 .5654297 .13785808 .5703125 .12646485 .5800781 .114095058 .5904948 .107910159 .60335287 .107910159 .61865237 .107910159 .6352539 .11604818 .65315756 .13232422 .6723633 .1508789 .69384768 .1743164 .71207687 .20263672 .7270508 .24593099 .7498372 .29345704 .76123049 .34521485 .76123049 .4051107 .76123049 .45670573 .74820968 .5 .72216799 .5625 .68408206 .59375 .62906906 .59375 .5571289 .59375 .51676437 .5802409 .48177085 .55322268 .45214845 .53011068 .4267578 .5001628 .41015626 .4633789 .40234376L.4580078 .4008789Z",
+            4: "M.40185548 .16601563H.12207031C.09863281 .16601563 .080566409 .17285156 .067871097 .18652344 .056803388 .19889324 .05126953 .21435547 .05126953 .23291016 .05126953 .25048829 .057454427 .27148438 .06982422 .29589845L.2939453 .7368164C.30436198 .7573242 .32096354 .7675781 .34375 .7675781 .3580729 .7675781 .3712565 .7635091 .38330079 .7553711 .40055339 .74332687 .4091797 .7281901 .4091797 .70996096 .4091797 .69921877 .40608726 .6878255 .39990235 .67578127L.19482422 .27978517H.40185548V.5576172C.40185548 .5703125 .40576173 .5810547 .41357423 .58984377 .42496745 .60253909 .44140626 .6088867 .46289063 .6088867 .48990885 .6088867 .5083008 .5994466 .5180664 .5805664 .5213216 .57373049 .5229492 .56608077 .5229492 .5576172V.27978517H.62109377C.6529948 .27978517 .6689453 .26090495 .6689453 .22314453 .6689453 .19677735 .66015627 .17936199 .6425781 .17089844 .63639327 .16764324 .62923178 .16601563 .62109377 .16601563H.5229492V.057128908C.5229492 .04378255 .51904299 .032714845 .51123049 .023925782 .4991862 .010579427 .48291017 .00390625 .46240235 .00390625 .43603517 .00390625 .41764323 .013671875 .40722657 .033203126 .40364585 .040039064 .40185548 .048014326 .40185548 .057128908V.16601563Z",
+            5: "M.22802735 .44677735C.27034507 .48225913 .32047526 .5 .37841798 .5 .44254557 .5 .49690757 .480306 .5415039 .44091798 .5939128 .394694 .6201172 .3334961 .6201172 .25732423 .6201172 .17399089 .5904948 .107910159 .53125 .05908203 .4814453 .017740885 .41975913-.0029296876 .3461914-.0029296876 .2902018-.0029296876 .23876953 .0087890629 .19189453 .032226564 .13492839 .060546876 .10644531 .09342448 .10644531 .13085938 .10644531 .1451823 .11165365 .15820313 .12207031 .16992188 .13346355 .18261719 .14729817 .18896485 .16357422 .18896485 .17985027 .18896485 .19628906 .18017578 .21289063 .16259766 .24446614 .12874349 .2874349 .111816409 .34179688 .111816409 .3844401 .111816409 .41927085 .12613933 .44628907 .15478516 .47200523 .1821289 .48486329 .21728516 .48486329 .2602539 .48486329 .3022461 .47314454 .33544923 .44970704 .35986329 .42529298 .38460288 .39208985 .39697267 .35009767 .39697267 .30485026 .39697267 .26513673 .37858073 .23095703 .34179688 .21533203 .32486979 .19759114 .31640626 .17773438 .31640626 .15104167 .31640626 .13151042 .3251953 .119140628 .34277345 .11165365 .35416667 .107910159 .3688151 .107910159 .38671876 .107910159 .39127604 .107910159 .39404298 .107910159 .39501954L.119140628 .6621094C.12141927 .71744796 .15234375 .7451172 .21191406 .7451172H.54003909C.54817709 .7451172 .5555013 .74316409 .5620117 .7392578 .5779622 .7294922 .5859375 .71223959 .5859375 .6875 .5859375 .6669922 .5802409 .6512044 .56884768 .6401367 .56103518 .6326497 .5514323 .62890627 .54003909 .62890627H.26416017C.24527996 .62890627 .23551433 .62158206 .23486328 .6069336L.22802735 .44677735Z",
+            6: "M.22216797 .42285157C.2618815 .4671224 .31770835 .4892578 .38964845 .4892578 .4436849 .4892578 .49153648 .47444663 .5332031 .44482423 .5970052 .3992513 .62890627 .3351237 .62890627 .2524414 .62890627 .18570964 .60872396 .12906902 .5683594 .08251953 .5185547 .025553385 .4519857-.0029296876 .36865235-.0029296876 .28304038-.0029296876 .21402996 .026041666 .1616211 .083984378 .10986328 .14160156 .083984378 .21712239 .083984378 .31054688 .083984378 .3984375 .111328128 .48388673 .16601563 .56689456 .22460938 .6560872 .29899089 .72233077 .38916017 .765625 .40445964 .77278646 .41878257 .7763672 .4321289 .7763672 .45263673 .7763672 .46891276 .7679036 .48095704 .75097659 .48909507 .7395833 .49316407 .72753909 .49316407 .71484377 .49316407 .6923828 .4778646 .67301437 .44726563 .6567383 .3798828 .62158206 .3227539 .57389327 .2758789 .5136719 .2524414 .48404948 .23453777 .45377604 .22216797 .42285157M.36376954 .3881836C.33251954 .3881836 .30403648 .37841798 .2783203 .35888673 .24348958 .33251954 .22607422 .29720054 .22607422 .2529297 .22607422 .21321614 .23746746 .18033855 .2602539 .15429688 .28597007 .12467448 .32080079 .10986328 .3647461 .10986328 .40771485 .10986328 .441569 .12565105 .4663086 .15722656 .48616538 .1829427 .49609376 .21500652 .49609376 .25341798 .49609376 .30452476 .4781901 .3421224 .4423828 .36621095 .42089845 .38085938 .394694 .3881836 .36376954 .3881836Z",
+            7: "M.17236328 .7451172H.5493164C.5727539 .7451172 .5914714 .7397461 .60546877 .7290039 .6220703 .7163086 .6303711 .6985677 .6303711 .67578127 .6303711 .66308596 .6266276 .64713546 .6191406 .6279297 .5494792 .44596354 .48388673 .25716148 .42236329 .061523439 .410319 .022460938 .3898112 .0029296876 .36083985 .0029296876 .3474935 .0029296876 .3351237 .005859375 .32373048 .01171875 .30517579 .020833334 .29589845 .03531901 .29589845 .05517578 .29589845 .06526693 .30208335 .088378909 .31445313 .12451172 .40559898 .38883464 .46126304 .54833987 .4814453 .60302737 .48470054 .61116537 .48632813 .6170247 .48632813 .62060549 .48632813 .62679037 .480306 .6298828 .46826173 .6298828H.21923828C.20719402 .6298828 .20117188 .62386068 .20117188 .6118164V.5058594C.20117188 .49316407 .19710286 .48242188 .18896485 .4736328 .17757161 .46126304 .1616211 .45507813 .14111328 .45507813 .115722659 .45507813 .09798177 .46419273 .087890628 .48242188 .083984378 .4892578 .08203125 .4970703 .08203125 .5058594V.65185549C.08203125 .71402999 .11214193 .7451172 .17236328 .7451172Z",
+            8: "M.22314453 .4008789C.13330078 .44189454 .088378909 .4988607 .088378909 .57177737 .088378909 .62125656 .109375 .6638997 .15136719 .69970706 .20117188 .7420247 .2664388 .7631836 .34716798 .7631836 .42659507 .7631836 .49690757 .74039718 .55810549 .6948242 .5851237 .6746419 .6070964 .65201827 .62402346 .6269531 .6357422 .61002609 .64160159 .5935872 .64160159 .5776367 .64160159 .5652669 .6381836 .5546875 .63134768 .54589846 .61865237 .53027346 .60253909 .52246096 .5830078 .52246096 .57877609 .52246096 .57421877 .5229492 .56933596 .5239258 .53548178 .4930013 .49251304 .45898438 .4404297 .421875 .49479167 .3997396 .53597006 .37565104 .56396487 .34960938 .60563156 .3111979 .62646487 .26497398 .62646487 .2109375 .62646487 .14778646 .6020508 .09667969 .55322268 .057617189 .5024414 .017252604 .43391929-.0029296876 .34765626-.0029296876 .2705078-.0029296876 .20719402 .013509114 .15771485 .04638672 .10139974 .08414713 .07324219 .13704427 .07324219 .20507813 .07324219 .24934896 .08935547 .2903646 .12158203 .328125 .14697266 .3577474 .18082683 .3819987 .22314453 .4008789M.48828126 .5961914C.4501953 .6401367 .4025065 .6621094 .34521485 .6621094 .30810548 .6621094 .2775065 .65511068 .25341798 .6411133 .22607422 .6251628 .21240235 .6044922 .21240235 .57910159 .21240235 .5328776 .2513021 .49544273 .32910157 .46679688 .39290367 .50911459 .44596354 .5522461 .48828126 .5961914M.3413086 .35009767C.29182945 .32828776 .25358073 .30110679 .2265625 .2685547 .20703125 .24511719 .19726563 .22233074 .19726563 .20019531 .19726563 .16438802 .21370442 .1381836 .24658203 .12158203 .2709961 .10921224 .30322267 .103027347 .34326173 .103027347 .3898112 .103027347 .42708335 .11165365 .45507813 .12890625 .48470054 .14746094 .49951173 .1726888 .49951173 .20458985 .49951173 .23258464 .48535157 .25992839 .45703126 .2866211 .43066407 .3113607 .39697267 .33089195 .35595704 .34521485 .35302735 .3461914 .34814454 .347819 .3413086 .35009767Z",
+            9: "M.4169922 .30908204C.37955729 .27783204 .33268229 .26220704 .2763672 .26220704 .1998698 .26220704 .14192708 .2898763 .10253906 .34521485 .07356771 .38590495 .05908203 .4363607 .05908203 .49658204 .05908203 .57633468 .09016927 .64208987 .15234375 .69384768 .20735677 .7394206 .2722982 .76220706 .34716798 .76220706 .42399089 .76220706 .48225913 .74121096 .52197268 .69921877 .5362956 .72005209 .5541992 .73046877 .5756836 .73046877 .58968099 .73046877 .60221359 .726237 .61328127 .71777346 .62630209 .7083333 .6328125 .6944987 .6328125 .67626956 .6328125 .6694336 .63183596 .66227218 .6298828 .65478518L.47314454 .036132814C.46598307 .0081380209 .44710288-.005859375 .4165039-.005859375 .40608726-.005859375 .3955078-.004231771 .38476563-.0009765625 .3577474 .0078125 .34423829 .025390625 .34423829 .051757814 .34423829 .057942708 .34521485 .06429037 .34716798 .07080078L.4169922 .30908204M.48486329 .59716799C.44677735 .6352539 .39860026 .6542969 .34033204 .6542969 .30908204 .6542969 .28141276 .6464844 .25732423 .6308594 .21110027 .60091146 .18798828 .5571289 .18798828 .49951173 .18798828 .4165039 .22363281 .375 .29492188 .375 .38541667 .375 .4482422 .4466146 .48339845 .58984377L.48486329 .59716799Z"
+        };
+
+        // 1桁（1〜9）と2桁（10〜16）を常に完全等倍 scale(1, -1) かつ同一ベースライン(高さ0.76)で綺麗に配置する
+        function getDigitHtml(num, is4x4 = false) {
+            if (num === 0) return '';
+            const fillCol = "currentColor"; 
+            
+            // 4x4の裏モード時はセル自体の面積が小さいため、文字高さを64%に調整し、通常3x3モードでは72%で美しく表示する
+            const heightClass = is4x4 ? "h-[64%]" : "h-[72%]";
+            
+            if (num <= 9) {
+                // 1桁（1〜9）
+                const path = svgPaths[num];
+                return `
+                    <svg viewBox="0 0 0.8 0.84" class="${heightClass} w-auto aspect-[8/8.4] max-w-[85%] max-h-full flex items-center justify-center transition-all duration-100" style="color: inherit; display: inline-block;">
+                        <g transform="translate(0.04, 0.80) scale(1, -1)">
+                            <path d="${path}" fill="${fillCol}" />
+                        </g>
+                    </svg>
+                `;
+            } else {
+                // 2桁（10〜16）
+                const tensPath = svgPaths[1];
+                const onesPath = svgPaths[num % 10];
+                
+                // 1桁の数字と【高さ】【サイズ感】を完璧に揃えるため、一切の比率縮小を排除して「等倍 scale(1, -1)」に統一
+                // 全体を左寄りにシフト（右寄り偏りの完全解消）しつつ、一の位の形状に合わせ美しい間隔になるようミリ単位で座標を個別マッピング（字間カーニング調整）
+                let tensTranslateX = -0.08;
+                let onesTranslateX = 0.32;
+
+                if (num === 10) {
+                    // 0は左右の膨らみがあるため、中心軸にピタッと揃う左寄り最適値に
+                    tensTranslateX = -0.11;
+                    onesTranslateX = 0.33;
+                } else if (num === 11) {
+                    // 「11」は1と1の間をしっかり離し、なおかつ右に偏らないように全体を程よく左にスライド
+                    tensTranslateX = -0.05;
+                    onesTranslateX = 0.45;
+                } else if (num === 12) {
+                    // 2は下が広いため適正な位置に配置
+                    tensTranslateX = -0.08;
+                    onesTranslateX = 0.32;
+                } else if (num === 13) {
+                    // 3は左側に大きくふくらむため、十の位の「1」とぶつからないよう右へシフト
+                    tensTranslateX = -0.08;
+                    onesTranslateX = 0.32;
+                } else if (num === 14) {
+                    // 4は横幅が広いため最適な間隔に
+                    tensTranslateX = -0.12;
+                    onesTranslateX = 0.31;
+                } else if (num === 15) {
+                    // 5は上が左へ出っ張るため「1」との間隔を確保
+                    tensTranslateX = -0.05;
+                    onesTranslateX = 0.33;
+                } else if (num === 16) {
+                    // 6は左側の膨らみがあるため間隔をマージ
+                    tensTranslateX = -0.08;
+                    onesTranslateX = 0.32;
+                }
+                
+                // viewBoxを適正な 1.15 に固定し、2桁を等倍でプロ並みに美しく整列
+                return `
+                    <svg viewBox="0 0 1.15 0.84" class="${heightClass} w-auto aspect-[11.5/8.4] max-w-[95%] max-h-full flex items-center justify-center transition-all duration-100" style="color: inherit; display: inline-block;">
+                        <!-- 十の位の「1」 (高さ基準・ベースラインを1桁と100%同一に同期) -->
+                        <g transform="translate(${tensTranslateX}, 0.80) scale(1, -1)">
+                            <path d="${tensPath}" fill="${fillCol}" />
+                        </g>
+                        <!-- 一の位 (高さ基準・ベースラインを1桁と100%同一に同期) -->
+                        <g transform="translate(${onesTranslateX}, 0.80) scale(1, -1)">
+                            <path d="${onesPath}" fill="${fillCol}" />
+                        </g>
+                    </svg>
+                `;
+            }
         }
 
-        let clearedStages = { easy: [], normal: [], hard: [] };
+        let clearedStages = { easy: [], normal: [], hard: [], 'super': [], oni: [], god: [] };
+        let underworldActive = false; 
+
         try {
             const saved = localStorage.getItem('magicSquareCleared');
             if (saved) {
-                clearedStages = JSON.parse(saved);
+                const parsed = JSON.parse(saved);
+                clearedStages = {
+                    easy: parsed.easy || [],
+                    normal: parsed.normal || [],
+                    hard: parsed.hard || [],
+                    'super': parsed['super'] || [],
+                    oni: parsed.oni || [],
+                    god: parsed.god || []
+                };
+            }
+            const savedMode = localStorage.getItem('magicSquareUnderworldActive');
+            if (savedMode === 'true') {
+                underworldActive = true;
             }
         } catch (e) {
             console.error("Local storage error:", e);
+        }
+
+        function debugForceClear() {
+            clearedStages.easy = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
+            clearedStages.normal = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
+            clearedStages.hard = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
+            try {
+                localStorage.setItem('magicSquareCleared', JSON.stringify(clearedStages));
+            } catch (e) {}
+            
+            checkAndShowUnderworldButton();
+            
+            if (!screenStages.classList.contains('hidden')) {
+                showStageSelect(currentDifficulty);
+            }
         }
 
         function saveClearStatus(difficulty, stageIdx) {
@@ -289,17 +695,18 @@
                     localStorage.setItem('magicSquareCleared', JSON.stringify(clearedStages));
                 } catch (e) {}
             }
+            checkAndShowUnderworldButton();
         }
 
         const SOLUTIONS = [
-            [8, 1, 6, 3, 5, 7, 4, 9, 2], // 0: 基本
-            [6, 1, 8, 7, 5, 3, 2, 9, 4], // 1: 左右反転
-            [4, 9, 2, 3, 5, 7, 8, 1, 6], // 2: 上下反転
-            [2, 9, 4, 7, 5, 3, 6, 1, 8], // 3: 対角反転
-            [8, 3, 4, 1, 5, 9, 6, 7, 2], // 4: 回転
-            [4, 3, 8, 9, 5, 1, 2, 7, 6], // 5: 回転+反転
-            [6, 7, 2, 1, 5, 9, 8, 3, 4], // 6: 回転+反転
-            [2, 7, 6, 9, 5, 1, 4, 3, 8]  // 7: 回転+反転
+            [8, 1, 6, 3, 5, 7, 4, 9, 2],
+            [6, 1, 8, 7, 5, 3, 2, 9, 4],
+            [4, 9, 2, 3, 5, 7, 8, 1, 6],
+            [2, 9, 4, 7, 5, 3, 6, 1, 8],
+            [8, 3, 4, 1, 5, 9, 6, 7, 2],
+            [4, 3, 8, 9, 5, 1, 2, 7, 6],
+            [6, 7, 2, 1, 5, 9, 8, 3, 4],
+            [2, 7, 6, 9, 5, 1, 4, 3, 8]
         ];
 
         const STAGE_DATA = {
@@ -337,7 +744,54 @@
                 { solIdx: 6, hints: [1, 4] },
                 { solIdx: 7, hints: [2, 7] },
                 { solIdx: 0, hints: [0, 7] },
-                { solIdx: 1, hints: [4] } // 究極: ヒント1つ
+                { solIdx: 1, hints: [4] }
+            ]
+        };
+
+        const SOLUTIONS_4X4 = [
+            [16, 3, 2, 13, 5, 10, 11, 8, 9, 6, 7, 12, 4, 15, 14, 1],
+            [13, 2, 3, 16, 8, 11, 10, 5, 12, 7, 6, 9, 1, 14, 15, 4],
+            [4, 15, 14, 1, 9, 6, 7, 12, 5, 10, 11, 8, 16, 3, 2, 13],
+            [1, 14, 15, 4, 12, 7, 6, 9, 8, 11, 10, 5, 13, 2, 3, 16],
+            [16, 5, 9, 4, 3, 10, 6, 15, 2, 11, 7, 14, 13, 8, 12, 1]
+        ];
+
+        const UNDERWORLD_STAGE_DATA = {
+            'super': [
+                { solIdx: 0, hints: [0, 1, 2, 5, 6, 8, 11, 15] },
+                { solIdx: 1, hints: [1, 2, 4, 6, 7, 8, 11, 13] },
+                { solIdx: 2, hints: [0, 2, 3, 5, 8, 10, 13, 14, 15] },
+                { solIdx: 3, hints: [1, 2, 4, 5, 7, 10, 12, 13, 14] },
+                { solIdx: 4, hints: [0, 1, 4, 6, 9, 11, 13, 14, 15] },
+                { solIdx: 0, hints: [1, 2, 5, 7, 8, 10, 12, 15] },
+                { solIdx: 1, hints: [0, 3, 4, 6, 9, 11, 13, 14] },
+                { solIdx: 2, hints: [1, 3, 4, 5, 10, 11, 12, 14] },
+                { solIdx: 3, hints: [2, 3, 5, 6, 8, 9, 13, 15] },
+                { solIdx: 4, hints: [0, 1, 6, 7, 10, 11, 12, 13, 15] }
+            ],
+            'oni': [
+                { solIdx: 0, hints: [1, 2, 4, 7, 9, 11, 14] },
+                { solIdx: 1, hints: [0, 3, 5, 6, 10, 12, 13] },
+                { solIdx: 2, hints: [1, 3, 4, 6, 8, 11, 13] },
+                { solIdx: 3, hints: [2, 3, 5, 7, 8, 10, 14] },
+                { solIdx: 4, hints: [0, 1, 6, 9, 11, 12, 15] },
+                { solIdx: 0, hints: [1, 4, 7, 10, 13, 14] },
+                { solIdx: 1, hints: [2, 5, 8, 11, 12, 15] },
+                { solIdx: 2, hints: [0, 3, 6, 9, 13, 14] },
+                { solIdx: 3, hints: [1, 2, 5, 8, 10, 15] },
+                { solIdx: 4, hints: [0, 4, 7, 11, 13, 14] }
+            ],
+            'god': [
+                { solIdx: 0, hints: [1, 6, 8, 11, 14] },
+                { solIdx: 1, hints: [2, 5, 9, 12, 15] },
+                { solIdx: 2, hints: [0, 7, 10, 13, 14] },
+                { solIdx: 3, hints: [3, 4, 9, 11, 14] },
+                { solIdx: 4, hints: [1, 6, 10, 13, 15] },
+                { solIdx: 0, hints: [2, 5, 8, 15] },
+                { solIdx: 1, hints: [0, 7, 10, 13] },
+                { solIdx: 2, hints: [3, 6, 9, 14] },
+                { solIdx: 3, hints: [1, 10, 12] },
+                { solIdx: 4, hints: [4, 11, 14] }
             ]
         };
 
@@ -345,7 +799,7 @@
         let currentStageIdx = 0;
         let board = Array(9).fill(0);
         let lockedCells = [];
-        let selectedCell = null;
+        let selectedCell = null; 
         let selectedNumber = null;
 
         const screenTitle = document.getElementById('screen-title');
@@ -358,10 +812,435 @@
         const modalContent = document.getElementById('modal-content');
         const confettiContainer = document.getElementById('confetti-container');
 
+        // スクロールバーの発生を100%防止する「はみ出さない相似スケーリング」
+        // スマホ(細長・縦)かPC(幅広・横)かを自動検知してターゲットサイズ自体を柔軟に切り替える
+        function adjustAppScale() {
+            const container = document.getElementById('app-container');
+            if (!container) return;
+
+            // スタイルの初期化
+            container.style.transform = '';
+            container.style.transformOrigin = '';
+
+            const winW = window.innerWidth;
+            const winH = window.innerHeight;
+
+            // わずかなセーフスペース（安全マージン）を引いた実際に利用可能なエリア
+            const pad = 12;
+            const availW = winW - pad;
+            const availH = winH - pad;
+
+            // スマホ（縦長画面）かPC（横長画面）かを高度に判定
+            const isMobile = winW < 768 || winW < winH;
+
+            let targetW, targetH;
+
+            const mainTitle = document.getElementById('title-main');
+
+            if (isMobile) {
+                // スマホ用：縦長アスペクト（スマホ画面の高さに絶対に収まる基準サイズ）
+                targetW = 450;
+                targetH = 800; // 下が絶対に切れないよう少しタイトに調整
+
+                // コンテナのCSS自体を一時的にスマホ基準に上書き
+                container.style.width = `${targetW}px`;
+                container.style.height = `${targetH}px`;
+                container.style.borderRadius = '1.75rem';
+                container.style.borderWidth = '3px';
+
+                // タイトルのフォントサイズをスマホ用に、横幅にピタッと収まるレスポンシブな計算に（大きすぎないよう調整）
+                if (underworldActive) {
+                    mainTitle.style.setProperty('font-size', 'min(10vw, 40px)', 'important');
+                } else {
+                    mainTitle.style.setProperty('font-size', 'min(10.5vw, 42px)', 'important');
+                }
+                mainTitle.style.lineHeight = '1.2';
+
+                // 【修正：スマホ版サブタイトルの縮小】
+                const subTitle = document.getElementById('title-sub');
+                subTitle.style.marginTop = '0.75rem';
+                subTitle.classList.remove('md:text-3xl');
+                subTitle.style.fontSize = 'min(3.5vw, 14px)'; // 4.5vw (18px) から 3.5vw (14px) に縮小
+
+                // 難易度選択ボタンを縦型スタックにしつつ、各ボタン内の文言を1行（横並び）で大きく表示する
+                const normDiffCont = document.getElementById('title-difficulty-container');
+                normDiffCont.style.flexDirection = 'column';
+                normDiffCont.style.gap = '0.5rem';
+
+                // 【通常難易度スマホ最適化】1行化＆文字を非常に大きく読みやすく
+                document.getElementById('btn-diff-easy').className = "btn-3d w-full py-3.5 px-4 bg-emerald-400 hover:bg-emerald-300 text-white border-b-[5px] border-emerald-600 rounded-2xl font-black shadow-md flex flex-row items-center justify-between";
+                document.getElementById('btn-diff-easy').innerHTML = `
+                    <span class="text-2xl"><i class="fa-solid fa-seedling"></i> 初級</span>
+                    <span class="text-base font-bold bg-black/10 px-3 py-1 rounded-full">ヒントいっぱい</span>
+                `;
+
+                document.getElementById('btn-diff-normal').className = "btn-3d w-full py-3.5 px-4 bg-blue-500 hover:bg-blue-400 text-white border-b-[5px] border-blue-700 rounded-2xl font-black shadow-md flex flex-row items-center justify-between";
+                document.getElementById('btn-diff-normal').innerHTML = `
+                    <span class="text-2xl"><i class="fa-solid fa-fire"></i> 中級</span>
+                    <span class="text-base font-bold bg-black/10 px-3 py-1 rounded-full">ヒント3つ</span>
+                `;
+
+                // 【修正：上級ボタンが白っぽくなるバグを解消】 bg-rose-50 から bg-rose-500、hover:bg-rose-450 から hover:bg-rose-400 へ修正
+                document.getElementById('btn-diff-hard').className = "btn-3d w-full py-3.5 px-4 bg-rose-500 hover:bg-rose-400 text-white border-b-[5px] border-rose-700 rounded-2xl font-black shadow-md flex flex-row items-center justify-between";
+                document.getElementById('btn-diff-hard').innerHTML = `
+                    <span class="text-2xl"><i class="fa-solid fa-skull"></i> 上級</span>
+                    <span class="text-base font-bold bg-black/10 px-3 py-1 rounded-full">究極の推理！</span>
+                `;
+
+                const underDiffCont = document.getElementById('underworld-difficulty-container');
+                underDiffCont.style.flexDirection = 'column';
+                underDiffCont.style.gap = '0.5rem';
+
+                // 【裏難易度スマホ最適化】1行化＆文字を非常に大きく読みやすく
+                document.getElementById('btn-diff-super').className = "btn-3d w-full py-3.5 px-4 bg-red-950/60 hover:bg-red-900/40 text-red-400 rounded-2xl font-black shadow-[0_0_15px_rgba(220,38,38,0.3)] flex flex-row items-center justify-between border-[2px] border-b-[5px] border-red-900";
+                document.getElementById('btn-diff-super').innerHTML = `
+                    <span class="text-2xl"><i class="fa-solid fa-dragon animate-pulse"></i> 超級</span>
+                    <span class="text-base font-bold bg-black/30 px-3 py-1 rounded-full border border-red-900/30">ヒント：10〜8</span>
+                `;
+
+                document.getElementById('btn-diff-oni').className = "btn-3d w-full py-3.5 px-4 bg-purple-950/60 hover:bg-purple-900/40 text-purple-400 rounded-2xl font-black shadow-[0_0_15px_rgba(147,51,234,0.3)] flex flex-row items-center justify-between border-[2px] border-b-[5px] border-purple-900";
+                document.getElementById('btn-diff-oni').innerHTML = `
+                    <span class="text-2xl"><i class="fa-solid fa-eye animate-pulse"></i> 鬼級</span>
+                    <span class="text-base font-bold bg-black/30 px-3 py-1 rounded-full border border-purple-900/30">ヒント：7〜6</span>
+                `;
+
+                document.getElementById('btn-diff-god').className = "btn-3d w-full py-3.5 px-4 bg-amber-950/60 hover:bg-amber-900/40 text-amber-400 rounded-2xl font-black shadow-[0_0_15px_rgba(245,158,11,0.4)] flex flex-row items-center justify-between border-[2px] border-b-[5px] border-amber-900";
+                document.getElementById('btn-diff-god').innerHTML = `
+                    <span class="text-2xl"><i class="fa-solid fa-crown animate-pulse"></i> 神級</span>
+                    <span class="text-base font-bold bg-black/30 px-3 py-1 rounded-full border border-amber-900/30">ヒント：5〜3</span>
+                `;
+
+                // 起動ボタンや戻るボタンの余白調整
+                const trigCont = document.getElementById('underworld-trigger-container');
+                trigCont.style.marginTop = '1rem';
+                const retCont = document.getElementById('underworld-return-container');
+                retCont.style.marginTop = '1rem';
+
+            } else {
+                // PC用 (従来通り全く変更なしで完璧に維持)
+                targetW = 1152;
+                targetH = 820;
+
+                container.style.width = `${targetW}px`;
+                container.style.height = `${targetH}px`;
+                container.style.borderRadius = '3rem';
+                container.style.borderWidth = '4px';
+
+                // PC用の巨大文字サイズ（100%維持）
+                mainTitle.style.setProperty('font-size', '96px', 'important');
+                mainTitle.style.lineHeight = '1.1';
+
+                // 【修正：PC版のサブタイトルサイズが確実に大きくなるように強制指定】
+                const subTitle = document.getElementById('title-sub');
+                subTitle.style.marginTop = '1rem';
+                subTitle.style.setProperty('font-size', '24px', 'important'); // 明示的に24pxを指定
+
+                // 難易度選択ボタンを元の横並び＆バッジ縦並びに完璧にリセット
+                const normDiffCont = document.getElementById('title-difficulty-container');
+                normDiffCont.style.flexDirection = 'row';
+                normDiffCont.style.gap = '1.5rem';
+
+                document.getElementById('btn-diff-easy').className = "btn-3d flex-1 py-3 sm:py-4 md:py-6 bg-emerald-400 hover:bg-emerald-300 text-white border-b-[4px] sm:border-b-[6px] md:border-b-[8px] border-emerald-600 rounded-[1rem] sm:rounded-[1.5rem] md:rounded-3xl text-lg sm:text-xl md:text-3xl font-black shadow-md flex flex-col items-center gap-1 sm:gap-2";
+                document.getElementById('btn-diff-easy').innerHTML = `
+                    <span><i class="fa-solid fa-seedling"></i> 初級</span>
+                    <span class="text-[10px] sm:text-xs md:text-base font-normal bg-black/10 px-2 sm:px-3 py-0.5 sm:py-1 rounded-full">ヒントいっぱい</span>
+                `;
+
+                document.getElementById('btn-diff-normal').className = "btn-3d flex-1 py-3 sm:py-4 md:py-6 bg-blue-500 hover:bg-blue-400 text-white border-b-[4px] sm:border-b-[6px] md:border-b-[8px] border-blue-700 rounded-[1rem] sm:rounded-[1.5rem] md:rounded-3xl text-lg sm:text-xl md:text-3xl font-black shadow-md flex flex-col items-center gap-1 sm:gap-2";
+                document.getElementById('btn-diff-normal').innerHTML = `
+                    <span><i class="fa-solid fa-fire"></i> 中級</span>
+                    <span class="text-[10px] sm:text-xs md:text-base font-normal bg-black/10 px-2 sm:px-3 py-0.5 sm:py-1 rounded-full">ヒント3つ</span>
+                `;
+
+                document.getElementById('btn-diff-hard').className = "btn-3d flex-1 py-3 sm:py-4 md:py-6 bg-rose-500 hover:bg-rose-400 text-white border-b-[4px] sm:border-b-[6px] md:border-b-[8px] border-rose-700 rounded-[1rem] sm:rounded-[1.5rem] md:rounded-3xl text-lg sm:text-xl md:text-3xl font-black shadow-md flex flex-col items-center gap-1 sm:gap-2";
+                document.getElementById('btn-diff-hard').innerHTML = `
+                    <span><i class="fa-solid fa-skull"></i> 上級</span>
+                    <span class="text-[10px] sm:text-xs md:text-base font-normal bg-black/10 px-2 sm:px-3 py-0.5 sm:py-1 rounded-full">究極の推理！</span>
+                `;
+
+                const underDiffCont = document.getElementById('underworld-difficulty-container');
+                underDiffCont.style.flexDirection = 'row';
+                underDiffCont.style.gap = '1.5rem';
+
+                document.getElementById('btn-diff-super').className = "btn-3d flex-1 py-3 sm:py-4 md:py-6 bg-red-950/60 hover:bg-red-900/40 text-red-400 rounded-[1rem] sm:rounded-[1.5rem] md:rounded-3xl text-lg sm:text-xl md:text-3xl font-black shadow-[0_0_15px_rgba(220,38,38,0.3)] flex flex-col items-center gap-1 sm:gap-2 border-[2px] border-b-[6px] sm:border-b-[8px] border-red-900";
+                document.getElementById('btn-diff-super').innerHTML = `
+                    <span><i class="fa-solid fa-dragon animate-pulse"></i> 超級</span>
+                    <span class="text-[10px] sm:text-xs md:text-base font-bold bg-black/30 px-2 sm:px-3 py-0.5 sm:py-1 rounded-full border border-red-900/30">ヒント：10〜8</span>
+                `;
+
+                document.getElementById('btn-diff-oni').className = "btn-3d flex-1 py-3 sm:py-4 md:py-6 bg-purple-950/60 hover:bg-purple-900/40 text-purple-400 rounded-[1rem] sm:rounded-[1.5rem] md:rounded-3xl text-lg sm:text-xl md:text-3xl font-black shadow-[0_0_15px_rgba(147,51,234,0.3)] flex flex-col items-center gap-1 sm:gap-2 border-[2px] border-b-[6px] sm:border-b-[8px] border-purple-900";
+                document.getElementById('btn-diff-oni').innerHTML = `
+                    <span><i class="fa-solid fa-eye animate-pulse"></i> 鬼級</span>
+                    <span class="text-[10px] sm:text-xs md:text-base font-bold bg-black/30 px-2 sm:px-3 py-0.5 sm:py-1 rounded-full border border-purple-900/30">ヒント：7〜6</span>
+                `;
+
+                document.getElementById('btn-diff-god').className = "btn-3d flex-1 py-3 sm:py-4 md:py-6 bg-amber-950/60 hover:bg-amber-900/40 text-amber-400 rounded-[1rem] sm:rounded-[1.5rem] md:rounded-3xl text-lg sm:text-xl md:text-3xl font-black shadow-[0_0_15px_rgba(245,158,11,0.4)] flex flex-col items-center gap-1 sm:gap-2 border-[2px] border-b-[6px] sm:border-b-[8px] border-amber-900";
+                document.getElementById('btn-diff-god').innerHTML = `
+                    <span><i class="fa-solid fa-crown animate-pulse"></i> 神級</span>
+                    <span class="text-[10px] sm:text-xs md:text-base font-bold bg-black/30 px-2 sm:px-3 py-0.5 sm:py-1 rounded-full border border-amber-900/30">ヒント：5〜3</span>
+                `;
+
+                const trigCont = document.getElementById('underworld-trigger-container');
+                trigCont.style.marginTop = '2.5rem';
+                const retCont = document.getElementById('underworld-return-container');
+                retCont.style.marginTop = '2rem';
+            }
+
+            // 画面サイズにピッタリ収まる倍率を算出
+            const scaleX = availW / targetW;
+            const scaleY = availH / targetH;
+            const scale = Math.min(scaleX, scaleY); 
+
+            container.style.transform = `scale(${scale})`;
+            container.style.transformOrigin = 'center center';
+        }
+
+        window.addEventListener('resize', adjustAppScale);
+
+        function checkAndShowUnderworldButton() {
+            const isAllCleared = 
+                clearedStages.easy.length === 10 && 
+                clearedStages.normal.length === 10 && 
+                clearedStages.hard.length === 10;
+
+            const triggerContainer = document.getElementById('underworld-trigger-container');
+            const normalDifficultyContainer = document.getElementById('title-difficulty-container');
+
+            if (isAllCleared && !underworldActive) {
+                triggerContainer.classList.remove('hidden');
+                normalDifficultyContainer.classList.add('opacity-70');
+            } else {
+                triggerContainer.classList.add('hidden');
+                normalDifficultyContainer.classList.remove('opacity-70');
+            }
+        }
+
         function showTitle() {
             screenStages.classList.add('hidden');
             screenGame.classList.add('hidden');
             screenTitle.classList.remove('hidden');
+            checkAndShowUnderworldButton();
+            setTimeout(adjustAppScale, 10);
+        }
+
+        function triggerUnderworldTransition() {
+            const screen = document.getElementById('corruption-screen');
+            const canvas = document.getElementById('corruption-canvas');
+            const ctx = canvas.getContext('2d');
+
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+
+            const progressEl = document.getElementById('corruption-progress');
+            progressEl.style.width = '0%'; 
+
+            document.getElementById('corruption-text-1').classList.add('opacity-0');
+            document.getElementById('corruption-text-2').classList.add('opacity-0');
+            document.getElementById('corruption-progress-container').classList.add('opacity-0');
+
+            screen.classList.remove('hidden');
+
+            setTimeout(() => {
+                document.getElementById('corruption-text-1').classList.remove('opacity-0');
+            }, 300);
+            setTimeout(() => {
+                document.getElementById('corruption-text-2').classList.remove('opacity-0');
+            }, 1000);
+
+            // ステータスバー（プログレスバー）が表示されるタイミング
+            let barActive = false;
+            setTimeout(() => {
+                document.getElementById('corruption-progress-container').classList.remove('opacity-0');
+                // バーが表示された「この瞬間」から0%スタートを検知させるためのトリガー
+                barActive = true;
+            }, 1800);
+
+            // 進行率変数を「画面ハックの浸食度(visualProgress)」と「ステータスバーの進行度(barProgress)」に分離
+            let visualProgress = 0;
+            let barProgress = 0;
+
+            const fontSize = 16;
+            const columns = Math.floor(canvas.width / fontSize) + 1;
+            const yPositions = Array(columns).fill(0).map(() => Math.random() * -canvas.height);
+            const speeds = Array(columns).fill(0).map(() => Math.random() * 15 + 10);
+
+            function drawMatrix(p) {
+                const thresholdY = (p / 100) * canvas.height;
+
+                ctx.clearRect(0, thresholdY, canvas.width, canvas.height - thresholdY);
+
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.15)';
+                ctx.fillRect(0, 0, canvas.width, thresholdY);
+
+                ctx.fillStyle = 'rgba(239, 68, 68, 0.4)';
+                const glitchHeight = 100;
+                const startGlitchY = Math.max(0, thresholdY - 50);
+                
+                if (p < 95) {
+                    for (let i = 0; i < 8; i++) {
+                        const x = Math.random() * canvas.width;
+                        const y = startGlitchY + Math.random() * glitchHeight;
+                        const w = Math.random() * 200 + 50;
+                        const h = Math.random() * 15 + 3;
+                        ctx.fillRect(x, y, w, h);
+                    }
+                }
+
+                ctx.fillStyle = p > 50 ? '#ef4444' : '#10b981';
+                ctx.font = `900 ${fontSize}px 'M PLUS Rounded 1c', sans-serif`;
+
+                yPositions.forEach((y, index) => {
+                    const x = index * fontSize;
+                    const maxAllowedY = thresholdY + 80;
+
+                    if (y > 0 && y < maxAllowedY && y < canvas.height + 50) {
+                        const text = String.fromCharCode(Math.floor(Math.random() * 93) + 33);
+                        ctx.fillText(text, x, y);
+                    }
+
+                    yPositions[index] = y + speeds[index];
+
+                    if (yPositions[index] > Math.min(canvas.height + 50, maxAllowedY)) {
+                        if (p < 92) {
+                            yPositions[index] = Math.random() * -100;
+                        } else {
+                            yPositions[index] = 99999; 
+                        }
+                    }
+                });
+            }
+
+            const interval = setInterval(() => {
+                // 1. 侵食演出はクリック後、即座にスムーズに進行する（元の侵食速度を100%維持）
+                if (visualProgress < 100) {
+                    visualProgress += 0.6; 
+                    if (visualProgress > 100) visualProgress = 100;
+                }
+                
+                // 2. ステータスバーは、コンテナが表示された瞬間に「0%」から一気に「グーン！」と伸び始める
+                if (barActive) {
+                    if (barProgress < 100) {
+                        // 0%からグーンと伸びる加速緩急（気持ちよい速度感）
+                        barProgress += 1.4; 
+                        if (barProgress > 100) barProgress = 100;
+                        progressEl.style.width = barProgress + '%';
+                    }
+                } else {
+                    progressEl.style.width = '0%';
+                }
+
+                drawMatrix(visualProgress);
+
+                // 侵食演出が完了し、かつステータスバーが100%に到達、且つ文字が流れきったら裏モードへ
+                if (visualProgress >= 100 && barProgress >= 100) {
+                    const allDropped = yPositions.every(y => y >= canvas.height + 50);
+                    if (allDropped) {
+                        clearInterval(interval);
+                        
+                        ctx.fillStyle = 'rgb(0, 0, 0)';
+                        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+                        setTimeout(() => {
+                            applyUnderworldTheme();
+                            screen.classList.add('hidden');
+                            
+                            const finalProgressEl = document.getElementById('corruption-progress');
+                            finalProgressEl.style.width = '0%';
+                            document.getElementById('corruption-text-1').classList.add('opacity-0');
+                            document.getElementById('corruption-text-2').classList.add('opacity-0');
+                            document.getElementById('corruption-progress-container').classList.add('opacity-0');
+
+                            showTitle();
+                        }, 500);
+                    }
+                }
+            }, 30);
+        }
+
+        function applyUnderworldTheme() {
+            underworldActive = true;
+            try {
+                localStorage.setItem('magicSquareUnderworldActive', 'true');
+            } catch(e){}
+            
+            const body = document.getElementById('main-body');
+            body.classList.remove('animated-bg');
+            body.classList.add('dark-mode-bg');
+
+            // 起動演出のアニメーションを相似スケールラッパーへ適用 (コンテナ全体のサイズ感をキープしながら起動する)
+            const wrapper = document.getElementById('app-crt-wrapper');
+            wrapper.classList.remove('crt-on-effect');
+            void wrapper.offsetWidth; // リフローを起こして再起動を検知
+            wrapper.classList.add('crt-on-effect');
+
+            const container = document.getElementById('app-container');
+            container.className = "relative z-10 w-[1152px] h-[820px] max-w-none max-h-none bg-black/40 backdrop-blur-md rounded-2xl sm:rounded-[2rem] md:rounded-[3rem] shadow-[0_0_50px_rgba(239,68,68,0.35)] overflow-hidden flex flex-col border-[2px] sm:border-[3px] md:border-4 border-red-900/40 transition-all duration-300 flex-shrink-0";
+
+            const titleMain = document.getElementById('title-main');
+            titleMain.innerText = "裏・魔方陣パズル";
+            titleMain.className = "font-black text-red-500 tracking-widest drop-shadow-[0_0_12px_rgba(239,68,68,0.5)] text-center leading-tight glitch-text";
+
+            const titleSub = document.getElementById('title-sub');
+            titleSub.innerText = "すべての縦・横・斜めの『和を34』にせよ";
+            titleSub.className = "text-[10px] sm:text-xs md:text-3xl text-red-100 mt-4 sm:mt-6 font-black bg-red-950/40 px-3 sm:px-6 py-1 sm:py-2.5 rounded-full shadow-[0_0_15px_rgba(239,68,68,0.15)] text-center border border-red-900/40 backdrop-blur-sm";
+
+            // 【修正：裏モードフッタークレジットの太字を解除】 font-black を削除
+            const titleFooter = document.getElementById('title-footer');
+            if (titleFooter) {
+                titleFooter.className = "text-[10px] sm:text-xs text-red-900/40 text-center tracking-widest transition-colors duration-500 select-none flex-shrink-0";
+            }
+
+            document.getElementById('title-difficulty-container').className = "hidden";
+            const uDiff = document.getElementById('underworld-difficulty-container');
+            uDiff.className = "w-full max-w-5xl flex flex-col md:flex-row gap-3 sm:gap-4 md:gap-6 justify-center";
+            
+            document.getElementById('underworld-trigger-container').classList.add('hidden');
+            document.getElementById('underworld-return-container').classList.remove('hidden');
+
+            adjustAppScale();
+        }
+
+        function revertToNormalMode() {
+            underworldActive = false;
+            try {
+                localStorage.setItem('magicSquareUnderworldActive', 'false');
+            } catch(e){}
+
+            // 演出用クラスを削除
+            const wrapper = document.getElementById('app-crt-wrapper');
+            wrapper.classList.remove('crt-on-effect');
+
+            const progressEl = document.getElementById('corruption-progress');
+            progressEl.style.width = '0%';
+
+            const body = document.getElementById('main-body');
+            body.classList.remove('dark-mode-bg');
+            body.classList.add('animated-bg');
+
+            const container = document.getElementById('app-container');
+            container.className = "relative z-10 w-[1152px] h-[820px] max-w-none max-h-none bg-white/60 backdrop-blur-md rounded-2xl sm:rounded-[2rem] md:rounded-[3rem] shadow-[0_20px_50px_rgba(0,0,0,0.2)] overflow-hidden flex flex-col border-[2px] sm:border-[3px] md:border-4 border-white/70 transition-all duration-300 flex-shrink-0";
+
+            const titleMain = document.getElementById('title-main');
+            titleMain.innerText = "魔方陣パズル";
+            titleMain.className = "font-black text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-purple-500 tracking-wider drop-shadow-sm text-center leading-tight transition-all duration-500";
+
+            const titleSub = document.getElementById('title-sub');
+            titleSub.innerText = "縦・横・斜めの和を全てそろえよう！";
+            titleSub.className = "text-[10px] sm:text-xs md:text-3xl text-indigo-900 mt-4 sm:mt-6 font-black bg-white/60 px-3 sm:px-6 py-1 sm:py-2.5 rounded-full shadow-sm text-center";
+
+            // 【修正：表モードフッタークレジットの太字を解除】 font-black を削除
+            const titleFooter = document.getElementById('title-footer');
+            if (titleFooter) {
+                titleFooter.className = "text-[10px] sm:text-xs text-indigo-950/40 text-center tracking-widest transition-colors duration-500 select-none flex-shrink-0";
+            }
+
+            document.getElementById('title-difficulty-container').className = "w-full max-w-5xl flex flex-col md:flex-row gap-3 sm:gap-4 md:gap-6 justify-center";
+            document.getElementById('underworld-difficulty-container').className = "hidden";
+            
+            document.getElementById('underworld-return-container').classList.add('hidden');
+            checkAndShowUnderworldButton();
+
+            adjustAppScale();
         }
 
         function showStageSelect(difficulty) {
@@ -370,37 +1249,120 @@
             screenGame.classList.add('hidden');
             screenStages.classList.remove('hidden');
 
-            const titleMap = { 'easy': '初級', 'normal': '中級', 'hard': '上級' };
-            const colorMap = { 'easy': 'text-emerald-500', 'normal': 'text-blue-500', 'hard': 'text-rose-500' };
-            
             const titleEl = document.getElementById('stage-select-title');
-            titleEl.innerText = `${titleMap[difficulty]} ステージ`;
-            titleEl.className = `w-full text-center text-xl sm:text-2xl md:text-4xl font-extrabold tracking-wide ${colorMap[difficulty]}`;
-
             const stageButtons = document.getElementById('stage-buttons');
+            const backBtn = document.getElementById('stages-back-button');
             stageButtons.innerHTML = '';
-            
-            STAGE_DATA[difficulty].forEach((_, idx) => {
-                const isCleared = clearedStages[difficulty].includes(idx);
-                const btn = document.createElement('button');
-                
-                if (isCleared) {
-                    btn.className = 'btn-3d relative aspect-square flex flex-col items-center justify-center rounded-2xl md:rounded-[2rem] bg-amber-50 hover:bg-amber-100 border-b-[4px] md:border-b-[6px] border-amber-300 text-amber-600 transition shadow-sm';
-                    btn.innerHTML = `
-                        <div class="absolute -top-2 -right-2 sm:-top-3 sm:-right-3 md:-top-4 md:-right-4 text-2xl sm:text-3xl md:text-5xl text-yellow-400 drop-shadow-md transform rotate-12">
-                            <i class="fa-solid fa-medal"></i>
-                        </div>
-                        <span class="text-[10px] sm:text-xs md:text-sm font-bold opacity-70">ステージ</span>
-                        <span class="text-2xl sm:text-3xl md:text-5xl font-extrabold">${idx + 1}</span>
-                    `;
-                } else {
-                    btn.className = 'btn-3d aspect-square flex flex-col items-center justify-center rounded-2xl md:rounded-[2rem] bg-indigo-50 hover:bg-indigo-100 border-b-[4px] md:border-b-[6px] border-indigo-200 text-indigo-600 transition shadow-sm';
-                    btn.innerHTML = `<span class="text-[10px] sm:text-xs md:text-sm font-bold opacity-70">ステージ</span><span class="text-2xl sm:text-3xl md:text-5xl font-extrabold">${idx + 1}</span>`;
-                }
 
-                btn.onclick = () => startGame(idx);
-                stageButtons.appendChild(btn);
-            });
+            const isMobile = window.innerWidth < 768 || window.innerWidth < window.innerHeight;
+
+            if (underworldActive) {
+                const titleMap = { 'super': '超級', 'oni': '鬼級', 'god': '神級' };
+                titleEl.innerText = `${titleMap[difficulty]} ステージ`;
+                titleEl.className = "w-full text-center text-xl sm:text-2xl md:text-4xl font-black tracking-widest text-red-500 glitch-text";
+                
+                backBtn.className = "btn-3d w-10 h-10 sm:w-12 sm:h-12 flex items-center justify-center text-red-400 bg-red-950/50 hover:bg-red-900/35 border-b-[3px] md:border-b-4 border-red-900 rounded-xl sm:rounded-2xl text-lg sm:text-xl z-10 flex-shrink-0";
+
+                UNDERWORLD_STAGE_DATA[difficulty].forEach((_, idx) => {
+                    const isCleared = clearedStages[difficulty].includes(idx);
+                    const btn = document.createElement('button');
+                    
+                    if (isCleared) {
+                        btn.className = 'btn-3d relative aspect-square flex flex-col items-center justify-center rounded-2xl md:rounded-[2rem] bg-red-950/85 hover:bg-red-900/50 text-red-100 transition shadow-[0_0_25px_rgba(239,68,68,0.5)] border-[3px] border-red-500';
+                        
+                        let badgeIconHtml = '';
+                        if (difficulty === 'super') {
+                            badgeIconHtml = '<i class="fa-solid fa-dragon text-red-500 animate-pulse"></i>';
+                        } else if (difficulty === 'oni') {
+                            badgeIconHtml = '<i class="fa-solid fa-eye text-purple-400 animate-pulse"></i>';
+                        } else {
+                            badgeIconHtml = '<i class="fa-solid fa-crown text-amber-500 animate-pulse"></i>';
+                        }
+
+                        if (isMobile) {
+                            btn.innerHTML = `
+                                <div class="absolute -top-1.5 -right-1.5 text-2xl drop-shadow-[0_0_8px_rgba(239,68,68,0.95)] transform rotate-12 pointer-events-none">
+                                    ${badgeIconHtml}
+                                </div>
+                                <span class="text-sm font-black opacity-90 text-red-350 pointer-events-none leading-none mb-1">ステージ</span>
+                                <span class="text-4xl font-black text-white drop-shadow-[0_0_8px_rgba(239,68,68,0.8)] pointer-events-none leading-none">${idx + 1}</span>
+                            `;
+                        } else {
+                            btn.innerHTML = `
+                                <div class="absolute -top-2 -right-2 sm:-top-3 sm:-right-3 md:-top-4 md:-right-4 text-2xl sm:text-3xl md:text-5xl drop-shadow-[0_0_12px_rgba(239,68,68,0.95)] transform rotate-12 pointer-events-none">
+                                    ${badgeIconHtml}
+                                </div>
+                                <span class="text-[10px] sm:text-xs md:text-sm font-black opacity-90 text-red-300 pointer-events-none">ステージ</span>
+                                <span class="text-2xl sm:text-3xl md:text-5xl font-black text-white drop-shadow-[0_0_10px_rgba(239,68,68,0.8)] pointer-events-none">${idx + 1}</span>
+                            `;
+                        }
+                    } else {
+                        btn.className = 'btn-3d relative aspect-square flex flex-col items-center justify-center rounded-2xl md:rounded-[2rem] bg-red-950/75 hover:bg-red-900/50 text-rose-300 transition shadow-[0_0_18px_rgba(239,68,68,0.35)] border-[2.5px] border-red-500';
+                        if (isMobile) {
+                            btn.innerHTML = `
+                                <span class="text-sm font-black opacity-80 text-rose-400 pointer-events-none leading-none mb-1">ステージ</span>
+                                <span class="text-4xl font-black text-rose-100 drop-shadow-[0_0_8px_rgba(244,63,94,0.6)] pointer-events-none leading-none">${idx + 1}</span>
+                            `;
+                        } else {
+                            btn.innerHTML = `
+                                <span class="text-[10px] sm:text-xs md:text-sm font-black opacity-80 text-rose-400 pointer-events-none">ステージ</span>
+                                <span class="text-2xl sm:text-3xl md:text-5xl font-black text-rose-100 drop-shadow-[0_0_8px_rgba(244,63,94,0.6)] pointer-events-none">${idx + 1}</span>
+                            `;
+                        }
+                    }
+                    btn.onclick = () => startUnderworldGame(idx);
+                    stageButtons.appendChild(btn);
+                });
+
+            } else {
+                backBtn.className = "btn-3d w-10 h-10 sm:w-12 sm:h-12 flex items-center justify-center text-slate-500 bg-slate-200 hover:bg-slate-100 border-b-[3px] md:border-b-4 border-slate-400 rounded-xl sm:rounded-2xl text-lg sm:text-xl z-10 flex-shrink-0";
+                
+                const titleMap = { 'easy': '初級', 'normal': '中級', 'hard': '上級' };
+                const colorMap = { 'easy': 'text-emerald-500', 'normal': 'text-blue-500', 'hard': 'text-rose-500' };
+                
+                titleEl.innerText = `${titleMap[difficulty]} ステージ`;
+                titleEl.className = `w-full text-center text-xl sm:text-2xl md:text-4xl font-black tracking-wide ${colorMap[difficulty]}`;
+
+                STAGE_DATA[difficulty].forEach((_, idx) => {
+                    const isCleared = clearedStages[difficulty].includes(idx);
+                    const btn = document.createElement('button');
+                    
+                    if (isCleared) {
+                        btn.className = 'btn-3d relative aspect-square flex flex-col items-center justify-center rounded-2xl md:rounded-[2rem] bg-amber-50 hover:bg-amber-100 border border-amber-300 text-amber-600 transition shadow-sm';
+                        if (isMobile) {
+                            btn.innerHTML = `
+                                <div class="absolute -top-1 -right-1 text-2xl text-yellow-400 drop-shadow-md transform rotate-12 pointer-events-none">
+                                    <i class="fa-solid fa-medal"></i>
+                                </div>
+                                <span class="text-sm font-black opacity-70 pointer-events-none leading-none mb-1">ステージ</span>
+                                <span class="text-4xl font-black pointer-events-none leading-none">${idx + 1}</span>
+                            `;
+                        } else {
+                            btn.innerHTML = `
+                                <div class="absolute -top-2 -right-2 sm:-top-3 sm:-right-3 md:-top-4 md:-right-4 text-2xl sm:text-3xl md:text-5xl text-yellow-400 drop-shadow-md transform rotate-12 pointer-events-none">
+                                    <i class="fa-solid fa-medal"></i>
+                                </div>
+                                <span class="text-[10px] sm:text-xs md:text-sm font-black opacity-70 pointer-events-none">ステージ</span>
+                                <span class="text-2xl sm:text-3xl md:text-5xl font-black pointer-events-none">${idx + 1}</span>
+                            `;
+                        }
+                    } else {
+                        btn.className = 'btn-3d aspect-square flex flex-col items-center justify-center rounded-2xl md:rounded-[2rem] bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 text-indigo-600 transition shadow-sm';
+                        if (isMobile) {
+                            btn.innerHTML = `
+                                <span class="text-sm font-black opacity-70 pointer-events-none leading-none mb-1">ステージ</span>
+                                <span class="text-4xl font-black pointer-events-none leading-none">${idx + 1}</span>
+                            `;
+                        } else {
+                            btn.innerHTML = `<span class="text-[10px] sm:text-xs md:text-sm font-black opacity-70 pointer-events-none">ステージ</span><span class="text-2xl sm:text-3xl md:text-5xl font-black pointer-events-none">${idx + 1}</span>`;
+                        }
+                    }
+
+                    btn.onclick = () => startGame(idx);
+                    stageButtons.appendChild(btn);
+                });
+            }
+            setTimeout(adjustAppScale, 10);
         }
 
         function backToStageSelect() {
@@ -430,42 +1392,125 @@
                 board[idx] = solution[idx];
             });
             
-            selectedCell = null;
             selectedNumber = null;
+            selectedCell = null; 
 
+            applyGameLayoutNormal();
             renderBoard();
             renderNumpad();
+
+            setTimeout(adjustAppScale, 10);
+        }
+
+        function startUnderworldGame(stageIdx) {
+            currentStageIdx = stageIdx;
+            screenStages.classList.add('hidden');
+            screenGame.classList.remove('hidden');
+
+            const titleMap = { 'super': '超級', 'oni': '鬼級', 'god': '神級' };
+            document.getElementById('game-title').innerText = `${titleMap[currentDifficulty]} ステージ ${stageIdx + 1}`;
+            hideError();
+
+            boardEl.classList.remove('shake');
+
+            const stageData = UNDERWORLD_STAGE_DATA[currentDifficulty][stageIdx];
+            const solution = SOLUTIONS_4X4[stageData.solIdx];
+            board = Array(16).fill(0);
+            lockedCells = [...stageData.hints];
+
+            lockedCells.forEach(idx => {
+                board[idx] = solution[idx];
+            });
+
+            selectedNumber = null;
+            selectedCell = null; 
+
+            applyGameLayoutUnderworld();
+            renderBoard();
+            renderNumpad();
+
+            setTimeout(adjustAppScale, 10);
+        }
+
+        function applyGameLayoutNormal() {
+            boardEl.className = "grid grid-cols-3 grid-rows-3 gap-1.5 md:gap-3 aspect-square w-full bg-[#cbd5e1] p-2 md:p-3.5 rounded-[1.25rem] md:rounded-[2rem] shadow-[inset_0_4px_10px_rgba(0,0,0,0.15)] border-[3px] md:border-4 border-[#cbd5e1] flex-shrink-0 relative overflow-hidden";
+            numpadEl.className = "grid grid-cols-3 grid-rows-3 gap-1.5 md:gap-3 aspect-square w-full bg-white p-2 md:p-3.5 rounded-[1.25rem] md:rounded-[2rem] border-[3px] md:border-4 border-[#f1f5f9] flex-shrink-0";
+            
+            document.getElementById('game-back-button').className = "btn-3d w-10 h-10 sm:w-12 sm:h-12 flex items-center justify-center text-slate-500 bg-slate-200 hover:bg-slate-100 border-b-[3px] md:border-b-4 border-slate-400 rounded-xl sm:rounded-2xl text-lg sm:text-xl z-10 flex-shrink-0";
+
+            const hCont = document.getElementById('game-title-container');
+            hCont.className = "flex flex-col items-center justify-center bg-indigo-100 px-4 sm:px-6 md:px-8 py-1 rounded-xl sm:rounded-2xl border-[2px] border-indigo-200 pointer-events-auto shadow-sm";
+            document.getElementById('game-title-sub').className = "text-indigo-500 text-[9px] sm:text-[10px] md:text-sm font-black leading-none mb-0.5";
+            document.getElementById('game-title-sub').innerText = "パズル";
+            document.getElementById('game-title').className = "text-base sm:text-lg md:text-2xl font-black text-indigo-700 tracking-wider leading-none";
+
+            document.getElementById('reset-button').className = "btn-3d h-10 sm:h-12 px-2 sm:px-3 md:px-4 flex items-center justify-center gap-1 sm:gap-2 text-rose-500 bg-rose-100 hover:bg-rose-50 border-b-[3px] md:border-b-4 border-rose-300 rounded-xl sm:rounded-2xl text-[9px] sm:text-[10px] md:text-sm font-black shadow-sm z-10 flex-shrink-0";
+        }
+
+        function applyGameLayoutUnderworld() {
+            boardEl.className = "grid grid-cols-4 grid-rows-4 gap-1.5 md:gap-3 aspect-square w-full bg-black/45 backdrop-blur-sm p-2 md:p-3.5 rounded-[1.25rem] md:rounded-[2rem] shadow-[inset_0_5px_12_rgba(0,0,0,0.65)] border-[3px] md:border-4 border-red-800/60 flex-shrink-0 relative overflow-hidden";
+            numpadEl.className = "grid grid-cols-4 grid-rows-4 gap-1.5 md:gap-3 aspect-square w-full bg-black/25 p-2 md:p-3.5 rounded-[1.25rem] md:rounded-[2rem] border-[3px] md:border-4 border-red-900/40 flex-shrink-0";
+            
+            document.getElementById('game-back-button').className = "btn-3d w-10 h-10 sm:w-12 sm:h-12 flex items-center justify-center text-red-400 bg-red-950/60 hover:bg-red-900/40 border-b-[3px] md:border-b-4 border-red-900 rounded-xl sm:rounded-2xl text-lg sm:text-xl z-10 flex-shrink-0";
+
+            const hCont = document.getElementById('game-title-container');
+            hCont.className = "flex flex-col items-center justify-center bg-red-950/95 px-4 sm:px-6 md:px-8 py-1 rounded-xl sm:rounded-2xl border-[2px] border-red-800 pointer-events-auto shadow-[0_0_15px_rgba(239,68,68,0.25)] backdrop-blur-sm";
+            document.getElementById('game-title-sub').className = "text-red-400 text-[9px] sm:text-[10px] md:text-sm font-black leading-none mb-0.5";
+            document.getElementById('game-title-sub').innerText = "裏パズル";
+            document.getElementById('game-title').className = "text-base sm:text-lg md:text-2xl font-black text-red-500 tracking-widest leading-none glitch-text";
+
+            document.getElementById('reset-button').className = "btn-3d h-10 sm:h-12 px-2 sm:px-3 md:px-4 flex items-center justify-center gap-1 sm:gap-2 text-red-400 bg-red-950/70 hover:bg-red-900/50 border-b-[3px] md:border-b-4 border-red-900 rounded-xl sm:rounded-2xl text-[9px] sm:text-[10px] md:text-sm font-black shadow-sm z-10 flex-shrink-0";
         }
 
         function resetBoard() {
-            startGame(currentStageIdx);
+            if (underworldActive) {
+                startUnderworldGame(currentStageIdx);
+            } else {
+                startGame(currentStageIdx);
+            }
         }
 
         function renderBoard() {
             boardEl.innerHTML = '';
+            const size = underworldActive ? 16 : 9;
             
-            for (let i = 0; i < 9; i++) {
+            if (board.includes(0)) {
+                hideError(); 
+            }
+
+            for (let i = 0; i < size; i++) {
+                const wrapper = document.createElement('div');
+                wrapper.className = 'w-full h-full aspect-square relative block';
+
                 const cell = document.createElement('div');
                 const val = board[i];
                 const isLocked = lockedCells.includes(i);
                 
-                let classes = 'aspect-square w-full h-full flex items-center justify-center rounded-xl md:rounded-2xl lg:rounded-3xl transition-all duration-200 select-none border-[3px] md:border-4 ';
+                let classes = 'w-full h-full flex items-center justify-center rounded-xl sm:rounded-2xl select-none transition-all duration-75 ';
                 
                 if (isLocked) {
-                    classes += 'bg-slate-400 text-slate-100 shadow-[inset_0_4px_10px_rgba(0,0,0,0.3)] border-slate-400';
-                } else {
-                    classes += 'bg-slate-100 text-slate-700 border-dashed border-slate-400 cursor-pointer hover:bg-white';
-                    
-                    if (selectedCell === i) {
-                        classes = classes.replace('border-slate-400', 'border-yellow-400').replace('bg-slate-100', 'bg-yellow-100');
-                        classes += ' ring-4 ring-yellow-400 ring-offset-4 ring-offset-slate-300';
+                    if (underworldActive) {
+                        classes += 'bg-[#500a10] text-red-100 shadow-[inset_0_-2px_4px_rgba(0,0,0,0.4)] border border-[#851d25] cursor-default';
+                    } else {
+                        classes += 'bg-[#8ca0ba] text-white cursor-default shadow-[inset_0_-2px_4px_rgba(0,0,0,0.15)]';
                     }
-                    
+                } else {
+                    if (underworldActive) {
+                        classes += 'bg-black/60 text-red-200 border-dashed border-[2.5px] border-red-750/70 hover:bg-red-950/40 cursor-pointer shadow-[inset_0_2px_6px_rgba(0,0,0,0.5)]';
+                        if (selectedCell === i) {
+                            classes += ' cell-selected-underworld';
+                        }
+                    } else {
+                        classes += 'bg-white text-[#312e81] border-dashed border-[2.5px] border-[#cbd5e1] cursor-pointer hover:bg-slate-50';
+                        if (selectedCell === i) {
+                            classes += ' cell-selected-normal';
+                        }
+                    }
+
                     cell.onclick = () => {
                         if (isLocked) return;
 
                         if (selectedNumber !== null) {
-                            hideError();
                             board[i] = selectedNumber;
                             
                             if (selectedNumber !== 0) {
@@ -501,39 +1546,53 @@
                 
                 cell.className = classes;
                 if (val !== 0) {
-                    cell.innerHTML = getDigitSvg(val);
+                    cell.innerHTML = getDigitHtml(val, underworldActive);
                 } else {
                     cell.innerHTML = '';
                 }
                 
                 cell.id = `cell-${i}`;
-                boardEl.appendChild(cell);
+                wrapper.appendChild(cell);
+                boardEl.appendChild(wrapper);
             }
         }
 
         function renderNumpad() {
             numpadEl.innerHTML = '';
+            const totalKeys = underworldActive ? 16 : 9;
             
-            for (let i = 1; i <= 9; i++) {
+            for (let i = 1; i <= totalKeys; i++) {
                 const wrapper = document.createElement('div');
-                wrapper.className = 'aspect-square w-full h-full';
+                wrapper.className = 'w-full h-full aspect-square relative';
 
                 const btn = document.createElement('button');
                 const isUsed = board.includes(i);
                 
-                let classes = `w-full h-full rounded-xl md:rounded-2xl lg:rounded-3xl transition-all select-none flex items-center justify-center border-[3px] md:border-4 `;
+                let classes = `w-full h-full rounded-xl sm:rounded-2xl select-none flex items-center justify-center transition-all duration-75 `;
                 
                 if (isUsed) {
-                    classes += 'bg-slate-200 text-slate-400 cursor-not-allowed opacity-50 translate-y-[3px] md:translate-y-[6px] border-slate-300';
+                    if (underworldActive) {
+                        classes += ' bg-[#280509] text-[#4d181e] cursor-not-allowed opacity-100 border-[#3d0b10] border-t border-x border-b-[4px] md:border-b-[6px]';
+                    } else {
+                        classes += ' bg-[#f1f5f9] text-[#cbd5e1] border-[2px] border-[#e2e8f0] cursor-not-allowed opacity-100';
+                    }
                 } else {
-                    classes += 'bg-indigo-100 hover:bg-indigo-200 text-indigo-800 border-b-[4px] md:border-b-[6px] border-indigo-300 shadow-sm btn-3d pb-0.5 md:pb-1';
-                    if (selectedNumber === i) {
-                        classes += ' ring-4 ring-indigo-500 ring-offset-2 ring-offset-transparent border-indigo-500';
+                    classes += ' key-pad-btn';
+                    if (underworldActive) {
+                        classes += ' border-t border-x border-b-[4px] md:border-b-[6px] bg-[#500a10] hover:bg-[#681017] text-red-100 border-[#851d25] border-b-[#3c050a] shadow-[0_4px_10px_rgba(0,0,0,0.3)]';
+                        if (selectedNumber === i) {
+                            classes += ' key-selected-underworld';
+                        }
+                    } else {
+                        classes += ' border-[2px] border-b-[4px] md:border-b-[6px] bg-[#eef2ff] hover:bg-[#e0e7ff] text-[#312e81] border-[#a5b4fc] border-b-[#818cf8] shadow-sm';
+                        if (selectedNumber === i) {
+                            classes += ' key-selected-normal';
+                        }
                     }
                 }
                 
                 btn.className = classes;
-                btn.innerHTML = getDigitSvg(i);
+                btn.innerHTML = getDigitHtml(i, underworldActive);
                 btn.disabled = isUsed;
                 btn.onclick = () => handleNumberInput(i);
                 
@@ -545,12 +1604,22 @@
             if(deletePad) {
                 deletePad.innerHTML = '';
                 const delBtn = document.createElement('button');
-                let delClasses = 'w-full aspect-[6/1] mt-1.5 md:mt-2 text-sm sm:text-base md:text-xl font-extrabold rounded-xl sm:rounded-2xl transition-all shadow-sm border-[3px] md:border-4 bg-rose-500 hover:bg-rose-400 text-white border-rose-700 btn-3d active:border-b-0 flex items-center justify-center gap-1 sm:gap-2 pb-0.5 sm:pb-1';
-                if (selectedNumber === 0) {
-                    delClasses += ' ring-4 ring-rose-400 ring-offset-2 ring-offset-transparent border-rose-600';
+                
+                let delClasses = 'w-full py-2 sm:py-3 md:py-4.5 text-xs sm:text-sm md:text-2xl font-black rounded-xl sm:rounded-2xl transition-all duration-75 flex items-center justify-center gap-1 sm:gap-2 ';
+                
+                if (underworldActive) {
+                    delClasses += ' border-t border-x border-b-[4px] md:border-b-[6px] bg-red-700 hover:bg-red-600 text-white border-red-900 border-b-red-950 shadow-md';
+                    if (selectedNumber === 0) {
+                        delClasses += ' key-selected-underworld';
+                    }
+                } else {
+                    delClasses += ' border-[2px] border-b-[4px] md:border-b-[6px] bg-rose-50 hover:bg-rose-100 text-rose-600 border-rose-300 border-b-rose-400 shadow-sm';
+                    if (selectedNumber === 0) {
+                        delClasses += ' border-[4px] border-b-[6px] border-rose-600 border-b-rose-800 bg-rose-100';
+                    }
                 }
                 delBtn.className = delClasses;
-                delBtn.innerHTML = '<i class="fa-solid fa-eraser"></i> 消す';
+                delBtn.innerHTML = '<i class="fa-solid fa-eraser pointer-events-none"></i> 消す';
                 delBtn.onclick = () => handleNumberInput(0);
                 deletePad.appendChild(delBtn);
             }
@@ -558,23 +1627,16 @@
 
         function handleNumberInput(num) {
             if (selectedCell !== null) {
-                if (lockedCells.includes(selectedCell)) return;
-
-                hideError();
                 board[selectedCell] = num;
                 
-                if (num !== 0) {
-                    setTimeout(() => {
-                        const cell = document.getElementById(`cell-${selectedCell}`);
-                        if(cell) {
-                            cell.classList.remove('pop');
-                            void cell.offsetWidth;
-                            cell.classList.add('pop');
-                        }
-                    }, 10);
+                const animCell = document.getElementById(`cell-${selectedCell}`);
+                if(animCell && num !== 0) {
+                    animCell.classList.remove('pop');
+                    void animCell.offsetWidth;
+                    animCell.classList.add('pop');
                 }
-
-                selectedCell = null;
+                
+                selectedCell = null; 
                 selectedNumber = null;
                 
                 renderBoard();
@@ -594,38 +1656,132 @@
         }
 
         function checkWin() {
-            const sums = [
-                board[0] + board[1] + board[2],
-                board[3] + board[4] + board[5],
-                board[6] + board[7] + board[8],
-                board[0] + board[3] + board[6],
-                board[1] + board[4] + board[7],
-                board[2] + board[5] + board[8],
-                board[0] + board[4] + board[8],
-                board[2] + board[4] + board[6]
-            ];
-            
-            const isAll15 = sums.every(sum => sum === 15);
-            const isUnique = new Set(board).size === 9; 
-
-            if (isAll15 && isUnique) {
-                saveClearStatus(currentDifficulty, currentStageIdx);
-
-                createConfetti();
-                setTimeout(() => {
-                    modalClear.classList.remove('hidden');
-                    setTimeout(() => {
-                        modalClear.classList.add('opacity-100');
-                        modalContent.classList.remove('scale-90');
-                        modalContent.classList.add('scale-100');
-                    }, 50);
-                }, 300);
-            } else {
-                errorMsg.classList.remove('opacity-0');
-                boardEl.classList.remove('shake');
-                void boardEl.offsetWidth;
-                boardEl.classList.add('shake');
+            if (board.includes(0)) {
+                return;
             }
+
+            if (underworldActive) {
+                const sums = [
+                    board[0] + board[1] + board[2] + board[3],
+                    board[4] + board[5] + board[6] + board[7],
+                    board[8] + board[9] + board[10] + board[11],
+                    board[12] + board[13] + board[14] + board[15],
+                    board[0] + board[4] + board[8] + board[12],
+                    board[1] + board[5] + board[9] + board[13],
+                    board[2] + board[6] + board[10] + board[14],
+                    board[3] + board[7] + board[11] + board[15],
+                    board[0] + board[5] + board[10] + board[15],
+                    board[3] + board[6] + board[9] + board[12]
+                ];
+
+                const isAll34 = sums.every(sum => sum === 34);
+                const isUnique = new Set(board).size === 16;
+
+                if (isAll34 && isUnique) {
+                    saveClearStatus(currentDifficulty, currentStageIdx);
+                    showUnderworldClearModal();
+                } else {
+                    document.getElementById('error-text').innerText = "和が34にならない列があるようだ…";
+                    errorMsg.classList.remove('opacity-0');
+                    boardEl.classList.remove('shake');
+                    void boardEl.offsetWidth;
+                    boardEl.classList.add('shake');
+                }
+
+            } else {
+                const sums = [
+                    board[0] + board[1] + board[2],
+                    board[3] + board[4] + board[5],
+                    board[6] + board[7] + board[8],
+                    board[0] + board[3] + board[6],
+                    board[1] + board[4] + board[7],
+                    board[2] + board[5] + board[8],
+                    board[0] + board[4] + board[8],
+                    board[2] + board[4] + board[6]
+                ];
+                
+                const isAll15 = sums.every(sum => sum === 15);
+                const isUnique = new Set(board).size === 9; 
+
+                if (isAll15 && isUnique) {
+                    saveClearStatus(currentDifficulty, currentStageIdx);
+
+                    createConfetti();
+                    setTimeout(() => {
+                        applyNormalClearModalStyle();
+                        modalClear.classList.remove('hidden');
+                        setTimeout(() => {
+                            modalClear.classList.add('opacity-100');
+                            modalContent.classList.remove('scale-90');
+                            modalContent.classList.add('scale-100');
+                        }, 50);
+                    }, 300);
+                } else {
+                    document.getElementById('error-text').innerText = "合計が15にならない列があるよ！";
+                    errorMsg.classList.remove('opacity-0');
+                    boardEl.classList.remove('shake');
+                    void boardEl.offsetWidth;
+                    boardEl.classList.add('shake');
+                }
+            }
+        }
+
+        function applyNormalClearModalStyle() {
+            modalContent.className = "bg-gradient-to-b from-yellow-50 to-white rounded-[1.5rem] md:rounded-[2rem] p-6 sm:p-8 w-full max-w-[350px] text-center shadow-[0_0_100px_rgba(250,204,21,0.5)] transform scale-90 transition-transform duration-500 relative border-[4px] md:border-[6px] border-yellow-300 mx-auto";
+            document.getElementById('clear-icon').innerHTML = `<i class="fa-solid fa-crown"></i>`;
+            document.getElementById('clear-icon').className = "absolute -top-10 md:-top-12 left-1/2 transform -translate-x-1/2 text-5xl sm:text-6xl md:text-7xl text-yellow-400 drop-shadow-lg animate-bounce pointer-events-none";
+            document.getElementById('clear-headline').innerText = "クリア！";
+            document.getElementById('clear-headline').className = "text-2xl sm:text-3xl md:text-4xl font-black text-yellow-600 mb-1 mt-4 sm:mt-6 tracking-wide";
+            document.getElementById('clear-subline').innerText = "すごい！大正解！";
+            document.getElementById('clear-subline').className = "text-sm sm:text-base md:text-lg text-slate-500 mb-4 sm:mb-6 font-black";
+
+            document.getElementById('clear-modal-buttons').innerHTML = `
+                <button onclick="nextStage()" class="btn-3d w-full py-3 sm:py-4 bg-indigo-500 hover:bg-indigo-400 text-white font-black rounded-xl sm:rounded-2xl text-base sm:text-lg shadow-sm border-b-[4px] border-indigo-700 flex items-center justify-center gap-2">
+                    <span>次のステージへ</span> <i class="fa-solid fa-forward-step pointer-events-none"></i>
+                </button>
+                <button onclick="backToStageSelect()" class="btn-3d w-full py-2 sm:py-3 bg-slate-200 hover:bg-slate-100 text-slate-600 font-black rounded-xl sm:rounded-2xl text-sm sm:text-base shadow-sm border-b-[4px] border-slate-400">
+                    一覧に戻る
+                </button>
+            `;
+        }
+
+        function showUnderworldClearModal() {
+            modalContent.className = "bg-gradient-to-b from-stone-900 to-black rounded-[1.5rem] md:rounded-[2rem] p-6 sm:p-8 w-full max-w-[350px] text-center shadow-[0_0_50px_rgba(239,68,68,0.7)] transform scale-90 transition-transform duration-500 relative border-[4px] border-red-600 mx-auto";
+            
+            const clearIcon = document.getElementById('clear-icon');
+            clearIcon.className = "absolute -top-10 md:-top-12 left-1/2 transform -translate-x-1/2 text-5xl sm:text-6xl md:text-7xl drop-shadow-[0_0_15px_rgba(239,68,68,0.8)] animate-pulse pointer-events-none";
+            
+            if (currentDifficulty === 'super') {
+                clearIcon.innerHTML = `<i class="fa-solid fa-dragon text-red-500"></i>`;
+            } else if (currentDifficulty === 'oni') {
+                clearIcon.innerHTML = `<i class="fa-solid fa-eye text-purple-400"></i>`;
+            } else {
+                clearIcon.innerHTML = `<i class="fa-solid fa-crown text-amber-500"></i>`;
+            }
+            
+            const clearHeadline = document.getElementById('clear-headline');
+            clearHeadline.innerText = "OVERLORD COMPLETED";
+            clearHeadline.className = "text-xl sm:text-2xl md:text-3xl font-black text-red-500 mb-1 mt-4 sm:mt-6 tracking-widest glitch-text";
+
+            const clearSubline = document.getElementById('clear-subline');
+            clearSubline.innerText = "深淵を支配せし者よ。";
+            clearSubline.className = "text-xs sm:text-sm font-black text-red-300 mb-4 sm:mb-6";
+
+            document.getElementById('clear-modal-buttons').innerHTML = `
+                <button onclick="nextStage()" class="btn-3d w-full py-3 bg-red-700 hover:bg-red-600 text-white font-black rounded-xl sm:rounded-2xl text-sm sm:text-base shadow-sm flex items-center justify-center gap-2 border-b-[4px] border-red-900">
+                    NEXT DEEP REALM <i class="fa-solid fa-forward-step pointer-events-none"></i>
+                </button>
+                <button onclick="backToStageSelect()" class="btn-3d w-full py-2 bg-stone-900 hover:bg-stone-850 text-stone-400 font-black rounded-xl sm:rounded-2xl text-xs sm:text-sm shadow-sm border-b-[4px] border-stone-950">
+                    SELECT OTHER REVERSE REALM
+                </button>
+            `;
+
+            modalClear.classList.remove('hidden');
+            setTimeout(() => {
+                modalClear.classList.add('opacity-100');
+                modalContent.classList.remove('scale-90');
+                modalContent.classList.add('scale-100');
+            }, 50);
         }
 
         function hideError() {
@@ -640,11 +1796,17 @@
             modalContent.classList.remove('scale-100');
             confettiContainer.innerHTML = '';
             
-            if (currentStageIdx < STAGE_DATA[currentDifficulty].length - 1) {
-                startGame(currentStageIdx + 1);
+            const maxIdx = underworldActive ? UNDERWORLD_STAGE_DATA[currentDifficulty].length : STAGE_DATA[currentDifficulty].length;
+
+            if (currentStageIdx < maxIdx - 1) {
+                if (underworldActive) {
+                    startUnderworldGame(currentStageIdx + 1);
+                } else {
+                    startGame(currentStageIdx + 1);
+                }
             } else {
-                alert("全ステージ完全クリア！魔方陣マスターだ！");
-                showStageSelect(currentDifficulty);
+                applyNormalClearModalStyle();
+                showTitle();
             }
         }
 
@@ -660,6 +1822,33 @@
                 conf.style.animationDuration = (Math.random() * 2 + 2) + 's';
                 conf.style.animationDelay = (Math.random() * 0.5) + 's';
                 confettiContainer.appendChild(conf);
+            }
+        }
+
+        // アプリケーションをフォントロード完了後に安全に表示するフェードイン制御
+        let appReady = false;
+        function revealApp() {
+            if (appReady) return;
+            appReady = true;
+
+            adjustAppScale();
+
+            const container = document.getElementById('app-container');
+            container.classList.remove('opacity-0');
+            container.classList.add('opacity-100');
+        }
+
+        window.onload = function() {
+            if (underworldActive) {
+                applyUnderworldTheme();
+            }
+            checkAndShowUnderworldButton();
+
+            if (document.fonts) {
+                document.fonts.ready.then(revealApp);
+                setTimeout(revealApp, 1000);
+            } else {
+                revealApp();
             }
         }
     </script>
