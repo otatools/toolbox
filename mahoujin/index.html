@@ -468,7 +468,7 @@
 
                 <!-- さりげないフッタークレジット (中央の浮きを抑え、画面の最下端にピタッと揃うように flex 外に配置、太字font-blackを解除) -->
                 <div id="title-footer" class="text-[10px] sm:text-xs text-indigo-950/40 text-center tracking-widest transition-colors duration-500 select-none flex-shrink-0">
-                    魔方陣パズル　|　ver2.0　|　ota tools
+                    魔方陣パズル　|　ver2.1　|　ota tools
                 </div>
             </div>
 
@@ -508,7 +508,7 @@
                         </div>
                     </div>
 
-                    <button id="reset-button" onclick="resetBoard()" class="btn-3d w-10 h-10 sm:w-auto sm:h-12 px-2 sm:px-3 md:px-4 flex items-center justify-center gap-1 sm:gap-2 text-rose-500 bg-rose-100 hover:bg-rose-50 border-b-[3px] md:border-b-4 border-rose-300 rounded-xl sm:rounded-2xl text-[9px] sm:text-[10px] md:text-sm font-black shadow-sm z-10 flex-shrink-0" title="最初に戻す">
+                    <button id="reset-button" onclick="resetBoard()" class="btn-3d w-10 h-10 sm:w-auto sm:h-12 px-2 sm:px-3 md:px-4 flex items-center justify-center gap-1 sm:gap-2 text-rose-500 bg-rose-100 hover:bg-rose-50 border-b-[3px] md:border-b-4 border-rose-300 rounded-xl sm:rounded-2xl text-xl sm:text-[11px] md:text-sm font-black shadow-sm z-10 flex-shrink-0" title="最初に戻す">
                         <i class="fa-solid fa-rotate-right"></i>
                         <span class="whitespace-nowrap hidden sm:inline">最初に戻す</span>
                     </button>
@@ -1459,7 +1459,22 @@
             document.getElementById('game-title-sub').innerText = "パズル";
             document.getElementById('game-title').className = "text-base sm:text-lg md:text-2xl font-black text-indigo-700 tracking-wider leading-none";
 
-            document.getElementById('reset-button').className = "btn-3d w-10 h-10 sm:w-auto sm:h-12 px-2 sm:px-3 md:px-4 flex items-center justify-center gap-1 sm:gap-2 text-rose-500 bg-rose-100 hover:bg-rose-50 border-b-[3px] md:border-b-4 border-rose-300 rounded-xl sm:rounded-2xl text-[9px] sm:text-[10px] md:text-sm font-black shadow-sm z-10 flex-shrink-0";
+            document.getElementById('reset-button').className = "btn-3d w-10 h-10 sm:w-auto sm:h-12 px-2 sm:px-3 md:px-4 flex items-center justify-center gap-1 sm:gap-2 text-rose-500 bg-rose-100 hover:bg-rose-50 border-b-[3px] md:border-b-4 border-rose-300 rounded-xl sm:rounded-2xl text-xl sm:text-[11px] md:text-sm font-black shadow-sm z-10 flex-shrink-0";
+        }
+
+        function applyGameLayoutUnderworld() {
+            boardEl.className = "grid grid-cols-4 grid-rows-4 gap-1.5 md:gap-3 aspect-square w-full bg-black/45 backdrop-blur-sm p-2 md:p-3.5 rounded-[1.25rem] md:rounded-[2rem] shadow-[inset_0_5px_12_rgba(0,0,0,0.65)] border-[3px] md:border-4 border-red-800/60 flex-shrink-0 relative overflow-hidden";
+            numpadEl.className = "grid grid-cols-4 grid-rows-4 gap-1.5 md:gap-3 aspect-square w-full bg-black/25 p-2 md:p-3.5 rounded-[1.25rem] md:rounded-[2rem] border-[3px] md:border-4 border-red-900/40 flex-shrink-0";
+            
+            document.getElementById('game-back-button').className = "btn-3d w-10 h-10 sm:w-12 sm:h-12 flex items-center justify-center text-red-400 bg-red-950/60 hover:bg-red-900/40 border-b-[3px] md:border-b-4 border-red-900 rounded-xl sm:rounded-2xl text-lg sm:text-xl z-10 flex-shrink-0";
+
+            const hCont = document.getElementById('game-title-container');
+            hCont.className = "flex flex-col items-center justify-center bg-red-950/95 px-4 sm:px-6 md:px-8 py-1 rounded-xl sm:rounded-2xl border-[2px] border-red-800 pointer-events-auto shadow-[0_0_15px_rgba(239,68,68,0.25)] backdrop-blur-sm";
+            document.getElementById('game-title-sub').className = "text-red-400 text-[9px] sm:text-[10px] md:text-sm font-black leading-none mb-0.5";
+            document.getElementById('game-title-sub').innerText = "裏パズル";
+            document.getElementById('game-title').className = "text-base sm:text-lg md:text-2xl font-black text-red-500 tracking-widest leading-none glitch-text";
+
+            document.getElementById('reset-button').className = "btn-3d w-10 h-10 sm:w-auto sm:h-12 px-2 sm:px-3 md:px-4 flex items-center justify-center gap-1 sm:gap-2 text-red-400 bg-red-950/70 hover:bg-red-900/50 border-b-[3px] md:border-b-4 border-red-900 rounded-xl sm:rounded-2xl text-xl sm:text-[11px] md:text-sm font-black shadow-sm z-10 flex-shrink-0";
         }
 
         function applyGameLayoutUnderworld() {
@@ -1541,6 +1556,42 @@
                             
                             selectedNumber = null;
                             selectedCell = null;
+                            
+                            renderBoard();
+                            renderNumpad();
+                            
+                            if (!board.includes(0)) {
+                                checkWin();
+                            }
+                        } else if (selectedCell !== null && selectedCell !== i) {
+                            // すでに他の自分のマスが選ばれている状態で、別のマスを押した時：数字の移動または入れ替えを行う
+                            const valA = board[selectedCell];
+                            const valB = board[i];
+                            
+                            // どちらか一方にでも数字が入っていれば実行
+                            if (valA !== 0 || valB !== 0) {
+                                board[i] = valA;
+                                board[selectedCell] = valB;
+                                
+                                // 移動先・入れ替え先の両方に「ポンッ」と動く気持ちいいアニメーションを適用
+                                setTimeout(() => {
+                                    const animCell = document.getElementById(`cell-${i}`);
+                                    if (animCell && valA !== 0) {
+                                        animCell.classList.remove('pop');
+                                        void animCell.offsetWidth;
+                                        animCell.classList.add('pop');
+                                    }
+                                    const animCellPrev = document.getElementById(`cell-${selectedCell}`);
+                                    if (animCellPrev && valB !== 0) {
+                                        animCellPrev.classList.remove('pop');
+                                        void animCellPrev.offsetWidth;
+                                        animCellPrev.classList.add('pop');
+                                    }
+                                }, 10);
+                            }
+                            
+                            selectedCell = null;
+                            selectedNumber = null;
                             
                             renderBoard();
                             renderNumpad();
