@@ -1,10 +1,10 @@
 <!DOCTYPE html>
-<html lang="ja">
+<html lang="ja" style="overscroll-behavior: none;">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>教育アプリ｜魔法陣パズル</title>
-    <meta name="description" content="小学校５年算数科に出てくる魔法陣への興味関心に役立つ大阪市の現役小学校教員が制作したアプリです。ota toolsのアプリの１つです。">
+    <meta name="description" content="小学校５年算数科に出てくる魔法陣への興味関心に役立つ大阪市の現役小学校教員が制作したアプリです。ota tools of 大阪">
     <script type="application/ld+json">
     {
       "@context": "https://schema.org",
@@ -27,7 +27,7 @@
         "audienceType": "小学校教員, 児童, 保護者"
       }
     }
-    </script> 
+    </script>  
     
     <!-- Google Fonts ロード -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -52,6 +52,12 @@
         body {
             background-color: #f8fafc;
             transition: background-color 0.5s ease;
+            position: fixed; /* スマホでページ全体がバウンス・ズレるのを完全に防ぐ */
+            top: 0;
+            left: 0;
+            width: 100vw;
+            overflow: hidden;
+            overscroll-behavior: none;
         }
 
         /* 標準のフォーカス、ハイライト等を削除 */
@@ -378,9 +384,6 @@
     <div class="spark" style="left: 56%; width: 10px; height: 10px; animation-duration: 10.5s; animation-delay: 4.8s;"></div>
     <div class="spark" style="left: 70%; width: 7px; height: 7px; animation-duration: 8s; animation-delay: 3.2s;"></div>
     <div class="spark" style="left: 84%; width: 12px; height: 12px; animation-duration: 14s; animation-delay: 0.8s;"></div>
-
-    <!-- デバッグ用隠しボタン -->
-    <button onclick="debugForceClear()" class="absolute top-2 left-2 z-50 opacity-10 hover:opacity-100 bg-black/50 text-white rounded p-1 text-[10px]" title="[デバッグ] 通常ステージをすべてクリア状態にする">⚙️</button>
 
     <!-- ダイナミックデジタル侵食スクリーン -->
     <div id="corruption-screen" class="fixed inset-0 z-50 hidden bg-transparent flex flex-col items-center justify-center text-center p-4">
@@ -831,8 +834,14 @@
             container.style.transform = '';
             container.style.transformOrigin = '';
 
-            const winW = window.innerWidth;
-            const winH = window.innerHeight;
+            // スマートフォンの「アドレスバー・ツールバーを除いた実際の表示領域サイズ」を100%正確に取得
+            const winW = document.documentElement.clientWidth || window.innerWidth;
+            const winH = document.documentElement.clientHeight || window.innerHeight;
+
+            // 親要素（body, html）の物理的な高さを、スマホで今表示可能な高さへピクセル単位でリアルタイムに完全ロック
+            // これにより、アドレスバーに起因する「上が空いて下が切れる（下にずれる）」という有名なスマホバグを完璧に粉砕します
+            document.body.style.height = `${winH}px`;
+            document.documentElement.style.height = `${winH}px`;
 
             // わずかなセーフスペース（安全マージン）を引いた実際に利用可能なエリア
             const pad = 12;
@@ -865,11 +874,11 @@
                 }
                 mainTitle.style.lineHeight = '1.2';
 
-                // 【修正：スマホ版サブタイトルの縮小】
+                // スマホ版サブタイトルの縮小
                 const subTitle = document.getElementById('title-sub');
                 subTitle.style.marginTop = '0.75rem';
                 subTitle.classList.remove('md:text-3xl');
-                subTitle.style.fontSize = 'min(3.5vw, 14px)'; // 4.5vw (18px) から 3.5vw (14px) に縮小
+                subTitle.style.fontSize = 'min(3.5vw, 14px)'; 
 
                 // 難易度選択ボタンを縦型スタックにしつつ、各ボタン内の文言を1行（横並び）で大きく表示する
                 const normDiffCont = document.getElementById('title-difficulty-container');
@@ -889,7 +898,6 @@
                     <span class="text-base font-bold bg-black/10 px-3 py-1 rounded-full">ヒント3つ</span>
                 `;
 
-                // 【修正：上級ボタンが白っぽくなるバグを解消】 bg-rose-50 から bg-rose-500、hover:bg-rose-450 から hover:bg-rose-400 へ修正
                 document.getElementById('btn-diff-hard').className = "btn-3d w-full py-3.5 px-4 bg-rose-500 hover:bg-rose-400 text-white border-b-[5px] border-rose-700 rounded-2xl font-black shadow-md flex flex-row items-center justify-between";
                 document.getElementById('btn-diff-hard').innerHTML = `
                     <span class="text-2xl"><i class="fa-solid fa-skull"></i> 上級</span>
@@ -935,14 +943,14 @@
                 container.style.borderRadius = '3rem';
                 container.style.borderWidth = '4px';
 
-                // PC用の巨大文字サイズ（100%維持）
+                // PC用の巨大文字サイズ
                 mainTitle.style.setProperty('font-size', '96px', 'important');
                 mainTitle.style.lineHeight = '1.1';
 
-                // 【修正：PC版のサブタイトルサイズが確実に大きくなるように強制指定】
+                // PC用のサブタイトルサイズ
                 const subTitle = document.getElementById('title-sub');
                 subTitle.style.marginTop = '1rem';
-                subTitle.style.setProperty('font-size', '24px', 'important'); // 明示的に24pxを指定
+                subTitle.style.setProperty('font-size', '24px', 'important'); 
 
                 // 難易度選択ボタンを元の横並び＆バッジ縦並びに完璧にリセット
                 const normDiffCont = document.getElementById('title-difficulty-container');
@@ -1121,16 +1129,15 @@
             }
 
             const interval = setInterval(() => {
-                // 1. 侵食演出はクリック後、即座にスムーズに進行する（元の侵食速度を100%維持）
+                // 1. 侵食演出はクリック後、即座にスムーズに進行する
                 if (visualProgress < 100) {
                     visualProgress += 0.6; 
                     if (visualProgress > 100) visualProgress = 100;
                 }
                 
-                // 2. ステータスバーは、コンテナが表示された瞬間に「0%」から一気に「グーン！」と伸び始める
+                // 2. ステータスバーは、コンテナが表示された瞬間に「0%」から一気に進行する
                 if (barActive) {
                     if (barProgress < 100) {
-                        // 0%からグーンと伸びる加速緩急（気持ちよい速度感）
                         barProgress += 1.4; 
                         if (barProgress > 100) barProgress = 100;
                         progressEl.style.width = barProgress + '%';
@@ -1180,7 +1187,7 @@
             // 起動演出のアニメーションを相似スケールラッパーへ適用 (コンテナ全体のサイズ感をキープしながら起動する)
             const wrapper = document.getElementById('app-crt-wrapper');
             wrapper.classList.remove('crt-on-effect');
-            void wrapper.offsetWidth; // リフローを起こして再起動を検知
+            void wrapper.offsetWidth; 
             wrapper.classList.add('crt-on-effect');
 
             const container = document.getElementById('app-container');
@@ -1194,7 +1201,6 @@
             titleSub.innerText = "すべての縦・横・斜めの『和を34』にせよ";
             titleSub.className = "text-[10px] sm:text-xs md:text-3xl text-red-100 mt-4 sm:mt-6 font-black bg-red-950/40 px-3 sm:px-6 py-1 sm:py-2.5 rounded-full shadow-[0_0_15px_rgba(239,68,68,0.15)] text-center border border-red-900/40 backdrop-blur-sm";
 
-            // 【修正：裏モードフッタークレジットの太字を解除】 font-black を削除
             const titleFooter = document.getElementById('title-footer');
             if (titleFooter) {
                 titleFooter.className = "text-[10px] sm:text-xs text-red-900/40 text-center tracking-widest transition-colors duration-500 select-none flex-shrink-0";
@@ -1238,7 +1244,6 @@
             titleSub.innerText = "縦・横・斜めの和を全てそろえよう！";
             titleSub.className = "text-[10px] sm:text-xs md:text-3xl text-indigo-900 mt-4 sm:mt-6 font-black bg-white/60 px-3 sm:px-6 py-1 sm:py-2.5 rounded-full shadow-sm text-center";
 
-            // 【修正：表モードフッタークレジットの太字を解除】 font-black を削除
             const titleFooter = document.getElementById('title-footer');
             if (titleFooter) {
                 titleFooter.className = "text-[10px] sm:text-xs text-indigo-950/40 text-center tracking-widest transition-colors duration-500 select-none flex-shrink-0";
@@ -1737,7 +1742,7 @@
         }
 
         function applyNormalClearModalStyle() {
-            modalContent.className = "bg-gradient-to-b from-yellow-50 to-white rounded-[1.5rem] md:rounded-[2rem] p-6 sm:p-8 w-full max-w-[350px] text-center shadow-[0_0_100px_rgba(250,204,21,0.5)] transform scale-90 transition-transform duration-500 relative border-[4px] md:border-[6px] border-yellow-300 mx-auto";
+            modalContent.className = "bg-gradient-to-b from-yellow-50 to-white rounded-[1.5rem] md:rounded-[2rem] p-6 sm:p-8 w-full max-w-[350px] text-center shadow-[0_0_100px_rgba(250,204,21,0.5)] transform scale-90 transition-transform duration-500 relative border-[4px] md:border-[6px] border-yellow-300 mx-auto transition-all duration-300";
             document.getElementById('clear-icon').innerHTML = `<i class="fa-solid fa-crown"></i>`;
             document.getElementById('clear-icon').className = "absolute -top-10 md:-top-12 left-1/2 transform -translate-x-1/2 text-5xl sm:text-6xl md:text-7xl text-yellow-400 drop-shadow-lg animate-bounce pointer-events-none";
             document.getElementById('clear-headline').innerText = "クリア！";
@@ -1756,7 +1761,7 @@
         }
 
         function showUnderworldClearModal() {
-            modalContent.className = "bg-gradient-to-b from-stone-900 to-black rounded-[1.5rem] md:rounded-[2rem] p-6 sm:p-8 w-full max-w-[350px] text-center shadow-[0_0_50px_rgba(239,68,68,0.7)] transform scale-90 transition-transform duration-500 relative border-[4px] border-red-600 mx-auto";
+            modalContent.className = "bg-gradient-to-b from-stone-900 to-black rounded-[1.5rem] md:rounded-[2rem] p-6 sm:p-8 w-full max-w-[350px] text-center shadow-[0_0_50px_rgba(239,68,68,0.7)] transform scale-90 transition-transform duration-500 relative border-[4px] border-red-600 mx-auto transition-all duration-300";
             
             const clearIcon = document.getElementById('clear-icon');
             clearIcon.className = "absolute -top-10 md:-top-12 left-1/2 transform -translate-x-1/2 text-5xl sm:text-6xl md:text-7xl drop-shadow-[0_0_15px_rgba(239,68,68,0.8)] animate-pulse pointer-events-none";
