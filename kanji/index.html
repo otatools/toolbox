@@ -356,9 +356,10 @@
                         <div id="explanation-text" class="text-slate-700 font-bold"></div>
                     </div>
                 </div>
-                <div class="flex gap-3 mt-4 w-full px-1">
-                    <button onclick="clearCanvas()" class="flex-1 bg-white border-2 border-slate-200 py-3 sm:py-4 rounded-xl font-bold text-base sm:text-lg shadow-sm">消す</button>
-                    <button id="recognize-btn" onclick="recognize()" class="flex-[2] bg-slate-800 text-white py-3 sm:py-4 rounded-xl font-bold text-lg sm:text-xl shadow-lg">判定する</button>
+                <div class="flex gap-2 sm:gap-3 mt-4 w-full px-1">
+                    <button onclick="clearCanvas()" class="flex-1 bg-white border-2 border-slate-200 py-3 sm:py-4 rounded-xl font-bold text-sm sm:text-lg shadow-sm whitespace-nowrap">消す</button>
+                    <button id="show-answer-btn" onclick="showAnswer()" class="hidden flex-1 bg-amber-50 border-2 border-amber-300 text-amber-700 py-3 sm:py-4 rounded-xl font-bold text-sm sm:text-lg shadow-sm hover:bg-amber-100 transition-colors whitespace-nowrap">💡 答えを見る</button>
+                    <button id="recognize-btn" onclick="recognize()" class="flex-[2] bg-slate-800 text-white py-3 sm:py-4 rounded-xl font-bold text-base sm:text-xl shadow-lg whitespace-nowrap">判定する</button>
                 </div>
                 <div id="candidate-area" class="px-4 py-2 bg-white rounded-2xl border-4 border-blue-5 w-full text-center">
                     <div id="candidates" class="flex flex-wrap justify-center"></div>
@@ -384,7 +385,7 @@
     </div>
 
     <footer class="w-full py-4 text-slate-400 text-[10px] sm:text-xs text-center border-t border-slate-100 bg-white/50">
-        漢字パズル | Ver 8.5.0 | ota tools
+        漢字パズル | Ver 8.6.0 | ota tools
     </footer>
 
     <script>
@@ -913,6 +914,15 @@
                 document.getElementById('problem-title').innerText = `問題 ${currentIdx+1}`;
             }
 
+            const showAnswerBtn = document.getElementById('show-answer-btn');
+            if (showAnswerBtn) {
+                if (isCleared) {
+                    showAnswerBtn.classList.remove('hidden');
+                } else {
+                    showAnswerBtn.classList.add('hidden');
+                }
+            }
+
             // ヒント機能のためのクリックイベント設定
             ['top', 'bottom', 'left', 'right'].forEach(dir => {
                 const el = document.getElementById(`q-${dir}`);
@@ -944,6 +954,31 @@
             hintEl.innerText = ""; hintEl.style.display = "none";
             clearCanvas(); applyHandedness();
             updateHintDisplay();
+        }
+
+        function showAnswer() {
+            const q = questions[currentIdx];
+            const display = document.getElementById('center-display');
+            display.innerText = q.answer; 
+            display.classList.add('correct');
+            document.getElementById('candidate-area').classList.remove('show');
+            document.getElementById('skip-btn').classList.add('hidden'); 
+            hintEl.style.display = "none";
+            
+            if (q.description) {
+                const rows = q.description.split('\n').filter(line => line.trim() !== '').map(line => {
+                    const parsedLine = parseRuby(line);
+                    const match = line.match(/(【[^】]+】)(.*)/);
+                    if (match) {
+                        return `<div class="explanation-row"><span class="explanation-term">${parseRuby(match[1])}</span><span class="explanation-desc">${parseRuby(match[2])}</span></div>`;
+                    } else {
+                        return `<div class="mb-2 block">${parsedLine}</div>`;
+                    }
+                }).join('');
+                document.getElementById('explanation-text').innerHTML = rows;
+                document.getElementById('explanation-area').style.display = "block";
+                setTimeout(adjustFontSize, 0);
+            }
         }
 
         function showHint(dir) {
