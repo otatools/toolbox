@@ -1178,14 +1178,14 @@
                 const data = await res.json();
                 if (data && data[1][0][1]) {
                     const candidates = data[1][0][1]; const q = questions[currentIdx];
-                    const isStrokeCountValid = Math.abs(strokes.length - q.strokes) <= 1;
+                    const isStrokeCountValid = (strokes.length === q.strokes || strokes.length === q.strokes - 1);
                     if (candidates[0] === q.answer && isStrokeCountValid) handleCorrect();
                     else if (candidates.includes(q.answer)) {
                         const area = document.getElementById('candidates');
                         area.innerHTML = `<div class="text-blue-500 font-bold w-full text-xs">これかな？</div>`;
                         const b = document.createElement('button');
                         b.className = 'candidate-btn'; b.innerText = q.answer;
-                        b.onclick = () => handleCorrect();
+                        b.onclick = () => isStrokeCountValid ? handleCorrect() : (hintEl.innerText = q.answer, hintEl.style.display = "block", document.getElementById('game-msg').innerHTML = "<span class='text-orange-600 text-sm'>画数を意識してなぞってね。</span>", clearCanvas());
                         area.appendChild(b);
                         document.getElementById('candidate-area').classList.add('show');
                         setTimeout(() => { b.scrollIntoView({ behavior: 'smooth', block: 'end' }); }, 50);
