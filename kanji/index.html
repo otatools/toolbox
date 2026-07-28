@@ -42,10 +42,8 @@
 
         @media (max-width: 1023px) and (orientation: portrait) {
             #game-screen {
-                transform: scale(0.65); /* 0.75から0.65に修正 */
                 transform-origin: top center;
                 margin-top: 0 !important;
-                margin-bottom: 0 !important;
             }
             #main-container {
                 gap: 0.25rem !important;
@@ -414,7 +412,7 @@
     </div>
 
     <footer class="w-full py-4 text-slate-400 text-[10px] sm:text-xs text-center border-t border-slate-100 bg-white/50">
-        漢字クロスワード | Ver 8.9.0 | ota tools
+        漢字クロスワード | Ver 8.9.1 | ota tools
     </footer>
 
     <script>
@@ -1037,6 +1035,7 @@
             hintEl.innerText = ""; hintEl.style.display = "none";
             clearCanvas(); applyHandedness();
             updateHintDisplay();
+            autoScaleLayout();
             forceScrollTop();
         }
 
@@ -1313,10 +1312,55 @@
             }
         }
 
-        window.onload = () => { initCanvas(); loadCourseData(); updateHintDisplay(); };
+        function autoScaleLayout() {
+            const gameScreen = document.getElementById('game-screen');
+            if (!gameScreen || gameScreen.classList.contains('hidden')) return;
+
+            const winW = window.innerWidth;
+            const winH = window.innerHeight;
+
+            if (winW >= 1024) {
+                const baseWidth = 1060;
+                const baseHeight = 680;
+                const availW = winW - 32;
+                const availH = winH - 60;
+                
+                let scale = Math.min(availW / baseWidth, availH / baseHeight);
+                scale = Math.max(0.5, Math.min(scale, 1.4));
+                
+                gameScreen.style.transform = `scale(${scale})`;
+                gameScreen.style.transformOrigin = 'top center';
+                
+                const currentHeight = gameScreen.offsetHeight;
+                if (currentHeight > 0) {
+                    const marginNeeded = currentHeight * (scale - 1);
+                    gameScreen.style.marginBottom = `${marginNeeded}px`;
+                }
+            } else if (winW < 1024 && window.matchMedia('(orientation: portrait)').matches) {
+                const baseHeight = 800;
+                const availH = winH - 40;
+                let scale = availH / baseHeight;
+                scale = Math.max(0.5, Math.min(scale, 0.85));
+                
+                gameScreen.style.transform = `scale(${scale})`;
+                gameScreen.style.transformOrigin = 'top center';
+
+                const currentHeight = gameScreen.offsetHeight;
+                if (currentHeight > 0) {
+                    const marginNeeded = currentHeight * (scale - 1);
+                    gameScreen.style.marginBottom = `${marginNeeded}px`;
+                }
+            } else {
+                gameScreen.style.transform = 'none';
+                gameScreen.style.marginBottom = '0px';
+            }
+        }
+
+        window.onload = () => { initCanvas(); loadCourseData(); updateHintDisplay(); autoScaleLayout(); };
         window.onresize = () => { 
             applyHandedness(); 
             adjustFontSize(); 
+            autoScaleLayout();
         };
     </script>
 <script type="module">
