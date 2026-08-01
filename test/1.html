@@ -1,0 +1,998 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>心理戦野球 - Psychological Baseball</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@400;700;900&family=Share+Tech+Mono&display=swap');
+        body {
+            font-family: 'M PLUS Rounded 1c', sans-serif;
+            background-color: #1a472a; /* より深い芝生の色 */
+            color: #f8f9fa;
+        }
+        
+        /* リアルな芝生のストライプ模様 */
+        .field-bg {
+            background-image: repeating-linear-gradient(
+                0deg,
+                rgba(255,255,255,0.02),
+                rgba(255,255,255,0.02) 40px,
+                rgba(0,0,0,0.02) 40px,
+                rgba(0,0,0,0.02) 80px
+            );
+        }
+
+        /* 電光掲示板フォント */
+        .scoreboard-text {
+            font-family: 'Share Tech Mono', 'M PLUS Rounded 1c', monospace;
+            color: #ff9d00; /* オレンジ色 */
+            text-shadow: 0 0 4px #ff9d00, 0 0 8px rgba(255, 157, 0, 0.5);
+        }
+        .scoreboard-label {
+            color: #a0a0a0;
+        }
+
+        /* グラウンド (内野の土) */
+        .infield-dirt {
+            background-color: #c48a5c;
+            box-shadow: inset 0 0 30px rgba(0,0,0,0.15);
+        }
+
+        .base-diamond {
+            transform: rotate(45deg);
+        }
+        
+        .base {
+            background-color: white;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+            transition: all 0.3s ease;
+            border-radius: 2px;
+        }
+        
+        .base.occupied {
+            background-color: #ffeb3b; 
+            box-shadow: 0 0 15px #ffc107, inset 0 0 10px #f57f17;
+        }
+
+        /* ホームベース: 上が平らで下がとがっている五角形 */
+        .home-base {
+            clip-path: polygon(0% 0%, 100% 0%, 100% 45%, 50% 100%, 0% 45%);
+        }
+
+        .card-container {
+            perspective: 1000px;
+        }
+
+        .card-inner {
+            transition: transform 0.6s;
+            transform-style: preserve-3d;
+        }
+
+        .card-inner.is-flipped {
+            transform: rotateY(180deg);
+        }
+
+        .card-face {
+            backface-visibility: hidden;
+            -webkit-backface-visibility: hidden;
+        }
+
+        /* 3D 視点（低角度からのグラウンド表示） */
+        .field-stage {
+            perspective: 750px;
+            perspective-origin: 50% 85%;
+        }
+
+        .field-3d {
+            transform-style: preserve-3d;
+            transform: rotateX(54deg);
+        }
+
+        .card-back {
+            transform: rotateY(180deg);
+        }
+
+        /* ボールインジケーター */
+        .indicator-strike {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            border: 2px solid #f87171;
+            background-color: transparent;
+        }
+        .indicator-strike.active {
+            background-color: #ef4444;
+            box-shadow: 0 0 10px #ef4444;
+        }
+        
+        .indicator-out {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            border: 2px solid #fbbf24;
+            background-color: transparent;
+        }
+        .indicator-out.active {
+            background-color: #f59e0b;
+            box-shadow: 0 0 10px #f59e0b;
+        }
+
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: rgba(0,0,0,0.1);
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(255,255,255,0.3);
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body class="field-bg min-h-screen flex flex-col items-center justify-center p-4">
+
+    <div id="app" class="w-full max-w-4xl bg-gray-900/80 backdrop-blur-sm rounded-3xl shadow-2xl overflow-hidden border border-gray-700/50">
+        
+        <!-- === タイトル画面 === -->
+        <div id="screen-title" class="p-8 flex flex-col items-center justify-center min-h-[600px] text-center">
+            <h1 class="text-5xl md:text-7xl font-black mb-4 tracking-wider text-transparent bg-clip-text bg-gradient-to-r from-yellow-300 to-yellow-600 drop-shadow-[0_5px_5px_rgba(0,0,0,0.8)]">
+                心理戦野球
+            </h1>
+            <p class="text-xl text-gray-300 mb-10">相手の心を読む、究極の駆け引き</p>
+
+            <div class="space-y-6 w-full max-w-md">
+                
+                <!-- プレイヤー名入力 -->
+                <div class="bg-gray-800/80 p-6 rounded-2xl border border-gray-600 text-left">
+                    <h2 class="text-xl font-bold mb-3 border-b border-gray-600 pb-2">プレイヤー設定</h2>
+                    <div class="space-y-3">
+                        <div>
+                            <label class="text-sm text-gray-400">先攻 (Player 1)</label>
+                            <input type="text" id="input-p1-name" placeholder="Player 1" class="w-full bg-gray-900 border border-gray-600 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-yellow-500">
+                        </div>
+                        <div id="p2-input-area">
+                            <label class="text-sm text-gray-400">後攻 (Player 2 / CPU)</label>
+                            <input type="text" id="input-p2-name" placeholder="Player 2" class="w-full bg-gray-900 border border-gray-600 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-yellow-500">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-gray-800/80 p-6 rounded-2xl border border-gray-600">
+                    <h2 class="text-2xl font-bold mb-4 border-b border-gray-600 pb-2">モード選択</h2>
+                    <div class="flex gap-4">
+                        <button onclick="selectMode('pvp')" id="btn-mode-pvp" class="flex-1 py-3 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold transition shadow-lg border-2 border-blue-400 mode-btn ring-4 ring-blue-500/50">2人対戦</button>
+                        <button onclick="selectMode('cpu')" id="btn-mode-cpu" class="flex-1 py-3 rounded-xl bg-gray-700 hover:bg-gray-600 text-white font-bold transition border-2 border-gray-500 mode-btn">CPU対戦</button>
+                    </div>
+                </div>
+
+                <div class="bg-gray-800/80 p-6 rounded-2xl border border-gray-600">
+                    <h2 class="text-2xl font-bold mb-4 border-b border-gray-600 pb-2">イニング数</h2>
+                    <div class="flex gap-4">
+                        <button onclick="selectInnings(3)" id="btn-inning-3" class="flex-1 py-3 rounded-xl bg-green-600 hover:bg-green-500 text-white font-bold transition shadow-lg border-2 border-green-400 inning-btn ring-4 ring-green-500/50">3回</button>
+                        <button onclick="selectInnings(5)" id="btn-inning-5" class="flex-1 py-3 rounded-xl bg-gray-700 hover:bg-gray-600 text-white font-bold transition border-2 border-gray-500 inning-btn">5回</button>
+                    </div>
+                </div>
+
+                <button onclick="startGame()" class="w-full py-4 text-2xl font-black bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-400 hover:to-orange-400 text-gray-900 rounded-2xl shadow-[0_0_20px_rgba(245,158,11,0.5)] transition transform hover:scale-105 mt-4">
+                    PLAY BALL!
+                </button>
+            </div>
+        </div>
+
+        <!-- === ゲーム画面 === -->
+        <div id="screen-game" class="hidden flex flex-col min-h-[600px]">
+            
+            <!-- スコアボードとインジケーター -->
+            <div class="bg-black p-4 border-b-4 border-gray-800 flex flex-col md:flex-row gap-6 items-center justify-between shadow-[inset_0_0_20px_rgba(0,0,0,0.8)]">
+                
+                <!-- スコアボード -->
+                <div class="w-full md:w-auto overflow-x-auto bg-gray-900 p-2 rounded-lg border-2 border-gray-700">
+                    <table class="text-center text-sm md:text-base border-collapse scoreboard-text">
+                        <thead>
+                            <tr class="scoreboard-label text-xs">
+                                <th class="px-3 py-1 border-r border-gray-700 text-left">TEAM</th>
+                                <th id="score-header-innings" class="px-2 py-1"></th>
+                                <th class="px-3 py-1 font-bold border-l border-gray-700 text-white">R</th>
+                            </tr>
+                        </thead>
+                        <tbody class="text-xl">
+                            <tr id="row-team1" class="border-t border-gray-700 bg-gray-800/50">
+                                <td id="name-team1" class="px-3 py-1 text-left border-r border-gray-700 font-sans font-bold text-blue-300">Player 1</td>
+                                <td id="score-cells-team1" class="px-2 py-1"></td>
+                                <td id="total-team1" class="px-3 py-1 border-l border-gray-700 text-yellow-400 font-bold">0</td>
+                            </tr>
+                            <tr id="row-team2" class="border-t border-gray-700 bg-gray-800/50">
+                                <td id="name-team2" class="px-3 py-1 text-left border-r border-gray-700 font-sans font-bold text-red-300">Player 2</td>
+                                <td id="score-cells-team2" class="px-2 py-1"></td>
+                                <td id="total-team2" class="px-3 py-1 border-l border-gray-700 text-yellow-400 font-bold">0</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- BSOインジケーター -->
+                <div class="flex flex-col items-center md:items-end gap-3 bg-gray-900 p-3 rounded-lg border-2 border-gray-700 min-w-[150px]">
+                    <div id="current-inning-display" class="text-2xl scoreboard-text text-yellow-400 mb-1">
+                        1回 表
+                    </div>
+                    
+                    <div class="flex flex-col gap-1 w-full">
+                        <div class="flex items-center justify-between w-full">
+                            <span class="text-green-500 font-bold font-sans w-4">B</span>
+                            <div class="flex gap-1">
+                                <div class="w-4 h-4 rounded-full border border-gray-600 bg-gray-800"></div>
+                                <div class="w-4 h-4 rounded-full border border-gray-600 bg-gray-800"></div>
+                                <div class="w-4 h-4 rounded-full border border-gray-600 bg-gray-800"></div>
+                            </div>
+                        </div>
+                        <div class="flex items-center justify-between w-full">
+                            <span class="text-red-500 font-bold font-sans w-4">S</span>
+                            <div class="flex gap-1">
+                                <div id="strike-1" class="w-4 h-4 rounded-full border border-gray-600 bg-gray-800 transition-colors"></div>
+                                <div id="strike-2" class="w-4 h-4 rounded-full border border-gray-600 bg-gray-800 transition-colors"></div>
+                            </div>
+                        </div>
+                        <div class="flex items-center justify-between w-full">
+                            <span class="text-amber-500 font-bold font-sans w-4">O</span>
+                            <div class="flex gap-1">
+                                <div id="out-1" class="w-4 h-4 rounded-full border border-gray-600 bg-gray-800 transition-colors"></div>
+                                <div id="out-2" class="w-4 h-4 rounded-full border border-gray-600 bg-gray-800 transition-colors"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- メインプレイエリア -->
+            <div class="flex-1 p-4 md:p-8 flex flex-col lg:flex-row gap-8 items-center justify-center relative">
+                
+                <!-- グラウンド (低い視点・3Dパースペクティブ) -->
+                <div class="w-full lg:w-1/2 flex items-center justify-center relative min-h-[360px] field-stage overflow-hidden py-4" id="field-container">
+                    
+                    <!-- ボールの軌道を描画するSVGオーバーレイ（3D変形の影響を受けないように外側に配置してボールの形を保護） -->
+                    <svg id="trajectory-svg" class="absolute inset-0 w-full h-full pointer-events-none z-30" viewBox="0 0 400 400">
+                        <defs>
+                            <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+                                <feGaussianBlur stdDeviation="2" result="blur" />
+                                <feComposite in="SourceGraphic" in2="blur" operator="over" />
+                            </filter>
+                        </defs>
+                        <!-- 軌道線 -->
+                        <path id="ball-path" d="" fill="none" stroke="#ef4444" stroke-width="4" stroke-linecap="round" filter="url(#glow)" class="opacity-0 transition-opacity duration-300"/>
+                        <!-- 飛んでいくボール（つぶれない正円） -->
+                        <circle id="ball-head" cx="-20" cy="-20" r="7" fill="#ffffff" stroke="#ef4444" stroke-width="2" class="opacity-0 transition-opacity duration-200"/>
+                    </svg>
+
+                    <div class="field-3d relative w-[320px] h-[320px] md:w-[380px] md:h-[380px] flex items-center justify-center">
+                        <!-- 外野芝生 ＆ フェンス (アーチ状) -->
+                        <div class="absolute w-[130%] h-[130%] bg-gradient-to-b from-[#1b3d18] via-[#244a20] to-[#1e3f1b] rounded-t-full border-t-8 border-yellow-600/70 -z-10 top-[-25%] shadow-2xl flex items-end justify-center overflow-hidden">
+                            <!-- 芝のストライプ模様 -->
+                            <div class="absolute inset-0 bg-[repeating-linear-gradient(90deg,transparent,transparent_25px,rgba(255,255,255,0.03)_25px,rgba(255,255,255,0.03)_50px)]"></div>
+                        </div>
+
+                        <!-- 内野グラウンド (ダイヤモンド) -->
+                        <div class="base-diamond infield-dirt w-44 h-44 md:w-52 md:h-52 relative border-2 border-[#8e5c36] shadow-xl mt-12">
+                            <!-- ファウルライン -->
+                            <div class="absolute top-[-50%] right-0 w-[2px] h-[170%] bg-white/80"></div>
+                            <div class="absolute bottom-0 left-[-50%] w-[170%] h-[2px] bg-white/80"></div>
+
+                            <!-- ホームベース (下: 平らが上、とがっている方が下) -->
+                            <div class="home-base absolute bottom-0 right-0 w-7 h-7 md:w-8 md:h-8 bg-white transform translate-x-[50%] translate-y-[50%] -rotate-45 z-20 shadow-md"></div>
+                            
+                            <!-- 塁 (1塁: 右, 2塁: 上, 3塁: 左) -->
+                            <div id="base-1" class="base absolute top-0 right-0 w-6 h-6 md:w-7 md:h-7 transform translate-x-[50%] translate-y-[-50%] z-20"></div>
+                            <div id="base-2" class="base absolute top-0 left-0 w-6 h-6 md:w-7 md:h-7 transform translate-x-[-50%] translate-y-[-50%] z-20"></div>
+                            <div id="base-3" class="base absolute bottom-0 left-0 w-6 h-6 md:w-7 md:h-7 transform translate-x-[-50%] translate-y-[50%] z-20"></div>
+                            
+                            <!-- ピッチャーマウンド -->
+                            <div class="absolute top-1/2 left-1/2 w-10 h-10 md:w-14 md:h-14 bg-[#c48a5c] rounded-full transform -translate-x-1/2 -translate-y-1/2 border border-[#a07049] flex items-center justify-center shadow-inner">
+                                <div class="w-4 h-1.5 bg-white transform -rotate-45 rounded-sm"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 操作パネル -->
+                <div class="w-full lg:w-1/2 flex flex-col items-center">
+                    
+                    <div id="status-message" class="text-xl md:text-2xl font-bold mb-6 text-center h-24 flex flex-col items-center justify-center bg-gray-900/90 px-6 py-2 rounded-2xl border-2 border-gray-600 w-full drop-shadow-md">
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-4 w-full max-w-sm mx-auto relative">
+                        
+                        <div id="turn-overlay" class="absolute inset-0 bg-gray-900/95 z-20 flex flex-col items-center justify-center rounded-2xl border border-gray-700 hidden">
+                            <h3 id="overlay-title" class="text-3xl font-bold mb-4 text-white"></h3>
+                            <p id="overlay-desc" class="text-gray-400 mb-6 text-center px-4 leading-relaxed"></p>
+                            <button onclick="hideOverlay()" class="px-8 py-3 bg-yellow-600 hover:bg-yellow-500 text-gray-900 rounded-xl font-bold text-xl shadow-lg transition">OK</button>
+                        </div>
+
+                        <!-- 4つのパネル -->
+                        <div class="card-container h-32 cursor-pointer" onclick="handleCardClick(0)">
+                            <div id="card-0" class="card-inner w-full h-full relative rounded-xl shadow-lg">
+                                <div class="card-face absolute inset-0 bg-gray-800 border-4 border-gray-600 rounded-xl flex flex-col items-center justify-center group hover:bg-gray-700 transition">
+                                    <span class="text-blue-400 font-black text-lg mb-1 tracking-wider">1塁打 パネル</span>
+                                    <span class="text-gray-500 text-4xl font-black group-hover:text-gray-400">?</span>
+                                    <div id="pitcher-mark-0" class="absolute inset-0 border-4 border-yellow-400 rounded-xl hidden shadow-[inset_0_0_15px_rgba(250,204,21,0.5)]"></div>
+                                </div>
+                                <div id="card-back-0" class="card-face card-back absolute inset-0 bg-white border-4 border-gray-200 rounded-xl flex flex-col items-center justify-center">
+                                    <span id="card-result-icon-0" class="text-4xl mb-1">⚾</span>
+                                    <span id="card-result-text-0" class="text-xl font-black text-gray-800">1塁打</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="card-container h-32 cursor-pointer" onclick="handleCardClick(1)">
+                            <div id="card-1" class="card-inner w-full h-full relative rounded-xl shadow-lg">
+                                <div class="card-face absolute inset-0 bg-gray-800 border-4 border-gray-600 rounded-xl flex flex-col items-center justify-center group hover:bg-gray-700 transition">
+                                    <span class="text-purple-400 font-black text-lg mb-1 tracking-wider">2塁打 パネル</span>
+                                    <span class="text-gray-500 text-4xl font-black group-hover:text-gray-400">?</span>
+                                    <div id="pitcher-mark-1" class="absolute inset-0 border-4 border-yellow-400 rounded-xl hidden shadow-[inset_0_0_15px_rgba(250,204,21,0.5)]"></div>
+                                </div>
+                                <div id="card-back-1" class="card-face card-back absolute inset-0 bg-white border-4 border-gray-200 rounded-xl flex flex-col items-center justify-center">
+                                    <span id="card-result-icon-1" class="text-4xl mb-1">⚾</span>
+                                    <span id="card-result-text-1" class="text-xl font-black text-gray-800">2塁打</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="card-container h-32 cursor-pointer" onclick="handleCardClick(2)">
+                            <div id="card-2" class="card-inner w-full h-full relative rounded-xl shadow-lg">
+                                <div class="card-face absolute inset-0 bg-gray-800 border-4 border-gray-600 rounded-xl flex flex-col items-center justify-center group hover:bg-gray-700 transition">
+                                    <span class="text-pink-400 font-black text-lg mb-1 tracking-wider">3塁打 パネル</span>
+                                    <span class="text-gray-500 text-4xl font-black group-hover:text-gray-400">?</span>
+                                    <div id="pitcher-mark-2" class="absolute inset-0 border-4 border-yellow-400 rounded-xl hidden shadow-[inset_0_0_15px_rgba(250,204,21,0.5)]"></div>
+                                </div>
+                                <div id="card-back-2" class="card-face card-back absolute inset-0 bg-white border-4 border-gray-200 rounded-xl flex flex-col items-center justify-center">
+                                    <span id="card-result-icon-2" class="text-4xl mb-1">⚾</span>
+                                    <span id="card-result-text-2" class="text-xl font-black text-gray-800">3塁打</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="card-container h-32 cursor-pointer" onclick="handleCardClick(3)">
+                            <div id="card-3" class="card-inner w-full h-full relative rounded-xl shadow-lg">
+                                <div class="card-face absolute inset-0 bg-gray-800 border-4 border-gray-600 rounded-xl flex flex-col items-center justify-center group hover:bg-gray-700 transition">
+                                    <span class="text-red-500 font-black text-lg mb-1 tracking-wider">ホームラン</span>
+                                    <span class="text-gray-500 text-4xl font-black group-hover:text-gray-400">?</span>
+                                    <div id="pitcher-mark-3" class="absolute inset-0 border-4 border-yellow-400 rounded-xl hidden shadow-[inset_0_0_15px_rgba(250,204,21,0.5)]"></div>
+                                </div>
+                                <div id="card-back-3" class="card-face card-back absolute inset-0 bg-white border-4 border-gray-200 rounded-xl flex flex-col items-center justify-center">
+                                    <span id="card-result-icon-3" class="text-4xl mb-1">🔥</span>
+                                    <span id="card-result-text-3" class="text-xl font-black text-gray-800">本塁打</span>
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
+                    
+                    <button id="btn-pitch-decide" onclick="confirmPitch()" class="mt-8 px-8 py-3 bg-yellow-500 hover:bg-yellow-400 text-gray-900 font-bold text-xl rounded-xl shadow-lg transition hidden">
+                        ここに隠す
+                    </button>
+                    <button id="btn-next-pitch" onclick="nextPitch()" class="mt-8 px-8 py-3 bg-blue-500 hover:bg-blue-400 text-white font-bold text-xl rounded-xl shadow-lg transition hidden">
+                        次の投球へ
+                    </button>
+
+                </div>
+            </div>
+        </div>
+
+        <!-- === ゲームオーバー画面 === -->
+        <div id="screen-gameover" class="hidden flex-col items-center justify-center min-h-[600px] p-8 text-center bg-gray-900/90 relative z-50">
+            <h2 class="text-6xl font-black text-white mb-2 tracking-widest drop-shadow-[0_0_15px_rgba(255,255,255,0.5)]">GAME SET</h2>
+            <div id="final-result-text" class="text-3xl font-bold text-yellow-400 mb-12"></div>
+            
+            <div class="bg-gray-800 p-8 rounded-2xl border-2 border-gray-600 mb-12 w-full max-w-md shadow-2xl">
+                <div class="flex justify-between items-center text-2xl font-bold mb-4 pb-4 border-b border-gray-600">
+                    <span class="text-blue-400">先攻</span>
+                    <span id="final-score-team1" class="text-4xl">0</span>
+                </div>
+                <div class="flex justify-between items-center text-2xl font-bold">
+                    <span class="text-red-400">後攻</span>
+                    <span id="final-score-team2" class="text-4xl">0</span>
+                </div>
+            </div>
+
+            <button onclick="returnToTitle()" class="px-8 py-4 bg-white text-gray-900 hover:bg-gray-200 font-bold text-xl rounded-xl shadow-lg transition">
+                タイトルに戻る
+            </button>
+        </div>
+
+        <!-- カスタムアラートモーダル -->
+        <div id="custom-alert" class="fixed inset-0 bg-black/80 flex items-center justify-center z-50 hidden opacity-0 transition-opacity duration-300">
+            <div class="bg-gray-800 border-2 border-yellow-500 p-8 rounded-2xl max-w-sm w-full mx-4 text-center transform scale-95 transition-transform duration-300 shadow-[0_0_30px_rgba(234,179,8,0.3)]">
+                <p id="alert-message" class="text-xl font-bold text-white mb-8"></p>
+                <button onclick="closeAlert()" class="px-6 py-2 bg-yellow-500 hover:bg-yellow-400 text-gray-900 font-bold rounded-lg transition w-full">確認</button>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        let gameMode = 'pvp'; 
+        let maxInnings = 3;
+        
+        let player1Name = "Player 1";
+        let player2Name = "Player 2";
+
+        let currentInning = 1;
+        let isTop = true;
+        let strikes = 0;
+        
+        let bases = [false, false, false];
+        let score = { team1: 0, team2: 0 };
+        let inningScores = { team1: [], team2: [] };
+        
+        let currentPhase = 'pitching';
+        let hitPosition = -1;
+        
+        const UI = {
+            titleScreen: document.getElementById('screen-title'),
+            gameScreen: document.getElementById('screen-game'),
+            gameoverScreen: document.getElementById('screen-gameover'),
+            
+            statusMessage: document.getElementById('status-message'),
+            turnOverlay: document.getElementById('turn-overlay'),
+            overlayTitle: document.getElementById('overlay-title'),
+            overlayDesc: document.getElementById('overlay-desc'),
+            
+            pitchBtn: document.getElementById('btn-pitch-decide'),
+            nextPitchBtn: document.getElementById('btn-next-pitch'),
+            
+            bases: [
+                document.getElementById('base-1'),
+                document.getElementById('base-2'),
+                document.getElementById('base-3')
+            ]
+        };
+
+        const HIT_TYPES = [
+            { name: '1塁打', bases: 1, icon: '⚾', color: '#3b82f6' },
+            { name: '2塁打', bases: 2, icon: '⚾', color: '#8b5cf6' },
+            { name: '3塁打', bases: 3, icon: '⚾', color: '#ec4899' },
+            { name: 'ホームラン', bases: 4, icon: '🔥', color: '#ef4444' }
+        ];
+
+        function selectMode(mode) {
+            gameMode = mode;
+            document.querySelectorAll('.mode-btn').forEach(btn => {
+                btn.classList.remove('ring-4', 'ring-blue-500/50');
+            });
+            const selectedBtn = document.getElementById(`btn-mode-${mode}`);
+            selectedBtn.classList.add('ring-4');
+            if(mode === 'pvp') {
+                selectedBtn.classList.add('ring-blue-500/50');
+                document.getElementById('p2-input-area').classList.remove('opacity-50');
+                document.getElementById('input-p2-name').disabled = false;
+            } else {
+                selectedBtn.classList.add('ring-gray-400/50');
+                document.getElementById('p2-input-area').classList.add('opacity-50');
+                document.getElementById('input-p2-name').disabled = true;
+            }
+        }
+
+        function selectInnings(innings) {
+            maxInnings = innings;
+            document.querySelectorAll('.inning-btn').forEach(btn => {
+                btn.classList.remove('ring-4', 'ring-green-500/50');
+            });
+            document.getElementById(`btn-inning-${innings}`).classList.add('ring-4', 'ring-green-500/50');
+        }
+
+        function startGame() {
+            const p1Input = document.getElementById('input-p1-name').value;
+            const p2Input = document.getElementById('input-p2-name').value;
+            player1Name = p1Input || "Player 1";
+            player2Name = gameMode === 'cpu' ? "CPU" : (p2Input || "Player 2");
+
+            document.getElementById('name-team1').innerText = player1Name;
+            document.getElementById('name-team2').innerText = player2Name;
+
+            currentInning = 1;
+            isTop = true;
+            score = { team1: 0, team2: 0 };
+            inningScores = { team1: Array(maxInnings).fill(''), team2: Array(maxInnings).fill('') };
+            
+            initInningState();
+            setupScoreboard();
+            updateScoreDisplay();
+            
+            UI.titleScreen.classList.add('hidden');
+            UI.gameoverScreen.classList.add('hidden');
+            UI.gameScreen.classList.remove('hidden');
+            
+            startPitchingPhase();
+        }
+
+        function initInningState() {
+            strikes = 0;
+            bases = [false, false, false];
+            updateBSO();
+            updateBasesUI();
+            resetCards();
+        }
+
+        function setupScoreboard() {
+            const header = document.getElementById('score-header-innings');
+            const cells1 = document.getElementById('score-cells-team1');
+            const cells2 = document.getElementById('score-cells-team2');
+            
+            let headerHTML = '';
+            let cellsHTML = '';
+            
+            for(let i = 1; i <= maxInnings; i++) {
+                headerHTML += `<div class="inline-block w-6 text-center">${i}</div>`;
+                cellsHTML += `<div class="inline-block w-6 text-center" id="score-${i}">-</div>`;
+            }
+            
+            header.innerHTML = `<div class="flex gap-1">${headerHTML}</div>`;
+            cells1.innerHTML = `<div class="flex gap-1" id="team1-inning-cells">${cellsHTML}</div>`;
+            cells2.innerHTML = `<div class="flex gap-1" id="team2-inning-cells">${cellsHTML.replace(/score-/g, 'score-t2-')}</div>`;
+        }
+
+        function updateScoreDisplay() {
+            document.getElementById('total-team1').innerText = score.team1;
+            document.getElementById('total-team2').innerText = score.team2;
+            
+            const t1Cells = document.getElementById('team1-inning-cells').children;
+            const t2Cells = document.getElementById('team2-inning-cells').children;
+            
+            for(let i = 0; i < maxInnings; i++) {
+                t1Cells[i].innerText = inningScores.team1[i] !== '' ? inningScores.team1[i] : '-';
+                t2Cells[i].innerText = inningScores.team2[i] !== '' ? inningScores.team2[i] : '-';
+                
+                if(i + 1 === currentInning && isTop) {
+                    t1Cells[i].classList.add('text-white', 'bg-gray-700');
+                } else {
+                    t1Cells[i].classList.remove('text-white', 'bg-gray-700');
+                }
+                
+                if(i + 1 === currentInning && !isTop) {
+                    t2Cells[i].classList.add('text-white', 'bg-gray-700');
+                } else {
+                    t2Cells[i].classList.remove('text-white', 'bg-gray-700');
+                }
+            }
+
+            document.getElementById('current-inning-display').innerText = `${currentInning}回 ${isTop ? '表' : '裏'}`;
+        }
+
+        function updateBSO() {
+            const strike1 = document.getElementById('strike-1');
+            const strike2 = document.getElementById('strike-2');
+            
+            if(strikes >= 1) {
+                strike1.classList.replace('bg-gray-800', 'bg-red-500');
+                strike1.classList.add('shadow-[0_0_8px_#ef4444]');
+            } else {
+                strike1.classList.replace('bg-red-500', 'bg-gray-800');
+                strike1.classList.remove('shadow-[0_0_8px_#ef4444]');
+            }
+
+            if(strikes >= 2) {
+                strike2.classList.replace('bg-gray-800', 'bg-red-500');
+                strike2.classList.add('shadow-[0_0_8px_#ef4444]');
+            } else {
+                strike2.classList.replace('bg-red-500', 'bg-gray-800');
+                strike2.classList.remove('shadow-[0_0_8px_#ef4444]');
+            }
+        }
+
+        function isPlayerBatting() {
+            if (gameMode === 'pvp') return true;
+            return isTop ? true : false; 
+        }
+        
+        function isPlayerPitching() {
+            if (gameMode === 'pvp') return true;
+            return isTop ? false : true;
+        }
+
+        function updateBasesUI() {
+            for (let i = 0; i < 3; i++) {
+                if (bases[i]) {
+                    UI.bases[i].classList.add('occupied');
+                } else {
+                    UI.bases[i].classList.remove('occupied');
+                }
+            }
+        }
+        
+        function getRoleName(role) {
+            if (role === 'pitcher') {
+                return isTop ? player2Name : player1Name;
+            } else {
+                return isTop ? player1Name : player2Name;
+            }
+        }
+        
+        function getTeamColor(role) {
+            const isTeam1 = (role === 'batter' && isTop) || (role === 'pitcher' && !isTop);
+            return isTeam1 ? 'text-blue-300' : 'text-red-300';
+        }
+
+        function startPitchingPhase() {
+            currentPhase = 'pitching';
+            hitPosition = -1;
+            resetCards();
+            UI.nextPitchBtn.classList.add('hidden');
+            
+            const pName = getRoleName('pitcher');
+            const pColor = getTeamColor('pitcher');
+
+            if (isPlayerPitching()) {
+                UI.pitchBtn.classList.remove('hidden');
+                UI.pitchBtn.disabled = true;
+                UI.pitchBtn.classList.add('opacity-50', 'cursor-not-allowed');
+                
+                UI.statusMessage.innerHTML = `<span class="text-base ${pColor}">ピッチャー：${pName}</span><span class="text-white mt-1">ヒットを仕込むパネルを選んでください</span>`;
+                UI.statusMessage.className = "text-xl font-bold mb-6 text-center h-24 flex flex-col items-center justify-center bg-gray-800/90 px-6 py-2 rounded-2xl border-2 border-blue-500 w-full drop-shadow-md";
+
+                if (gameMode === 'pvp') {
+                    showOverlay(`攻守交替`, `<span class="text-2xl ${pColor}">ピッチャー：${pName}</span><br><br>打者に見えないように、<br>ヒットを仕込んでください`);
+                }
+            } else {
+                UI.pitchBtn.classList.add('hidden');
+                UI.statusMessage.innerHTML = `<span class="text-base ${pColor}">ピッチャー：CPU</span><span class="text-gray-300 mt-1">配球を考えています...</span>`;
+                UI.statusMessage.className = "text-xl font-bold mb-6 text-center h-24 flex flex-col items-center justify-center bg-gray-800/90 px-6 py-2 rounded-2xl border-2 border-gray-500 w-full drop-shadow-md";
+                
+                setTimeout(() => {
+                    hitPosition = Math.floor(Math.random() * 4);
+                    startBattingPhase();
+                }, 1500);
+            }
+        }
+
+        function startBattingPhase() {
+            currentPhase = 'batting';
+            UI.pitchBtn.classList.add('hidden');
+            
+            for(let i=0; i<4; i++) {
+                document.getElementById(`pitcher-mark-${i}`).classList.add('hidden');
+            }
+            
+            const bName = getRoleName('batter');
+            const bColor = getTeamColor('batter');
+
+            if (isPlayerBatting()) {
+                UI.statusMessage.innerHTML = `<span class="text-base ${bColor}">バッター：${bName}</span><span class="text-white mt-1">ヒットが隠されたパネルを当ててください！</span>`;
+                UI.statusMessage.className = "text-xl font-bold mb-6 text-center h-24 flex flex-col items-center justify-center bg-gray-800/90 px-6 py-2 rounded-2xl border-2 border-red-500 w-full drop-shadow-md";
+                
+                if (gameMode === 'pvp') {
+                    showOverlay(`準備完了`, `<span class="text-2xl ${bColor}">バッター：${bName}</span><br><br>打席に入ります。<br>準備ができたらOKを押してください。`);
+                }
+            } else {
+                 UI.statusMessage.innerHTML = `<span class="text-base ${bColor}">バッター：CPU</span><span class="text-gray-300 mt-1">狙い球を絞っています...</span>`;
+                 UI.statusMessage.className = "text-xl font-bold mb-6 text-center h-24 flex flex-col items-center justify-center bg-gray-800/90 px-6 py-2 rounded-2xl border-2 border-gray-500 w-full drop-shadow-md";
+                
+                setTimeout(() => {
+                    let availableIndices = [];
+                    for(let i=0; i<4; i++) {
+                        if (!document.getElementById(`card-${i}`).classList.contains('is-flipped')) {
+                            availableIndices.push(i);
+                        }
+                    }
+                    if (availableIndices.length > 0) {
+                        const choice = availableIndices[Math.floor(Math.random() * availableIndices.length)];
+                        handleCardClick(choice);
+                    }
+                }, 1500);
+            }
+        }
+
+        function handleCardClick(index) {
+            if (currentPhase === 'pitching' && isPlayerPitching()) {
+                hitPosition = index;
+                for(let i=0; i<4; i++) {
+                    document.getElementById(`pitcher-mark-${i}`).classList.add('hidden');
+                }
+                document.getElementById(`pitcher-mark-${index}`).classList.remove('hidden');
+                
+                UI.pitchBtn.disabled = false;
+                UI.pitchBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+            } 
+            else if (currentPhase === 'batting' && isPlayerBatting()) {
+                const card = document.getElementById(`card-${index}`);
+                if (card.classList.contains('is-flipped')) return;
+                
+                revealCard(index);
+            }
+        }
+
+        function confirmPitch() {
+            if (hitPosition !== -1) {
+                startBattingPhase();
+            }
+        }
+
+        function revealCard(index) {
+            currentPhase = 'result';
+            const card = document.getElementById(`card-${index}`);
+            const backFace = document.getElementById(`card-back-${index}`);
+            const resultIcon = document.getElementById(`card-result-icon-${index}`);
+            const resultText = document.getElementById(`card-result-text-${index}`);
+            
+            if (index === hitPosition) {
+                const hitType = HIT_TYPES[index];
+                resultIcon.innerText = hitType.icon;
+                resultText.innerText = hitType.name;
+                resultText.style.color = hitType.color;
+                backFace.style.borderColor = hitType.color;
+                backFace.style.backgroundColor = '#fffbeb';
+            } else {
+                resultIcon.innerText = '❌';
+                resultText.innerText = 'ストライク';
+                resultText.style.color = '#6b7280';
+                backFace.style.borderColor = '#9ca3af';
+                backFace.style.backgroundColor = '#f3f4f6';
+            }
+            
+            card.classList.add('is-flipped');
+            
+            setTimeout(() => {
+                if (index === hitPosition) {
+                    handleHit(index);
+                } else {
+                    handleStrike();
+                }
+            }, 800);
+        }
+
+        function handleStrike() {
+            strikes++;
+            updateBSO();
+            
+            if (strikes >= 3) {
+                UI.statusMessage.innerHTML = `<span class="text-amber-400 text-3xl tracking-widest">ストライク！ バッターアウト！</span>`;
+                UI.statusMessage.className = "text-xl font-bold mb-6 text-center h-24 flex flex-col items-center justify-center bg-gray-800/90 px-6 py-2 rounded-2xl border-4 border-amber-500 w-full drop-shadow-md";
+                
+                setTimeout(() => {
+                    changeInning();
+                }, 2000);
+            } else {
+                UI.statusMessage.innerHTML = `<span class="text-gray-300">空振り！</span><span class="text-red-400 text-2xl mt-1">${strikes}ストライク</span>`;
+                UI.statusMessage.innerText = `ストライク！ (${strikes}S)`;
+                currentPhase = 'batting';
+                
+                if (!isPlayerBatting()) {
+                    setTimeout(() => startBattingPhase(), 1000);
+                }
+            }
+        }
+
+        function handleHit(typeIndex) {
+            const hitInfo = HIT_TYPES[typeIndex];
+            UI.statusMessage.innerHTML = `<span class="text-white">快音！</span><span class="text-green-400 text-3xl mt-1">${hitInfo.name}！！</span>`;
+            UI.statusMessage.className = "text-xl font-bold mb-6 text-center h-24 flex flex-col items-center justify-center bg-gray-800/90 px-6 py-2 rounded-2xl border-4 border-green-500 w-full drop-shadow-md";
+            
+            // 打球軌道のアニメーションを実行
+            animateTrajectory(typeIndex);
+
+            let runsScored = 0;
+            let newBases = [false, false, false];
+            const advanceBases = hitInfo.bases;
+
+            for (let i = 2; i >= 0; i--) {
+                if (bases[i]) {
+                    let nextBase = (i + 1) + advanceBases;
+                    if (nextBase > 3) {
+                        runsScored++;
+                    } else {
+                        newBases[nextBase - 1] = true;
+                    }
+                }
+            }
+            
+            if (advanceBases === 4) {
+                runsScored++;
+            } else {
+                newBases[advanceBases - 1] = true;
+            }
+
+            bases = newBases;
+            
+            // アニメーションに合わせてランナー進行を少し遅らせて更新
+            setTimeout(() => {
+                updateBasesUI();
+                if (runsScored > 0) {
+                    addScore(runsScored);
+                    showAlert(`${runsScored}点 入りました！`);
+                }
+            }, 1000);
+
+            UI.nextPitchBtn.classList.remove('hidden');
+            if(!isPlayerBatting() && isPlayerPitching()) {
+            } else if (isPlayerBatting() && !isPlayerPitching()) {
+                 setTimeout(() => nextPitch(), 2500);
+                 UI.nextPitchBtn.classList.add('hidden');
+            }
+        }
+
+        // ボールの軌道（曲線）を描画・アニメーションする処理
+        function animateTrajectory(typeIndex) {
+            const pathElem = document.getElementById('ball-path');
+            const ballElem = document.getElementById('ball-head');
+            
+            // ホームベース位置 (viewBox 400x400基準のスクリーン座標)
+            const startX = 200;
+            const startY = 310;
+            
+            let d = "";
+
+            // 1〜3塁打は黄色フェンス（y≒110〜120）の手前でしっかりとバウンドして転がる軌道
+            switch(typeIndex) {
+                case 0: // 1塁打: センター〜右中間の中深くへしっかり伸びてワンバウンド、ツーバウンドして転がる
+                    d = `M ${startX} ${startY} Q 206 130 212 175 Q 215 150 218 165 Q 220 152 222 158`;
+                    break;
+                case 1: // 2塁打: レフト線〜左中間へ飛んでワンバウンド、さらに奥でツーバウンド
+                    d = `M ${startX} ${startY} Q 150 100 135 150 Q 120 125 110 142 Q 100 130 92 136`;
+                    break;
+                case 2: // 3塁打: 右中間深くへ飛び、フェンス手前でワンバウンド、ツーバウンド
+                    d = `M ${startX} ${startY} Q 260 85 285 145 Q 310 110 325 132 Q 338 120 348 125`;
+                    break;
+                case 3: // ホームラン: 黄色フェンスを大きく越えてスタンドへ消えるダイナミックなアーチ
+                    d = `M ${startX} ${startY} Q 110 -60 35 40`;
+                    break;
+            }
+
+            pathElem.setAttribute('d', d);
+            
+            // パスの全長を取得して破線アニメーション準備
+            const length = pathElem.getTotalLength();
+            pathElem.style.strokeDasharray = length;
+            pathElem.style.strokeDashoffset = length;
+            
+            // 表示開始
+            pathElem.classList.remove('opacity-0');
+            ballElem.classList.remove('opacity-0');
+            
+            let startTime = null;
+            const duration = typeIndex === 3 ? 1600 : 1300;
+
+            function step(timestamp) {
+                if (!startTime) startTime = timestamp;
+                const progress = Math.min((timestamp - startTime) / duration, 1);
+                
+                // パスに沿って均等にボールを進める（距離に応じた自然なバウンドスピード）
+                const currentOffset = length * (1 - progress);
+                pathElem.style.strokeDashoffset = currentOffset;
+                
+                const currentPoint = pathElem.getPointAtLength(length * progress);
+                ballElem.setAttribute('cx', currentPoint.x);
+                ballElem.setAttribute('cy', currentPoint.y);
+                
+                if (progress < 1) {
+                    requestAnimationFrame(step);
+                } else {
+                    // アニメーション終了後にフェードアウト
+                    setTimeout(() => {
+                        pathElem.classList.add('opacity-0');
+                        ballElem.classList.add('opacity-0');
+                    }, 1200);
+                }
+            }
+
+            requestAnimationFrame(step);
+        }
+
+        function addScore(runs) {
+            const currentTeam = isTop ? 'team1' : 'team2';
+            score[currentTeam] += runs;
+            
+            let currentInningScore = parseInt(inningScores[currentTeam][currentInning - 1]) || 0;
+            inningScores[currentTeam][currentInning - 1] = currentInningScore + runs;
+            
+            updateScoreDisplay();
+        }
+
+        function nextPitch() {
+            startPitchingPhase();
+        }
+
+        function resetCards() {
+            for(let i=0; i<4; i++) {
+                const card = document.getElementById(`card-${i}`);
+                card.classList.remove('is-flipped');
+                document.getElementById(`pitcher-mark-${i}`).classList.add('hidden');
+                
+                setTimeout(() => {
+                    const backFace = document.getElementById(`card-back-${i}`);
+                    backFace.style.borderColor = '#e5e7eb';
+                    backFace.style.backgroundColor = '#ffffff';
+                }, 600);
+            }
+        }
+
+        function changeInning() {
+            const currentTeam = isTop ? 'team1' : 'team2';
+            if (inningScores[currentTeam][currentInning - 1] === '') {
+                inningScores[currentTeam][currentInning - 1] = 0;
+            }
+
+            if (isTop) {
+                isTop = false;
+            } else {
+                isTop = true;
+                currentInning++;
+            }
+
+            if (currentInning > maxInnings) {
+                endGame();
+                return;
+            }
+
+            if (currentInning === maxInnings && !isTop) {
+                if (score.team2 > score.team1) {
+                    endGame();
+                    return;
+                }
+            }
+
+            initInningState();
+            updateScoreDisplay();
+            startPitchingPhase();
+        }
+
+        function endGame() {
+            UI.gameScreen.classList.add('hidden');
+            UI.gameoverScreen.classList.remove('hidden');
+            UI.gameoverScreen.classList.add('flex');
+
+            document.getElementById('final-score-team1').innerText = score.team1;
+            document.getElementById('final-score-team2').innerText = score.team2;
+
+            const resultText = document.getElementById('final-result-text');
+            if (score.team1 > score.team2) {
+                resultText.innerText = `${player1Name} の勝利！`;
+                resultText.className = "text-4xl font-bold text-blue-400 mb-12 drop-shadow-md";
+            } else if (score.team2 > score.team1) {
+                resultText.innerText = `${player2Name} の勝利！`;
+                resultText.className = "text-4xl font-bold text-red-400 mb-12 drop-shadow-md";
+            } else {
+                resultText.innerText = '引き分け！';
+                resultText.className = "text-4xl font-bold text-yellow-400 mb-12 drop-shadow-md";
+            }
+        }
+
+        function returnToTitle() {
+            UI.gameoverScreen.classList.add('hidden');
+            UI.gameoverScreen.classList.remove('flex');
+            UI.titleScreen.classList.remove('hidden');
+        }
+
+        function showOverlay(title, desc) {
+            UI.overlayTitle.innerText = title;
+            UI.overlayDesc.innerHTML = desc;
+            UI.turnOverlay.classList.remove('hidden');
+        }
+
+        function hideOverlay() {
+            UI.turnOverlay.classList.add('hidden');
+        }
+
+        const alertModal = document.getElementById('custom-alert');
+        const alertMsg = document.getElementById('alert-message');
+        
+        function showAlert(msg) {
+            alertMsg.innerText = msg;
+            alertModal.classList.remove('hidden');
+            setTimeout(() => {
+                alertModal.classList.remove('opacity-0');
+                alertModal.children[0].classList.remove('scale-95');
+                alertModal.children[0].classList.add('scale-100');
+            }, 10);
+        }
+
+        function closeAlert() {
+            alertModal.classList.add('opacity-0');
+            alertModal.children[0].classList.remove('scale-100');
+            alertModal.children[0].classList.add('scale-95');
+            setTimeout(() => {
+                alertModal.classList.add('hidden');
+            }, 300);
+        }
+
+    </script>
+</body>
+</html>
