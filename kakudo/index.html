@@ -1,0 +1,1285 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>目測角度 - 自分の目で角度を測定せよ！</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts: Noto Sans JP & Outfit -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@600;700;800;900&family=Outfit:wght@700;800;900&display=swap" rel="stylesheet">
+
+    <style>
+        * {
+            box-sizing: border-box;
+            touch-action: manipulation;
+        }
+        body {
+            font-family: 'Noto Sans JP', sans-serif;
+            user-select: none;
+            -webkit-user-select: none;
+            background: #030712;
+            color: #f8fafc;
+        }
+        .font-outfit { font-family: 'Outfit', sans-serif; }
+        
+        /* ボタン立体効果 */
+        .btn-cyber {
+            transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 0 6px 0 var(--btn-shadow, #1e293b), 0 10px 20px -3px rgba(0, 0, 0, 0.6);
+        }
+        .btn-cyber:hover {
+            transform: translateY(-2px);
+            filter: brightness(1.15);
+            box-shadow: 0 8px 0 var(--btn-shadow, #1e293b), 0 14px 25px -3px rgba(0, 242, 254, 0.25);
+        }
+        .btn-cyber:active {
+            transform: translateY(3px);
+            box-shadow: 0 2px 0 var(--btn-shadow, #1e293b), 0 4px 8px -1px rgba(0, 0, 0, 0.5);
+            filter: brightness(0.95);
+        }
+
+        /* 10キー用ボタン */
+        .keypad-btn {
+            background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%);
+            border: 1.5px solid #334155;
+            color: #f1f5f9;
+            font-weight: 800;
+            border-radius: 0.85rem;
+            box-shadow: 0 3px 0 #020617;
+            transition: transform 0.08s ease, border-color 0.15s ease, background-color 0.15s ease;
+        }
+        .keypad-btn:hover {
+            border-color: #38bdf8;
+            color: #38bdf8;
+            box-shadow: 0 0 12px rgba(56, 189, 248, 0.4);
+        }
+        .keypad-btn:active {
+            transform: translateY(2px);
+            box-shadow: 0 1px 0 #020617;
+            background: #0284c7;
+            color: #ffffff;
+        }
+
+        /* アニメーション */
+        @keyframes pop-in {
+            0% { transform: scale(0.94); opacity: 0; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+        .animate-pop-in {
+            animation: pop-in 0.22s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+
+        /* 背景レーダー回転＆パルスアニメーション */
+        @keyframes radar-spin-glow {
+            0% { transform: rotate(0deg) scale(1); }
+            50% { transform: rotate(180deg) scale(1.06); }
+            100% { transform: rotate(360deg) scale(1); }
+        }
+        .animate-radar-spin {
+            animation: radar-spin-glow 18s linear infinite;
+        }
+
+        /* 背景グリッド */
+        .bg-cyber-grid {
+            background-size: 32px 32px, 32px 32px;
+            background-image: 
+                linear-gradient(to right, rgba(56, 189, 248, 0.08) 1px, transparent 1px),
+                linear-gradient(to bottom, rgba(56, 189, 248, 0.08) 1px, transparent 1px);
+        }
+
+        /* 角の枠線飾り */
+        .cyber-corner {
+            position: relative;
+        }
+        .cyber-corner::before, .cyber-corner::after {
+            content: '';
+            position: absolute;
+            width: 12px;
+            height: 12px;
+            border-color: rgba(56, 189, 248, 0.7);
+            pointer-events: none;
+        }
+        .cyber-corner::before {
+            top: -1px; left: -1px;
+            border-top: 3px solid; border-left: 3px solid;
+            border-top-left-radius: 4px;
+        }
+        .cyber-corner::after {
+            bottom: -1px; right: -1px;
+            border-bottom: 3px solid; border-right: 3px solid;
+            border-bottom-right-radius: 4px;
+        }
+
+        /* スピンボタン非表示 */
+        input::-webkit-outer-spin-button,
+        input::-webkit-inner-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+        input[type=number] {
+            -moz-appearance: textfield;
+        }
+    </style>
+</head>
+<body class="h-screen h-[100dvh] text-slate-100 flex flex-col justify-between p-2 md:p-4 overflow-hidden select-none bg-slate-950 bg-cyber-grid relative">
+
+    <!-- 背景レーダー模様（はっきりと見えるように鮮やかさと発光感をアップ） -->
+    <div class="absolute inset-0 pointer-events-none overflow-hidden flex items-center justify-center opacity-70 z-0">
+        <div class="relative flex items-center justify-center">
+            <!-- 外側の光る円弧グラデーション -->
+            <div class="absolute w-[500px] h-[500px] md:w-[700px] md:h-[700px] rounded-full bg-cyan-500/10 blur-2xl animate-pulse"></div>
+            
+            <svg class="w-[550px] h-[550px] md:w-[750px] md:h-[750px] text-cyan-400 animate-radar-spin drop-shadow-[0_0_15px_rgba(56,189,248,0.5)]" viewBox="0 0 200 200" fill="none" stroke="currentColor">
+                <!-- 同心円と角度目盛り -->
+                <circle cx="100" cy="100" r="92" stroke-width="0.8" stroke-dasharray="3 3" opacity="0.6" />
+                <circle cx="100" cy="100" r="75" stroke-width="1.2" opacity="0.8" />
+                <circle cx="100" cy="100" r="55" stroke-width="0.8" stroke-dasharray="4 4" opacity="0.7" />
+                <circle cx="100" cy="100" r="35" stroke-width="1" opacity="0.9" />
+                <circle cx="100" cy="100" r="15" stroke-width="0.6" stroke-dasharray="2 2" />
+                
+                <!-- 十字軸・斜めガイド線 -->
+                <line x1="5" y1="100" x2="195" y2="100" stroke-width="0.8" opacity="0.7" />
+                <line x1="100" y1="5" x2="100" y2="195" stroke-width="0.8" opacity="0.7" />
+                <line x1="30" y1="30" x2="170" y2="170" stroke-width="0.5" stroke-dasharray="2 2" opacity="0.5" />
+                <line x1="170" y1="30" x2="30" y2="170" stroke-width="0.5" stroke-dasharray="2 2" opacity="0.5" />
+                
+                <!-- レーダーのスキャン針 & 角度指示 -->
+                <path d="M100 100 L180 20" stroke-width="1.8" stroke-linecap="round" stroke="#38bdf8" />
+                <path d="M100 100 L175 175" stroke-width="1.2" stroke-dasharray="3 1" stroke="#38bdf8" opacity="0.8" />
+                <path d="M100 100 L25 150" stroke-width="1.5" stroke="#0284c7" opacity="0.8" />
+                
+                <!-- 装飾用ターゲットマーク -->
+                <circle cx="180" cy="20" r="3" fill="#38bdf8" />
+                <circle cx="25" cy="150" r="2.5" fill="#38bdf8" />
+            </svg>
+        </div>
+    </div>
+
+    <main class="max-w-6xl mx-auto w-full flex-1 min-h-0 flex flex-col items-center justify-center overflow-hidden relative z-10">
+
+        <!-- ================= メニュー画面 ================= -->
+        <div id="menuScreen" class="w-full h-full max-h-full bg-slate-900/80 backdrop-blur-md rounded-3xl p-4 md:p-7 shadow-[0_0_60px_rgba(0,0,0,0.85)] border border-cyan-500/50 flex flex-col justify-center items-center overflow-y-auto relative cyber-corner animate-pop-in">
+            
+            <!-- 音声設定切り替え（右上） -->
+            <button onclick="toggleSound()" class="absolute top-4 right-4 bg-slate-800/90 hover:bg-slate-700 text-cyan-400 px-3 py-2 rounded-2xl text-xs font-bold border border-cyan-500/40 shadow-lg transition-all z-20 flex items-center gap-1.5 hover:scale-105">
+                <span class="soundIcon">
+                    <svg class="w-4 h-4 md:w-5 md:h-5 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.536 8.464a5 5 0 010 7.072M18.364 5.636a9 9 0 010 12.728M11 5L6 9H2v6h4l5 4V5z"/></svg>
+                </span>
+                <span id="soundText" class="font-bold text-[12px] text-slate-200">音: オン</span>
+            </button>
+
+            <!-- メインタイトル部 -->
+            <div class="flex flex-col items-center mb-4 md:mb-6 text-center relative">
+                <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-cyan-950/90 border border-cyan-400/60 text-cyan-300 text-xs font-bold tracking-wider mb-2 shadow-[0_0_18px_rgba(6,182,212,0.4)]">
+                    <span class="w-2 h-2 rounded-full bg-cyan-400 animate-ping"></span>
+                    角度測定トレーニングマシン
+                </div>
+
+                <h1 class="font-black text-4xl sm:text-5xl md:text-6xl text-transparent bg-clip-text bg-gradient-to-r from-cyan-300 via-blue-400 to-indigo-300 tracking-wider leading-none drop-shadow-[0_0_30px_rgba(56,189,248,0.6)] my-1">
+                    目測角度
+                </h1>
+
+                <p class="text-sm md:text-base text-slate-300 font-bold mt-2 tracking-widest flex items-center gap-2">
+                    <span class="text-cyan-400">◆</span>
+                    <span>自分の目で角度を測定せよ！</span>
+                    <span class="text-cyan-400">◆</span>
+                </p>
+            </div>
+
+            <!-- コース選択エリア -->
+            <div class="w-full max-w-lg space-y-3 my-1">
+                
+                <!-- 初級 -->
+                <button onclick="startGame('beginner')" style="--btn-shadow: #064e3b;" class="btn-cyber w-full bg-slate-900/90 hover:bg-slate-800/90 border-2 border-emerald-500/60 hover:border-emerald-400 rounded-2xl p-3.5 md:p-4 flex flex-col group transition-all relative overflow-hidden">
+                    <div class="absolute -right-6 -bottom-6 w-24 h-24 bg-emerald-500/10 rounded-full blur-xl group-hover:bg-emerald-500/20 transition-all"></div>
+                    <div class="flex items-center justify-between w-full relative z-10">
+                        <div class="flex items-center gap-3.5">
+                            <div class="bg-gradient-to-br from-emerald-400 to-teal-600 text-slate-950 font-black px-3 py-2 rounded-xl shadow-lg shadow-emerald-950 group-hover:scale-110 transition-transform text-base md:text-lg">
+                                初級
+                            </div>
+                            <div class="text-left">
+                                <div class="flex items-center gap-2">
+                                    <h3 class="font-black text-lg md:text-xl text-emerald-400 tracking-wider">かんたん</h3>
+                                    <span class="text-[10px] bg-emerald-950/90 text-emerald-300 px-2 py-0.5 rounded border border-emerald-500/50 font-bold">180度・10度きざみ</span>
+                                </div>
+                                <p class="text-xs text-slate-400 font-bold mt-0.5">角度あて入門！はじめての人におすすめ</p>
+                            </div>
+                        </div>
+                        <svg class="w-6 h-6 text-emerald-400/60 group-hover:text-emerald-400 group-hover:translate-x-1 transition-all" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 5l7 7-7 7"/></svg>
+                    </div>
+
+                    <div class="w-full mt-3 pt-2 border-t border-slate-800 flex justify-between items-center text-xs font-bold relative z-10">
+                        <span class="text-slate-400">最高記録</span>
+                        <div class="flex items-center gap-4">
+                            <span class="text-slate-300">最高スコア: <span id="record-score-beginner" class="font-outfit font-black text-amber-400 text-base">0</span>点</span>
+                            <span class="text-slate-300">到達数: <span id="record-cleared-beginner" class="font-outfit font-black text-emerald-400 text-base">0/10問</span></span>
+                        </div>
+                    </div>
+                </button>
+
+                <!-- 中級 -->
+                <button onclick="startGame('intermediate')" style="--btn-shadow: #0c4a6e;" class="btn-cyber w-full bg-slate-900/90 hover:bg-slate-800/90 border-2 border-cyan-500/60 hover:border-cyan-400 rounded-2xl p-3.5 md:p-4 flex flex-col group transition-all relative overflow-hidden">
+                    <div class="absolute -right-6 -bottom-6 w-24 h-24 bg-cyan-500/10 rounded-full blur-xl group-hover:bg-cyan-500/20 transition-all"></div>
+                    <div class="flex items-center justify-between w-full relative z-10">
+                        <div class="flex items-center gap-3.5">
+                            <div class="bg-gradient-to-br from-cyan-400 to-blue-600 text-slate-950 font-black px-3 py-2 rounded-xl shadow-lg shadow-cyan-950 group-hover:scale-110 transition-transform text-base md:text-lg">
+                                中級
+                            </div>
+                            <div class="text-left">
+                                <div class="flex items-center gap-2">
+                                    <h3 class="font-black text-lg md:text-xl text-cyan-400 tracking-wider">ふつう</h3>
+                                    <span class="text-[10px] bg-cyan-950/90 text-cyan-300 px-2 py-0.5 rounded border border-cyan-500/50 font-bold">180度・5度きざみ</span>
+                                </div>
+                                <p class="text-xs text-slate-400 font-bold mt-0.5">細かい角度を見分けて高得点をねらおう</p>
+                            </div>
+                        </div>
+                        <svg class="w-6 h-6 text-cyan-400/60 group-hover:text-cyan-400 group-hover:translate-x-1 transition-all" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 5l7 7-7 7"/></svg>
+                    </div>
+
+                    <div class="w-full mt-3 pt-2 border-t border-slate-800 flex justify-between items-center text-xs font-bold relative z-10">
+                        <span class="text-slate-400">最高記録</span>
+                        <div class="flex items-center gap-4">
+                            <span class="text-slate-300">最高スコア: <span id="record-score-intermediate" class="font-outfit font-black text-amber-400 text-base">0</span>点</span>
+                            <span class="text-slate-300">到達数: <span id="record-cleared-intermediate" class="font-outfit font-black text-cyan-400 text-base">0/10問</span></span>
+                        </div>
+                    </div>
+                </button>
+
+                <!-- 上級 -->
+                <button onclick="startGame('expert')" style="--btn-shadow: #881337;" class="btn-cyber w-full bg-slate-900/90 hover:bg-slate-800/90 border-2 border-rose-500/60 hover:border-rose-400 rounded-2xl p-3.5 md:p-4 flex flex-col group transition-all relative overflow-hidden">
+                    <div class="absolute -right-6 -bottom-6 w-24 h-24 bg-rose-500/10 rounded-full blur-xl group-hover:bg-rose-500/20 transition-all"></div>
+                    <div class="flex items-center justify-between w-full relative z-10">
+                        <div class="flex items-center gap-3.5">
+                            <div class="bg-gradient-to-br from-rose-500 to-red-700 text-slate-950 font-black px-3 py-2 rounded-xl shadow-lg shadow-rose-950 group-hover:scale-110 transition-transform text-base md:text-lg">
+                                上級
+                            </div>
+                            <div class="text-left">
+                                <div class="flex items-center gap-2">
+                                    <h3 class="font-black text-lg md:text-xl text-rose-400 tracking-wider">むずかしい</h3>
+                                    <span class="text-[10px] bg-rose-950/90 text-rose-300 px-2 py-0.5 rounded border border-rose-500/50 font-bold">360度・左右向きランダム</span>
+                                </div>
+                                <p class="text-xs text-slate-400 font-bold mt-0.5">一周360度！左から右へ開く問題も登場</p>
+                            </div>
+                        </div>
+                        <svg class="w-6 h-6 text-rose-400/60 group-hover:text-rose-400 group-hover:translate-x-1 transition-all" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 5l7 7-7 7"/></svg>
+                    </div>
+
+                    <div class="w-full mt-3 pt-2 border-t border-slate-800 flex justify-between items-center text-xs font-bold relative z-10">
+                        <span class="text-slate-400">最高記録</span>
+                        <div class="flex items-center gap-4">
+                            <span class="text-slate-300">最高スコア: <span id="record-score-expert" class="font-outfit font-black text-amber-400 text-base">0</span>点</span>
+                            <span class="text-slate-300">到達数: <span id="record-cleared-expert" class="font-outfit font-black text-rose-400 text-base">0/10問</span></span>
+                        </div>
+                    </div>
+                </button>
+            </div>
+
+            <!-- ルール注釈 -->
+            <p class="text-[11px] md:text-xs text-slate-300 mt-4 text-center font-bold flex items-center justify-center gap-1.5">
+                <span class="w-2 h-2 rounded-full bg-cyan-400 animate-pulse"></span>
+                <span>全10問！ズレが10度以内ならクリア（11度以上離れるとゲームオーバー）</span>
+            </p>
+        </div>
+
+        <!-- ================= ゲームプレイ画面 ================= -->
+        <div id="gameScreen" class="w-full h-full min-h-0 hidden flex-col md:flex-row gap-3 items-stretch">
+
+            <!-- 左側：角度キャンバスカード -->
+            <div class="bg-slate-900/80 backdrop-blur-md rounded-2xl p-2.5 md:p-3.5 shadow-2xl border border-slate-800 flex-1 min-h-0 flex flex-col items-center relative overflow-hidden cyber-corner">
+                
+                <div class="relative w-full flex-1 min-h-0 bg-slate-950/90 rounded-xl border border-slate-800/80 overflow-hidden flex items-center justify-center">
+                    
+                    <!-- キャンバス上部ステータス -->
+                    <div class="absolute top-2.5 left-3 right-3 flex justify-between items-center z-10 pointer-events-none">
+                        <div class="flex items-center gap-2 pointer-events-auto">
+                            <button onclick="showExitConfirmModal()" class="bg-slate-900/90 hover:bg-slate-800 text-slate-300 text-xs font-bold px-3 py-1.5 rounded-xl border border-slate-700 shadow-lg flex items-center gap-1.5 transition">
+                                <svg class="w-4 h-4 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M10 19l-7-7m0 0l7-7m-7 7h18"/></svg>
+                                <span>メニューへ戻る</span>
+                            </button>
+                            <span id="questionCounter" class="bg-blue-600/90 text-white text-xs md:text-sm font-bold px-3 py-1 rounded-xl border border-blue-400/50 shadow">
+                                第 1 / 10 問
+                            </span>
+                        </div>
+                        <div class="flex items-center gap-2 pointer-events-auto">
+                            <span class="bg-slate-800/90 text-cyan-400 text-xs font-bold px-3 py-1 rounded-xl border border-slate-700 shadow flex items-center gap-1.5">
+                                スコア: <span id="currentScoreDisplay" class="font-outfit text-sm md:text-base font-black text-amber-400">0</span>
+                            </span>
+                        </div>
+                    </div>
+
+                    <!-- 描画用キャンバス -->
+                    <canvas id="angleCanvas" class="w-full h-full block bg-slate-950"></canvas>
+                </div>
+
+                <!-- 判定結果ポップアップ -->
+                <div id="resultOverlay" class="absolute inset-0 bg-slate-950/95 backdrop-blur-md rounded-2xl p-4 flex flex-col items-center justify-center text-center hidden z-20 overflow-y-auto border border-slate-800">
+                    <div id="resultBadge" class="mb-2 flex items-center justify-center"></div>
+                    <h3 id="resultTitle" class="text-xl md:text-2xl font-black mb-0.5 text-slate-100">測定完了！</h3>
+                    <p id="resultSubtitle" class="text-xs text-slate-300 font-bold mb-3">素晴らしい角度の感覚です！</p>
+
+                    <div class="bg-slate-900/90 rounded-xl p-3.5 border border-slate-800 w-full max-w-xs mb-4 space-y-2 shadow-inner">
+                        <div class="flex justify-between items-center text-xs md:text-sm font-bold">
+                            <span class="text-slate-400">あなたの予想:</span>
+                            <span id="resUserAngle" class="font-outfit text-base md:text-lg text-amber-400 font-black">45°</span>
+                        </div>
+                        <div class="flex justify-between items-center text-xs md:text-sm font-bold">
+                            <span class="text-slate-400">本当の角度:</span>
+                            <span id="resTargetAngle" class="font-outfit text-base md:text-lg text-cyan-400 font-black">45°</span>
+                        </div>
+                        <hr class="border-slate-800">
+                        <div class="flex justify-between items-center text-xs md:text-sm font-black">
+                            <span class="text-slate-300">ズレ（誤差）:</span>
+                            <span id="resDiff" class="font-outfit text-lg md:text-xl text-emerald-400">0°</span>
+                        </div>
+                        <div class="flex justify-between items-center text-xs md:text-sm font-black pt-1">
+                            <span class="text-amber-400">もらったスコア:</span>
+                            <span id="resEarnedScore" class="font-outfit text-lg md:text-xl text-amber-400">+100</span>
+                        </div>
+                    </div>
+
+                    <button id="nextBtn" onclick="nextAction()" style="--btn-shadow: #047857;" class="btn-cyber w-full max-w-xs bg-emerald-500 text-slate-950 font-black text-base py-3.5 rounded-xl flex items-center justify-center gap-2 border border-emerald-400">
+                        <span id="nextBtnText">次の問題へ</span>
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M13 5l7 7-7 7M5 12h14"/></svg>
+                    </button>
+                </div>
+
+            </div>
+
+            <!-- 右側：10キー入力エリア (右配置) -->
+            <div id="inputArea" class="w-full md:w-80 lg:w-96 bg-slate-900/80 backdrop-blur-md rounded-2xl p-3 md:p-4 border border-slate-800 shadow-2xl shrink-0 flex flex-col justify-between gap-2.5 cyber-corner">
+                
+                <div class="space-y-2">
+                    <div class="flex items-center justify-between border-b border-slate-800 pb-2">
+                        <span class="text-xs font-black text-slate-300 tracking-wider flex items-center gap-1.5">
+                            <span class="w-2 h-2 rounded-full bg-cyan-400"></span>
+                            角度を数字で入力
+                        </span>
+                        <span class="text-[11px] text-cyan-300 font-bold">範囲: 0度 〜 360度</span>
+                    </div>
+
+                    <!-- 角度表示欄 -->
+                    <div class="relative flex items-center">
+                        <input type="number" id="angleInput" min="0" max="360" value="" placeholder="0" oninput="handleDirectInput(this.value)" 
+                               class="w-full text-center text-3xl font-black font-outfit bg-slate-950 border-2 border-slate-700 rounded-xl py-2 px-3 focus:outline-none focus:border-cyan-400 text-cyan-300 shadow-inner">
+                        <span class="absolute right-4 top-1/2 -translate-y-1/2 text-xl font-black text-slate-400">度</span>
+                    </div>
+
+                    <!-- クリア・BSボタン -->
+                    <div class="grid grid-cols-2 gap-2">
+                        <button onclick="keypadPress('BS')" class="keypad-btn py-2 text-xs font-bold flex items-center justify-center gap-1">
+                            <svg class="w-4 h-4 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M12 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2M3 12l6.414-6.414A2 2 0 0110.828 5H19a2 2 0 012 2v10a2 2 0 01-2 2h-8.172a2 2 0 01-1.414-.586L3 12z"/></svg>
+                            <span>1文字けす</span>
+                        </button>
+                        <button onclick="keypadPress('C')" class="keypad-btn py-2 text-xs font-bold text-rose-400 bg-rose-950/30 border-rose-800/60 hover:text-rose-300">
+                            <span>全部けす</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 10キー配列 -->
+                <div class="grid grid-cols-3 gap-2 flex-1 my-1">
+                    <button onclick="keypadPress('7')" class="keypad-btn py-3 text-2xl font-outfit">7</button>
+                    <button onclick="keypadPress('8')" class="keypad-btn py-3 text-2xl font-outfit">8</button>
+                    <button onclick="keypadPress('9')" class="keypad-btn py-3 text-2xl font-outfit">9</button>
+
+                    <button onclick="keypadPress('4')" class="keypad-btn py-3 text-2xl font-outfit">4</button>
+                    <button onclick="keypadPress('5')" class="keypad-btn py-3 text-2xl font-outfit">5</button>
+                    <button onclick="keypadPress('6')" class="keypad-btn py-3 text-2xl font-outfit">6</button>
+
+                    <button onclick="keypadPress('1')" class="keypad-btn py-3 text-2xl font-outfit">1</button>
+                    <button onclick="keypadPress('2')" class="keypad-btn py-3 text-2xl font-outfit">2</button>
+                    <button onclick="keypadPress('3')" class="keypad-btn py-3 text-2xl font-outfit">3</button>
+
+                    <button id="adjustMinusBtn" onclick="adjustValue(-10)" class="keypad-btn py-3 text-xs md:text-sm text-amber-400 font-bold">-10°</button>
+                    <button onclick="keypadPress('0')" class="keypad-btn py-3 text-2xl font-outfit">0</button>
+                    <button id="adjustPlusBtn" onclick="adjustValue(10)" class="keypad-btn py-3 text-xs md:text-sm text-amber-400 font-bold">+10°</button>
+                </div>
+
+                <!-- 決定ボタン -->
+                <button id="submitBtn" onclick="submitAnswer()" style="--btn-shadow: #0284c7;" class="btn-cyber w-full bg-gradient-to-r from-cyan-500 to-blue-600 text-slate-950 font-black text-lg py-3 rounded-xl cursor-pointer flex items-center justify-center gap-2 border border-cyan-300 tracking-wider">
+                    <span>この角度で決定</span>
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+                </button>
+            </div>
+
+        </div>
+
+        <!-- ================= 最終結果画面 ================= -->
+        <div id="resultScreen" class="w-full h-full max-h-full bg-slate-900/95 backdrop-blur-md rounded-3xl p-5 md:p-8 shadow-2xl border border-slate-800 text-center hidden relative flex flex-col justify-between overflow-y-auto animate-pop-in cyber-corner">
+            <div class="my-auto flex flex-col items-center">
+                <div id="finalIcon" class="mb-3"></div>
+                <h2 id="finalTitle" class="text-2xl md:text-4xl font-black text-slate-100 mb-1 tracking-wider">
+                    ゲームオーバー
+                </h2>
+                <p id="finalSubtitle" class="text-xs md:text-sm text-slate-300 font-bold mb-4">ズレが11度以上のためチャレンジ失敗</p>
+
+                <div class="bg-slate-950/90 rounded-2xl p-5 border border-slate-800 w-full max-w-sm mb-4 shadow-2xl relative space-y-1">
+                    <span id="newRecordBadge" class="absolute -top-3 left-1/2 -translate-x-1/2 bg-amber-500 text-slate-950 font-black text-xs px-3 py-1 rounded-full border border-amber-300 shadow-lg hidden">
+                        新記録達成！
+                    </span>
+                    <div>
+                        <p class="text-xs text-slate-400 font-bold mb-0.5">最終スコア</p>
+                        <p id="finalScoreText" class="text-4xl md:text-5xl font-black font-outfit text-amber-400 tracking-wider">0</p>
+                    </div>
+                </div>
+
+                <div class="flex flex-col sm:flex-row gap-3 w-full max-w-sm mt-2">
+                    <button onclick="startGame(currentDifficulty)" style="--btn-shadow: #0284c7;" class="btn-cyber flex-1 bg-gradient-to-r from-cyan-500 to-blue-600 text-slate-950 font-black py-3 rounded-xl border border-cyan-300">
+                        もういちど遊ぶ
+                    </button>
+                    <button onclick="showMenuScreen()" style="--btn-shadow: #334155;" class="btn-cyber flex-1 bg-slate-800 hover:bg-slate-700 text-slate-200 font-black py-3 rounded-xl border border-slate-600">
+                        メニューにもどる
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- ================= メニューへ戻る確認ダイアログ ================= -->
+        <div id="exitConfirmModal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden animate-pop-in">
+            <div class="bg-slate-900 border-2 border-cyan-500/50 rounded-2xl p-5 max-w-xs w-full text-center shadow-2xl space-y-4 cyber-corner">
+                <h3 class="text-lg font-black text-slate-100">メニューにもどりますか？</h3>
+                <p class="text-xs text-slate-300 font-bold">いま挑戦中のスコアや問題は消えてしまいます。</p>
+                <div class="flex gap-2 pt-2">
+                    <button onclick="hideExitConfirmModal()" class="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold py-2.5 rounded-xl border border-slate-700">
+                        ゲームをつづける
+                    </button>
+                    <button onclick="confirmExitToMenu()" class="flex-1 bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold py-2.5 rounded-xl border border-rose-400">
+                        もどる
+                    </button>
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <script>
+        // -------------------------------------------------------------
+        // Web Audio API サウンド効果
+        // -------------------------------------------------------------
+        let audioCtx = null;
+        let soundEnabled = true;
+
+        function initAudio() {
+            if (!audioCtx) {
+                const AudioCtxClass = window.AudioContext || window.webkitAudioContext;
+                if (AudioCtxClass) {
+                    audioCtx = new AudioCtxClass();
+                }
+            }
+            if (audioCtx && audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+        }
+
+        function toggleSound() {
+            soundEnabled = !soundEnabled;
+            const icons = document.querySelectorAll('.soundIcon');
+            const soundText = document.getElementById('soundText');
+            
+            if (soundText) soundText.innerText = soundEnabled ? "音: オン" : "音: オフ";
+
+            icons.forEach(el => {
+                if (soundEnabled) {
+                    el.innerHTML = `<svg class="w-4 h-4 md:w-5 md:h-5 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.536 8.464a5 5 0 010 7.072M18.364 5.636a9 9 0 010 12.728M11 5L6 9H2v6h4l5 4V5z"/></svg>`;
+                } else {
+                    el.innerHTML = `<svg class="w-4 h-4 md:w-5 md:h-5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2"/></svg>`;
+                }
+            });
+            if (soundEnabled) playSound('click');
+        }
+
+        function playSound(type) {
+            if (!soundEnabled) return;
+            try {
+                initAudio();
+                if (!audioCtx) return;
+
+                const now = audioCtx.currentTime;
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+
+                if (type === 'click') {
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(800, now);
+                    osc.frequency.exponentialRampToValueAtTime(1200, now + 0.04);
+                    gain.gain.setValueAtTime(0.12, now);
+                    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.04);
+                    osc.start(now);
+                    osc.stop(now + 0.04);
+                } else if (type === 'select') {
+                    osc.type = 'triangle';
+                    osc.frequency.setValueAtTime(523.25, now);
+                    osc.frequency.exponentialRampToValueAtTime(1046.50, now + 0.08);
+                    gain.gain.setValueAtTime(0.18, now);
+                    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.08);
+                    osc.start(now);
+                    osc.stop(now + 0.08);
+                } else if (type === 'success') {
+                    osc.type = 'triangle';
+                    osc.frequency.setValueAtTime(523.25, now);
+                    osc.frequency.setValueAtTime(659.25, now + 0.07);
+                    osc.frequency.setValueAtTime(783.99, now + 0.14);
+                    osc.frequency.setValueAtTime(1046.50, now + 0.21);
+                    gain.gain.setValueAtTime(0.2, now);
+                    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.38);
+                    osc.start(now);
+                    osc.stop(now + 0.38);
+                } else if (type === 'fail') {
+                    osc.type = 'sawtooth';
+                    osc.frequency.setValueAtTime(280, now);
+                    osc.frequency.exponentialRampToValueAtTime(140, now + 0.3);
+                    gain.gain.setValueAtTime(0.2, now);
+                    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.3);
+                    osc.start(now);
+                    osc.stop(now + 0.3);
+                } else if (type === 'count') {
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(450 + Math.random() * 250, now);
+                    gain.gain.setValueAtTime(0.05, now);
+                    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.035);
+                    osc.start(now);
+                    osc.stop(now + 0.035);
+                } else if (type === 'fanfare') {
+                    const notes = [523.25, 659.25, 783.99, 1046.50, 880, 1046.50];
+                    const times = [0, 0.08, 0.16, 0.24, 0.36, 0.48];
+                    const durations = [0.07, 0.07, 0.07, 0.1, 0.1, 0.4];
+                    notes.forEach((freq, idx) => {
+                        const o = audioCtx.createOscillator();
+                        const g = audioCtx.createGain();
+                        o.type = 'triangle';
+                        o.connect(g);
+                        g.connect(audioCtx.destination);
+                        const t = now + times[idx];
+                        o.frequency.setValueAtTime(freq, t);
+                        g.gain.setValueAtTime(0.2, t);
+                        g.gain.exponentialRampToValueAtTime(0.01, t + durations[idx]);
+                        o.start(t);
+                        o.stop(t + durations[idx]);
+                    });
+                }
+            } catch(e) {}
+        }
+
+        // -------------------------------------------------------------
+        // ゲーム変数 & 記録機能
+        // -------------------------------------------------------------
+        const MAX_QUESTIONS = 10;
+        let currentDifficulty = 'beginner';
+        let currentQuestionIndex = 1;
+        let gameScore = 0;
+        let clearedQuestionsCount = 0;
+        let usedAngles = [];
+
+        // ステージ別ハイスコア記録
+        let stageRecords = {
+            beginner: { score: 0, cleared: 0 },
+            intermediate: { score: 0, cleared: 0 },
+            expert: { score: 0, cleared: 0 }
+        };
+        
+        let targetAngle = 0;
+        let baseRotation = 0; // 0 = 右向き水平, Math.PI = 左向き水平
+        let userAngleString = "";
+        let isGameOver = false;
+        let isAnimatingReveal = false;
+        let canvas = null, ctx = null;
+
+        function loadProgress() {
+            try {
+                const saved = localStorage.getItem('angleMasterStageRecords');
+                if (saved) {
+                    const parsed = JSON.parse(saved);
+                    if (parsed) {
+                        stageRecords = { ...stageRecords, ...parsed };
+                    }
+                }
+            } catch(e) {}
+            updateStageRecordsDisplay();
+        }
+
+        function saveProgress() {
+            try {
+                localStorage.setItem('angleMasterStageRecords', JSON.stringify(stageRecords));
+            } catch(e) {}
+        }
+
+        function updateStageRecordsDisplay() {
+            ['beginner', 'intermediate', 'expert'].forEach(diff => {
+                const rec = stageRecords[diff] || { score: 0, cleared: 0 };
+                const scoreEl = document.getElementById(`record-score-${diff}`);
+                const clearedEl = document.getElementById(`record-cleared-${diff}`);
+                if (scoreEl) scoreEl.innerText = rec.score;
+                if (clearedEl) clearedEl.innerText = `${rec.cleared}/10問`;
+            });
+        }
+
+        window.onload = function() {
+            canvas = document.getElementById('angleCanvas');
+            ctx = canvas ? canvas.getContext('2d') : null;
+            loadProgress();
+            showMenuScreen();
+
+            window.addEventListener('resize', () => {
+                resizeCanvas();
+            });
+        };
+
+        function showMenuScreen() {
+            document.getElementById('gameScreen').classList.add('hidden');
+            document.getElementById('gameScreen').classList.remove('flex');
+            document.getElementById('resultScreen').classList.add('hidden');
+            document.getElementById('menuScreen').classList.remove('hidden');
+            updateStageRecordsDisplay();
+        }
+
+        function showExitConfirmModal() {
+            playSound('click');
+            const modal = document.getElementById('exitConfirmModal');
+            if (modal) modal.classList.remove('hidden');
+        }
+
+        function hideExitConfirmModal() {
+            playSound('click');
+            const modal = document.getElementById('exitConfirmModal');
+            if (modal) modal.classList.add('hidden');
+        }
+
+        function confirmExitToMenu() {
+            hideExitConfirmModal();
+            showMenuScreen();
+        }
+
+        function startGame(difficulty) {
+            playSound('select');
+            currentDifficulty = difficulty;
+            currentQuestionIndex = 1;
+            gameScore = 0;
+            clearedQuestionsCount = 0;
+            usedAngles = [];
+            isGameOver = false;
+
+            const adjustMinusBtn = document.getElementById('adjustMinusBtn');
+            const adjustPlusBtn = document.getElementById('adjustPlusBtn');
+            if (difficulty === 'beginner') {
+                adjustMinusBtn.innerText = '-10°';
+                adjustMinusBtn.setAttribute('onclick', 'adjustValue(-10)');
+                adjustPlusBtn.innerText = '+10°';
+                adjustPlusBtn.setAttribute('onclick', 'adjustValue(10)');
+            } else {
+                adjustMinusBtn.innerText = '-5°';
+                adjustMinusBtn.setAttribute('onclick', 'adjustValue(-5)');
+                adjustPlusBtn.innerText = '+5°';
+                adjustPlusBtn.setAttribute('onclick', 'adjustValue(5)');
+            }
+
+            document.getElementById('menuScreen').classList.add('hidden');
+            document.getElementById('resultScreen').classList.add('hidden');
+            document.getElementById('gameScreen').classList.remove('hidden');
+            document.getElementById('gameScreen').classList.add('flex');
+
+            setTimeout(() => {
+                resizeCanvas();
+                setupQuestion();
+            }, 50);
+        }
+
+        function generateUniqueAngle() {
+            let angle;
+            let attempts = 0;
+            while (attempts < 1000) {
+                if (currentDifficulty === 'beginner') {
+                    angle = Math.floor(Math.random() * 18 + 1) * 10; // 10~180度
+                } else if (currentDifficulty === 'intermediate') {
+                    angle = Math.floor(Math.random() * 36 + 1) * 5;  // 5~180度
+                } else {
+                    angle = Math.floor(Math.random() * 72 + 1) * 5;  // 5~360度
+                }
+
+                if (!usedAngles.includes(angle)) {
+                    usedAngles.push(angle);
+                    return angle;
+                }
+                attempts++;
+            }
+            return 90;
+        }
+
+        function setupQuestion() {
+            targetAngle = generateUniqueAngle();
+            
+            // 上級コースでは、50%の確率で「左向き基準線（左から右へ開く）」を出題
+            if (currentDifficulty === 'expert') {
+                baseRotation = Math.random() < 0.5 ? 0 : Math.PI;
+            } else {
+                baseRotation = 0; // 初級・中級は常に「右向き基準線（右から左へ開く）」
+            }
+
+            document.getElementById('questionCounter').innerText = `第 ${currentQuestionIndex} / ${MAX_QUESTIONS} 問`;
+            document.getElementById('currentScoreDisplay').innerText = gameScore;
+
+            userAngleString = "";
+            updateInputDisplay();
+
+            document.getElementById('resultOverlay').classList.add('hidden');
+            document.getElementById('inputArea').style.pointerEvents = 'auto';
+
+            isAnimatingReveal = false;
+            drawScene(false, null, false);
+        }
+
+        function keypadPress(key) {
+            if (isAnimatingReveal) return;
+            playSound('click');
+            if (key === 'C') {
+                userAngleString = "";
+            } else if (key === 'BS') {
+                userAngleString = userAngleString.length > 1 ? userAngleString.slice(0, -1) : "";
+            } else {
+                if (userAngleString === "" || userAngleString === "0") {
+                    userAngleString = key;
+                } else if (userAngleString.length < 3) {
+                    userAngleString += key;
+                }
+            }
+
+            let num = parseInt(userAngleString, 10);
+            if (!isNaN(num) && num > 360) userAngleString = "360";
+
+            updateInputDisplay();
+        }
+
+        function handleDirectInput(val) {
+            if (isAnimatingReveal) return;
+            if (val === "") {
+                userAngleString = "";
+                updateInputDisplay();
+                return;
+            }
+            let num = parseInt(val, 10);
+            if (isNaN(num)) num = 0;
+            if (num < 0) num = 0;
+            if (num > 360) num = 360;
+            userAngleString = num.toString();
+            updateInputDisplay();
+        }
+
+        function adjustValue(delta) {
+            if (isAnimatingReveal) return;
+            playSound('click');
+            let num = parseInt(userAngleString, 10) || 0;
+            num += delta;
+            if (num < 0) num = 0;
+            if (num > 360) num = 360;
+            userAngleString = num.toString();
+            updateInputDisplay();
+        }
+
+        function updateInputDisplay() {
+            document.getElementById('angleInput').value = userAngleString;
+        }
+
+        // キーボード操作対応
+        document.addEventListener('keydown', function(e) {
+            const gameScreen = document.getElementById('gameScreen');
+            if (!gameScreen || gameScreen.classList.contains('hidden')) return;
+
+            const overlay = document.getElementById('resultOverlay');
+            if (overlay && !overlay.classList.contains('hidden')) {
+                if (e.key === 'Enter') {
+                    document.getElementById('nextBtn').click();
+                }
+                return;
+            }
+
+            if (e.key >= '0' && e.key <= '9') {
+                keypadPress(e.key);
+            } else if (e.key === 'Backspace') {
+                keypadPress('BS');
+            } else if (e.key === 'Escape' || e.key === 'c' || e.key === 'C') {
+                keypadPress('C');
+            } else if (e.key === 'Enter') {
+                submitAnswer();
+            }
+        });
+
+        function resizeCanvas() {
+            canvas = document.getElementById('angleCanvas');
+            if (!canvas) return;
+            const parent = canvas.parentElement;
+            if (!parent) return;
+
+            const rect = parent.getBoundingClientRect();
+            const dpr = window.devicePixelRatio || 1;
+
+            canvas.width = rect.width * dpr;
+            canvas.height = rect.height * dpr;
+
+            ctx = canvas.getContext('2d');
+
+            const gameScreen = document.getElementById('gameScreen');
+            if (gameScreen && !gameScreen.classList.contains('hidden')) {
+                const overlay = document.getElementById('resultOverlay');
+                const isShowingResult = overlay && !overlay.classList.contains('hidden');
+                const userVal = parseInt(userAngleString, 10) || 0;
+                drawScene(isShowingResult || isAnimatingReveal, isShowingResult ? userVal : null, isAnimatingReveal);
+            }
+        }
+
+        // 角丸四角形描画ヘルパー
+        function drawRoundedRect(x, y, width, height, radius) {
+            if (!ctx) return;
+            if (ctx.roundRect) {
+                ctx.beginPath();
+                ctx.roundRect(x, y, width, height, radius);
+            } else {
+                ctx.beginPath();
+                ctx.moveTo(x + radius, y);
+                ctx.lineTo(x + width - radius, y);
+                ctx.arcTo(x + width, y, x + width, y + radius, radius);
+                ctx.lineTo(x + width, y + height - radius);
+                ctx.arcTo(x + width, y + height, x + width - radius, y + height, radius);
+                ctx.lineTo(x + radius, y + height);
+                ctx.arcTo(x, y + height, x, y + height - radius, radius);
+                ctx.lineTo(x, y + radius);
+                ctx.arcTo(x, y, x + radius, y, radius);
+                ctx.closePath();
+            }
+        }
+
+        // 角度（度数deg）からCanvas上のラジアン角度を計算するヘルパー
+        function calculateEndRad(deg) {
+            const rad = deg * Math.PI / 180;
+            // 左向き基準（baseRotation == Math.PI）の時は時計回り（+rad）
+            // 右向き基準（baseRotation == 0）の時は反時計回り（-rad）
+            const isLeftBase = Math.abs(baseRotation - Math.PI) < 0.01;
+            return isLeftBase ? (baseRotation + rad) : (baseRotation - rad);
+        }
+
+        // 分度器（角度目盛り）描画
+        function drawProtractorOverlay(cx, cy, radius) {
+            const dpr = window.devicePixelRatio || 1;
+            const isLeftBase = Math.abs(baseRotation - Math.PI) < 0.01;
+            ctx.save();
+
+            ctx.beginPath();
+            ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+            ctx.strokeStyle = 'rgba(56, 189, 248, 0.35)';
+            ctx.lineWidth = 1.5 * dpr;
+            ctx.stroke();
+
+            for (let deg = 0; deg < 360; deg += 10) {
+                const rad = calculateEndRad(deg);
+                const isMajor = (deg % 30 === 0);
+                const tickLen = isMajor ? 10 * dpr : 5 * dpr;
+
+                const x1 = cx + Math.cos(rad) * radius;
+                const y1 = cy + Math.sin(rad) * radius;
+                const x2 = cx + Math.cos(rad) * (radius - tickLen);
+                const y2 = cy + Math.sin(rad) * (radius - tickLen);
+
+                ctx.beginPath();
+                ctx.moveTo(x1, y1);
+                ctx.lineTo(x2, y2);
+                ctx.strokeStyle = isMajor ? 'rgba(56, 189, 248, 0.7)' : 'rgba(71, 85, 105, 0.4)';
+                ctx.lineWidth = (isMajor ? 2 : 1) * dpr;
+                ctx.stroke();
+
+                if (isMajor && radius > 75 * dpr) {
+                    const tx = cx + Math.cos(rad) * (radius - 20 * dpr);
+                    const ty = cy + Math.sin(rad) * (radius - 20 * dpr);
+                    ctx.fillStyle = 'rgba(148, 163, 184, 0.85)';
+                    ctx.font = `700 ${Math.round(9 * dpr)}px 'Noto Sans JP', sans-serif`;
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillText(`${deg}°`, tx, ty);
+                }
+            }
+
+            ctx.restore();
+        }
+
+        // メインキャンバス描画
+        function drawScene(showProtractor = false, animAngle = null, isAnimating = false, animPhase = 'none', userVal = null) {
+            if (!ctx || !canvas) return;
+            const w = canvas.width;
+            const h = canvas.height;
+            const dpr = window.devicePixelRatio || 1;
+
+            const isLeftBase = Math.abs(baseRotation - Math.PI) < 0.01;
+            const anticlockwise = !isLeftBase; // 左基準なら時計回り(false)、右基準なら反時計回り(true)
+
+            let cx = w / 2;
+            let cy = h / 2;
+            let radius;
+
+            if (targetAngle <= 180) {
+                cy = h * 0.72;
+                radius = Math.min(w * 0.4, h * 0.58);
+            } else {
+                cx = w / 2;
+                cy = h / 2;
+                radius = Math.min(w, h) * 0.36;
+            }
+
+            ctx.clearRect(0, 0, w, h);
+
+            const startRad = baseRotation; 
+            const targetEndRad = calculateEndRad(targetAngle);
+
+            // 1. 正解の扇形エリア（シアン色）
+            if (targetAngle > 0) {
+                ctx.save();
+                ctx.beginPath();
+                ctx.moveTo(cx, cy);
+                ctx.arc(cx, cy, radius * 0.9, startRad, targetEndRad, anticlockwise);
+                ctx.closePath();
+                ctx.fillStyle = 'rgba(6, 182, 212, 0.18)';
+                ctx.fill();
+
+                ctx.beginPath();
+                ctx.arc(cx, cy, radius * 0.9, startRad, targetEndRad, anticlockwise);
+                ctx.strokeStyle = '#0284c7';
+                ctx.lineWidth = 3 * dpr;
+                ctx.stroke();
+                ctx.restore();
+            }
+
+            // Phase 2 でユーザーの元の着地点を薄く点線に残す
+            if (animPhase === 'phase2' && userVal !== null && userVal > 0) {
+                ctx.save();
+                const origUserEndRad = calculateEndRad(userVal);
+                ctx.beginPath();
+                ctx.moveTo(cx, cy);
+                ctx.arc(cx, cy, radius * 0.82, startRad, origUserEndRad, anticlockwise);
+                ctx.strokeStyle = 'rgba(251, 191, 36, 0.25)';
+                ctx.lineWidth = 2.5 * dpr;
+                ctx.setLineDash([4 * dpr, 4 * dpr]);
+                ctx.stroke();
+                ctx.restore();
+            }
+
+            // 2. ユーザー入力角度（イエロー/アンバー）
+            const displayAngle = (animAngle !== null) ? animAngle : ((userVal !== null) ? userVal : 0);
+            if (displayAngle > 0) {
+                ctx.save();
+                const userEndRad = calculateEndRad(displayAngle);
+                ctx.beginPath();
+                ctx.moveTo(cx, cy);
+                ctx.arc(cx, cy, radius * 0.82, startRad, userEndRad, anticlockwise);
+                ctx.closePath();
+                ctx.fillStyle = (animPhase === 'phase2') ? 'rgba(56, 189, 248, 0.25)' : 'rgba(251, 191, 36, 0.35)'; 
+                ctx.fill();
+
+                ctx.beginPath();
+                ctx.arc(cx, cy, radius * 0.82, startRad, userEndRad, anticlockwise);
+                ctx.strokeStyle = (animPhase === 'phase2') ? '#38bdf8' : '#fbbf24';
+                ctx.lineWidth = 3.5 * dpr;
+                ctx.setLineDash([6 * dpr, 4 * dpr]);
+                ctx.stroke();
+                ctx.setLineDash([]);
+
+                const userX = cx + Math.cos(userEndRad) * (radius * 0.95);
+                const userY = cy + Math.sin(userEndRad) * (radius * 0.95);
+                ctx.beginPath();
+                ctx.moveTo(cx, cy);
+                ctx.lineTo(userX, userY);
+                ctx.strokeStyle = (animPhase === 'phase2') ? '#0284c7' : '#f59e0b';
+                ctx.lineWidth = 4 * dpr;
+                ctx.lineCap = 'round';
+                ctx.stroke();
+                ctx.restore();
+            }
+
+            // 3. 水平基準線（0°の基準線: 金色）
+            const refX = cx + Math.cos(startRad) * radius;
+            const refY = cy + Math.sin(startRad) * radius;
+
+            ctx.beginPath();
+            ctx.moveTo(cx, cy);
+            ctx.lineTo(refX, refY);
+            ctx.strokeStyle = '#fbbf24';
+            ctx.lineWidth = 4.5 * dpr;
+            ctx.lineCap = 'round';
+            ctx.stroke();
+
+            // 0°の文字表示
+            ctx.save();
+            const labelDist = radius + 18 * dpr;
+            const labelX = cx + Math.cos(startRad) * labelDist;
+            const labelY = cy + Math.sin(startRad) * labelDist;
+            ctx.fillStyle = '#fbbf24';
+            ctx.font = `800 ${Math.round(12 * dpr)}px 'Noto Sans JP', sans-serif`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText("0°", labelX, labelY);
+            ctx.restore();
+
+            // 4. 正解ターゲット線（青色）
+            const targetX = cx + Math.cos(targetEndRad) * radius;
+            const targetY = cy + Math.sin(targetEndRad) * radius;
+
+            ctx.beginPath();
+            ctx.moveTo(cx, cy);
+            ctx.lineTo(targetX, targetY);
+            ctx.strokeStyle = '#38bdf8';
+            ctx.lineWidth = 4.5 * dpr;
+            ctx.lineCap = 'round';
+            ctx.stroke();
+
+            // 5. 中心点
+            ctx.beginPath();
+            ctx.arc(cx, cy, 6.5 * dpr, 0, Math.PI * 2);
+            ctx.fillStyle = '#0f172a';
+            ctx.fill();
+            ctx.strokeStyle = '#38bdf8';
+            ctx.lineWidth = 3 * dpr;
+            ctx.stroke();
+
+            // 6. 分度器の目盛り
+            if (showProtractor) {
+                drawProtractorOverlay(cx, cy, radius * 1.05);
+            }
+
+            // 7. アニメーションリアルタイム角度表示バッジ
+            if (isAnimating && displayAngle !== null) {
+                ctx.save();
+                const centerTextY = cy > h * 0.65 ? h * 0.25 : h * 0.18;
+                const roundedAngle = Math.round(displayAngle);
+
+                const badgeWidth = 200 * dpr;
+                const badgeHeight = 76 * dpr;
+                ctx.fillStyle = 'rgba(15, 23, 42, 0.95)';
+                
+                const strokeColor = (animPhase === 'pause') ? '#f59e0b' : ((animPhase === 'phase2') ? '#38bdf8' : '#fbbf24');
+                ctx.shadowColor = strokeColor;
+                ctx.shadowBlur = 18 * dpr;
+                
+                drawRoundedRect(w / 2 - badgeWidth / 2, centerTextY - badgeHeight / 2, badgeWidth, badgeHeight, 14 * dpr);
+                ctx.fill();
+                ctx.strokeStyle = strokeColor;
+                ctx.lineWidth = 2 * dpr;
+                ctx.stroke();
+
+                ctx.shadowBlur = 0;
+
+                ctx.fillStyle = '#94a3b8';
+                ctx.font = `700 ${Math.round(11 * dpr)}px 'Noto Sans JP', sans-serif`;
+                ctx.textAlign = 'center';
+                
+                let labelText = "あなたの予想角度";
+                if (animPhase === 'pause') {
+                    labelText = (userVal === targetAngle) ? "ピッタリ的中！すごい！" : "予想の位置でストップ！";
+                }
+                if (animPhase === 'phase2') labelText = "本当の角度へうごきます...";
+                
+                ctx.fillText(labelText, w / 2, centerTextY - 18 * dpr);
+
+                // アニメーション中のリアルタイム数値表示
+                ctx.fillStyle = strokeColor;
+                ctx.font = `900 ${Math.round(26 * dpr)}px 'Outfit', sans-serif`;
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(`${roundedAngle}°`, w / 2, centerTextY + 12 * dpr);
+
+                ctx.restore();
+            }
+        }
+
+        function submitAnswer() {
+            if (isAnimatingReveal) return;
+
+            const userVal = parseInt(userAngleString, 10) || 0;
+            document.getElementById('inputArea').style.pointerEvents = 'none';
+            isAnimatingReveal = true;
+
+            // Phase 1: 0° から ユーザー予測角度までゆったり伸びる (2.8秒)
+            const duration1 = 2800;
+            const startTime1 = performance.now();
+            let lastSoundTime = 0;
+
+            function animatePhase1(now) {
+                const elapsed = now - startTime1;
+                const progress = Math.min(1, elapsed / duration1);
+                const easeProgress = 1 - Math.pow(1 - progress, 3); // Ease-Out
+                const currentVal = userVal * easeProgress;
+
+                const currentSoundInterval = 60 + (easeProgress * 140);
+                if (now - lastSoundTime > currentSoundInterval && progress < 0.98) {
+                    playSound('count');
+                    lastSoundTime = now;
+                }
+
+                drawScene(true, currentVal, true, 'phase1', userVal);
+
+                if (progress < 1) {
+                    requestAnimationFrame(animatePhase1);
+                } else {
+                    // Pause Phase: 予想角度で一時静止
+                    playSound('select');
+                    drawScene(true, userVal, true, 'pause', userVal);
+
+                    setTimeout(() => {
+                        // ピッタリ（誤差0°）の場合は補正移動フェーズをスキップ
+                        if (userVal === targetAngle) {
+                            isAnimatingReveal = false;
+                            drawScene(true, userVal, false, 'none', userVal);
+                            finalizeAnswer(userVal);
+                            return;
+                        }
+
+                        // Phase 2: 予想角度から 実際の正解角度まで移動 (2.2秒)
+                        const duration2 = 2200;
+                        const startTime2 = performance.now();
+                        const startAngle2 = userVal;
+                        const endAngle2 = targetAngle;
+
+                        function animatePhase2(now2) {
+                            const elapsed2 = now2 - startTime2;
+                            const progress2 = Math.min(1, elapsed2 / duration2);
+                            const easeProgress2 = 1 - Math.pow(1 - progress2, 3);
+                            const currentVal2 = startAngle2 + (endAngle2 - startAngle2) * easeProgress2;
+
+                            if (now2 - lastSoundTime > 90 && progress2 < 0.98) {
+                                playSound('count');
+                                lastSoundTime = now2;
+                            }
+
+                            drawScene(true, currentVal2, true, 'phase2', userVal);
+
+                            if (progress2 < 1) {
+                                requestAnimationFrame(animatePhase2);
+                            } else {
+                                isAnimatingReveal = false;
+                                drawScene(true, userVal, false, 'none', userVal);
+                                finalizeAnswer(userVal);
+                            }
+                        }
+
+                        requestAnimationFrame(animatePhase2);
+                    }, 1200);
+                }
+            }
+
+            requestAnimationFrame(animatePhase1);
+        }
+
+        function finalizeAnswer(userVal) {
+            const diff = Math.abs(userVal - targetAngle);
+
+            const resBadge = document.getElementById('resultBadge');
+            const resTitle = document.getElementById('resultTitle');
+            const resSubtitle = document.getElementById('resultSubtitle');
+            const nextBtnText = document.getElementById('nextBtnText');
+
+            document.getElementById('resUserAngle').innerText = `${userVal}°`;
+            document.getElementById('resTargetAngle').innerText = `${targetAngle}°`;
+            document.getElementById('resDiff').innerText = `${diff}°`;
+
+            let earnedPoints = 0;
+
+            if (diff > 10) {
+                // 誤差11度以上で失敗
+                isGameOver = true;
+                playSound('fail');
+                resBadge.innerHTML = `<span class="bg-rose-950 text-rose-300 border border-rose-600 font-black text-xs px-3.5 py-1 rounded-full">ミッション失敗 (ズレ 11度以上)</span>`;
+                resTitle.innerText = "おしい！外れてしまった！";
+                resTitle.className = "text-xl md:text-2xl font-black mb-0.5 text-rose-500";
+                resSubtitle.innerText = "ズレが10度を超えてしまったためゲームオーバー";
+                document.getElementById('resEarnedScore').innerText = `+0`;
+                nextBtnText.innerText = "最終結果を見る";
+            } else {
+                // クリア（10度以内セーフ）
+                clearedQuestionsCount++;
+                earnedPoints = Math.max(10, 100 - diff * 9);
+                gameScore += earnedPoints;
+                playSound('success');
+
+                if (diff === 0) {
+                    resBadge.innerHTML = `<span class="bg-amber-950 text-amber-300 border border-amber-500 font-black text-xs px-3.5 py-1 rounded-full">ピッタリ！パーフェクト！</span>`;
+                    resTitle.innerText = "神級の目測精度！";
+                    resTitle.className = "text-xl md:text-2xl font-black mb-0.5 text-amber-400";
+                } else {
+                    resBadge.innerHTML = `<span class="bg-emerald-950 text-emerald-300 border border-emerald-500 font-black text-xs px-3.5 py-1 rounded-full">クリア成功！</span>`;
+                    resTitle.innerText = "ターゲット命中！";
+                    resTitle.className = "text-xl md:text-2xl font-black mb-0.5 text-emerald-400";
+                }
+                resSubtitle.innerText = `素晴らしい目測精度です！ (+${earnedPoints}点)`;
+                document.getElementById('resEarnedScore').innerText = `+${earnedPoints}`;
+
+                if (currentQuestionIndex >= MAX_QUESTIONS) {
+                    nextBtnText.innerText = "最終結果を見る";
+                } else {
+                    nextBtnText.innerText = "次の問題へ";
+                }
+            }
+
+            document.getElementById('resultOverlay').classList.remove('hidden');
+        }
+
+        function nextAction() {
+            playSound('click');
+            if (isGameOver || currentQuestionIndex >= MAX_QUESTIONS) {
+                showFinalResultScreen();
+            } else {
+                currentQuestionIndex++;
+                setupQuestion();
+            }
+        }
+
+        function showFinalResultScreen() {
+            document.getElementById('gameScreen').classList.add('hidden');
+            document.getElementById('gameScreen').classList.remove('flex');
+            document.getElementById('resultScreen').classList.remove('hidden');
+
+            const finalTitle = document.getElementById('finalTitle');
+            const finalSubtitle = document.getElementById('finalSubtitle');
+            const finalIcon = document.getElementById('finalIcon');
+            const newRecordBadge = document.getElementById('newRecordBadge');
+            const finalScoreText = document.getElementById('finalScoreText');
+
+            const isCleared = !isGameOver && currentQuestionIndex === MAX_QUESTIONS;
+            finalScoreText.innerText = gameScore;
+
+            if (isCleared) {
+                playSound('fanfare');
+                finalTitle.innerText = "全10問 クリア達成！";
+                finalTitle.className = "text-2xl md:text-4xl font-black text-emerald-400 mb-1 tracking-wider";
+                finalSubtitle.innerText = "すばらしい集中力で全10問を完全クリア！";
+                finalIcon.innerHTML = `<svg class="w-16 h-16 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>`;
+                finalIcon.className = "p-4 bg-emerald-950/40 border-emerald-500/50 rounded-2xl border shadow-xl shadow-emerald-950";
+            } else {
+                playSound('fail');
+                finalTitle.innerText = "ゲームオーバー";
+                finalTitle.className = "text-2xl md:text-4xl font-black text-rose-500 mb-1 tracking-wider";
+                finalSubtitle.innerText = `第 ${currentQuestionIndex} 問目でズレが10度以上となり終了 (${clearedQuestionsCount}問成功)`;
+                finalIcon.innerHTML = `<svg class="w-16 h-16 text-rose-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>`;
+                finalIcon.className = "p-4 bg-rose-950/40 border-rose-500/50 rounded-2xl border shadow-xl shadow-rose-950";
+            }
+
+            let currentRecord = stageRecords[currentDifficulty] || { score: 0, cleared: 0 };
+            let isNewRecord = false;
+
+            if (gameScore > currentRecord.score || clearedQuestionsCount > currentRecord.cleared) {
+                isNewRecord = true;
+                stageRecords[currentDifficulty] = {
+                    score: Math.max(gameScore, currentRecord.score),
+                    cleared: Math.max(clearedQuestionsCount, currentRecord.cleared)
+                };
+                saveProgress();
+                updateStageRecordsDisplay();
+            }
+
+            if (isNewRecord) {
+                newRecordBadge.classList.remove('hidden');
+            } else {
+                newRecordBadge.classList.add('hidden');
+            }
+        }
+    </script>
+</body>
+</html>
