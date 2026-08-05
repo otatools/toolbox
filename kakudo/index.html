@@ -17,11 +17,18 @@
             touch-action: manipulation;
             -webkit-tap-highlight-color: transparent;
         }
+        html, body {
+            width: 100%;
+            height: 100%;
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background-color: #030712;
+        }
         body {
             font-family: 'Noto Sans JP', sans-serif;
             user-select: none;
             -webkit-user-select: none;
-            background: #030712;
             color: #f8fafc;
             overscroll-behavior: none;
         }
@@ -188,7 +195,7 @@
         </div>
     </div>
 
-    <main class="w-full h-full overflow-hidden relative z-10">
+    <main id="mainContainer" style="position: relative; width: 100%; height: 100%; overflow: hidden; margin: 0; padding: 0; z-index: 10;">
 
         <!-- ================= メニュー画面 ================= -->
         <div id="menuScreen" class="menu-compact-container auto-fit-container glass-panel rounded-2xl md:rounded-3xl p-3 md:p-5 shadow-[0_0_60px_rgba(0,0,0,0.85)] flex flex-col justify-between items-center overflow-hidden relative cyber-corner animate-pop-in">
@@ -765,15 +772,16 @@
                     el.style.width = '';
                     el.style.height = '';
                     el.style.margin = '';
+                    el.style.marginLeft = '';
+                    el.style.marginTop = '';
                 }
             });
 
             if (!activeScreen) return;
 
-            const vw = window.innerWidth;
-            const vh = window.innerHeight;
-
-            if (vw === 0 || vh === 0) return;
+            // ウィンドウ・ビューポート全域寸法（フォールバック付き）
+            const vw = Math.max(document.documentElement.clientWidth || 0, window.innerWidth || 0, 320);
+            const vh = Math.max(document.documentElement.clientHeight || 0, window.innerHeight || 0, 480);
 
             let baseW, baseH;
 
@@ -782,63 +790,68 @@
 
             if (activeScreen.id === 'menuScreen') {
                 if (isMobilePortrait) {
-                    baseW = 380;
-                    baseH = 640;
+                    baseW = 360;
+                    baseH = 600;
                 } else if (isMobileLandscape) {
-                    baseW = 620;
-                    baseH = 360;
+                    baseW = 600;
+                    baseH = 340;
                 } else {
-                    baseW = 540;
-                    baseH = 650;
+                    baseW = 520;
+                    baseH = 640;
                 }
             } else if (activeScreen.id === 'gameScreen') {
                 if (isMobilePortrait) {
-                    baseW = 380;
-                    baseH = 660;
+                    baseW = 360;
+                    baseH = 640;
                 } else if (isMobileLandscape) {
-                    baseW = 720;
-                    baseH = 360;
+                    baseW = 680;
+                    baseH = 340;
                 } else {
-                    baseW = 960;
-                    baseH = 620;
+                    baseW = 920;
+                    baseH = 600;
                 }
             } else { // resultScreen
                 if (isMobilePortrait) {
-                    baseW = 380;
-                    baseH = 580;
+                    baseW = 360;
+                    baseH = 540;
                 } else if (isMobileLandscape) {
-                    baseW = 580;
-                    baseH = 350;
-                } else {
                     baseW = 540;
-                    baseH = 580;
+                    baseH = 330;
+                } else {
+                    baseW = 520;
+                    baseH = 560;
                 }
             }
 
-            // 余白マージン（8px）
-            const margin = 8;
-            const availW = vw - margin * 2;
-            const availH = vh - margin * 2;
+            // 余白マージン（12px）
+            const margin = 12;
+            const availW = Math.max(100, vw - margin * 2);
+            const availH = Math.max(100, vh - margin * 2);
 
-            const scaleX = availW / baseW;
-            const scaleY = availH / baseH;
+            let scaleX = availW / baseW;
+            let scaleY = availH / baseH;
 
-            // どんなに小さい画面でも丸ごと収まるスケール率
             let scale = Math.min(scaleX, scaleY);
-            // 拡大上限 1.12, 縮小下限 0.35
-            scale = Math.max(0.35, Math.min(1.12, scale));
+            if (isNaN(scale) || scale <= 0) scale = 1;
+            
+            // 安全なスケーリング範囲（0.38 〜 1.1）
+            scale = Math.max(0.38, Math.min(1.1, scale));
 
+            // マージンによる絶対中央配置（PC等の translate/scale による右下ズレを物理遮断）
             activeScreen.style.position = 'absolute';
             activeScreen.style.top = '50%';
             activeScreen.style.left = '50%';
             activeScreen.style.width = baseW + 'px';
             activeScreen.style.height = baseH + 'px';
-            activeScreen.style.transform = `translate(-50%, -50%) scale(${scale})`;
+            activeScreen.style.marginLeft = (-baseW / 2) + 'px';
+            activeScreen.style.marginTop = (-baseH / 2) + 'px';
+            activeScreen.style.transform = `scale(${scale})`;
             activeScreen.style.transformOrigin = 'center center';
-            activeScreen.style.margin = '0';
+            activeScreen.style.opacity = '1';
+            activeScreen.style.visibility = 'visible';
         }
 
-        window.onload = function() {
+        function initApp() {
             canvas = document.getElementById('angleCanvas');
             ctx = canvas ? canvas.getContext('2d') : null;
             loadProgress();
@@ -856,7 +869,10 @@
                 }, 150);
             });
             autoFitLayout();
-        };
+        }
+
+        document.addEventListener('DOMContentLoaded', initApp);
+        window.onload = initApp;
 
         function setupLongPressButtons() {
             const buttons = document.querySelectorAll('.longpress-btn');
