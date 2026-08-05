@@ -145,44 +145,56 @@
 
         @media (max-width: 767px) {
             body {
-                padding: 0.35rem !important;
+                padding: 0.2rem !important;
+            }
+
+            main {
+                max-width: 100% !important;
+                padding: 0 !important;
             }
             
             /* メニュー画面の最適化 */
             .menu-compact-container {
-                padding: 0.5rem 0.65rem !important;
+                padding: 0.4rem 0.5rem !important;
                 justify-content: space-evenly !important;
             }
             .menu-title-compact h1 { 
-                font-size: 1.6rem !important; 
+                font-size: 1.5rem !important; 
             }
             .menu-title-compact p { 
                 font-size: 9px !important; 
                 margin-top: 0px !important; 
             }
             .course-card-compact { 
-                padding: 0.35rem 0.5rem !important; 
+                padding: 0.25rem 0.4rem !important; 
             }
             .course-card-compact h3 { 
-                font-size: 0.85rem !important; 
+                font-size: 0.8rem !important; 
             }
             .course-card-compact button { 
-                padding-top: 0.35rem !important; 
-                padding-bottom: 0.35rem !important; 
+                padding-top: 0.25rem !important; 
+                padding-bottom: 0.25rem !important; 
             }
 
             /* ゲーム画面の縦画面最適化 */
             #gameScreen {
-                gap: 0.35rem !important;
+                gap: 0.25rem !important;
+                padding: 0.1rem !important;
+            }
+            #gameScreen > div:first-child {
+                padding: 0.25rem !important;
+                flex: 1 1 0% !important;
+                min-height: 0 !important;
             }
             #inputAreaMobile {
-                padding: 0.35rem 0.5rem !important;
-                gap: 0.35rem !important;
+                padding: 0.25rem 0.4rem !important;
+                gap: 0.25rem !important;
+                flex-shrink: 0 !important;
             }
             #inputAreaMobile .quick-btn {
-                padding-top: 0.45rem !important;
-                padding-bottom: 0.45rem !important;
-                font-size: 0.75rem !important;
+                padding-top: 0.35rem !important;
+                padding-bottom: 0.35rem !important;
+                font-size: 0.7rem !important;
             }
         }
 
@@ -806,7 +818,7 @@
 
             if (!activeScreen) return;
 
-            // 一旦 transform を解除して自然な寸法を測定
+            // スケール解除
             activeScreen.style.transform = 'none';
 
             const containerWidth = main.clientWidth;
@@ -814,28 +826,47 @@
 
             if (containerWidth === 0 || containerHeight === 0) return;
 
-            // コンテンツ全体の必要な幅・高さ
-            const contentWidth = activeScreen.offsetWidth;
-            const contentHeight = activeScreen.scrollHeight;
+            // 一時的に height: auto にして、コンテンツ本来の必要な自然高さを計測
+            const savedHeight = activeScreen.style.height;
+            const savedMaxHeight = activeScreen.style.maxHeight;
+            const savedFlex = activeScreen.style.flex;
 
-            let scaleX = 1;
-            let scaleY = 1;
+            activeScreen.style.height = 'auto';
+            activeScreen.style.maxHeight = 'none';
+            activeScreen.style.flex = 'none';
 
-            if (contentWidth > containerWidth) {
-                scaleX = (containerWidth - 4) / contentWidth;
+            let naturalWidth = activeScreen.offsetWidth;
+            let naturalHeight = activeScreen.scrollHeight;
+
+            // 元のスタイルに即時復元
+            activeScreen.style.height = savedHeight;
+            activeScreen.style.maxHeight = savedMaxHeight;
+            activeScreen.style.flex = savedFlex;
+
+            // モバイル縦画面時の必要な最低推奨高さの設定（はみ出し防止基準）
+            const isMobilePortrait = window.innerWidth < 768;
+            if (activeScreen.id === 'menuScreen') {
+                naturalHeight = Math.max(naturalHeight, isMobilePortrait ? 560 : 480);
+            } else if (activeScreen.id === 'gameScreen') {
+                naturalHeight = Math.max(naturalHeight, isMobilePortrait ? 500 : 420);
+            } else if (activeScreen.id === 'resultScreen') {
+                naturalHeight = Math.max(naturalHeight, isMobilePortrait ? 480 : 400);
             }
-            if (contentHeight > containerHeight) {
-                scaleY = (containerHeight - 4) / contentHeight;
-            }
+
+            let scaleX = containerWidth < naturalWidth ? (containerWidth - 2) / naturalWidth : 1;
+            let scaleY = containerHeight < naturalHeight ? (containerHeight - 2) / naturalHeight : 1;
 
             let scale = Math.min(scaleX, scaleY);
-            scale = Math.max(0.48, Math.min(1, scale));
+            // 小型スマホ（画面高400px~550pxなど）でも確実に納まるよう縮小下限を拡大
+            scale = Math.max(0.35, Math.min(1, scale));
 
             if (scale < 0.99) {
                 activeScreen.style.transform = `scale(${scale})`;
                 activeScreen.style.transformOrigin = 'center center';
+                activeScreen.style.width = (100 / scale) + '%';
             } else {
                 activeScreen.style.transform = 'none';
+                activeScreen.style.width = '';
             }
         }
 
