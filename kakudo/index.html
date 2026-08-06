@@ -163,11 +163,30 @@
         @media (max-width: 899px) and (orientation: landscape) {
             #gameScreen {
                 flex-direction: row !important;
+                overflow: visible !important;
             }
             #inputAreaMobile {
-                width: 240px !important;
+                width: 210px !important;
+                min-width: 210px !important;
                 height: 100% !important;
                 display: flex !important;
+                overflow-y: auto !important;
+                overflow-x: hidden !important;
+                gap: 4px !important;
+                padding: 4px !important;
+                flex-shrink: 0 !important;
+            }
+            /* 横向き時はボタン小さめに調整 */
+            #inputAreaMobile .longpress-btn {
+                min-height: 40px !important;
+                font-size: 0.75rem !important;
+            }
+            #inputAreaMobile .mobile-adjust-grid {
+                grid-template-columns: 1fr 1fr !important;
+            }
+            #inputAreaMobile .quick-btn {
+                padding: 6px 4px !important;
+                font-size: 0.72rem !important;
             }
             #inputAreaPC {
                 display: none !important;
@@ -481,6 +500,11 @@
                     <button id="adjustPlusBtnPC" onclick="adjustValue(10)" class="keypad-btn text-sm md:text-lg text-amber-400 font-black flex items-center justify-center h-full">+10°</button>
                 </div>
 
+                <!-- ±5・±90調整ボタン行（難易度によりJS側で表示切替） -->
+                <div id="pcAdjustRow" class="grid gap-1.5 shrink-0">
+                    <!-- startGame()で動的に生成される -->
+                </div>
+
                 <!-- 決定ボタン -->
                 <button onclick="submitAnswer()" style="--btn-shadow: #0284c7;" class="btn-cyber w-full bg-gradient-to-r from-cyan-500 to-blue-600 text-slate-950 font-black text-base md:text-lg py-2.5 rounded-xl cursor-pointer flex items-center justify-center gap-2 border border-cyan-300 shrink-0">
                     <span>この角度で決定</span>
@@ -496,28 +520,27 @@
                     <!-- 表示欄 -->
                     <div class="relative flex-1">
                         <input type="text" id="angleInputMobile" readonly inputmode="none" value="" placeholder="0" 
-                               class="w-full text-center text-xl font-black font-outfit bg-slate-950 border border-slate-700 rounded-lg py-1.5 px-2 text-cyan-300 shadow-inner">
+                               class="w-full text-center text-xl font-black font-outfit bg-slate-950 border border-slate-700 rounded-lg py-2 px-2 text-cyan-300 shadow-inner">
                         <span class="absolute right-2 top-1/2 -translate-y-1/2 text-xs font-black text-slate-400 pointer-events-none">度</span>
                     </div>
 
                     <!-- 全部けす -->
-                    <button onclick="keypadPress('C')" class="quick-btn px-3 py-2 text-xs text-rose-400 bg-rose-950/40 border-rose-800/60 font-bold shrink-0">
+                    <button onclick="keypadPress('C')" class="quick-btn px-3 py-2.5 text-sm text-rose-400 bg-rose-950/40 border-rose-800/60 font-bold shrink-0">
                         けす
                     </button>
 
                     <!-- 決定ボタン -->
-                    <button onclick="submitAnswer()" style="--btn-shadow: #0284c7;" class="btn-cyber bg-gradient-to-r from-cyan-500 to-blue-600 text-slate-950 font-black text-sm px-4 py-2 rounded-lg border border-cyan-300 flex items-center justify-center gap-1 shrink-0">
+                    <button onclick="submitAnswer()" style="--btn-shadow: #0284c7;" class="btn-cyber bg-gradient-to-r from-cyan-500 to-blue-600 text-slate-950 font-black text-sm px-4 py-2.5 rounded-lg border border-cyan-300 flex items-center justify-center gap-1 shrink-0">
                         <span>決定</span>
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
                     </button>
                 </div>
 
-                <!-- クイック調整ボタン（長押し・連打対応） -->
-                <div class="grid grid-cols-4 gap-1.5">
-                    <button data-delta="-10" class="longpress-btn quick-btn py-3.5 text-sm text-amber-400 font-black flex items-center justify-center">-10°</button>
-                    <button data-delta="-5" class="longpress-btn quick-btn py-3.5 text-sm text-amber-300 font-black flex items-center justify-center">-5°</button>
-                    <button data-delta="5" class="longpress-btn quick-btn py-3.5 text-sm text-amber-300 font-black flex items-center justify-center">+5°</button>
-                    <button data-delta="10" class="longpress-btn quick-btn py-3.5 text-sm text-amber-400 font-black flex items-center justify-center">+10°</button>
+                <!-- クイック調整ボタン（長押し・連打対応）：難易度によってJS側で制御 -->
+                <div id="mobileAdjustGrid" class="mobile-adjust-grid grid gap-1.5">
+                    <!-- 初級: -10 / +10 / -90 / +90 (4列) -->
+                    <!-- 中/上級: -90 / -10 / -5 / +5 / +10 / +90 (6列) -->
+                    <!-- startGame()で動的に生成される -->
                 </div>
             </div>
 
@@ -818,8 +841,8 @@
                     baseW = 360;
                     baseH = 640;
                 } else if (isMobileLandscape) {
-                    baseW = 680;
-                    baseH = 340;
+                    baseW = 730;
+                    baseH = 360;
                 } else {
                     baseW = 920;
                     baseH = 600;
@@ -996,7 +1019,7 @@
                     adjustPlusBtnPC.innerText = '+10°';
                     adjustPlusBtnPC.setAttribute('onclick', 'adjustValue(10)');
                 }
-                if (stepHintDisplayPC) stepHintDisplayPC.innerText = '10度きざみだよ';
+                if (stepHintDisplayPC) stepHintDisplayPC.innerText = '10度きざみ';
             } else {
                 if (adjustMinusBtnPC) {
                     adjustMinusBtnPC.innerText = '-5°';
@@ -1006,7 +1029,56 @@
                     adjustPlusBtnPC.innerText = '+5°';
                     adjustPlusBtnPC.setAttribute('onclick', 'adjustValue(5)');
                 }
-                if (stepHintDisplayPC) stepHintDisplayPC.innerText = '5度きざみだよ';
+                if (stepHintDisplayPC) stepHintDisplayPC.innerText = '5度きざみ';
+            }
+
+            // スマホ用ボタンを難易度に応じて動的生成
+            const grid = document.getElementById('mobileAdjustGrid');
+            if (grid) {
+                if (difficulty === 'beginner') {
+                    // 初級: ±90 / ±10 の4ボタン（±5は不要）
+                    grid.className = 'mobile-adjust-grid grid grid-cols-4 gap-1.5';
+                    grid.innerHTML = `
+                        <button data-delta="-90" class="longpress-btn quick-btn font-black flex items-center justify-center text-amber-500" style="min-height:64px;font-size:0.85rem;">-90°</button>
+                        <button data-delta="-10" class="longpress-btn quick-btn font-black flex items-center justify-center text-amber-400" style="min-height:64px;font-size:0.95rem;">-10°</button>
+                        <button data-delta="10" class="longpress-btn quick-btn font-black flex items-center justify-center text-amber-400" style="min-height:64px;font-size:0.95rem;">+10°</button>
+                        <button data-delta="90" class="longpress-btn quick-btn font-black flex items-center justify-center text-amber-500" style="min-height:64px;font-size:0.85rem;">+90°</button>
+                    `;
+                } else {
+                    // 中/上級: ±90 / ±10 / ±5 の6ボタン
+                    grid.className = 'mobile-adjust-grid grid grid-cols-6 gap-1';
+                    grid.innerHTML = `
+                        <button data-delta="-90" class="longpress-btn quick-btn font-black flex items-center justify-center text-amber-500" style="min-height:64px;font-size:0.75rem;">-90°</button>
+                        <button data-delta="-10" class="longpress-btn quick-btn font-black flex items-center justify-center text-amber-400" style="min-height:64px;font-size:0.8rem;">-10°</button>
+                        <button data-delta="-5" class="longpress-btn quick-btn font-black flex items-center justify-center text-amber-300" style="min-height:64px;font-size:0.85rem;">-5°</button>
+                        <button data-delta="5" class="longpress-btn quick-btn font-black flex items-center justify-center text-amber-300" style="min-height:64px;font-size:0.85rem;">+5°</button>
+                        <button data-delta="10" class="longpress-btn quick-btn font-black flex items-center justify-center text-amber-400" style="min-height:64px;font-size:0.8rem;">+10°</button>
+                        <button data-delta="90" class="longpress-btn quick-btn font-black flex items-center justify-center text-amber-500" style="min-height:64px;font-size:0.75rem;">+90°</button>
+                    `;
+                }
+                setupLongPressButtons();
+            }
+
+            // PC用ボタン行を難易度に応じて動的生成
+            const pcRow = document.getElementById('pcAdjustRow');
+            if (pcRow) {
+                if (difficulty === 'beginner') {
+                    // 初級: ±90のみ（±10はテンキー下に既存、±5は不要）
+                    pcRow.className = 'grid grid-cols-2 gap-1.5';
+                    pcRow.innerHTML = `
+                        <button onclick="adjustValue(-90)" class="keypad-btn py-1.5 text-sm text-amber-500 font-black">-90°</button>
+                        <button onclick="adjustValue(90)" class="keypad-btn py-1.5 text-sm text-amber-500 font-black">+90°</button>
+                    `;
+                } else {
+                    // 中/上級: ±5 / ±90
+                    pcRow.className = 'grid grid-cols-4 gap-1';
+                    pcRow.innerHTML = `
+                        <button onclick="adjustValue(-90)" class="keypad-btn py-1.5 text-xs text-amber-500 font-black">-90°</button>
+                        <button onclick="adjustValue(-5)" class="keypad-btn py-1.5 text-xs text-amber-300 font-black">-5°</button>
+                        <button onclick="adjustValue(5)" class="keypad-btn py-1.5 text-xs text-amber-300 font-black">+5°</button>
+                        <button onclick="adjustValue(90)" class="keypad-btn py-1.5 text-xs text-amber-500 font-black">+90°</button>
+                    `;
+                }
             }
 
             const menuEl = document.getElementById('menuScreen');
@@ -1087,14 +1159,17 @@
             const returnBtn = document.getElementById('returnToResultBtn');
             const userVal = parseInt(userAngleString, 10) || 0;
             if (overlay && returnBtn) {
-                if (overlay.classList.contains('hidden')) {
-                    overlay.classList.remove('hidden');
-                    returnBtn.classList.add('hidden');
-                    drawScene(false, null, false, 'none', userVal);
-                } else {
+                if (!overlay.classList.contains('hidden')) {
+                    // 「解答を見る」: オーバーレイを隠して
+                    // 問題の最後の状態をそのまま表示 ＋ 分度器 ＋ 予想点線
                     overlay.classList.add('hidden');
                     returnBtn.classList.remove('hidden');
-                    drawScene(true, null, false, 'none', userVal);
+                    drawScene(true, null, false, 'none', userVal, true);
+                } else {
+                    // 「判定結果に戻る」: オーバーレイを再表示、分度器なし
+                    overlay.classList.remove('hidden');
+                    returnBtn.classList.add('hidden');
+                    drawScene(false, null, false, 'none', userVal, false);
                 }
             }
         }
@@ -1224,6 +1299,7 @@
 
             ctx.save();
 
+            // 分度器の円弧
             ctx.beginPath();
             if (maxDeg === 360) {
                 ctx.arc(cx, cy, radius, 0, Math.PI * 2);
@@ -1236,6 +1312,10 @@
             ctx.lineWidth = 1.5 * dpr;
             ctx.stroke();
 
+            // フォントサイズ（外側ラベル用）
+            const fontSize = Math.max(7, Math.round(8 * dpr));
+            const labelOffset = fontSize + 5 * dpr; // 外側へのオフセット
+
             for (let deg = 0; deg <= maxDeg; deg += 5) {
                 if (maxDeg === 360 && deg === 360) continue;
 
@@ -1243,10 +1323,12 @@
                 const is10Deg = (deg % 10 === 0);
                 const is30Deg = (deg % 30 === 0);
 
-                let tickLen = 4 * dpr;
-                if (is10Deg) tickLen = 8 * dpr;
-                if (is30Deg) tickLen = 12 * dpr;
+                // 目盛りの長さ：5度=短い、10度=中、30度=長い
+                let tickLen = 5 * dpr;    // 5度刻み（短い印のみ）
+                if (is10Deg) tickLen = 10 * dpr;
+                if (is30Deg) tickLen = 14 * dpr;
 
+                // 目盛りは円弧から内側に向かって描く
                 const x1 = cx + Math.cos(rad) * radius;
                 const y1 = cy + Math.sin(rad) * radius;
                 const x2 = cx + Math.cos(rad) * (radius - tickLen);
@@ -1255,25 +1337,27 @@
                 ctx.beginPath();
                 ctx.moveTo(x1, y1);
                 ctx.lineTo(x2, y2);
-                ctx.strokeStyle = is10Deg ? 'rgba(56, 189, 248, 0.8)' : 'rgba(148, 163, 184, 0.45)';
+                ctx.strokeStyle = is10Deg ? 'rgba(56, 189, 248, 0.85)' : 'rgba(148, 163, 184, 0.5)';
                 ctx.lineWidth = (is10Deg ? 1.8 : 1) * dpr;
                 ctx.stroke();
 
-                if (is10Deg && radius > 60 * dpr) {
-                    const tx = cx + Math.cos(rad) * (radius - 20 * dpr);
-                    const ty = cy + Math.sin(rad) * (radius - 20 * dpr);
+                // 10度刻みのみ数字を外側に表示
+                if (is10Deg) {
+                    const tx = cx + Math.cos(rad) * (radius + labelOffset);
+                    const ty = cy + Math.sin(rad) * (radius + labelOffset);
                     ctx.fillStyle = is30Deg ? 'rgba(56, 189, 248, 0.95)' : 'rgba(226, 232, 240, 0.85)';
-                    ctx.font = `700 ${Math.round(8.5 * dpr)}px 'Noto Sans JP', sans-serif`;
+                    ctx.font = `700 ${fontSize}px 'Noto Sans JP', sans-serif`;
                     ctx.textAlign = 'center';
                     ctx.textBaseline = 'middle';
-                    ctx.fillText(`${deg}°`, tx, ty);
+                    ctx.fillText(`${deg}`, tx, ty);
                 }
             }
 
             ctx.restore();
         }
 
-        function drawScene(showProtractor = false, animAngle = null, isAnimating = false, animPhase = 'none', userVal = null, previewVal = null) {
+        // showUserGuess: オーバーレイ表示中にユーザーの予想角度を点線で表示するかどうか
+        function drawScene(showProtractor = false, animAngle = null, isAnimating = false, animPhase = 'none', userVal = null, showUserGuess = false) {
             if (!ctx || !canvas) return;
             const w = canvas.width;
             const h = canvas.height;
@@ -1315,6 +1399,45 @@
                 ctx.strokeStyle = '#0284c7';
                 ctx.lineWidth = 3 * dpr;
                 ctx.stroke();
+                ctx.restore();
+            }
+
+            // 1b. ユーザー予想の点線表示（解答を見るモード時）
+            if (showUserGuess && userVal !== null && userVal > 0) {
+                ctx.save();
+                const guessEndRad = calculateEndRad(userVal);
+
+                // 予想の扇形（薄い黄色）
+                ctx.beginPath();
+                ctx.moveTo(cx, cy);
+                ctx.arc(cx, cy, radius * 0.75, startRad, guessEndRad, anticlockwise);
+                ctx.closePath();
+                ctx.fillStyle = 'rgba(251, 191, 36, 0.12)';
+                ctx.fill();
+
+                // 予想の弧（点線・黄色）
+                ctx.beginPath();
+                ctx.arc(cx, cy, radius * 0.75, startRad, guessEndRad, anticlockwise);
+                ctx.strokeStyle = 'rgba(251, 191, 36, 0.6)';
+                ctx.lineWidth = 2.5 * dpr;
+                ctx.setLineDash([5 * dpr, 4 * dpr]);
+                ctx.stroke();
+                ctx.setLineDash([]);
+
+                // 予想線（点線・黄色）
+                const guessX = cx + Math.cos(guessEndRad) * (radius * 0.88);
+                const guessY = cy + Math.sin(guessEndRad) * (radius * 0.88);
+                ctx.beginPath();
+                ctx.moveTo(cx, cy);
+                ctx.lineTo(guessX, guessY);
+                ctx.strokeStyle = '#f59e0b';
+                ctx.lineWidth = 3 * dpr;
+                ctx.lineCap = 'round';
+                ctx.setLineDash([6 * dpr, 4 * dpr]);
+                ctx.stroke();
+                ctx.setLineDash([]);
+                // ※ ラベルテキスト（「あなた: XX°」）は表示しない
+
                 ctx.restore();
             }
 
