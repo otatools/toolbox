@@ -1010,26 +1010,18 @@
             const adjustPlusBtnPC = document.getElementById('adjustPlusBtnPC');
             const stepHintDisplayPC = document.getElementById('stepHintDisplayPC');
 
-            if (difficulty === 'beginner') {
-                if (adjustMinusBtnPC) {
-                    adjustMinusBtnPC.innerText = '-10°';
-                    adjustMinusBtnPC.setAttribute('onclick', 'adjustValue(-10)');
-                }
-                if (adjustPlusBtnPC) {
-                    adjustPlusBtnPC.innerText = '+10°';
-                    adjustPlusBtnPC.setAttribute('onclick', 'adjustValue(10)');
-                }
-                if (stepHintDisplayPC) stepHintDisplayPC.innerText = '10度きざみ';
-            } else {
-                if (adjustMinusBtnPC) {
-                    adjustMinusBtnPC.innerText = '-5°';
-                    adjustMinusBtnPC.setAttribute('onclick', 'adjustValue(-5)');
-                }
-                if (adjustPlusBtnPC) {
-                    adjustPlusBtnPC.innerText = '+5°';
-                    adjustPlusBtnPC.setAttribute('onclick', 'adjustValue(5)');
-                }
-                if (stepHintDisplayPC) stepHintDisplayPC.innerText = '5度きざみ';
+            // 「0」の両脇のボタンは難易度によらず ±10° で固定
+            // （±5°は下の調整行にあるため、ここを±5°にすると重複してしまう）
+            if (adjustMinusBtnPC) {
+                adjustMinusBtnPC.innerText = '-10°';
+                adjustMinusBtnPC.setAttribute('onclick', 'adjustValue(-10)');
+            }
+            if (adjustPlusBtnPC) {
+                adjustPlusBtnPC.innerText = '+10°';
+                adjustPlusBtnPC.setAttribute('onclick', 'adjustValue(10)');
+            }
+            if (stepHintDisplayPC) {
+                stepHintDisplayPC.innerText = (difficulty === 'beginner') ? '10度きざみ' : '5度きざみ';
             }
 
             // スマホ用ボタンを難易度に応じて動的生成
@@ -1218,11 +1210,22 @@
         document.addEventListener('keydown', function(e) {
             const gameScreen = document.getElementById('gameScreen');
             if (!gameScreen || gameScreen.classList.contains('hidden')) return;
+            if (isAnimatingReveal) return;
 
             const overlay = document.getElementById('resultOverlay');
             if (overlay && !overlay.classList.contains('hidden')) {
                 if (e.key === 'Enter') {
                     document.getElementById('nextBtn').click();
+                }
+                return;
+            }
+
+            // 「解答を見る」表示中（判定済み）はキー入力で回答を書き換えたり
+            // 再度 submitAnswer() を呼べたりしないようにする（Enter/Escで結果表示に戻るのみ許可）
+            const returnBtn = document.getElementById('returnToResultBtn');
+            if (returnBtn && !returnBtn.classList.contains('hidden')) {
+                if (e.key === 'Enter' || e.key === 'Escape') {
+                    toggleAnswerView();
                 }
                 return;
             }
