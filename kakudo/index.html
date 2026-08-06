@@ -1259,9 +1259,14 @@
                 const isShowingAnswer = returnBtn && !returnBtn.classList.contains('hidden');
                 const isShowingResult = overlay && !overlay.classList.contains('hidden');
                 const userVal = parseInt(userAngleString, 10) || 0;
-                
-                // 決定前はプレビュー線を描画しない（previewValは常にnull）
-                drawScene(isShowingAnswer, isShowingResult || isAnimatingReveal ? userVal : null, isAnimatingReveal, isShowingResult ? 'none' : 'none', userVal, null);
+
+                if (isShowingAnswer) {
+                    // 「解答を見る」表示中：分度器＋予想点線付き
+                    drawScene(true, null, false, 'none', userVal, true);
+                } else {
+                    // 通常状態（問題中または結果オーバーレイ表示中）：ベース画像のみ
+                    drawScene(false, null, false, 'none', userVal, false);
+                }
             }
         }
 
@@ -1630,7 +1635,8 @@
                     setTimeout(() => {
                         if (userVal === targetAngle) {
                             isAnimatingReveal = false;
-                            drawScene(false, userVal, false, 'none', userVal);
+                            // ベース画像（ターゲット線＋基準線のみ）を固定する
+                            drawScene(false, null, false, 'none', userVal, false);
                             finalizeAnswer(userVal);
                             return;
                         }
@@ -1657,7 +1663,8 @@
                                 requestAnimationFrame(animatePhase2);
                             } else {
                                 isAnimatingReveal = false;
-                                drawScene(false, userVal, false, 'none', userVal);
+                                // ベース画像（ターゲット線＋基準線のみ）を固定する
+                                drawScene(false, null, false, 'none', userVal, false);
                                 finalizeAnswer(userVal);
                             }
                         }
