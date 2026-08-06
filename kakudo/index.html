@@ -17,9 +17,19 @@
             touch-action: manipulation;
             -webkit-tap-highlight-color: transparent;
         }
-        html, body {
+        html {
             width: 100%;
             height: 100%;
+            height: 100dvh;
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background-color: #030712;
+        }
+        body {
+            width: 100%;
+            height: 100%;
+            height: 100dvh;
             margin: 0;
             padding: 0;
             overflow: hidden;
@@ -85,13 +95,13 @@
             color: #ffffff;
         }
 
-        /* アニメーション */
+        /* 画面入場アニメーション（opacityのみ。transformは使わないことでautoFitLayoutのスケールに干渉しない） */
         @keyframes pop-in {
-            0% { transform: scale(0.94); opacity: 0; }
-            100% { transform: scale(1); opacity: 1; }
+            0%   { opacity: 0; }
+            100% { opacity: 1; }
         }
         .animate-pop-in {
-            animation: pop-in 0.22s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+            animation: pop-in 0.2s ease forwards;
         }
 
         /* 背景グリッド */
@@ -146,7 +156,6 @@
 
         /* 全端末共通の自動スケーリングコンテナ */
         .auto-fit-container {
-            transition: transform 0.1s cubic-bezier(0.16, 1, 0.3, 1);
             box-sizing: border-box;
         }
 
@@ -480,35 +489,35 @@
             </div>
 
             <!-- スマホ縦画面用：コンパクト・クイック調整バー (md未満で表示) -->
-            <div id="inputAreaMobile" class="flex md:hidden w-full glass-panel rounded-xl p-2 shadow-2xl shrink-0 flex-col gap-1.5 cyber-corner">
+            <div id="inputAreaMobile" class="flex md:hidden w-full glass-panel rounded-xl p-2.5 shadow-2xl shrink-0 flex-col gap-2 cyber-corner">
                 
                 <!-- 角度数値 ＆ 決定 ＆ クリア -->
-                <div class="flex items-center gap-1.5">
+                <div class="flex items-center gap-2">
                     <!-- 表示欄 -->
                     <div class="relative flex-1">
                         <input type="text" id="angleInputMobile" readonly inputmode="none" value="" placeholder="0" 
-                               class="w-full text-center text-xl font-black font-outfit bg-slate-950 border border-slate-700 rounded-lg py-1 px-2 text-cyan-300 shadow-inner">
+                               class="w-full text-center text-xl font-black font-outfit bg-slate-950 border border-slate-700 rounded-lg py-1.5 px-2 text-cyan-300 shadow-inner">
                         <span class="absolute right-2 top-1/2 -translate-y-1/2 text-xs font-black text-slate-400 pointer-events-none">度</span>
                     </div>
 
                     <!-- 全部けす -->
-                    <button onclick="keypadPress('C')" class="quick-btn px-3 py-1.5 text-xs text-rose-400 bg-rose-950/40 border-rose-800/60 font-bold shrink-0">
+                    <button onclick="keypadPress('C')" class="quick-btn px-3 py-2 text-xs text-rose-400 bg-rose-950/40 border-rose-800/60 font-bold shrink-0">
                         けす
                     </button>
 
                     <!-- 決定ボタン -->
-                    <button onclick="submitAnswer()" style="--btn-shadow: #0284c7;" class="btn-cyber bg-gradient-to-r from-cyan-500 to-blue-600 text-slate-950 font-black text-xs px-4 py-1.5 rounded-lg border border-cyan-300 flex items-center justify-center gap-1 shrink-0">
+                    <button onclick="submitAnswer()" style="--btn-shadow: #0284c7;" class="btn-cyber bg-gradient-to-r from-cyan-500 to-blue-600 text-slate-950 font-black text-sm px-4 py-2 rounded-lg border border-cyan-300 flex items-center justify-center gap-1 shrink-0">
                         <span>決定</span>
-                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
                     </button>
                 </div>
 
                 <!-- クイック調整ボタン（長押し・連打対応） -->
-                <div class="grid grid-cols-4 gap-1">
-                    <button data-delta="-10" class="longpress-btn quick-btn py-2 text-xs text-amber-400 font-black flex items-center justify-center">-10°</button>
-                    <button data-delta="-5" class="longpress-btn quick-btn py-2 text-xs text-amber-300 font-black flex items-center justify-center">-5°</button>
-                    <button data-delta="5" class="longpress-btn quick-btn py-2 text-xs text-amber-300 font-black flex items-center justify-center">+5°</button>
-                    <button data-delta="10" class="longpress-btn quick-btn py-2 text-xs text-amber-400 font-black flex items-center justify-center">+10°</button>
+                <div class="grid grid-cols-4 gap-1.5">
+                    <button data-delta="-10" class="longpress-btn quick-btn py-3.5 text-sm text-amber-400 font-black flex items-center justify-center">-10°</button>
+                    <button data-delta="-5" class="longpress-btn quick-btn py-3.5 text-sm text-amber-300 font-black flex items-center justify-center">-5°</button>
+                    <button data-delta="5" class="longpress-btn quick-btn py-3.5 text-sm text-amber-300 font-black flex items-center justify-center">+5°</button>
+                    <button data-delta="10" class="longpress-btn quick-btn py-3.5 text-sm text-amber-400 font-black flex items-center justify-center">+10°</button>
                 </div>
             </div>
 
@@ -777,9 +786,16 @@
 
             if (!activeScreen) return;
 
-            // ウィンドウ・ビューポート全域寸法（フォールバック付き）
-            const vw = Math.max(document.documentElement.clientWidth || 0, window.innerWidth || 0, 320);
-            const vh = Math.max(document.documentElement.clientHeight || 0, window.innerHeight || 0, 480);
+            // ウィンドウ・ビューポート全域寸法
+            // visualViewport を優先（iOS Safari でアドレスバーを正確に除外できる）
+            let vw, vh;
+            if (window.visualViewport) {
+                vw = Math.max(window.visualViewport.width, 320);
+                vh = Math.max(window.visualViewport.height, 480);
+            } else {
+                vw = Math.max(document.documentElement.clientWidth || 0, window.innerWidth || 0, 320);
+                vh = Math.max(document.documentElement.clientHeight || 0, window.innerHeight || 0, 480);
+            }
 
             let baseW, baseH;
 
@@ -789,7 +805,7 @@
             if (activeScreen.id === 'menuScreen') {
                 if (isMobilePortrait) {
                     baseW = 360;
-                    baseH = 600;
+                    baseH = Math.min(600, Math.round(vh * 0.95));
                 } else if (isMobileLandscape) {
                     baseW = 600;
                     baseH = 340;
@@ -821,8 +837,8 @@
                 }
             }
 
-            // 余白マージン（12px）
-            const margin = 12;
+            // 余白マージン（スマホは8px、PC/タブレットは24px）
+            const margin = vw < 768 ? 8 : 24;
             const availW = Math.max(100, vw - margin * 2);
             const availH = Math.max(100, vh - margin * 2);
 
@@ -831,9 +847,12 @@
 
             let scale = Math.min(scaleX, scaleY);
             if (isNaN(scale) || scale <= 0) scale = 1;
-            
-            // 安全なスケーリング範囲（0.38 〜 1.1）
-            scale = Math.max(0.38, Math.min(1.1, scale));
+
+            // スケーリング範囲：
+            //   スマホ → 0.35〜1.05（小さい画面なので縮小のみ許容）
+            //   PC/タブレット → 0.38〜制限なし（ウィンドウを埋めるように拡大OK）
+            const scaleMin = vw < 768 ? 0.35 : 0.38;
+            scale = Math.max(scaleMin, scale);
 
             // マージンによる絶対中央配置（PC等の translate/scale による右下ズレを物理遮断）
             activeScreen.style.position = 'absolute';
@@ -864,11 +883,18 @@
                 autoFitLayout();
                 resizeCanvas();
             });
-            window.addEventListener('orientationchange', function() {
-                setTimeout(function() {
+            // visualViewport のリサイズも監視（iOS Safari でアドレスバー展開/縮小時に発火）
+            if (window.visualViewport) {
+                window.visualViewport.addEventListener('resize', function() {
                     autoFitLayout();
                     resizeCanvas();
-                }, 150);
+                });
+            }
+            window.addEventListener('orientationchange', function() {
+                // iOS Safari は orientationchange 後に innerHeight が更新されるまで遅延が必要
+                setTimeout(function() { autoFitLayout(); resizeCanvas(); }, 100);
+                setTimeout(function() { autoFitLayout(); resizeCanvas(); }, 300);
+                setTimeout(function() { autoFitLayout(); resizeCanvas(); }, 600);
             });
             autoFitLayout();
         }
@@ -915,12 +941,18 @@
         }
 
         function showMenuScreen() {
-            document.getElementById('gameScreen').classList.add('hidden');
-            document.getElementById('gameScreen').classList.remove('flex');
-            document.getElementById('resultScreen').classList.add('hidden');
-            document.getElementById('menuScreen').classList.remove('hidden');
+            const gameEl = document.getElementById('gameScreen');
+            const resultEl = document.getElementById('resultScreen');
+            const menuEl = document.getElementById('menuScreen');
+
+            gameEl.classList.add('hidden');
+            gameEl.classList.remove('flex');
+            resultEl.classList.add('hidden');
+
+            // 表示前にスケールを事前適用してから表示（初期フレームから正しい大きさになる）
+            menuEl.classList.remove('hidden');
+            autoFitLayout();
             updateStageRecordsDisplay();
-            setTimeout(autoFitLayout, 40);
         }
 
         function showExitConfirmModal() {
@@ -977,16 +1009,23 @@
                 if (stepHintDisplayPC) stepHintDisplayPC.innerText = '5度きざみだよ';
             }
 
-            document.getElementById('menuScreen').classList.add('hidden');
-            document.getElementById('resultScreen').classList.add('hidden');
-            document.getElementById('gameScreen').classList.remove('hidden');
-            document.getElementById('gameScreen').classList.add('flex');
+            const menuEl = document.getElementById('menuScreen');
+            const resultEl = document.getElementById('resultScreen');
+            const gameEl = document.getElementById('gameScreen');
 
+            menuEl.classList.add('hidden');
+            resultEl.classList.add('hidden');
+
+            // 表示前にスケールを事前適用（初期フレームから正しい大きさに）
+            gameEl.classList.remove('hidden');
+            gameEl.classList.add('flex');
+            autoFitLayout();
+
+            // canvasは表示後にリサイズが必要
             setTimeout(() => {
-                autoFitLayout();
                 resizeCanvas();
                 setupQuestion();
-            }, 60);
+            }, 30);
         }
 
         function generateUniqueAngle() {
