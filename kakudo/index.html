@@ -226,7 +226,7 @@
     <main id="mainContainer" style="position: relative; width: 100%; height: 100%; overflow: hidden; margin: 0; padding: 0; z-index: 10;">
 
         <!-- ================= メニュー画面 ================= -->
-        <div id="menuScreen" class="menu-compact-container auto-fit-container glass-panel rounded-2xl md:rounded-3xl p-3 md:p-5 shadow-[0_0_60px_rgba(0,0,0,0.85)] flex flex-col justify-start items-center overflow-hidden relative cyber-corner animate-pop-in">
+        <div id="menuScreen" class="menu-compact-container auto-fit-container glass-panel rounded-2xl md:rounded-3xl p-3 md:p-5 shadow-[0_0_60px_rgba(0,0,0,0.85)] flex flex-col justify-start items-center overflow-hidden relative animate-pop-in">
             
             <!-- 音声設定切り替え -->
             <button onclick="toggleSound()" class="absolute top-2 right-2 md:top-3.5 md:right-3.5 bg-slate-900/60 hover:bg-slate-800/80 backdrop-blur-md text-cyan-400 px-2 py-1 md:px-3 md:py-1.5 rounded-xl text-[11px] font-bold border border-cyan-500/40 shadow-lg transition-all z-20 flex items-center gap-1.5">
@@ -861,7 +861,8 @@
             let baseW, baseH;
 
             const isMobilePortrait = vw < 768 && vh >= vw;
-            const isMobileLandscape = vw < 900 && vh < vw;
+            // 横幅ではなく「横向きで縦が短い」ことで判定する（幅900px超のランドスケープ端末も確実に拾う）
+            const isMobileLandscape = vh < vw && vh < 520;
 
             if (activeScreen.id === 'menuScreen') {
                 if (isMobilePortrait) {
@@ -906,8 +907,8 @@
                 if (measuredH > baseH) baseH = measuredH + 2;
             }
 
-            // 余白マージン（スマホは8px、PC/タブレットは24px）
-            const margin = vw < 768 ? 8 : 24;
+            // 余白マージン（スマホ・横向きの狭い画面は8px、PC/タブレットは24px）
+            const margin = (vw < 768 || isMobileLandscape) ? 8 : 24;
             const availW = Math.max(100, vw - margin * 2);
             const availH = Math.max(100, vh - margin * 2);
 
@@ -917,10 +918,11 @@
             let scale = Math.min(scaleX, scaleY);
             if (isNaN(scale) || scale <= 0) scale = 1;
 
-            // スケーリング範囲：
-            //   スマホ → 0.35〜1.05（小さい画面なので縮小のみ許容）
+            // スケーリング範囲の目安：
+            //   スマホ・横向き → 0.35〜1.05（小さい画面なので縮小のみ許容）
             //   PC/タブレット → 0.38〜制限なし（ウィンドウを埋めるように拡大OK）
-            const scaleMin = vw < 768 ? 0.35 : 0.38;
+            // ※ あくまで「見た目の目安」であり、下の安全補正で必ず画面内に収まるよう最終調整する
+            const scaleMin = (vw < 768 || isMobileLandscape) ? 0.35 : 0.38;
             scale = Math.max(scaleMin, scale);
 
             // マージンによる絶対中央配置（PC等の translate/scale による右下ズレを物理遮断）
@@ -935,6 +937,16 @@
             activeScreen.style.transformOrigin = 'center center';
             activeScreen.style.opacity = '1';
             activeScreen.style.visibility = 'visible';
+
+            // 安全補正：上のscaleMinで下限を設けているため、極端に横長・縦短な画面では
+            // 理論値だけではまだ画面からはみ出す場合がある。実際に描画されたサイズを測り、
+            // はみ出していれば追加で縮小して必ず画面内に収める（読みやすさよりも「全部見える」を優先）。
+            const renderedRect = activeScreen.getBoundingClientRect();
+            const overflowRatio = Math.max(renderedRect.width / availW, renderedRect.height / availH);
+            if (overflowRatio > 1.01) {
+                scale = scale / overflowRatio;
+                activeScreen.style.transform = `scale(${scale})`;
+            }
         }
 
         let isAppInitialized = false;
@@ -1911,6 +1923,50 @@
             }
         }
     </script>
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+    import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+    import { getFirestore, doc, setDoc, updateDoc, increment, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+    const firebaseConfig = {
+        apiKey: "AIzaSyB4fpt6ffIuTBDJo_9g37kYr6KOWNgIcEY",
+        authDomain: "otatoolssite.firebaseapp.com",
+        projectId: "otatoolssite",
+        storageBucket: "otatoolssite.firebasestorage.app",
+        messagingSenderId: "20522292752",
+        appId: "1:20522292752:web:22fba7fecb61736593dc95"
+    };
+
+    // アプリ固有のID
+    const THIS_APP_ID = "29"; 
+    
+    const PORTAL_APP_ID = "otatoolssite-v1";
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+    const auth = getAuth(app);
+    signInAnonymously(auth).then(async () => {
+        const todayStr = new Date().toISOString().split('T')[0];
+        const storageKey = `ota_visited_${THIS_APP_ID}`;
+        
+        if (localStorage.getItem(storageKey) === todayStr) {
+            return;
+        }
+        const docRef = doc(db, 'artifacts', PORTAL_APP_ID, 'public', 'data', 'app_views', THIS_APP_ID);
+                try {
+            const docSnap = await getDoc(docRef);
+            if (docSnap.exists()) {
+                await updateDoc(docRef, { count: increment(1) });
+            } else {
+                await setDoc(docRef, { count: 1 }); 
+            }
+            localStorage.setItem(storageKey, todayStr);
+        } catch (e) { 
+            console.error("閲覧数のカウントに失敗しました:", e); 
+        }
+    }).catch((error) => {
+        console.error("Firebase認証エラー:", error);
+    });
+</script>
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
     import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
