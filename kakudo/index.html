@@ -976,7 +976,27 @@
                 setTimeout(function() { autoFitLayout(); resizeCanvas(); }, 100);
                 setTimeout(function() { autoFitLayout(); resizeCanvas(); }, 300);
                 setTimeout(function() { autoFitLayout(); resizeCanvas(); }, 600);
+                setTimeout(function() { autoFitLayout(); resizeCanvas(); }, 1000);
             });
+
+            // ResizeObserverでbodyの実サイズ変化を直接監視する。
+            // iOS Safariはアドレスバーの表示/非表示アニメーション中にresize/visualViewportの
+            // イベントが確実には発火しないことがあるため、window任せにせず実際のサイズ変化を
+            // 継続的に検知して追従させることで、横向き時などに古いサイズのまま固まるのを防ぐ。
+            if (window.ResizeObserver) {
+                let rafPending = false;
+                const ro = new ResizeObserver(function() {
+                    if (rafPending) return;
+                    rafPending = true;
+                    requestAnimationFrame(function() {
+                        rafPending = false;
+                        autoFitLayout();
+                        resizeCanvas();
+                    });
+                });
+                ro.observe(document.body);
+            }
+
             autoFitLayout();
         }
 
