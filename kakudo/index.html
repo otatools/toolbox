@@ -23,7 +23,8 @@
             height: 100dvh;
             margin: 0;
             padding: 0;
-            overflow: hidden;
+            overflow-x: hidden;
+            overflow-y: auto;
             background-color: #030712;
         }
         body {
@@ -32,7 +33,8 @@
             height: 100dvh;
             margin: 0;
             padding: 0;
-            overflow: hidden;
+            overflow-x: hidden;
+            overflow-y: auto;
             background-color: #030712;
         }
         body {
@@ -194,7 +196,7 @@
         }
     </style>
 </head>
-<body class="w-full h-full h-[100dvh] text-slate-100 p-0 m-0 overflow-hidden select-none bg-slate-950 bg-cyber-grid relative">
+<body class="w-full h-full h-[100dvh] text-slate-100 p-0 m-0 select-none bg-slate-950 bg-cyber-grid relative">
 
     <!-- 背景デジタルHUDグラフィック -->
     <div class="absolute inset-0 pointer-events-none overflow-hidden flex items-center justify-center opacity-50 z-0">
@@ -223,7 +225,7 @@
         </div>
     </div>
 
-    <main id="mainContainer" style="position: relative; width: 100%; height: 100%; overflow: hidden; margin: 0; padding: 0; z-index: 10;">
+    <main id="mainContainer" style="position: relative; width: 100%; height: 100%; overflow-x: hidden; overflow-y: visible; margin: 0; padding: 0; z-index: 10;">
 
         <!-- ================= メニュー画面 ================= -->
         <div id="menuScreen" class="menu-compact-container auto-fit-container glass-panel rounded-2xl md:rounded-3xl p-3 md:p-5 shadow-[0_0_60px_rgba(0,0,0,0.85)] flex flex-col justify-start items-center overflow-hidden relative animate-pop-in">
@@ -367,8 +369,8 @@
             </div>
 
             <!-- ルール注釈 -->
-            <p class="text-[9px] md:text-xs text-slate-300 mt-1 md:mt-2 text-center font-bold flex items-center justify-center gap-1 shrink-0">
-                <span class="w-1.5 h-1.5 rounded-full bg-cyan-400"></span>
+            <p class="text-[7px] md:text-xs text-slate-300 mt-1 md:mt-2 text-center font-bold flex items-center justify-center gap-1 shrink-0 whitespace-nowrap">
+                <span class="w-1.5 h-1.5 rounded-full bg-cyan-400 shrink-0"></span>
                 <span>通常10問は10問の合計誤差の少なさに挑戦／エンドレスは誤差0度ピッタリのみ継続</span>
             </p>
         </div>
@@ -849,14 +851,20 @@
 
             // ウィンドウ・ビューポート全域寸法
             // visualViewport を優先（iOS Safari でアドレスバーを正確に除外できる）
+            // ※以前は測定値が小さいときに320/480へ強制的に引き上げていたが、これが原因で
+            //   本当に高さが低いウィンドウ（横向き・PCでの手動リサイズ等）でも実際より
+            //   大きい高さとして計算してしまい、中身が画面に収まらなくなっていた。
+            //   ここでは「0や未取得のときだけ」の最小限のフォールバックに留める。
             let vw, vh;
-            if (window.visualViewport) {
-                vw = Math.max(window.visualViewport.width, 320);
-                vh = Math.max(window.visualViewport.height, 480);
+            if (window.visualViewport && window.visualViewport.width > 0 && window.visualViewport.height > 0) {
+                vw = window.visualViewport.width;
+                vh = window.visualViewport.height;
             } else {
-                vw = Math.max(document.documentElement.clientWidth || 0, window.innerWidth || 0, 320);
-                vh = Math.max(document.documentElement.clientHeight || 0, window.innerHeight || 0, 480);
+                vw = document.documentElement.clientWidth || window.innerWidth || 320;
+                vh = document.documentElement.clientHeight || window.innerHeight || 480;
             }
+            vw = Math.max(vw, 100);
+            vh = Math.max(vh, 100);
 
             let baseW, baseH;
 
@@ -925,16 +933,30 @@
             const scaleMin = (vw < 768 || isMobileLandscape) ? 0.35 : 0.38;
             scale = Math.max(scaleMin, scale);
 
-            // マージンによる絶対中央配置（PC等の translate/scale による右下ズレを物理遮断）
+            // 絶対座標による中央配置。
+            // 従来は top:50%/left:50% + margin:-半分 という「親の高さに対する％」方式だったが、
+            // 親（mainContainer）の実際の描画上の高さが vh（visualViewportから求めた値）と
+            // 食い違うケースがあり、そのズレの分だけ上に押し出されてしまうバグがあった。
+            // ここでは vw/vh を基準にJS側で最終的な座標をpx単位で直接計算することで、
+            // 親要素の実寸に左右されず必ず画面中央に置かれるようにする。
+            function applyPosition(s) {
+                const renderedW = baseW * s;
+                const renderedH = baseH * s;
+                const left = Math.round((vw - renderedW) / 2);
+                const top = Math.round((vh - renderedH) / 2);
+                activeScreen.style.left = left + 'px';
+                activeScreen.style.top = top + 'px';
+                activeScreen.style.transform = `scale(${s})`;
+            }
+
             activeScreen.style.position = 'absolute';
-            activeScreen.style.top = '50%';
-            activeScreen.style.left = '50%';
             activeScreen.style.width = baseW + 'px';
             activeScreen.style.height = baseH + 'px';
-            activeScreen.style.marginLeft = (-baseW / 2) + 'px';
-            activeScreen.style.marginTop = (-baseH / 2) + 'px';
-            activeScreen.style.transform = `scale(${scale})`;
-            activeScreen.style.transformOrigin = 'center center';
+            activeScreen.style.margin = '0';
+            activeScreen.style.marginLeft = '0';
+            activeScreen.style.marginTop = '0';
+            activeScreen.style.transformOrigin = 'top left';
+            applyPosition(scale);
             activeScreen.style.opacity = '1';
             activeScreen.style.visibility = 'visible';
 
@@ -945,7 +967,7 @@
             const overflowRatio = Math.max(renderedRect.width / availW, renderedRect.height / availH);
             if (overflowRatio > 1.01) {
                 scale = scale / overflowRatio;
-                activeScreen.style.transform = `scale(${scale})`;
+                applyPosition(scale);
             }
         }
 
@@ -1375,6 +1397,14 @@
             }
         }
 
+        // 図の半径に応じて線の太さを調整する係数。
+        // 線の太さを固定値(dpr倍のみ)にしていると、画面が小さく半径が小さいスマホでは
+        // 図全体に対して線だけ相対的に太く見えてしまうため、基準半径(220px相当)との
+        // 比率で細くする（太くなりすぎたり細すぎたりしないよう0.5〜1の範囲に収める）。
+        function getLineScale(radius) {
+            return Math.min(1, Math.max(0.5, radius / 220));
+        }
+
         function calculateEndRad(deg) {
             const rad = deg * Math.PI / 180;
             const isLeftBase = Math.abs(baseRotation - Math.PI) < 0.01;
@@ -1383,6 +1413,7 @@
 
         function drawProtractorOverlay(cx, cy, radius) {
             const dpr = window.devicePixelRatio || 1;
+            const lw = dpr * getLineScale(radius);
             const maxDeg = (currentDifficulty === 'expert') ? 360 : 180;
             const isLeftBase = Math.abs(baseRotation - Math.PI) < 0.01;
             const anticlockwise = !isLeftBase;
@@ -1399,7 +1430,7 @@
                 ctx.arc(cx, cy, radius, startRad, endRad, anticlockwise);
             }
             ctx.strokeStyle = 'rgba(56, 189, 248, 0.35)';
-            ctx.lineWidth = 1.5 * dpr;
+            ctx.lineWidth = 1.5 * lw;
             ctx.stroke();
 
             // フォントサイズ（外側ラベル用）
@@ -1414,9 +1445,9 @@
                 const is30Deg = (deg % 30 === 0);
 
                 // 目盛りの長さ：5度=短い、10度=中、30度=長い
-                let tickLen = 5 * dpr;    // 5度刻み（短い印のみ）
-                if (is10Deg) tickLen = 10 * dpr;
-                if (is30Deg) tickLen = 14 * dpr;
+                let tickLen = 5 * lw;    // 5度刻み（短い印のみ）
+                if (is10Deg) tickLen = 10 * lw;
+                if (is30Deg) tickLen = 14 * lw;
 
                 // 目盛りは円弧から内側に向かって描く
                 const x1 = cx + Math.cos(rad) * radius;
@@ -1428,7 +1459,7 @@
                 ctx.moveTo(x1, y1);
                 ctx.lineTo(x2, y2);
                 ctx.strokeStyle = is10Deg ? 'rgba(56, 189, 248, 0.85)' : 'rgba(148, 163, 184, 0.5)';
-                ctx.lineWidth = (is10Deg ? 1.8 : 1) * dpr;
+                ctx.lineWidth = (is10Deg ? 1.8 : 1) * lw;
                 ctx.stroke();
 
                 // 10度刻みのみ数字を外側に表示
@@ -1469,6 +1500,9 @@
                 radius = Math.min(w, h) * 0.38;
             }
 
+            // 半径に応じて線の太さを調整（画面が小さいほど線が相対的に細くなるようにする）
+            const lw = dpr * getLineScale(radius);
+
             ctx.clearRect(0, 0, w, h);
 
             const startRad = baseRotation; 
@@ -1487,7 +1521,7 @@
                 ctx.beginPath();
                 ctx.arc(cx, cy, radius * 0.9, startRad, targetEndRad, anticlockwise);
                 ctx.strokeStyle = '#0284c7';
-                ctx.lineWidth = 3 * dpr;
+                ctx.lineWidth = 3 * lw;
                 ctx.stroke();
                 ctx.restore();
             }
@@ -1509,8 +1543,8 @@
                 ctx.beginPath();
                 ctx.arc(cx, cy, radius * 0.75, startRad, guessEndRad, anticlockwise);
                 ctx.strokeStyle = 'rgba(251, 191, 36, 0.6)';
-                ctx.lineWidth = 2.5 * dpr;
-                ctx.setLineDash([5 * dpr, 4 * dpr]);
+                ctx.lineWidth = 2.5 * lw;
+                ctx.setLineDash([5 * lw, 4 * lw]);
                 ctx.stroke();
                 ctx.setLineDash([]);
 
@@ -1521,9 +1555,9 @@
                 ctx.moveTo(cx, cy);
                 ctx.lineTo(guessX, guessY);
                 ctx.strokeStyle = '#f59e0b';
-                ctx.lineWidth = 3 * dpr;
+                ctx.lineWidth = 3 * lw;
                 ctx.lineCap = 'round';
-                ctx.setLineDash([6 * dpr, 4 * dpr]);
+                ctx.setLineDash([6 * lw, 4 * lw]);
                 ctx.stroke();
                 ctx.setLineDash([]);
                 // ※ ラベルテキスト（「あなた: XX°」）は表示しない
@@ -1538,8 +1572,8 @@
                 ctx.moveTo(cx, cy);
                 ctx.arc(cx, cy, radius * 0.82, startRad, origUserEndRad, anticlockwise);
                 ctx.strokeStyle = 'rgba(251, 191, 36, 0.25)';
-                ctx.lineWidth = 2.5 * dpr;
-                ctx.setLineDash([4 * dpr, 4 * dpr]);
+                ctx.lineWidth = 2.5 * lw;
+                ctx.setLineDash([4 * lw, 4 * lw]);
                 ctx.stroke();
                 ctx.restore();
             }
@@ -1564,8 +1598,8 @@
                 ctx.beginPath();
                 ctx.arc(cx, cy, radius * 0.82, startRad, userEndRad, anticlockwise);
                 ctx.strokeStyle = (animPhase === 'phase2') ? '#38bdf8' : '#fbbf24';
-                ctx.lineWidth = 3.5 * dpr;
-                ctx.setLineDash([6 * dpr, 4 * dpr]);
+                ctx.lineWidth = 3.5 * lw;
+                ctx.setLineDash([6 * lw, 4 * lw]);
                 ctx.stroke();
                 ctx.setLineDash([]);
 
@@ -1575,7 +1609,7 @@
                 ctx.moveTo(cx, cy);
                 ctx.lineTo(userX, userY);
                 ctx.strokeStyle = (animPhase === 'phase2') ? '#0284c7' : '#f59e0b';
-                ctx.lineWidth = 4 * dpr;
+                ctx.lineWidth = 4 * lw;
                 ctx.lineCap = 'round';
                 ctx.stroke();
 
@@ -1590,12 +1624,12 @@
             ctx.moveTo(cx, cy);
             ctx.lineTo(refX, refY);
             ctx.strokeStyle = '#fbbf24';
-            ctx.lineWidth = 4.5 * dpr;
+            ctx.lineWidth = 4.5 * lw;
             ctx.lineCap = 'round';
             ctx.stroke();
 
             ctx.save();
-            const labelDist = radius + 18 * dpr;
+            const labelDist = radius + 18 * lw;
             const labelX = cx + Math.cos(startRad) * labelDist;
             const labelY = cy + Math.sin(startRad) * labelDist;
             ctx.fillStyle = '#fbbf24';
@@ -1613,17 +1647,17 @@
             ctx.moveTo(cx, cy);
             ctx.lineTo(targetX, targetY);
             ctx.strokeStyle = '#38bdf8';
-            ctx.lineWidth = 4.5 * dpr;
+            ctx.lineWidth = 4.5 * lw;
             ctx.lineCap = 'round';
             ctx.stroke();
 
             // 5. 中心点
             ctx.beginPath();
-            ctx.arc(cx, cy, 6.5 * dpr, 0, Math.PI * 2);
+            ctx.arc(cx, cy, 6.5 * lw, 0, Math.PI * 2);
             ctx.fillStyle = '#0f172a';
             ctx.fill();
             ctx.strokeStyle = '#38bdf8';
-            ctx.lineWidth = 3 * dpr;
+            ctx.lineWidth = 3 * lw;
             ctx.stroke();
 
             // 6. 分度器の目盛り
