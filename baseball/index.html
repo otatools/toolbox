@@ -221,6 +221,11 @@
         .card-face {
             backface-visibility: hidden;
             -webkit-backface-visibility: hidden;
+            /* iOS Safariでbackface-visibilityが効かず裏面の文字が鏡写しに
+               透けて残ることがあるバグの対策。各面をわずかにZ方向にずらして
+               別々の合成レイヤーとして扱わせる。 */
+            transform: translateZ(0.01px);
+            -webkit-transform: translateZ(0.01px);
         }
 
         /* 3D 視点（低角度からのグラウンド表示） */
@@ -345,7 +350,8 @@
         }
 
         .card-back {
-            transform: rotateY(180deg);
+            transform: rotateY(180deg) translateZ(0.01px);
+            -webkit-transform: rotateY(180deg) translateZ(0.01px);
         }
 
         /* イラストに重なっても読めるように、文字の周りを白フチで縁取る */
@@ -1851,7 +1857,10 @@
                 if (card) {
                     card.classList.remove('is-flipped');
                     document.getElementById(`pitcher-mark-${i}`).classList.add('hidden');
-                    
+                    // iOS Safariで裏面の描画が古いまま残る対策として、
+                    // 強制的にレイアウトを再計算させる
+                    void card.offsetHeight;
+
                     setTimeout(() => {
                         const backFace = document.getElementById(`card-back-${i}`);
                         if (backFace) {
