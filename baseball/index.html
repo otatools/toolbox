@@ -115,6 +115,7 @@
             justify-content: space-between;
             align-items: center;
             box-sizing: border-box;
+            padding: 8px;
         }
 
         /* スマホ縦画面でも得点板とOUT表示が絶対に折り返さず横並びを保つための調整 */
@@ -192,6 +193,12 @@
             box-shadow: 0 0 15px #ffc107, inset 0 0 10px #f57f17;
         }
 
+        /* 2塁は遠近効果で白浮きして見えるため、非占有時のみ少しトーンダウン */
+        #base-2:not(.occupied) {
+            background-color: #e6e6e0;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+
         /* ホームベース */
         .home-base {
             clip-path: polygon(0% 0%, 100% 0%, 100% 45%, 50% 100%, 0% 45%);
@@ -234,8 +241,25 @@
             height: 340px;
         }
         #app.is-portrait .field-3d-box {
-            width: 195px;
-            height: 195px;
+            width: 340px;
+            height: 210px;
+        }
+
+        /* スマホ縦画面ではグラウンドの土台を横長にして、外野のアーチを
+           カード幅いっぱいに広く・浅く見せる（左右の余白を減らす） */
+        #app.is-portrait #field-container {
+            width: 100%;
+            align-self: center;
+        }
+
+        /* スマホ縦画面ではグラウンドをやや低めの角度から見た感じにして、
+           限られた高さでも広がりを感じられるようにする */
+        #app.is-portrait .field-stage {
+            perspective: 700px;
+            perspective-origin: 50% 92%;
+        }
+        #app.is-portrait .field-3d {
+            transform: rotateX(58deg);
         }
 
         #app.is-landscape .base-diamond-box {
@@ -243,8 +267,14 @@
             height: 190px;
         }
         #app.is-portrait .base-diamond-box {
-            width: 115px;
-            height: 115px;
+            width: 133px;
+            height: 133px;
+            margin-top: 125px;
+        }
+
+        /* 芝生をカードの一番下までしっかり届かせる（下に隙間ができないように余分に伸ばす） */
+        #app.is-portrait .field-outfield-arc {
+            height: 220%;
         }
 
         #app.is-landscape .card-grid-box {
@@ -283,7 +313,7 @@
             align-items: center;
             justify-content: center;
             text-align: center;
-            font-size: 1.4rem !important;
+            font-size: 1.65rem !important;
             line-height: 1.15;
             white-space: nowrap !important;
             z-index: 2;
@@ -498,28 +528,74 @@
                                 <feGaussianBlur stdDeviation="2" result="blur" />
                                 <feComposite in="SourceGraphic" in2="blur" operator="over" />
                             </filter>
+                            <symbol id="ball-shape" viewBox="0 0 36 36">
+                                <circle cx="18" cy="18" r="15.5" fill="#f2e6d3" stroke="#333333" stroke-width="0.8"/>
+                                <path d="M 8.36,7.31 Q 12.48,18.00 8.59,28.90" fill="none" stroke="#dc2626" stroke-width="1.4"/>
+                                <path d="M 27.64,7.31 Q 23.52,18.00 27.41,28.90" fill="none" stroke="#dc2626" stroke-width="1.4"/>
+                                <g stroke="#dc2626" stroke-width="1" stroke-linecap="round">
+                                    <line x1="7.27" y1="8.7" x2="10.1" y2="7.7"/>
+                                    <line x1="7.82" y1="10.4" x2="10.7" y2="9.56"/>
+                                    <line x1="8.27" y1="12.1" x2="11.19" y2="11.44"/>
+                                    <line x1="8.6" y1="13.81" x2="11.56" y2="13.32"/>
+                                    <line x1="8.83" y1="15.51" x2="11.82" y2="15.2"/>
+                                    <line x1="8.96" y1="17.21" x2="11.95" y2="17.09"/>
+                                    <line x1="8.97" y1="18.92" x2="11.97" y2="18.98"/>
+                                    <line x1="8.89" y1="20.63" x2="11.88" y2="20.87"/>
+                                    <line x1="8.69" y1="22.34" x2="11.66" y2="22.77"/>
+                                    <line x1="8.4" y1="24.06" x2="11.33" y2="24.67"/>
+                                    <line x1="7.99" y1="25.79" x2="10.89" y2="26.56"/>
+                                    <line x1="7.48" y1="27.52" x2="10.33" y2="28.45"/>
+                                    <line x1="28.73" y1="8.7" x2="25.9" y2="7.7"/>
+                                    <line x1="28.18" y1="10.4" x2="25.3" y2="9.56"/>
+                                    <line x1="27.73" y1="12.1" x2="24.81" y2="11.44"/>
+                                    <line x1="27.4" y1="13.81" x2="24.44" y2="13.32"/>
+                                    <line x1="27.17" y1="15.51" x2="24.18" y2="15.2"/>
+                                    <line x1="27.04" y1="17.21" x2="24.05" y2="17.09"/>
+                                    <line x1="27.03" y1="18.92" x2="24.03" y2="18.98"/>
+                                    <line x1="27.11" y1="20.63" x2="24.12" y2="20.87"/>
+                                    <line x1="27.31" y1="22.34" x2="24.34" y2="22.77"/>
+                                    <line x1="27.6" y1="24.06" x2="24.67" y2="24.67"/>
+                                    <line x1="28.01" y1="25.79" x2="25.11" y2="26.56"/>
+                                    <line x1="28.52" y1="27.52" x2="25.67" y2="28.45"/>
+                                </g>
+                            </symbol>
+                            <symbol id="runner-shape" viewBox="0 0 224 237">
+                                <path d="M 179,9 L 166,4 L 153,7 L 147,17 L 146,29 L 149,32 L 148,33 L 104,26 L 100,29 L 87,29 L 77,36 L 56,58 L 40,67 L 47,68 L 40,74 L 41,76 L 46,72 L 48,73 L 42,79 L 43,81 L 50,75 L 51,77 L 48,80 L 49,83 L 58,73 L 61,74 L 61,78 L 64,80 L 66,64 L 69,60 L 92,43 L 96,43 L 101,49 L 110,52 L 99,74 L 94,80 L 92,87 L 80,103 L 77,113 L 78,125 L 63,155 L 45,166 L 23,189 L 18,192 L 11,192 L 4,197 L 6,202 L 5,205 L 9,213 L 10,224 L 15,230 L 19,232 L 27,231 L 27,228 L 22,224 L 24,213 L 28,209 L 26,205 L 33,198 L 62,179 L 78,172 L 107,139 L 131,147 L 122,153 L 114,164 L 102,175 L 92,179 L 85,188 L 104,213 L 113,217 L 116,215 L 116,210 L 110,199 L 110,186 L 119,178 L 151,161 L 160,152 L 161,148 L 155,135 L 142,123 L 123,110 L 127,108 L 133,98 L 155,78 L 161,85 L 166,87 L 173,97 L 178,99 L 183,98 L 200,77 L 219,61 L 219,59 L 215,61 L 213,60 L 219,53 L 217,52 L 213,56 L 212,55 L 215,48 L 209,53 L 208,51 L 210,47 L 208,46 L 200,58 L 195,50 L 195,67 L 188,75 L 183,78 L 180,77 L 170,53 L 165,48 L 171,48 L 179,38 L 180,29 L 191,28 L 183,23 L 182,13 Z M 207,53 L 208,52 L 209,54 L 208,55 Z" fill="currentColor" fill-rule="evenodd"/>
+                            </symbol>
                         </defs>
-                        <path id="ball-path" d="" fill="none" stroke="#ef4444" stroke-width="4" stroke-linecap="round" filter="url(#glow)" class="opacity-0 transition-opacity duration-300"/>
-                        <circle id="ball-head" cx="-20" cy="-20" r="8" fill="#ffffff" stroke="#ef4444" stroke-width="2.5" class="opacity-0 transition-opacity duration-200"/>
+                        <path id="ball-path" d="" fill="none" stroke="#facc15" stroke-width="4" stroke-linecap="round" filter="url(#glow)" class="opacity-0 transition-opacity duration-300"/>
+                        <path id="ball-path-core" d="" fill="none" stroke="#fffceb" stroke-width="1.6" stroke-linecap="round" class="opacity-0 transition-opacity duration-300"/>
+                        <g id="ball-head" transform="translate(-20,-20)" class="opacity-0 transition-opacity duration-200">
+                            <use href="#ball-shape" width="16" height="16" x="-8" y="-8"/>
+                        </g>
+                        <!-- 塁上に留まるランナー（1,2,3塁分。塁が埋まっている間ずっと表示） -->
+                        <g id="base-runner-1" class="opacity-0"><use href="#runner-shape" width="224" height="237"/></g>
+                        <g id="base-runner-2" class="opacity-0"><use href="#runner-shape" width="224" height="237"/></g>
+                        <g id="base-runner-3" class="opacity-0"><use href="#runner-shape" width="224" height="237"/></g>
+                        <!-- 走塁アニメーション用（同時に複数人が走れるようプールしておく） -->
+                        <g id="move-runner-0" class="opacity-0"><use href="#runner-shape" width="224" height="237"/></g>
+                        <g id="move-runner-1" class="opacity-0"><use href="#runner-shape" width="224" height="237"/></g>
+                        <g id="move-runner-2" class="opacity-0"><use href="#runner-shape" width="224" height="237"/></g>
+                        <g id="move-runner-3" class="opacity-0"><use href="#runner-shape" width="224" height="237"/></g>
                     </svg>
 
                     <div class="field-3d field-3d-box relative flex items-center justify-center">
-                        <div class="absolute w-[135%] h-[135%] bg-gradient-to-b from-[#1b3d18] via-[#244a20] to-[#1e3f1b] rounded-t-full border-t-8 border-yellow-600/70 -z-10 top-[-20%] shadow-2xl flex items-end justify-center overflow-hidden">
+                        <div class="field-outfield-arc absolute w-[135%] h-[135%] bg-gradient-to-b from-[#1b3d18] via-[#244a20] to-[#1e3f1b] rounded-t-full border-t-8 border-yellow-600/70 -z-10 top-[-20%] shadow-2xl flex items-end justify-center overflow-hidden">
                             <div class="absolute inset-0 bg-[repeating-linear-gradient(90deg,transparent,transparent_25px,rgba(255,255,255,0.03)_25px,rgba(255,255,255,0.03)_50px)]"></div>
                         </div>
 
                         <!-- ダイヤモンド -->
-                        <div class="base-diamond base-diamond-box infield-dirt relative border-2 border-[#8e5c36] shadow-xl mt-4">
+                        <div class="base-diamond base-diamond-box infield-dirt relative border-2 border-[#8e5c36] shadow-xl mt-[120px]">
                             <!-- 1塁側ファウルライン (ホームベース起点で1塁・外野方向へ) -->
-                            <div class="absolute top-[-45%] right-0 w-[2.5px] h-[145%] bg-white/90 z-10 pointer-events-none"></div>
+                            <div class="absolute top-[-95%] right-0 w-[2.5px] h-[195%] bg-white/90 z-10 pointer-events-none"></div>
                             <!-- 3塁側ファウルライン (ホームベース起点で3塁・外野方向へ) -->
-                            <div class="absolute bottom-0 left-[-45%] w-[145%] h-[2.5px] bg-white/90 z-10 pointer-events-none"></div>
+                            <div class="absolute bottom-0 left-[-95%] w-[195%] h-[2.5px] bg-white/90 z-10 pointer-events-none"></div>
 
-                            <div class="home-base absolute bottom-0 right-0 w-6 h-6 sm:w-8 sm:h-8 bg-white transform translate-x-[50%] translate-y-[50%] -rotate-45 z-20 shadow-md"></div>
+                            <div class="home-base absolute bottom-0 right-0 w-6 h-6 sm:w-8 sm:h-8 bg-white transform translate-x-[15%] translate-y-[15%] -rotate-45 z-20 shadow-md"></div>
 
-                            <div id="base-1" class="base absolute top-0 right-0 w-5 h-5 sm:w-7 sm:h-7 transform translate-x-[50%] translate-y-[-50%] z-20"></div>
+                            <div id="base-1" class="base absolute top-0 right-0 w-5 h-5 sm:w-7 sm:h-7 z-20"></div>
                             <div id="base-2" class="base absolute top-0 left-0 w-5 h-5 sm:w-7 sm:h-7 transform translate-x-[-50%] translate-y-[-50%] z-20"></div>
-                            <div id="base-3" class="base absolute bottom-0 left-0 w-5 h-5 sm:w-7 sm:h-7 transform translate-x-[-50%] translate-y-[50%] z-20"></div>
+                            <div id="base-3" class="base absolute bottom-0 left-0 w-5 h-5 sm:w-7 sm:h-7 z-20"></div>
 
                             <div class="absolute top-1/2 left-1/2 w-8 h-8 sm:w-12 sm:h-12 bg-[#c48a5c] rounded-full transform -translate-x-1/2 -translate-y-1/2 border border-[#a07049] flex items-center justify-center shadow-inner">
                                 <div class="w-3 sm:w-4 h-1 sm:h-1.5 bg-white transform -rotate-45 rounded-sm"></div>
@@ -552,13 +628,13 @@
                     <div class="card-container cursor-pointer" onclick="handleCardClick(0)">
                         <div id="card-0" class="card-inner w-full h-full relative rounded-2xl shadow-lg">
                             <div class="card-face absolute inset-0 bg-gray-800/90 border-4 border-gray-600/80 rounded-2xl flex flex-col items-center justify-center group hover:bg-gray-700/90 transition p-1">
-                                <span class="text-blue-400 font-black text-base sm:text-xl mb-1 tracking-wider text-center leading-tight whitespace-nowrap">1塁打</span>
+                                <span class="text-blue-400 font-black text-lg sm:text-2xl mb-1 tracking-wider text-center leading-tight whitespace-nowrap">1塁打</span>
                                 <span class="text-gray-500 text-3xl sm:text-4xl font-black group-hover:text-gray-400">?</span>
                                 <div id="pitcher-mark-0" class="absolute inset-0 border-4 rounded-2xl hidden shadow-[inset_0_0_20px_rgba(255,255,255,0.4)] z-30"></div>
                             </div>
                             <div id="card-back-0" class="card-face card-back absolute inset-0 bg-white border-4 border-gray-200 rounded-2xl flex items-center justify-center overflow-hidden">
                                 <span id="card-result-icon-0" class="flex items-center justify-center"></span>
-                                <span id="card-result-text-0" class="outline-text absolute bottom-0.5 sm:bottom-1 left-0 right-0 text-center text-sm sm:text-lg font-black text-gray-800 whitespace-nowrap px-1">1塁打</span>
+                                <span id="card-result-text-0" class="outline-text absolute bottom-0.5 sm:bottom-1 left-0 right-0 text-center text-base sm:text-xl font-black text-gray-800 whitespace-nowrap px-1">1塁打</span>
                             </div>
                         </div>
                     </div>
@@ -567,13 +643,13 @@
                     <div class="card-container cursor-pointer" onclick="handleCardClick(1)">
                         <div id="card-1" class="card-inner w-full h-full relative rounded-2xl shadow-lg">
                             <div class="card-face absolute inset-0 bg-gray-800/90 border-4 border-gray-600/80 rounded-2xl flex flex-col items-center justify-center group hover:bg-gray-700/90 transition p-1">
-                                <span class="text-purple-400 font-black text-base sm:text-xl mb-1 tracking-wider text-center leading-tight whitespace-nowrap">2塁打</span>
+                                <span class="text-purple-400 font-black text-lg sm:text-2xl mb-1 tracking-wider text-center leading-tight whitespace-nowrap">2塁打</span>
                                 <span class="text-gray-500 text-3xl sm:text-4xl font-black group-hover:text-gray-400">?</span>
                                 <div id="pitcher-mark-1" class="absolute inset-0 border-4 rounded-2xl hidden shadow-[inset_0_0_20px_rgba(255,255,255,0.4)] z-30"></div>
                             </div>
                             <div id="card-back-1" class="card-face card-back absolute inset-0 bg-white border-4 border-gray-200 rounded-2xl flex items-center justify-center overflow-hidden">
                                 <span id="card-result-icon-1" class="flex items-center justify-center"></span>
-                                <span id="card-result-text-1" class="outline-text absolute bottom-0.5 sm:bottom-1 left-0 right-0 text-center text-sm sm:text-lg font-black text-gray-800 whitespace-nowrap px-1">2塁打</span>
+                                <span id="card-result-text-1" class="outline-text absolute bottom-0.5 sm:bottom-1 left-0 right-0 text-center text-base sm:text-xl font-black text-gray-800 whitespace-nowrap px-1">2塁打</span>
                             </div>
                         </div>
                     </div>
@@ -582,13 +658,13 @@
                     <div class="card-container cursor-pointer" onclick="handleCardClick(2)">
                         <div id="card-2" class="card-inner w-full h-full relative rounded-2xl shadow-lg">
                             <div class="card-face absolute inset-0 bg-gray-800/90 border-4 border-gray-600/80 rounded-2xl flex flex-col items-center justify-center group hover:bg-gray-700/90 transition p-1">
-                                <span class="text-pink-400 font-black text-base sm:text-xl mb-1 tracking-wider text-center leading-tight whitespace-nowrap">3塁打</span>
+                                <span class="text-pink-400 font-black text-lg sm:text-2xl mb-1 tracking-wider text-center leading-tight whitespace-nowrap">3塁打</span>
                                 <span class="text-gray-500 text-3xl sm:text-4xl font-black group-hover:text-gray-400">?</span>
                                 <div id="pitcher-mark-2" class="absolute inset-0 border-4 rounded-2xl hidden shadow-[inset_0_0_20px_rgba(255,255,255,0.4)] z-30"></div>
                             </div>
                             <div id="card-back-2" class="card-face card-back absolute inset-0 bg-white border-4 border-gray-200 rounded-2xl flex items-center justify-center overflow-hidden">
                                 <span id="card-result-icon-2" class="flex items-center justify-center"></span>
-                                <span id="card-result-text-2" class="outline-text absolute bottom-0.5 sm:bottom-1 left-0 right-0 text-center text-sm sm:text-lg font-black text-gray-800 whitespace-nowrap px-1">3塁打</span>
+                                <span id="card-result-text-2" class="outline-text absolute bottom-0.5 sm:bottom-1 left-0 right-0 text-center text-base sm:text-xl font-black text-gray-800 whitespace-nowrap px-1">3塁打</span>
                             </div>
                         </div>
                     </div>
@@ -597,13 +673,13 @@
                     <div class="card-container cursor-pointer" onclick="handleCardClick(3)">
                         <div id="card-3" class="card-inner w-full h-full relative rounded-2xl shadow-lg">
                             <div class="card-face absolute inset-0 bg-gray-800/90 border-4 border-gray-600/80 rounded-2xl flex flex-col items-center justify-center group hover:bg-gray-700/90 transition p-1">
-                                <span class="text-red-500 font-black text-base sm:text-xl mb-1 tracking-wider text-center leading-tight whitespace-nowrap">ホームラン</span>
+                                <span class="text-red-500 font-black text-lg sm:text-2xl mb-1 tracking-wider text-center leading-tight whitespace-nowrap">ホームラン</span>
                                 <span class="text-gray-500 text-3xl sm:text-4xl font-black group-hover:text-gray-400">?</span>
                                 <div id="pitcher-mark-3" class="absolute inset-0 border-4 rounded-2xl hidden shadow-[inset_0_0_20px_rgba(255,255,255,0.4)] z-30"></div>
                             </div>
                             <div id="card-back-3" class="card-face card-back absolute inset-0 bg-white border-4 border-gray-200 rounded-2xl flex items-center justify-center overflow-hidden">
                                 <span id="card-result-icon-3" class="flex items-center justify-center"></span>
-                                <span id="card-result-text-3" class="outline-text absolute bottom-0.5 sm:bottom-1 left-0 right-0 text-center text-sm sm:text-lg font-black text-gray-800 whitespace-nowrap px-1">本塁打</span>
+                                <span id="card-result-text-3" class="outline-text absolute bottom-0.5 sm:bottom-1 left-0 right-0 text-center text-base sm:text-xl font-black text-gray-800 whitespace-nowrap px-1">本塁打</span>
                             </div>
                         </div>
                     </div>
@@ -667,7 +743,7 @@
 
         <!-- 決着発表オーバーレイ (画面中央) -->
         <div id="decision-announce" class="fixed inset-0 z-[100] flex items-center justify-center pointer-events-none opacity-0 scale-90 transition-all duration-500">
-            <div class="bg-gradient-to-b from-gray-950 via-gray-900 to-black border-4 border-yellow-400 rounded-3xl shadow-[0_0_60px_rgba(234,179,8,0.7)] px-8 py-7 sm:px-16 sm:py-10 flex flex-col items-center text-center max-w-[85%]">
+            <div id="decision-card" class="bg-gradient-to-b from-gray-950 via-gray-900 to-black border-4 border-yellow-400 rounded-3xl shadow-[0_0_60px_rgba(234,179,8,0.7)] px-8 py-7 sm:px-16 sm:py-10 flex flex-col items-center text-center max-w-[85%]">
                 <span class="text-xs sm:text-sm font-black tracking-[0.3em] text-yellow-400 mb-4 sm:mb-6">試合終了</span>
 
                 <div class="flex items-center justify-center gap-4 sm:gap-8 mb-4">
@@ -682,13 +758,24 @@
                     </div>
                 </div>
 
-                <p id="decision-announce-text" class="text-lg sm:text-2xl font-black text-yellow-300 mb-5"></p>
+                <p id="decision-announce-text" class="font-black text-yellow-300 mb-5 whitespace-nowrap"></p>
+                <p id="decision-achievement-text" class="font-bold text-orange-300 mb-5 whitespace-nowrap hidden"></p>
 
-                <button onclick="decisionGoToTitle()" class="pointer-events-auto px-6 py-2.5 bg-white text-gray-900 hover:bg-gray-200 font-bold text-sm sm:text-base rounded-xl shadow-lg transition transform hover:scale-105 active:scale-95">
-                    メインメニューに戻る
-                </button>
+                <div class="flex items-center gap-3">
+                    <button onclick="peekScoreboard()" class="px-5 py-2.5 bg-gray-700 text-white hover:bg-gray-600 font-bold text-sm sm:text-base rounded-xl shadow-lg transition transform hover:scale-105 active:scale-95">
+                        スコアボードを見る
+                    </button>
+                    <button onclick="decisionGoToTitle()" class="px-6 py-2.5 bg-white text-gray-900 hover:bg-gray-200 font-bold text-sm sm:text-base rounded-xl shadow-lg transition transform hover:scale-105 active:scale-95">
+                        メインメニューに戻る
+                    </button>
+                </div>
             </div>
         </div>
+
+        <!-- スコアボード確認中に、結果発表オーバーレイへ戻るためのフローティングボタン -->
+        <button id="back-to-result-btn" onclick="backToDecisionAnnounce()" class="hidden fixed bottom-5 left-1/2 -translate-x-1/2 z-[100] px-6 py-3 bg-yellow-400 text-gray-900 font-black text-sm sm:text-base rounded-full shadow-[0_0_20px_rgba(234,179,8,0.6)] transition transform hover:scale-105 active:scale-95">
+            結果発表に戻る
+        </button>
 
         <!-- TV中継風 スコアポップアップテロップ -->
         <div id="tv-score-banner" class="fixed top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 pointer-events-none opacity-0 scale-90 transition-all duration-500 flex flex-col items-center">
@@ -736,6 +823,10 @@
         let bases = [false, false, false];
         let score = { team1: 0, team2: 0 };
         let inningScores = { team1: [], team2: [] };
+
+        // 試合結果の見出し（完全試合・完封・逆転など）判定用の記録
+        let hitsBy = { team1: 0, team2: 0 };     // 各チームが記録した安打数（＝相手投手側からみた被安打数）
+        let maxDeficit = { team1: 0, team2: 0 }; // 試合中にそのチームが最大何点差つけられていたか
 
         let currentPhase = 'pitching';
         let hitPosition = -1;
@@ -870,6 +961,8 @@
             gameEnded = false;
             inningScores = { team1: Array(baseInnings).fill(''), team2: Array(baseInnings).fill('') };
             isSayonara = false;
+            hitsBy = { team1: 0, team2: 0 };
+            maxDeficit = { team1: 0, team2: 0 };
 
             initInningState();
             setupScoreboard();
@@ -879,7 +972,16 @@
             UI.gameoverScreen.classList.add('hidden');
             UI.gameoverScreen.classList.remove('flex');
             UI.gameScreen.classList.remove('hidden');
-            
+
+            // 前の試合の結果発表オーバーレイが透明なまま押せる状態で残らないよう、念のため確実に隠す
+            const decisionOverlay = document.getElementById('decision-announce');
+            if (decisionOverlay) {
+                decisionOverlay.classList.remove('opacity-100', 'scale-100', 'pointer-events-auto');
+                decisionOverlay.classList.add('opacity-0', 'scale-90', 'pointer-events-none');
+            }
+            const backBtn = document.getElementById('back-to-result-btn');
+            if (backBtn) backBtn.classList.add('hidden');
+
             startPitchingPhase();
             fitToWindow();
         }
@@ -890,6 +992,11 @@
             updateBSO();
             updateBasesUI();
             resetCards();
+            // 新しいイニング(半イニング)の開始なので、ランナー表示もリセットする
+            ['base-runner-1', 'base-runner-2', 'base-runner-3', 'move-runner-0', 'move-runner-1', 'move-runner-2', 'move-runner-3'].forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.classList.add('opacity-0');
+            });
         }
 
         function setupScoreboard() {
@@ -1004,6 +1111,12 @@
             return isTop ? 1 : 2;
         }
 
+        // ランナーのシルエットの色を、攻撃側（走者を出している側）のプレイヤーカラーに合わせる
+        function getBatterColor() {
+            // 目立ちすぎず、暗すぎない中間くらいのトーン
+            return getBatterPlayerNum() === 1 ? '#3672d7' : '#d94442';
+        }
+
         function startPitchingPhase() {
             currentPhase = 'pitching';
             hitPosition = -1;
@@ -1108,12 +1221,15 @@
             if (index === hitPosition) {
                 const hitType = HIT_TYPES[index];
                 resultIcon.innerHTML = hitIconSVG();
+                resultText.className = 'outline-text absolute bottom-0.5 sm:bottom-1 left-0 right-0 text-center text-base sm:text-xl font-black whitespace-nowrap px-1';
                 resultText.innerText = hitType.name;
                 resultText.style.color = hitType.color;
                 backFace.style.borderColor = hitType.color;
                 backFace.style.backgroundColor = '#fffbeb';
             } else {
-                resultIcon.innerHTML = outIconSVG();
+                // アウトはイラストなし。中央に「アウト」の文字だけを表示する
+                resultIcon.innerHTML = '';
+                resultText.className = 'text-2xl sm:text-4xl font-black tracking-widest';
                 resultText.innerText = 'アウト';
                 resultText.style.color = '#ef4444';
                 backFace.style.borderColor = '#f87171';
@@ -1162,6 +1278,7 @@
             const resultText = document.getElementById(`card-result-text-${hitPosition}`);
 
             resultIcon.innerHTML = hitIconSVG();
+            resultText.className = 'outline-text absolute bottom-0.5 sm:bottom-1 left-0 right-0 text-center text-sm sm:text-lg font-black whitespace-nowrap px-1';
             resultText.innerText = hitType.name;
             resultText.style.color = hitType.color;
             backFace.style.borderColor = hitType.color;
@@ -1174,12 +1291,16 @@
             const hitInfo = HIT_TYPES[typeIndex];
             UI.statusMessage.innerHTML = `<span class="text-green-400 text-2xl font-black">${hitInfo.name}！！</span>`;
             UI.statusMessage.className = "text-base font-bold mb-2 text-center h-[64px] flex flex-col items-center justify-center bg-gray-800/90 px-3 py-1.5 rounded-2xl border-4 border-green-500 w-full shadow-lg shrink-0";
-            
+
+            // 完全試合判定用に、打っているチームの安打数を記録する
+            hitsBy[isTop ? 'team1' : 'team2']++;
+
             animateTrajectory(typeIndex);
 
             let runsScored = 0;
             let newBases = [false, false, false];
             const advanceBases = hitInfo.bases;
+            const oldBases = bases.slice();
 
             for (let i = 2; i >= 0; i--) {
                 if (bases[i]) {
@@ -1191,7 +1312,7 @@
                     }
                 }
             }
-            
+
             if (advanceBases === 4) {
                 runsScored++;
             } else {
@@ -1199,29 +1320,68 @@
             }
 
             bases = newBases;
-            
-            setTimeout(() => {
-                updateBasesUI();
-                if (runsScored > 0) {
-                    const prevScore1 = score.team1;
-                    const prevScore2 = score.team2;
-                    
-                    addScore(runsScored);
-                    triggerTVScoreBanner(prevScore1, prevScore2, runsScored);
-                } else {
-                    checkGameEndCondition(); // 点が入らなくてもサヨナラ条件を満たしているかチェック
+            updateBasesUI();
+
+            // ランナーを実際に走らせ、各走者が個別にホームへ帰ってきた瞬間ごとに1点ずつ反映する
+            // （複数人が生還する場合、同時にではなく到着した順に、間隔を空けて1人ずつ加点される）
+            animateAllRunners(advanceBases, oldBases, () => {
+                queueRunScore(1);
+            });
+
+            // 生還する走者がいない場合は、サヨナラ条件だけ少し後でチェックしておく
+            if (runsScored === 0) {
+                setTimeout(() => checkGameEndCondition(), 1000);
+            }
+
+            // 一番長くかかるランナーの到着時間を見積もり、その少し後に「次の投球へ」ボタンを出す
+            const container = document.getElementById('field-container');
+            const W = (container && container.clientWidth) || 400;
+            const H = (container && container.clientHeight) || 400;
+            let maxDuration = computeRunnerLegs(0, advanceBases, W, H).duration;
+            for (let i = 2; i >= 0; i--) {
+                if (oldBases[i]) {
+                    const end = Math.min((i + 1) + advanceBases, 4);
+                    maxDuration = Math.max(maxDuration, computeRunnerLegs(i + 1, end, W, H).duration);
                 }
-            }, 1000);
+            }
 
             // サヨナラ勝ちでなければ「次の投球へ」ボタンを表示
             setTimeout(() => {
                 if(!isSayonara) {
                    showElem(UI.nextPitchBtn);
                 }
-            }, 1500);
+            }, maxDuration + 400);
         }
 
-        function triggerTVScoreBanner(prev1, prev2, runs) {
+        // 複数の走者が短い間隔で連続生還する場合、加点とテロップ演出（表示→数字加算→非表示）が
+        // 重ならないように1人分ずつ順番に処理するためのキュー。
+        // 得点の反映（addScore）自体もこのキューの中で行うので、実際に画面の得点が
+        // 増えるタイミングと、テロップのアニメーションが常に一致する。
+        let scoreBannerQueue = [];
+        let isScoreBannerPlaying = false;
+
+        function queueRunScore(runs) {
+            scoreBannerQueue.push(runs);
+            processScoreBannerQueue();
+        }
+
+        function processScoreBannerQueue() {
+            if (isScoreBannerPlaying) return;
+            const runs = scoreBannerQueue.shift();
+            if (runs === undefined) return;
+            isScoreBannerPlaying = true;
+
+            const prevScore1 = score.team1;
+            const prevScore2 = score.team2;
+            addScore(runs);
+
+            playScoreBanner(prevScore1, prevScore2, runs, () => {
+                isScoreBannerPlaying = false;
+                processScoreBannerQueue();
+            });
+        }
+
+        function playScoreBanner(prev1, prev2, runs, onDone) {
             const banner = document.getElementById('tv-score-banner');
             const score1Elem = document.getElementById('tv-team1-score');
             const score2Elem = document.getElementById('tv-team2-score');
@@ -1278,15 +1438,20 @@
                         if (currentStep < runs) {
                             setTimeout(addNextRun, 850);
                         } else {
+                            // 複数人が連続で生還する場面でもテンポよく続けて加点されるよう、
+                            // 表示の保持時間を短めにしてある
                             setTimeout(() => {
                                 glowElem.classList.add('opacity-0');
                                 banner.classList.remove('opacity-100', 'scale-100');
                                 banner.classList.add('opacity-0', 'scale-90');
-                                
+
                                 // テロップ終了後にサヨナラ判定を行う
                                 checkGameEndCondition();
-                                
-                            }, 1400);
+
+                                // 次に控えている生還者のテロップがあれば、ここで引き継いで再生する
+                                if (onDone) onDone();
+
+                            }, 700);
                         }
                     }
                 }
@@ -1308,6 +1473,7 @@
 
         function animateTrajectory(typeIndex) {
             const pathElem = document.getElementById('ball-path');
+            const coreElem = document.getElementById('ball-path-core');
             const ballElem = document.getElementById('ball-head');
             const scoreboard = document.getElementById('scoreboard-box');
             const svgElem = document.getElementById('trajectory-svg');
@@ -1319,8 +1485,28 @@
             svgElem.setAttribute('viewBox', `0 0 ${W} ${H}`);
 
             const t = TRAJECTORY_FRACTIONS[typeIndex];
-            const px = (p) => (p[0] * W).toFixed(1);
-            const py = (p) => (p[1] * H).toFixed(1);
+
+            // 縦画面は土台の形が横画面と違うため、軌道の割合をそのまま使うと
+            // 始点（ホームベース）がズレる。実際のホームベース位置との差分だけ
+            // 軌道全体を平行移動させ、カーブの形は保ったまま始点を合わせる。
+            const appElem = document.getElementById('app');
+            const isPortrait = appElem && appElem.classList.contains('is-portrait');
+            let dx = 0, dy = 0;
+            if (isPortrait) {
+                const pts = getBasePoints(W, H);
+                dx = (pts.home[0] / W) - t.start[0];
+                dy = (pts.home[1] / H) - t.start[1];
+            }
+
+            // 縦画面はホームベースが下寄りにあるため、始点を合わせただけだと
+            // どの打球も伸び幅が縮んで見える。始点からの伸び幅を拡大して、
+            // しっかり飛んでいるように補正する（ホームランはより大きく）。
+            const reachStretch = isPortrait
+                ? (typeIndex === 3 ? 1.9 : (typeIndex === 2 ? 1.25 : 1.5))
+                : 1;
+
+            const px = (p) => (((t.start[0] + dx) + (p[0] - t.start[0]) * reachStretch) * W).toFixed(1);
+            const py = (p) => (((t.start[1] + dy) + (p[1] - t.start[1]) * reachStretch) * H).toFixed(1);
 
             let d;
             if (typeIndex === 3) {
@@ -1330,28 +1516,39 @@
             }
 
             pathElem.setAttribute('d', d);
-            
+            if (coreElem) coreElem.setAttribute('d', d);
+
             const length = pathElem.getTotalLength();
             pathElem.style.strokeDasharray = length;
             pathElem.style.strokeDashoffset = length;
-            
+            if (coreElem) {
+                coreElem.style.strokeDasharray = length;
+                coreElem.style.strokeDashoffset = length;
+            }
+
             pathElem.classList.remove('opacity-0');
+            if (coreElem) coreElem.classList.remove('opacity-0');
             ballElem.classList.remove('opacity-0');
-            
+
             let startTime = null;
             const duration = typeIndex === 3 ? 1500 : 1200;
 
+            // ボールらしさを出すため、飛んでいる間だけランダムな速さ・向きでゆっくり回転させる
+            const spinSpeed = (220 + Math.random() * 260) * (Math.random() < 0.5 ? -1 : 1); // 度/秒
+
             function step(timestamp) {
                 if (!startTime) startTime = timestamp;
-                const progress = Math.min((timestamp - startTime) / duration, 1);
-                
+                const elapsed = timestamp - startTime;
+                const progress = Math.min(elapsed / duration, 1);
+
                 const currentOffset = length * (1 - progress);
                 pathElem.style.strokeDashoffset = currentOffset;
-                
+                if (coreElem) coreElem.style.strokeDashoffset = currentOffset;
+
                 const currentPoint = pathElem.getPointAtLength(length * progress);
-                ballElem.setAttribute('cx', currentPoint.x);
-                ballElem.setAttribute('cy', currentPoint.y);
-                
+                const spinAngle = (elapsed / 1000) * spinSpeed;
+                ballElem.setAttribute('transform', `translate(${currentPoint.x},${currentPoint.y}) rotate(${spinAngle.toFixed(1)})`);
+
                 if (progress < 1) {
                     requestAnimationFrame(step);
                 } else {
@@ -1367,20 +1564,263 @@
             requestAnimationFrame(step);
         }
 
+        // ランナーのシルエット（トレース元イラスト）の実寸ピクセルサイズ
+        const RUNNER_W = 224;
+        const RUNNER_H = 237;
+
+        // ホーム・1塁・2塁・3塁の見た目上の位置（W×Hに対する割合）。
+        // 実際のスクリーンショットを解析して算出した実測値ベース。横画面（PC版）用。
+        const BASE_POINTS = {
+            home: [0.495, 0.771],
+            first: [0.799, 0.573],
+            second: [0.495, 0.435],
+            third: [0.223, 0.574]
+        };
+
+        // ホーム→1塁→2塁→3塁→（ホームイン）の順で走る。区間ごとの向き。
+        // true=左向き、false=右向き（シルエット素材はデフォルトで右向き）
+        const BASE_ORDER = ['home', 'first', 'second', 'third', 'home'];
+        const LEG_FLIP = [false, true, true, false]; // home→1塁, 1塁→2塁, 2塁→3塁, 3塁→home
+        const REST_SLOT_ID = { 1: 'base-runner-1', 2: 'base-runner-2', 3: 'base-runner-3' };
+
+        // 軌道SVGのviewBoxを、実際に表示されているフィールドの実寸（縦画面/横画面どちらでも）
+        // に同期させる。これをしておかないと、translate(x,y)で指定する座標（実ピクセル）と
+        // SVG内部の座標系がズレてしまう。
+        function syncSvgViewBox() {
+            const container = document.getElementById('field-container');
+            const svgElem = document.getElementById('trajectory-svg');
+            const W = (container && container.clientWidth) || 400;
+            const H = (container && container.clientHeight) || 400;
+            if (svgElem) svgElem.setAttribute('viewBox', `0 0 ${W} ${H}`);
+            return { W, H };
+        }
+
+        // ホーム・1塁・2塁・3塁の実際の見た目上の位置を返す。
+        // 横画面（PC版）は元々調整済みの固定割合をそのまま使用（変更なし）。
+        // 縦画面（スマホ版）はグラウンドの形を個別に調整しているため、
+        // 実際に描画されているベース要素（DOM）の座標から直接取得する。
+        function getBasePoints(W, H) {
+            const appElem = document.getElementById('app');
+            const isPortrait = appElem && appElem.classList.contains('is-portrait');
+
+            if (!isPortrait) {
+                return {
+                    home: [BASE_POINTS.home[0] * W, BASE_POINTS.home[1] * H],
+                    first: [BASE_POINTS.first[0] * W, BASE_POINTS.first[1] * H],
+                    second: [BASE_POINTS.second[0] * W, BASE_POINTS.second[1] * H],
+                    third: [BASE_POINTS.third[0] * W, BASE_POINTS.third[1] * H]
+                };
+            }
+
+            const container = document.getElementById('field-container');
+            const homeEl = document.querySelector('.home-base');
+            const b1 = document.getElementById('base-1');
+            const b2 = document.getElementById('base-2');
+            const b3 = document.getElementById('base-3');
+            if (!container || !homeEl || !b1 || !b2 || !b3) {
+                return {
+                    home: [BASE_POINTS.home[0] * W, BASE_POINTS.home[1] * H],
+                    first: [BASE_POINTS.first[0] * W, BASE_POINTS.first[1] * H],
+                    second: [BASE_POINTS.second[0] * W, BASE_POINTS.second[1] * H],
+                    third: [BASE_POINTS.third[0] * W, BASE_POINTS.third[1] * H]
+                };
+            }
+            const cRect = container.getBoundingClientRect();
+            // #app 全体は fitToWindow() で transform: scale(...) されているため、
+            // getBoundingClientRect() は「拡縮後」の実画面ピクセルを返す。
+            // 一方 viewBox は clientWidth/clientHeight（拡縮前のレイアウト寸法）を
+            // 基準にしているので、そのままだと拡大縮小率の分だけズレる。
+            // ここでスケール比を実測して割り戻し、viewBoxと同じ座標系に揃える。
+            const scaleFactor = (container.clientWidth && cRect.width)
+                ? (cRect.width / container.clientWidth)
+                : 1;
+            const centerOf = (el) => {
+                const r = el.getBoundingClientRect();
+                return [
+                    (r.left + r.width / 2 - cRect.left) / scaleFactor,
+                    (r.top + r.height / 2 - cRect.top) / scaleFactor
+                ];
+            };
+            return {
+                home: centerOf(homeEl),
+                first: centerOf(b1),
+                second: centerOf(b2),
+                third: centerOf(b3)
+            };
+        }
+
+        // ランナーの表示倍率。縦画面は土台が横長（＝高さが小さい）ので、
+        // min(W,H)基準のままだと小さくなりすぎるため係数を上げる。
+        function getRunnerScale(W, H) {
+            const appElem = document.getElementById('app');
+            const isPortrait = appElem && appElem.classList.contains('is-portrait');
+            const coef = isPortrait ? 0.24 : 0.13;
+            return (Math.min(W, H) * coef) / RUNNER_H;
+        }
+
+        function placeRunnerElem(elem, x, y, flip, scale) {
+            const flipPart = flip ? ' scale(-1,1)' : '';
+            elem.setAttribute('transform',
+                `translate(${x},${y}) scale(${scale})${flipPart} translate(${-RUNNER_W / 2},${-RUNNER_H})`);
+        }
+
+        // 現在の bases[] に合わせて、塁上で待機しているランナー表示を同期する
+        function syncRestingRunners() {
+            const { W, H } = syncSvgViewBox();
+            const pts = getBasePoints(W, H);
+            const scale = getRunnerScale(W, H);
+
+            for (let i = 0; i < 3; i++) {
+                const baseNum = i + 1;
+                const elem = document.getElementById(REST_SLOT_ID[baseNum]);
+                if (!elem) continue;
+                if (bases[i]) {
+                    const pt = pts[BASE_ORDER[baseNum]];
+                    const flip = LEG_FLIP[baseNum]; // 次の塁へ進む向きで待機させる
+                    elem.style.color = getBatterColor();
+                    placeRunnerElem(elem, pt[0], pt[1], flip, scale);
+                    elem.classList.remove('opacity-0');
+                } else {
+                    elem.classList.add('opacity-0');
+                }
+            }
+        }
+
+        // startIndex→endIndexの区間リストと所要時間を計算する共通ロジック
+        function computeRunnerLegs(startIndex, endIndex, W, H) {
+            const pts = getBasePoints(W, H);
+            const legs = [];
+            for (let i = startIndex; i < endIndex; i++) {
+                legs.push({
+                    from: pts[BASE_ORDER[i]],
+                    to: pts[BASE_ORDER[i + 1]],
+                    flip: LEG_FLIP[i]
+                });
+            }
+            const legLengths = legs.map(l => Math.hypot(l.to[0] - l.from[0], l.to[1] - l.from[1]));
+            const totalLength = legLengths.reduce((a, b) => a + b, 0);
+            const baseDuration = 1450; // 1区間あたりの目安タイム（少しゆっくりめに）
+            const duration = legs.length > 0 ? baseDuration * (totalLength / (legLengths[0] || 1)) : 0;
+            return { legs, legLengths, totalLength, duration };
+        }
+
+        // 1人のランナーを startIndex(0=home,1=1塁,2=2塁,3=3塁) から
+        // endIndex(1〜3=その塁で停止、4=生還してホームイン) まで走らせる
+        // 打球の線と走者の重なり順を区間に応じて切り替える。
+        // 3塁→ホームの区間だけは走者を前面に、それ以外は打球の線を前面（走者はその下）にする。
+        function setRunnerLayering(elem, globalLegIndex) {
+            const svgElem = document.getElementById('trajectory-svg');
+            const ballPathElem = document.getElementById('ball-path');
+            if (!svgElem || !ballPathElem || !elem) return;
+            if (globalLegIndex === 3) {
+                svgElem.appendChild(elem); // 3塁→ホーム：走者を最前面に
+            } else {
+                svgElem.insertBefore(elem, ballPathElem); // それ以外：打球の線より奥に
+            }
+        }
+
+        function animateOneRunner(elem, startIndex, endIndex, onDone) {
+            const { W, H } = syncSvgViewBox();
+
+            const { legs, legLengths, totalLength, duration } = computeRunnerLegs(startIndex, endIndex, W, H);
+            if (legs.length === 0) { if (onDone) onDone(); return; }
+
+            const scale = getRunnerScale(W, H);
+            elem.style.color = getBatterColor();
+            elem.classList.remove('opacity-0');
+
+            let startTime = null;
+            function step(timestamp) {
+                if (!startTime) startTime = timestamp;
+                const elapsed = timestamp - startTime;
+                const overallProgress = Math.min(elapsed / duration, 1);
+                const distanceSoFar = overallProgress * totalLength;
+
+                let acc = 0;
+                let legIndex = legs.length - 1;
+                let legProgress = 1;
+                for (let i = 0; i < legs.length; i++) {
+                    if (distanceSoFar <= acc + legLengths[i] || i === legs.length - 1) {
+                        legIndex = i;
+                        legProgress = legLengths[i] > 0 ? Math.min((distanceSoFar - acc) / legLengths[i], 1) : 1;
+                        break;
+                    }
+                    acc += legLengths[i];
+                }
+
+                const leg = legs[legIndex];
+                const x = leg.from[0] + (leg.to[0] - leg.from[0]) * legProgress;
+                const y = leg.from[1] + (leg.to[1] - leg.from[1]) * legProgress;
+                setRunnerLayering(elem, startIndex + legIndex);
+                placeRunnerElem(elem, x, y, leg.flip, scale);
+
+                if (overallProgress < 1) {
+                    requestAnimationFrame(step);
+                } else {
+                    elem.classList.add('opacity-0');
+                    if (onDone) onDone();
+                }
+            }
+            requestAnimationFrame(step);
+        }
+
+        // 打者走者と、すでに塁に出ていたランナー全員を、野球のルール通りに同時に走らせる
+        // onRunnerScored: 生還する走者が「1人ホームに帰ってくるたび」に個別に呼ばれる
+        // （複数人が同時に生還する場面でも、まとめてではなく到着した順に1人ずつ加点させるため）
+        function animateAllRunners(advanceBases, oldBases, onRunnerScored) {
+            // これから動く塁上のランナーは、走塁アニメーションに差し替えるのでいったん隠す
+            for (let i = 0; i < 3; i++) {
+                const elem = document.getElementById(REST_SLOT_ID[i + 1]);
+                if (elem) elem.classList.add('opacity-0');
+            }
+
+            const movers = [{ start: 0, end: advanceBases }]; // 打者走者（ホームから出発）
+            for (let i = 2; i >= 0; i--) {
+                if (oldBases[i]) {
+                    const start = i + 1;
+                    const end = Math.min(start + advanceBases, 4); // 3塁を超えたら生還(4)
+                    movers.push({ start, end });
+                }
+            }
+
+            // 生還する走者は、他の走者を待たずに「自分がホームに到達した瞬間」に
+            // 個別にコールバックする（同時生還ではなく、到着した順に1人ずつ加点させるため）
+            movers.forEach((m, idx) => {
+                const elem = document.getElementById('move-runner-' + idx);
+                if (!elem) return;
+                animateOneRunner(elem, m.start, m.end, () => {
+                    if (m.end <= 3) {
+                        syncRestingRunners(); // 塁に到達したら待機表示に切り替え
+                    } else if (onRunnerScored) {
+                        onRunnerScored();
+                    }
+                });
+            });
+        }
+
         function clearTrajectory() {
             const pathElem = document.getElementById('ball-path');
+            const coreElem = document.getElementById('ball-path-core');
             const ballElem = document.getElementById('ball-head');
+            // ランナーは塁に残るので、ここでは消さない（次のイニングの開始時などにのみリセットする）
             if (pathElem) pathElem.classList.add('opacity-0');
+            if (coreElem) coreElem.classList.add('opacity-0');
             if (ballElem) ballElem.classList.add('opacity-0');
         }
 
         function addScore(runs) {
             const currentTeam = isTop ? 'team1' : 'team2';
             score[currentTeam] += runs;
-            
+
             let currentInningScore = parseInt(inningScores[currentTeam][currentInning - 1]) || 0;
             inningScores[currentTeam][currentInning - 1] = currentInningScore + runs;
-            
+
+            // 逆転・大逆転判定用に、各チームがこれまでで一番離されていた点差を更新しておく
+            const gapAgainstTeam1 = score.team2 - score.team1;
+            const gapAgainstTeam2 = score.team1 - score.team2;
+            if (gapAgainstTeam1 > maxDeficit.team1) maxDeficit.team1 = gapAgainstTeam1;
+            if (gapAgainstTeam2 > maxDeficit.team2) maxDeficit.team2 = gapAgainstTeam2;
+
             updateScoreDisplay();
         }
 
@@ -1466,31 +1906,98 @@
             startPitchingPhase();
         }
 
+        // 試合の展開（点差・逆転・サヨナラの有無）から見出しの文言を組み立てる
+        function buildResultHeadline(winnerKey) {
+            const winnerName = winnerKey === 'team1' ? player1Name : player2Name;
+            const diff = Math.abs(score.team1 - score.team2);
+            const comebackAmount = maxDeficit[winnerKey];
+            const hadComeback = comebackAmount > 0;
+            // サヨナラは後攻（team2）が最終回以降に決勝点を挙げて終わった場合のみ成立する
+            const sayonaraApplies = isSayonara && winnerKey === 'team2';
+
+            if (hadComeback) {
+                const label = comebackAmount >= 3 ? '大逆転' : '逆転';
+                return sayonaraApplies
+                    ? `${winnerName}の${label}サヨナラ勝利！`
+                    : `${winnerName}の${label}勝利！`;
+            }
+            if (sayonaraApplies) {
+                return `${winnerName}のサヨナラ勝利！`;
+            }
+            if (diff === 1) return `${winnerName}が接戦を制した！`;
+            if (diff === 2) return `${winnerName}の辛勝！`;
+            if (diff <= 4) return `${winnerName}の快勝！`;
+            return `${winnerName}の圧勝！`;
+        }
+
+        // 完全試合・完封などの特別な内容を、見出しの下にもう1行添える
+        function buildAchievementLine(winnerKey, loserKey) {
+            const winnerName = winnerKey === 'team1' ? player1Name : player2Name;
+            if (hitsBy[loserKey] === 0) return `${winnerName}、完全試合達成！`;
+            if (score[loserKey] === 0) return `${winnerName}、完封勝利！`;
+            return '';
+        }
+
         function endGame() {
             gameEnded = true;
             updateScoreDisplay(); // 電光掲示板の「選択中」ハイライトを消し、すべて同じ見た目にする
 
             // 決着がついた瞬間に、画面中央へ最終スコアと勝敗を発表する（自動では消えない）
             let winnerLine;
+            let achievementLine = '';
             if (score.team1 > score.team2) {
-                winnerLine = `${player1Name} の勝利！`;
+                winnerLine = buildResultHeadline('team1');
+                achievementLine = buildAchievementLine('team1', 'team2');
             } else if (score.team2 > score.team1) {
-                winnerLine = isSayonara ? `${player2Name} のサヨナラ勝利！` : `${player2Name} の勝利！`;
+                winnerLine = buildResultHeadline('team2');
+                achievementLine = buildAchievementLine('team2', 'team1');
             } else {
                 winnerLine = '引き分け！';
             }
 
-            showDecisionAnnounce(winnerLine);
+            showDecisionAnnounce(winnerLine, achievementLine);
+        }
+
+        // 長い文言でも1行に収まるよう、指定した最大幅までフォントサイズを少しずつ縮める
+        function fitTextToOneLine(el, maxWidthPx, maxFontPx, minFontPx) {
+            let fontSize = maxFontPx;
+            el.style.fontSize = fontSize + 'px';
+            while (el.scrollWidth > maxWidthPx && fontSize > minFontPx) {
+                fontSize -= 1;
+                el.style.fontSize = fontSize + 'px';
+            }
         }
 
         // 決着発表オーバーレイを画面中央に表示する。自動では消えず、
         // 「メインメニューに戻る」ボタンを押すまでそのまま表示され続ける。
-        function showDecisionAnnounce(text) {
+        function showDecisionAnnounce(text, achievementText) {
             const overlay = document.getElementById('decision-announce');
+            const card = document.getElementById('decision-card');
             const textEl = document.getElementById('decision-announce-text');
+            const achievementEl = document.getElementById('decision-achievement-text');
             if (!overlay || !textEl) return;
 
+            const isSmallScreen = window.innerWidth < 640;
+
             textEl.innerText = text;
+            const availableWidth = (card ? card.clientWidth : window.innerWidth * 0.85) - (isSmallScreen ? 48 : 96);
+            fitTextToOneLine(textEl, availableWidth, isSmallScreen ? 18 : 24, 11);
+
+            if (achievementEl) {
+                if (achievementText) {
+                    achievementEl.innerText = achievementText;
+                    achievementEl.classList.remove('hidden');
+                    fitTextToOneLine(achievementEl, availableWidth, isSmallScreen ? 13 : 16, 10);
+                    textEl.classList.remove('mb-5');
+                    textEl.classList.add('mb-1');
+                } else {
+                    achievementEl.innerText = '';
+                    achievementEl.classList.add('hidden');
+                    textEl.classList.remove('mb-1');
+                    textEl.classList.add('mb-5');
+                }
+            }
+
             document.getElementById('decision-name1').innerText = player1Name;
             document.getElementById('decision-name2').innerText = player2Name;
 
@@ -1512,18 +2019,45 @@
                 s2El.classList.add('text-yellow-300', 'winner-glow');
             }
 
-            overlay.classList.remove('opacity-0', 'scale-90');
-            overlay.classList.add('opacity-100', 'scale-100');
+            // opacity-0の間はオーバーレイ内のボタンが透明なまま押せてしまわないよう、
+            // 表示中だけ pointer-events を有効にする
+            overlay.classList.remove('opacity-0', 'scale-90', 'pointer-events-none');
+            overlay.classList.add('opacity-100', 'scale-100', 'pointer-events-auto');
         }
 
         // オーバーレイの「メインメニューに戻る」ボタンから直接タイトルへ戻る
         function decisionGoToTitle() {
             const overlay = document.getElementById('decision-announce');
-            overlay.classList.remove('opacity-100', 'scale-100');
-            overlay.classList.add('opacity-0', 'scale-90');
+            const backBtn = document.getElementById('back-to-result-btn');
+            overlay.classList.remove('opacity-100', 'scale-100', 'pointer-events-auto');
+            overlay.classList.add('opacity-0', 'scale-90', 'pointer-events-none');
+            if (backBtn) backBtn.classList.add('hidden');
             setTimeout(() => {
                 returnToTitle();
             }, 300);
+        }
+
+        // 「スコアボードを見る」：結果発表オーバーレイをいったん隠して、
+        // 裏にある電光掲示板を確認できるようにする
+        function peekScoreboard() {
+            const overlay = document.getElementById('decision-announce');
+            const backBtn = document.getElementById('back-to-result-btn');
+            if (overlay) {
+                overlay.classList.remove('opacity-100', 'scale-100', 'pointer-events-auto');
+                overlay.classList.add('opacity-0', 'scale-90', 'pointer-events-none');
+            }
+            if (backBtn) backBtn.classList.remove('hidden');
+        }
+
+        // スコアボード確認中に、結果発表オーバーレイへ戻る
+        function backToDecisionAnnounce() {
+            const overlay = document.getElementById('decision-announce');
+            const backBtn = document.getElementById('back-to-result-btn');
+            if (overlay) {
+                overlay.classList.remove('opacity-0', 'scale-90', 'pointer-events-none');
+                overlay.classList.add('opacity-100', 'scale-100', 'pointer-events-auto');
+            }
+            if (backBtn) backBtn.classList.add('hidden');
         }
 
         function showFinalResultScreen() {
