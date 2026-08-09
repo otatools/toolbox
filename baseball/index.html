@@ -237,38 +237,42 @@
         #app.is-portrait .card-grid-box {
             width: 100%;
             max-width: 100%;
-            height: 144px;
+            height: 182px;
             gap: 6px;
             box-sizing: border-box;
         }
         #app.is-portrait .card-container {
-            height: 68px;
+            height: 88px;
             width: 100%;
             box-sizing: border-box;
         }
 
-        #app.is-portrait .card-face, #app.is-portrait .card-back {
+        /* カード表面（? のパネル）はこれまで通り横並び */
+        #app.is-portrait .card-face:not(.card-back) {
             flex-direction: row !important;
             justify-content: space-between !important;
             padding: 4px 10px !important;
             overflow: hidden !important;
         }
-        #app.is-portrait .card-face span:first-child {
+        #app.is-portrait .card-face:not(.card-back) span:first-child {
             margin-bottom: 0 !important;
             font-size: 0.95rem !important;
             white-space: nowrap !important;
             overflow: hidden !important;
             text-overflow: ellipsis !important;
         }
-        #app.is-portrait .card-face span:nth-child(2) {
+        #app.is-portrait .card-face:not(.card-back) span:nth-child(2) {
             font-size: 1.4rem !important;
         }
-        #app.is-portrait .card-back span:first-child {
-            font-size: 1.4rem !important;
-            margin-bottom: 0 !important;
+
+        /* カード裏面（結果表示）はイラストを上、テキストを下に縦並びにして
+           イラストを大きく見せる */
+        #app.is-portrait .card-back {
+            padding: 4px !important;
+            overflow: hidden !important;
         }
         #app.is-portrait .card-back span:nth-child(2) {
-            font-size: 0.95rem !important;
+            font-size: 0.8rem !important;
             white-space: nowrap !important;
             overflow: hidden !important;
             text-overflow: ellipsis !important;
@@ -336,6 +340,33 @@
             backface-visibility: visible;
         }
 
+        /* ゲームオーバー画面演出 */
+        @keyframes gamesetIn {
+            0% { opacity: 0; transform: scale(0.5) translateY(-20px); letter-spacing: 0.6em; }
+            60% { opacity: 1; transform: scale(1.08) translateY(0); }
+            100% { opacity: 1; transform: scale(1) translateY(0); letter-spacing: 0.2em; }
+        }
+        .animate-gameset-in {
+            animation: gamesetIn 0.65s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        @keyframes scorePop {
+            0% { opacity: 0; transform: scale(0.3); }
+            70% { opacity: 1; transform: scale(1.15); }
+            100% { opacity: 1; transform: scale(1); }
+        }
+        .animate-score-pop {
+            animation: scorePop 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+        }
+
+        @keyframes winnerGlow {
+            0%, 100% { text-shadow: 0 0 20px rgba(250, 204, 21, 0.6), 0 0 40px rgba(250, 204, 21, 0.3); }
+            50% { text-shadow: 0 0 30px rgba(250, 204, 21, 0.9), 0 0 55px rgba(250, 204, 21, 0.5); }
+        }
+        .winner-glow {
+            animation: winnerGlow 1.6s ease-in-out infinite;
+        }
+
         ::-webkit-scrollbar {
             width: 8px;
         }
@@ -387,8 +418,8 @@
             <!-- 【左カラム / 上段セクション】 スコアボード / グラウンド / イニング・OUTインジケーター -->
             <div class="game-panel-left bg-gray-950/60 p-3.5 rounded-3xl border border-gray-800 shadow-inner relative overflow-hidden">
                 
-                <!-- 1. スコアボード -->
-                <div class="w-full flex justify-start z-10 mb-0">
+                <!-- 1. スコアボード ＋ イニング・OUTインジケーター（横並び） -->
+                <div class="w-full flex items-start justify-between gap-2 z-10 mb-0 flex-wrap">
                     <div id="scoreboard-box" class="bg-gray-900/90 p-1.5 rounded-2xl border-2 border-gray-700/80 shadow-md transition-transform duration-300">
                         <table class="text-center text-sm border-collapse scoreboard-text">
                             <thead>
@@ -411,6 +442,19 @@
                                 </tr>
                             </tbody>
                         </table>
+                    </div>
+
+                    <div class="flex flex-col items-center justify-center gap-1.5 bg-gray-900/90 px-3 py-1.5 rounded-2xl border-2 border-gray-700/80 shadow-md shrink-0">
+                        <div id="current-inning-display" class="text-base sm:text-xl scoreboard-text text-yellow-400 font-black whitespace-nowrap">
+                            1回 表
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <span class="text-red-500 font-black font-sans text-xs sm:text-sm tracking-wider">OUT</span>
+                            <div class="flex gap-1.5">
+                                <div id="out-1" class="w-4 h-4 sm:w-5 sm:h-5 rounded-full border-2 border-gray-600 bg-gray-800 transition-colors"></div>
+                                <div id="out-2" class="w-4 h-4 sm:w-5 sm:h-5 rounded-full border-2 border-gray-600 bg-gray-800 transition-colors"></div>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
@@ -453,23 +497,6 @@
                     </div>
                 </div>
 
-                <!-- 3. イニング ＆ OUTインジケーター -->
-                <div class="w-full flex justify-start z-10 relative">
-                    <div class="flex items-center gap-3 bg-gray-900/90 px-3.5 py-1.5 rounded-2xl border-2 border-gray-700/80 shadow-md">
-                        <div id="current-inning-display" class="text-lg sm:text-2xl scoreboard-text text-yellow-400 font-black whitespace-nowrap">
-                            1回 表
-                        </div>
-                        <div class="h-5 w-[2px] bg-gray-700"></div>
-                        <div class="flex items-center gap-2">
-                            <span class="text-red-500 font-black font-sans text-xs sm:text-base tracking-wider">OUT</span>
-                            <div class="flex gap-1.5">
-                                <div id="out-1" class="w-4 h-4 sm:w-5 sm:h-5 rounded-full border-2 border-gray-600 bg-gray-800 transition-colors"></div>
-                                <div id="out-2" class="w-4 h-4 sm:w-5 sm:h-5 rounded-full border-2 border-gray-600 bg-gray-800 transition-colors"></div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
             </div>
 
             <!-- 【右カラム / 下段セクション】 操作エリア -->
@@ -499,7 +526,7 @@
                                 <div id="pitcher-mark-0" class="absolute inset-0 border-4 rounded-2xl hidden shadow-[inset_0_0_20px_rgba(255,255,255,0.4)]"></div>
                             </div>
                             <div id="card-back-0" class="card-face card-back absolute inset-0 bg-white border-4 border-gray-200 rounded-2xl flex flex-col items-center justify-center p-1">
-                                <span id="card-result-icon-0" class="text-3xl sm:text-4xl mb-1">⚾</span>
+                                <span id="card-result-icon-0" class="mb-1 flex items-center justify-center"></span>
                                 <span id="card-result-text-0" class="text-base sm:text-xl font-black text-gray-800 whitespace-nowrap">1塁打</span>
                             </div>
                         </div>
@@ -514,7 +541,7 @@
                                 <div id="pitcher-mark-1" class="absolute inset-0 border-4 rounded-2xl hidden shadow-[inset_0_0_20px_rgba(255,255,255,0.4)]"></div>
                             </div>
                             <div id="card-back-1" class="card-face card-back absolute inset-0 bg-white border-4 border-gray-200 rounded-2xl flex flex-col items-center justify-center p-1">
-                                <span id="card-result-icon-1" class="text-3xl sm:text-4xl mb-1">⚾</span>
+                                <span id="card-result-icon-1" class="mb-1 flex items-center justify-center"></span>
                                 <span id="card-result-text-1" class="text-base sm:text-xl font-black text-gray-800 whitespace-nowrap">2塁打</span>
                             </div>
                         </div>
@@ -529,7 +556,7 @@
                                 <div id="pitcher-mark-2" class="absolute inset-0 border-4 rounded-2xl hidden shadow-[inset_0_0_20px_rgba(255,255,255,0.4)]"></div>
                             </div>
                             <div id="card-back-2" class="card-face card-back absolute inset-0 bg-white border-4 border-gray-200 rounded-2xl flex flex-col items-center justify-center p-1">
-                                <span id="card-result-icon-2" class="text-3xl sm:text-4xl mb-1">⚾</span>
+                                <span id="card-result-icon-2" class="mb-1 flex items-center justify-center"></span>
                                 <span id="card-result-text-2" class="text-base sm:text-xl font-black text-gray-800 whitespace-nowrap">3塁打</span>
                             </div>
                         </div>
@@ -544,7 +571,7 @@
                                 <div id="pitcher-mark-3" class="absolute inset-0 border-4 rounded-2xl hidden shadow-[inset_0_0_20px_rgba(255,255,255,0.4)]"></div>
                             </div>
                             <div id="card-back-3" class="card-face card-back absolute inset-0 bg-white border-4 border-gray-200 rounded-2xl flex flex-col items-center justify-center p-1">
-                                <span id="card-result-icon-3" class="text-3xl sm:text-4xl mb-1">🔥</span>
+                                <span id="card-result-icon-3" class="mb-1 flex items-center justify-center"></span>
                                 <span id="card-result-text-3" class="text-base sm:text-xl font-black text-gray-800 whitespace-nowrap">本塁打</span>
                             </div>
                         </div>
@@ -554,7 +581,7 @@
                 
                 <!-- 固定高さのアクションボタン予約エリア -->
                 <div class="w-full h-[52px] relative flex justify-center items-center mt-2 shrink-0">
-                    <button id="btn-pitch-decide" onclick="confirmPitch()" class="absolute inset-0 w-full h-full font-extrabold text-xl rounded-2xl transition transform hover:scale-[1.02] active:scale-95 invisible opacity-0 pointer-events-none">
+                    <button id="btn-pitch-decide" onclick="handleConfirmBtn()" class="absolute inset-0 w-full h-full font-extrabold text-xl rounded-2xl transition transform hover:scale-[1.02] active:scale-95 invisible opacity-0 pointer-events-none">
                         決定
                     </button>
                     <button id="btn-next-pitch" onclick="nextPitch()" class="absolute inset-0 w-full h-full bg-green-600 hover:bg-green-500 text-white font-extrabold text-xl rounded-2xl shadow-[0_0_20px_rgba(34,197,94,0.4)] transition transform hover:scale-[1.02] active:scale-95 invisible opacity-0 pointer-events-none">
@@ -565,24 +592,37 @@
             </div>
         </div>
 
-        <!-- === ゲームオーバー画面 === -->
-        <div id="screen-gameover" class="hidden flex-col items-center justify-center h-full p-6 text-center bg-gray-900/95 relative z-50">
-            <h2 class="text-5xl font-black text-white mb-2 tracking-widest drop-shadow-[0_0_15px_rgba(255,255,255,0.5)]">GAME SET</h2>
-            <div id="final-result-text" class="text-2xl font-bold text-yellow-400 mb-6"></div>
-            
-            <div class="bg-gray-800 p-6 rounded-2xl border-2 border-gray-600 mb-6 w-full max-w-sm shadow-2xl">
-                <div class="flex justify-between items-center text-xl font-bold mb-3 pb-3 border-b border-gray-600">
-                    <span class="text-blue-400">先攻 (Player 1)</span>
-                    <span id="final-score-team1" class="text-3xl">0</span>
+        <!-- === ゲームオーバー画面 (パワプロ風 結果発表) === -->
+        <div id="screen-gameover" class="hidden flex-col items-center justify-center h-full p-6 text-center bg-gradient-to-b from-gray-950 via-gray-900 to-black relative z-50 overflow-hidden">
+            <!-- 背景スポットライト演出 -->
+            <div class="absolute inset-0 pointer-events-none overflow-hidden">
+                <div class="absolute top-[-20%] left-1/2 -translate-x-1/2 w-[160%] h-[100%] bg-[radial-gradient(circle,rgba(255,215,0,0.15)_0%,transparent_65%)]"></div>
+            </div>
+
+            <h2 id="gameover-title" class="text-4xl sm:text-6xl font-black text-white mb-2 tracking-[0.2em] drop-shadow-[0_0_20px_rgba(255,255,255,0.6)] relative z-10">GAME SET</h2>
+
+            <div id="winner-badge" class="mb-5 sm:mb-7 relative z-10 flex items-center justify-center gap-2">
+                <span id="winner-crown" class="text-2xl sm:text-3xl">🏆</span>
+                <span id="final-result-text" class="text-xl sm:text-3xl font-black text-yellow-400"></span>
+            </div>
+
+            <!-- 中央 大型スコア表示 -->
+            <div class="flex items-center justify-center gap-2 sm:gap-8 mb-8 sm:mb-10 relative z-10 w-full max-w-2xl">
+                <div id="finalside-team1" class="flex-1 flex flex-col items-center transition-all duration-500">
+                    <span id="win-flag-team1" class="hidden text-[10px] sm:text-xs font-black text-gray-900 bg-yellow-400 px-2 py-0.5 rounded-full mb-1.5 tracking-widest shadow-md">WIN</span>
+                    <span id="final-name-team1" class="text-sm sm:text-xl font-bold text-blue-400 mb-1 truncate max-w-full">Player 1</span>
+                    <span id="final-score-team1" class="text-6xl sm:text-8xl font-black text-white leading-none">0</span>
                 </div>
-                <div class="flex justify-between items-center text-xl font-bold">
-                    <span class="text-red-400">後攻 (Player 2)</span>
-                    <span id="final-score-team2" class="text-3xl">0</span>
+                <div class="text-3xl sm:text-5xl font-black text-gray-600 pb-4 sm:pb-6">-</div>
+                <div id="finalside-team2" class="flex-1 flex flex-col items-center transition-all duration-500">
+                    <span id="win-flag-team2" class="hidden text-[10px] sm:text-xs font-black text-gray-900 bg-yellow-400 px-2 py-0.5 rounded-full mb-1.5 tracking-widest shadow-md">WIN</span>
+                    <span id="final-name-team2" class="text-sm sm:text-xl font-bold text-red-400 mb-1 truncate max-w-full">Player 2</span>
+                    <span id="final-score-team2" class="text-6xl sm:text-8xl font-black text-white leading-none">0</span>
                 </div>
             </div>
 
-            <button onclick="returnToTitle()" class="px-8 py-3.5 bg-white text-gray-900 hover:bg-gray-200 font-bold text-lg rounded-xl shadow-lg transition">
-                タイトルに戻る
+            <button onclick="returnToTitle()" class="px-8 py-3.5 bg-white text-gray-900 hover:bg-gray-200 font-bold text-lg rounded-xl shadow-lg transition transform hover:scale-105 active:scale-95 relative z-10">
+                メインメニューに戻る
             </button>
         </div>
 
@@ -591,6 +631,31 @@
             <div id="alert-box" class="bg-gray-800 border-2 border-yellow-500 p-6 rounded-2xl max-w-sm w-full mx-4 text-center transform scale-95 transition-transform duration-300 shadow-[0_0_30px_rgba(234,179,8,0.3)]">
                 <p id="alert-message" class="text-lg font-bold text-white mb-6"></p>
                 <button onclick="closeAlert()" class="px-6 py-2 bg-yellow-500 hover:bg-yellow-400 text-gray-900 font-bold rounded-lg transition w-full">確認</button>
+            </div>
+        </div>
+
+        <!-- 決着発表オーバーレイ (画面中央) -->
+        <div id="decision-announce" class="fixed inset-0 z-[100] flex items-center justify-center pointer-events-none opacity-0 scale-90 transition-all duration-500">
+            <div class="bg-gradient-to-b from-gray-950 via-gray-900 to-black border-4 border-yellow-400 rounded-3xl shadow-[0_0_60px_rgba(234,179,8,0.7)] px-8 py-7 sm:px-16 sm:py-10 flex flex-col items-center text-center max-w-[85%]">
+                <span class="text-xs sm:text-sm font-black tracking-[0.3em] text-yellow-400 mb-4 sm:mb-6">試合終了</span>
+
+                <div class="flex items-center justify-center gap-4 sm:gap-8 mb-4">
+                    <div class="flex flex-col items-center min-w-[90px] sm:min-w-[140px]">
+                        <span id="decision-name1" class="text-xs sm:text-base font-bold text-blue-400 truncate max-w-[110px] sm:max-w-[170px] mb-1"></span>
+                        <span id="decision-score1" class="text-7xl sm:text-9xl font-black text-white leading-none">0</span>
+                    </div>
+                    <span class="text-3xl sm:text-5xl font-black text-gray-500 pb-2">-</span>
+                    <div class="flex flex-col items-center min-w-[90px] sm:min-w-[140px]">
+                        <span id="decision-name2" class="text-xs sm:text-base font-bold text-red-400 truncate max-w-[110px] sm:max-w-[170px] mb-1"></span>
+                        <span id="decision-score2" class="text-7xl sm:text-9xl font-black text-white leading-none">0</span>
+                    </div>
+                </div>
+
+                <p id="decision-announce-text" class="text-lg sm:text-2xl font-black text-yellow-300 mb-5"></p>
+
+                <button onclick="decisionGoToTitle()" class="pointer-events-auto px-6 py-2.5 bg-white text-gray-900 hover:bg-gray-200 font-bold text-sm sm:text-base rounded-xl shadow-lg transition transform hover:scale-105 active:scale-95">
+                    メインメニューに戻る
+                </button>
             </div>
         </div>
 
@@ -626,23 +691,28 @@
     </div>
 
     <script>
-        const maxInnings = 3;
-        
+        const baseInnings = 3;
+        let totalInnings = baseInnings; // 同点なら延長で1回だけ増える
+        let extraInningUsed = false;
+
         let player1Name = "Player 1";
         let player2Name = "Player 2";
 
         let currentInning = 1;
         let isTop = true;
         let outs = 0;
-        
+
         let bases = [false, false, false];
         let score = { team1: 0, team2: 0 };
         let inningScores = { team1: [], team2: [] };
-        
+
         let currentPhase = 'pitching';
         let hitPosition = -1;
+        let batPosition = -1;
         let activePlayer = 1; // 1: Player 1 (Blue), 2: Player 2 (Red)
-        
+        let isSayonara = false; // サヨナラ勝ちフラグ
+        let gameEnded = false; // 試合終了後は電光掲示板のハイライトを止める
+
         let UI = {};
 
         function initUI() {
@@ -671,13 +741,33 @@
         }
 
         const HIT_TYPES = [
-            { name: '1塁打', bases: 1, icon: '⚾', color: '#3b82f6' },
-            { name: '2塁打', bases: 2, icon: '⚾', color: '#8b5cf6' },
-            { name: '3塁打', bases: 3, icon: '⚾', color: '#ec4899' },
-            { name: 'ホームラン', bases: 4, icon: '🔥', color: '#ef4444' }
+            { name: '1塁打', bases: 1, color: '#3b82f6' },
+            { name: '2塁打', bases: 2, color: '#8b5cf6' },
+            { name: '3塁打', bases: 3, color: '#ec4899' },
+            { name: 'ホームラン', bases: 4, color: '#ef4444' }
         ];
 
-        /* ボタンの表示/非表示をレイアウト位置を崩さずに制御するユーティリティ */
+        // 絵文字の代わりに使うイラスト（SVG）。ヒット時とアウト時で別デザイン。
+        function hitIconSVG() {
+            return `<svg viewBox="0 0 283 243" class="w-[68px] h-[58px] sm:w-[130px] sm:h-[112px]" xmlns="http://www.w3.org/2000/svg">
+  <path d="M 149.0,100.0 C 148.5,99.0 146.5,98.3 146.0,99.0 C 145.5,99.7 146.8,103.8 146.0,104.0 C 145.2,104.2 142.0,99.8 141.0,100.0 C 140.0,100.2 140.8,104.8 140.0,105.0 C 139.2,105.2 136.8,100.7 136.0,101.0 C 135.2,101.3 136.2,106.5 135.0,107.0 C 133.8,107.5 129.8,103.5 129.0,104.0 C 128.2,104.5 130.7,109.7 130.0,110.0 C 129.3,110.3 125.7,105.7 125.0,106.0 C 124.3,106.3 126.8,111.3 126.0,112.0 C 125.2,112.7 120.8,109.3 120.0,110.0 C 119.2,110.7 121.7,115.3 121.0,116.0 C 120.3,116.7 116.5,113.3 116.0,114.0 C 115.5,114.7 118.3,118.8 118.0,120.0 C 117.7,121.2 115.0,121.3 114.0,121.0 C 113.0,120.7 112.3,118.0 112.0,118.0 C 111.7,118.0 108.5,121.0 112.0,121.0 C 115.5,121.0 126.8,120.7 133.0,118.0 C 139.2,115.3 146.3,108.0 149.0,105.0 C 151.7,102.0 149.5,101.0 149.0,100.0 Z M 99.0,20.0 C 92.5,18.0 104.7,27.8 103.0,34.0 C 101.3,40.2 98.0,50.3 89.0,57.0 C 80.0,63.7 52.2,66.0 49.0,74.0 C 45.8,82.0 61.0,97.2 70.0,105.0 C 79.0,112.8 95.5,121.8 103.0,121.0 C 110.5,120.2 109.0,104.2 115.0,100.0 C 121.0,95.8 135.0,97.8 139.0,96.0 C 143.0,94.2 136.8,89.3 139.0,89.0 C 141.2,88.7 148.5,94.7 152.0,94.0 C 155.5,93.3 161.7,93.0 160.0,85.0 C 158.3,77.0 152.2,56.8 142.0,46.0 C 131.8,35.2 105.5,22.0 99.0,20.0 Z M 95.0,19.0 C 92.7,18.8 82.8,17.2 76.0,19.0 C 69.2,20.8 59.5,26.0 54.0,30.0 C 48.5,34.0 44.2,36.8 43.0,43.0 C 41.8,49.2 40.8,65.5 47.0,67.0 C 53.2,68.5 74.8,55.5 80.0,52.0 C 85.2,48.5 77.3,46.7 78.0,46.0 C 78.7,45.3 83.5,48.7 84.0,48.0 C 84.5,47.3 80.3,43.0 81.0,42.0 C 81.7,41.0 87.3,42.8 88.0,42.0 C 88.7,41.2 84.7,37.7 85.0,37.0 C 85.3,36.3 89.5,38.8 90.0,38.0 C 90.5,37.2 87.5,33.2 88.0,32.0 C 88.5,30.8 93.0,32.2 93.0,31.0 C 93.0,29.8 87.8,25.8 88.0,25.0 C 88.2,24.2 93.7,26.8 94.0,26.0 C 94.3,25.2 89.8,21.2 90.0,20.0 C 90.2,18.8 97.3,19.2 95.0,19.0 Z" fill="#f5f5e3" fill-rule="evenodd"/>
+  <path d="M 99.0,132.0 C 98.0,132.3 98.5,133.2 99.0,134.0 C 99.5,134.8 101.5,136.0 102.0,137.0 C 102.5,138.0 101.5,139.3 102.0,140.0 C 102.5,140.7 104.5,141.2 105.0,141.0 C 105.5,140.8 105.5,139.5 105.0,139.0 C 104.5,138.5 102.5,138.7 102.0,138.0 C 101.5,137.3 101.5,136.0 102.0,135.0 C 102.5,134.0 105.5,132.5 105.0,132.0 C 104.5,131.5 100.0,131.7 99.0,132.0 Z M 112.0,117.0 C 112.0,117.5 114.2,119.7 115.0,120.0 C 115.8,120.3 117.0,119.5 117.0,119.0 C 117.0,118.5 115.8,117.3 115.0,117.0 C 114.2,116.7 112.0,116.5 112.0,117.0 Z M 282.0,111.0 C 252.0,121.8 126.0,168.7 99.0,185.0 C 72.0,201.3 113.7,204.7 120.0,209.0 C 126.3,213.3 110.7,219.3 137.0,211.0 C 163.3,202.7 253.8,166.0 278.0,159.0 C 302.2,152.0 281.7,173.8 282.0,169.0 C 282.3,164.2 307.0,125.8 280.0,130.0 C 253.0,134.2 148.2,184.2 120.0,194.0 C 91.8,203.8 109.7,192.2 111.0,189.0 C 112.3,185.8 100.0,186.5 128.0,175.0 C 156.0,163.5 253.3,130.7 279.0,120.0 C 304.7,109.3 312.0,100.2 282.0,111.0 Z M 129.0,96.0 C 128.5,96.8 129.5,102.5 129.0,104.0 C 128.5,105.5 126.0,104.7 126.0,105.0 C 126.0,105.3 128.3,106.2 129.0,106.0 C 129.7,105.8 129.3,104.3 130.0,104.0 C 130.7,103.7 132.3,103.5 133.0,104.0 C 133.7,104.5 133.7,106.8 134.0,107.0 C 134.3,107.2 135.5,105.8 135.0,105.0 C 134.5,104.2 131.5,103.0 131.0,102.0 C 130.5,101.0 132.3,100.0 132.0,99.0 C 131.7,98.0 129.5,95.2 129.0,96.0 Z M 46.0,68.0 C 46.0,67.5 43.7,66.8 43.0,67.0 C 42.3,67.2 42.5,68.7 42.0,69.0 C 41.5,69.3 40.2,68.5 40.0,69.0 C 39.8,69.5 40.5,71.5 41.0,72.0 C 41.5,72.5 42.7,72.3 43.0,72.0 C 43.3,71.7 42.5,70.7 43.0,70.0 C 43.5,69.3 46.0,68.5 46.0,68.0 Z M 62.0,60.0 C 61.3,59.7 60.2,60.3 60.0,61.0 C 59.8,61.7 61.3,63.3 61.0,64.0 C 60.7,64.7 58.2,64.7 58.0,65.0 C 57.8,65.3 59.7,65.5 60.0,66.0 C 60.3,66.5 59.8,68.3 60.0,68.0 C 60.2,67.7 60.3,64.8 61.0,64.0 C 61.7,63.2 63.8,63.7 64.0,63.0 C 64.2,62.3 62.7,60.3 62.0,60.0 Z M 78.0,58.0 C 78.2,58.8 81.2,61.7 82.0,62.0 C 82.8,62.3 83.2,60.5 83.0,60.0 C 82.8,59.5 81.3,59.5 81.0,59.0 C 80.7,58.5 81.5,57.2 81.0,57.0 C 80.5,56.8 77.8,57.2 78.0,58.0 Z M 79.0,48.0 C 79.2,48.7 79.7,49.8 81.0,50.0 C 82.3,50.2 86.2,49.7 87.0,49.0 C 87.8,48.3 86.3,46.2 86.0,46.0 C 85.7,45.8 85.7,47.7 85.0,48.0 C 84.3,48.3 82.8,48.3 82.0,48.0 C 81.2,47.7 80.5,46.0 80.0,46.0 C 79.5,46.0 78.8,47.3 79.0,48.0 Z M 101.0,34.0 C 101.7,33.7 98.7,30.3 98.0,30.0 C 97.3,29.7 97.7,31.8 97.0,32.0 C 96.3,32.2 94.7,30.8 94.0,31.0 C 93.3,31.2 94.0,32.7 93.0,33.0 C 92.0,33.3 88.5,33.0 88.0,33.0 C 87.5,33.0 89.5,32.7 90.0,33.0 C 90.5,33.3 90.3,35.2 91.0,35.0 C 91.7,34.8 92.3,32.2 94.0,32.0 C 95.7,31.8 100.3,34.3 101.0,34.0 Z M 154.0,23.0 C 153.7,22.8 152.8,24.5 153.0,25.0 C 153.2,25.5 154.8,26.3 155.0,26.0 C 155.2,25.7 154.3,23.2 154.0,23.0 Z" fill="#f9c888" fill-rule="evenodd"/>
+  <path d="M 282.0,110.0 C 281.7,104.0 308.3,106.8 280.0,120.0 C 251.7,133.2 138.7,176.8 112.0,189.0 C 85.3,201.2 92.7,202.8 120.0,193.0 C 147.3,183.2 249.0,136.2 276.0,130.0 C 303.0,123.8 281.0,159.3 282.0,156.0 C 283.0,152.7 282.3,116.0 282.0,110.0 Z M 96.0,19.0 C 93.3,18.8 86.8,30.8 87.0,32.0 C 87.2,33.2 94.7,25.8 97.0,26.0 C 99.3,26.2 103.0,31.3 101.0,33.0 C 99.0,34.7 89.3,32.3 85.0,36.0 C 80.7,39.7 81.5,50.5 75.0,55.0 C 68.5,59.5 50.8,65.7 46.0,63.0 C 41.2,60.3 47.7,37.2 46.0,39.0 C 44.3,40.8 37.5,69.7 36.0,74.0 C 34.5,78.3 34.8,65.8 37.0,65.0 C 39.2,64.2 49.0,66.3 49.0,69.0 C 49.0,71.7 36.3,72.8 37.0,81.0 C 37.7,89.2 43.7,107.3 53.0,118.0 C 62.3,128.7 84.7,143.3 93.0,145.0 C 101.3,146.7 102.2,127.8 103.0,128.0 C 103.8,128.2 96.8,142.3 98.0,146.0 C 99.2,149.7 105.7,152.2 110.0,150.0 C 114.3,147.8 122.2,139.3 124.0,133.0 C 125.8,126.7 116.8,117.7 121.0,112.0 C 125.2,106.3 147.7,98.0 149.0,99.0 C 150.3,100.0 127.8,113.8 129.0,118.0 C 130.2,122.2 150.8,128.7 156.0,124.0 C 161.2,119.3 161.7,95.7 160.0,90.0 C 158.3,84.3 148.5,88.5 146.0,90.0 C 143.5,91.5 146.2,99.0 145.0,99.0 C 143.8,99.0 142.3,88.3 139.0,90.0 C 135.7,91.7 128.5,106.5 125.0,109.0 C 121.5,111.5 117.2,107.0 118.0,105.0 C 118.8,103.0 131.3,97.0 130.0,97.0 C 128.7,97.0 111.8,102.8 110.0,105.0 C 108.2,107.2 119.0,107.0 119.0,110.0 C 119.0,113.0 111.8,122.8 110.0,123.0 C 108.2,123.2 110.2,111.3 108.0,111.0 C 105.8,110.7 104.3,122.8 97.0,121.0 C 89.7,119.2 71.7,106.7 64.0,100.0 C 56.3,93.3 52.7,86.0 51.0,81.0 C 49.3,76.0 51.8,71.5 54.0,70.0 C 56.2,68.5 63.8,72.8 64.0,72.0 C 64.2,71.2 55.0,66.8 55.0,65.0 C 55.0,63.2 61.2,60.2 64.0,61.0 C 66.8,61.8 67.8,70.7 72.0,70.0 C 76.2,69.3 83.8,63.2 89.0,57.0 C 94.2,50.8 101.8,39.3 103.0,33.0 C 104.2,26.7 98.7,19.2 96.0,19.0 Z M 100.0,124.0 C 101.0,123.5 104.8,122.5 106.0,123.0 C 107.2,123.5 107.5,126.2 107.0,127.0 C 106.5,127.8 104.2,128.2 103.0,128.0 C 101.8,127.8 100.5,126.7 100.0,126.0 C 99.5,125.3 99.0,124.5 100.0,124.0 Z M 134.0,97.0 C 134.8,96.5 138.0,95.5 139.0,96.0 C 140.0,96.5 140.3,99.2 140.0,100.0 C 139.7,100.8 138.0,101.2 137.0,101.0 C 136.0,100.8 134.5,99.7 134.0,99.0 C 133.5,98.3 133.2,97.5 134.0,97.0 Z M 147.0,95.0 C 147.0,94.3 147.0,94.2 148.0,94.0 C 149.0,93.8 152.2,94.5 153.0,94.0 C 153.8,93.5 152.5,91.7 153.0,91.0 C 153.5,90.3 155.3,90.0 156.0,90.0 C 156.7,90.0 156.8,90.3 157.0,91.0 C 157.2,91.7 156.7,93.2 157.0,94.0 C 157.3,94.8 158.7,94.7 159.0,96.0 C 159.3,97.3 159.5,100.8 159.0,102.0 C 158.5,103.2 156.7,103.0 156.0,103.0 C 155.3,103.0 155.2,102.8 155.0,102.0 C 154.8,101.2 156.2,98.7 155.0,98.0 C 153.8,97.3 149.3,98.5 148.0,98.0 C 146.7,97.5 147.0,95.7 147.0,95.0 Z M 49.0,67.0 C 49.3,66.0 51.2,65.5 52.0,66.0 C 52.8,66.5 54.3,69.0 54.0,70.0 C 53.7,71.0 50.8,72.5 50.0,72.0 C 49.2,71.5 48.7,68.0 49.0,67.0 Z M 67.0,58.0 C 67.3,57.0 68.3,57.5 69.0,58.0 C 69.7,58.5 70.8,59.8 71.0,61.0 C 71.2,62.2 70.7,64.5 70.0,65.0 C 69.3,65.5 67.5,65.2 67.0,64.0 C 66.5,62.8 66.7,59.0 67.0,58.0 Z M 80.0,53.0 C 81.5,53.2 82.2,56.5 81.0,58.0 C 79.8,59.5 74.5,62.2 73.0,62.0 C 71.5,61.8 70.8,58.5 72.0,57.0 C 73.2,55.5 78.5,52.8 80.0,53.0 Z M 89.0,43.0 C 89.7,43.2 89.8,43.0 90.0,44.0 C 90.2,45.0 90.7,47.8 90.0,49.0 C 89.3,50.2 86.7,50.3 86.0,51.0 C 85.3,51.7 86.2,52.5 86.0,53.0 C 85.8,53.5 85.5,53.8 85.0,54.0 C 84.5,54.2 83.5,54.2 83.0,54.0 C 82.5,53.8 82.2,53.8 82.0,53.0 C 81.8,52.2 81.7,50.0 82.0,49.0 C 82.3,48.0 83.5,47.3 84.0,47.0 C 84.5,46.7 84.8,47.5 85.0,47.0 C 85.2,46.5 84.8,44.7 85.0,44.0 C 85.2,43.3 85.3,43.2 86.0,43.0 C 86.7,42.8 88.3,42.8 89.0,43.0 Z M 90.0,38.0 C 90.7,37.3 92.7,38.0 93.0,39.0 C 93.3,40.0 92.7,43.3 92.0,44.0 C 91.3,44.7 89.3,44.0 89.0,43.0 C 88.7,42.0 89.3,38.7 90.0,38.0 Z" fill="#f7e4c4" fill-rule="evenodd"/>
+  <path d="M 160.0,96.0 C 159.8,95.3 156.8,96.0 156.0,95.0 C 155.2,94.0 155.3,90.0 155.0,90.0 C 154.7,90.0 154.7,94.0 154.0,95.0 C 153.3,96.0 152.2,96.8 151.0,96.0 C 149.8,95.2 147.8,90.0 147.0,90.0 C 146.2,90.0 146.5,95.0 146.0,96.0 C 145.5,97.0 144.8,96.8 144.0,96.0 C 143.2,95.2 141.7,90.8 141.0,91.0 C 140.3,91.2 140.7,96.0 140.0,97.0 C 139.3,98.0 138.2,97.7 137.0,97.0 C 135.8,96.3 133.5,92.8 133.0,93.0 C 132.5,93.2 134.5,97.0 134.0,98.0 C 133.5,99.0 131.2,99.5 130.0,99.0 C 128.8,98.5 127.2,95.0 127.0,95.0 C 126.8,95.0 128.8,97.8 129.0,99.0 C 129.2,100.2 128.7,101.5 128.0,102.0 C 127.3,102.5 126.2,102.7 125.0,102.0 C 123.8,101.3 121.3,98.0 121.0,98.0 C 120.7,98.0 122.8,100.8 123.0,102.0 C 123.2,103.2 122.7,104.5 122.0,105.0 C 121.3,105.5 120.0,105.5 119.0,105.0 C 118.0,104.5 116.2,101.8 116.0,102.0 C 115.8,102.2 117.8,104.8 118.0,106.0 C 118.2,107.2 117.7,108.5 117.0,109.0 C 116.3,109.5 115.0,109.5 114.0,109.0 C 113.0,108.5 111.2,105.8 111.0,106.0 C 110.8,106.2 112.8,108.7 113.0,110.0 C 113.2,111.3 113.2,113.8 112.0,114.0 C 110.8,114.2 106.5,110.8 106.0,111.0 C 105.5,111.2 108.5,113.8 109.0,115.0 C 109.5,116.2 109.7,117.3 109.0,118.0 C 108.3,118.7 106.2,119.2 105.0,119.0 C 103.8,118.8 102.0,116.8 102.0,117.0 C 102.0,117.2 104.5,119.0 105.0,120.0 C 105.5,121.0 106.2,122.5 105.0,123.0 C 103.8,123.5 98.5,122.5 98.0,123.0 C 97.5,123.5 101.3,125.0 102.0,126.0 C 102.7,127.0 102.7,128.3 102.0,129.0 C 101.3,129.7 99.2,130.2 98.0,130.0 C 96.8,129.8 94.7,127.7 95.0,128.0 C 95.3,128.3 99.2,131.0 100.0,132.0 C 100.8,133.0 100.3,133.3 100.0,134.0 C 99.7,134.7 99.2,135.8 98.0,136.0 C 96.8,136.2 93.2,134.8 93.0,135.0 C 92.8,135.2 96.2,136.2 97.0,137.0 C 97.8,137.8 98.2,139.2 98.0,140.0 C 97.8,140.8 97.2,141.7 96.0,142.0 C 94.8,142.3 91.0,141.5 91.0,142.0 C 91.0,142.5 94.0,144.3 96.0,145.0 C 98.0,145.7 102.5,146.3 103.0,146.0 C 103.5,145.7 99.7,144.0 99.0,143.0 C 98.3,142.0 98.0,140.5 99.0,140.0 C 100.0,139.5 104.7,140.5 105.0,140.0 C 105.3,139.5 101.5,138.2 101.0,137.0 C 100.5,135.8 101.0,133.3 102.0,133.0 C 103.0,132.7 106.8,135.3 107.0,135.0 C 107.2,134.7 103.7,132.0 103.0,131.0 C 102.3,130.0 101.8,129.3 103.0,129.0 C 104.2,128.7 109.5,129.7 110.0,129.0 C 110.5,128.3 106.7,126.0 106.0,125.0 C 105.3,124.0 105.5,123.5 106.0,123.0 C 106.5,122.5 107.8,121.7 109.0,122.0 C 110.2,122.3 112.8,125.2 113.0,125.0 C 113.2,124.8 110.5,122.2 110.0,121.0 C 109.5,119.8 109.5,118.7 110.0,118.0 C 110.5,117.3 111.8,116.7 113.0,117.0 C 114.2,117.3 116.8,120.0 117.0,120.0 C 117.2,120.0 114.5,118.2 114.0,117.0 C 113.5,115.8 113.5,113.8 114.0,113.0 C 114.5,112.2 115.8,111.5 117.0,112.0 C 118.2,112.5 120.8,116.3 121.0,116.0 C 121.2,115.7 117.8,111.2 118.0,110.0 C 118.2,108.8 120.8,108.7 122.0,109.0 C 123.2,109.3 124.8,112.0 125.0,112.0 C 125.2,112.0 123.2,110.2 123.0,109.0 C 122.8,107.8 123.5,105.7 124.0,105.0 C 124.5,104.3 125.0,104.3 126.0,105.0 C 127.0,105.7 129.7,108.8 130.0,109.0 C 130.3,109.2 128.2,107.2 128.0,106.0 C 127.8,104.8 128.5,102.7 129.0,102.0 C 129.5,101.3 130.0,101.3 131.0,102.0 C 132.0,102.7 134.7,106.2 135.0,106.0 C 135.3,105.8 132.7,102.2 133.0,101.0 C 133.3,99.8 135.8,98.3 137.0,99.0 C 138.2,99.7 139.7,105.0 140.0,105.0 C 140.3,105.0 138.5,100.2 139.0,99.0 C 139.5,97.8 141.8,97.3 143.0,98.0 C 144.2,98.7 145.5,103.2 146.0,103.0 C 146.5,102.8 145.5,98.0 146.0,97.0 C 146.5,96.0 148.2,96.2 149.0,97.0 C 149.8,97.8 150.7,101.8 151.0,102.0 C 151.3,102.2 150.3,98.8 151.0,98.0 C 151.7,97.2 154.0,96.2 155.0,97.0 C 156.0,97.8 156.7,102.7 157.0,103.0 C 157.3,103.3 156.5,100.2 157.0,99.0 C 157.5,97.8 160.2,96.7 160.0,96.0 Z M 245.0,93.0 C 243.0,87.7 220.0,103.0 209.0,101.0 C 198.0,99.0 186.2,77.8 179.0,81.0 C 171.8,84.2 171.0,112.5 166.0,120.0 C 161.0,127.5 155.5,126.3 149.0,126.0 C 142.5,125.7 132.7,114.3 127.0,118.0 C 121.3,121.7 123.7,141.0 115.0,148.0 C 106.3,155.0 76.7,155.0 75.0,160.0 C 73.3,165.0 97.7,175.8 105.0,178.0 C 112.3,180.2 117.3,175.5 119.0,173.0 C 120.7,170.5 106.8,168.0 115.0,163.0 C 123.2,158.0 156.0,151.8 168.0,143.0 C 180.0,134.2 182.2,113.7 187.0,110.0 C 191.8,106.3 192.2,119.0 197.0,121.0 C 201.8,123.0 213.7,119.5 216.0,122.0 C 218.3,124.5 210.2,134.2 211.0,136.0 C 211.8,137.8 215.3,140.2 221.0,133.0 C 226.7,125.8 247.0,98.3 245.0,93.0 Z M 103.0,25.0 C 103.3,24.5 100.0,25.0 99.0,24.0 C 98.0,23.0 97.5,19.5 97.0,19.0 C 96.5,18.5 97.0,20.7 96.0,21.0 C 95.0,21.3 91.2,20.8 91.0,21.0 C 90.8,21.2 94.2,21.2 95.0,22.0 C 95.8,22.8 96.8,25.3 96.0,26.0 C 95.2,26.7 90.3,25.5 90.0,26.0 C 89.7,26.5 93.3,28.0 94.0,29.0 C 94.7,30.0 95.0,31.5 94.0,32.0 C 93.0,32.5 88.3,31.7 88.0,32.0 C 87.7,32.3 91.2,33.2 92.0,34.0 C 92.8,34.8 93.2,36.2 93.0,37.0 C 92.8,37.8 92.2,39.0 91.0,39.0 C 89.8,39.0 86.3,36.8 86.0,37.0 C 85.7,37.2 88.7,38.8 89.0,40.0 C 89.3,41.2 88.7,43.3 88.0,44.0 C 87.3,44.7 85.8,44.3 85.0,44.0 C 84.2,43.7 82.8,41.3 83.0,42.0 C 83.2,42.7 86.2,46.8 86.0,48.0 C 85.8,49.2 83.2,49.3 82.0,49.0 C 80.8,48.7 79.0,45.5 79.0,46.0 C 79.0,46.5 82.2,50.8 82.0,52.0 C 81.8,53.2 79.2,53.3 78.0,53.0 C 76.8,52.7 75.2,49.5 75.0,50.0 C 74.8,50.5 77.2,54.8 77.0,56.0 C 76.8,57.2 75.2,57.3 74.0,57.0 C 72.8,56.7 70.3,53.5 70.0,54.0 C 69.7,54.5 72.2,58.8 72.0,60.0 C 71.8,61.2 70.0,61.5 69.0,61.0 C 68.0,60.5 66.5,56.5 66.0,57.0 C 65.5,57.5 66.3,62.8 66.0,64.0 C 65.7,65.2 65.0,64.8 64.0,64.0 C 63.0,63.2 60.3,59.2 60.0,59.0 C 59.7,58.8 61.8,61.8 62.0,63.0 C 62.2,64.2 61.7,65.5 61.0,66.0 C 60.3,66.5 59.0,66.8 58.0,66.0 C 57.0,65.2 55.5,60.7 55.0,61.0 C 54.5,61.3 55.5,66.8 55.0,68.0 C 54.5,69.2 53.0,68.8 52.0,68.0 C 51.0,67.2 49.5,62.8 49.0,63.0 C 48.5,63.2 49.5,68.0 49.0,69.0 C 48.5,70.0 47.0,69.8 46.0,69.0 C 45.0,68.2 43.3,64.0 43.0,64.0 C 42.7,64.0 44.5,68.0 44.0,69.0 C 43.5,70.0 41.2,70.7 40.0,70.0 C 38.8,69.3 37.3,65.0 37.0,65.0 C 36.7,65.0 38.2,69.0 38.0,70.0 C 37.8,71.0 36.0,70.5 36.0,71.0 C 36.0,71.5 37.7,72.0 38.0,73.0 C 38.3,74.0 37.7,77.3 38.0,77.0 C 38.3,76.7 39.2,72.0 40.0,71.0 C 40.8,70.0 42.0,70.0 43.0,71.0 C 44.0,72.0 45.3,77.2 46.0,77.0 C 46.7,76.8 46.3,71.2 47.0,70.0 C 47.7,68.8 49.0,69.0 50.0,70.0 C 51.0,71.0 52.5,76.2 53.0,76.0 C 53.5,75.8 52.5,70.2 53.0,69.0 C 53.5,67.8 55.0,68.2 56.0,69.0 C 57.0,69.8 58.7,74.0 59.0,74.0 C 59.3,74.0 57.8,70.2 58.0,69.0 C 58.2,67.8 59.3,67.3 60.0,67.0 C 60.7,66.7 61.0,66.2 62.0,67.0 C 63.0,67.8 65.7,72.2 66.0,72.0 C 66.3,71.8 63.7,67.2 64.0,66.0 C 64.3,64.8 66.7,64.5 68.0,65.0 C 69.3,65.5 71.7,69.3 72.0,69.0 C 72.3,68.7 69.7,64.3 70.0,63.0 C 70.3,61.7 72.8,60.7 74.0,61.0 C 75.2,61.3 76.5,65.5 77.0,65.0 C 77.5,64.5 76.7,59.2 77.0,58.0 C 77.3,56.8 78.0,57.3 79.0,58.0 C 80.0,58.7 82.7,61.8 83.0,62.0 C 83.3,62.2 81.3,60.2 81.0,59.0 C 80.7,57.8 80.5,55.8 81.0,55.0 C 81.5,54.2 82.8,53.7 84.0,54.0 C 85.2,54.3 87.8,57.2 88.0,57.0 C 88.2,56.8 85.3,54.3 85.0,53.0 C 84.7,51.7 84.8,49.2 86.0,49.0 C 87.2,48.8 91.5,52.2 92.0,52.0 C 92.5,51.8 89.5,49.2 89.0,48.0 C 88.5,46.8 88.5,45.7 89.0,45.0 C 89.5,44.3 90.8,43.8 92.0,44.0 C 93.2,44.2 96.0,46.3 96.0,46.0 C 96.0,45.7 92.7,43.0 92.0,42.0 C 91.3,41.0 90.8,40.3 92.0,40.0 C 93.2,39.7 98.5,40.7 99.0,40.0 C 99.5,39.3 95.7,37.2 95.0,36.0 C 94.3,34.8 93.8,33.5 95.0,33.0 C 96.2,32.5 101.7,33.5 102.0,33.0 C 102.3,32.5 97.8,31.0 97.0,30.0 C 96.2,29.0 96.0,27.8 97.0,27.0 C 98.0,26.2 102.7,25.5 103.0,25.0 Z" fill="#f77c56" fill-rule="evenodd"/>
+  <path d="M 282.0,159.0 C 259.2,166.0 170.0,202.5 143.0,211.0 C 116.0,219.5 126.5,214.7 120.0,210.0 C 113.5,205.3 107.7,185.0 104.0,183.0 C 100.3,181.0 96.8,190.8 98.0,198.0 C 99.2,205.2 106.8,220.7 111.0,226.0 C 115.2,231.3 94.8,239.5 123.0,230.0 C 151.2,220.5 253.5,180.8 280.0,169.0 C 306.5,157.2 304.8,152.0 282.0,159.0 Z M 100.0,123.0 C 99.3,123.2 99.7,124.5 100.0,125.0 C 100.3,125.5 101.3,126.2 102.0,126.0 C 102.7,125.8 104.3,124.5 104.0,124.0 C 103.7,123.5 100.7,122.8 100.0,123.0 Z M 216.0,120.0 C 213.2,117.7 201.7,123.8 197.0,122.0 C 192.3,120.2 190.3,108.2 188.0,109.0 C 185.7,109.8 186.3,121.2 183.0,127.0 C 179.7,132.8 174.5,140.8 168.0,144.0 C 161.5,147.2 149.5,143.3 144.0,146.0 C 138.5,148.7 140.7,156.8 135.0,160.0 C 129.3,163.2 111.7,163.0 110.0,165.0 C 108.3,167.0 107.7,176.8 125.0,172.0 C 142.3,167.2 198.8,144.7 214.0,136.0 C 229.2,127.3 218.8,122.3 216.0,120.0 Z M 128.0,101.0 C 127.7,100.5 125.8,103.5 125.0,104.0 C 124.2,104.5 122.7,103.5 123.0,104.0 C 123.3,104.5 126.2,107.5 127.0,107.0 C 127.8,106.5 128.3,101.5 128.0,101.0 Z M 153.0,97.0 C 152.8,97.0 154.5,96.3 155.0,97.0 C 155.5,97.7 155.5,100.2 156.0,101.0 C 156.5,101.8 157.7,102.3 158.0,102.0 C 158.3,101.7 158.3,99.8 158.0,99.0 C 157.7,98.2 156.8,97.3 156.0,97.0 C 155.2,96.7 153.2,97.0 153.0,97.0 Z M 14.0,74.0 C 13.7,74.0 14.0,75.8 13.0,77.0 C 12.0,78.2 7.8,79.3 8.0,81.0 C 8.2,82.7 12.0,87.0 14.0,87.0 C 16.0,87.0 19.8,82.7 20.0,81.0 C 20.2,79.3 16.0,78.2 15.0,77.0 C 14.0,75.8 14.3,74.0 14.0,74.0 Z M 198.0,39.0 C 197.0,38.3 198.2,39.8 197.0,41.0 C 195.8,42.2 191.8,45.2 191.0,46.0 C 190.2,46.8 190.8,44.8 192.0,46.0 C 193.2,47.2 196.5,52.7 198.0,53.0 C 199.5,53.3 199.8,49.2 201.0,48.0 C 202.2,46.8 204.7,46.5 205.0,46.0 C 205.3,45.5 204.2,46.2 203.0,45.0 C 201.8,43.8 199.0,39.7 198.0,39.0 Z M 168.0,9.0 C 166.8,9.3 166.3,15.3 164.0,18.0 C 161.7,20.7 154.3,23.2 154.0,25.0 C 153.7,26.8 159.5,26.7 162.0,29.0 C 164.5,31.3 167.5,38.3 169.0,39.0 C 170.5,39.7 168.8,35.5 171.0,33.0 C 173.2,30.5 181.0,25.8 182.0,24.0 C 183.0,22.2 178.8,23.3 177.0,22.0 C 175.2,20.7 172.5,18.2 171.0,16.0 C 169.5,13.8 169.2,8.7 168.0,9.0 Z" fill="#f6bd77" fill-rule="evenodd"/>
+</svg>`;
+        }
+
+        function outIconSVG() {
+            return `<svg viewBox="0 0 358 181" class="w-[96px] h-[48px] sm:w-[150px] sm:h-[75px]" xmlns="http://www.w3.org/2000/svg">
+  <path d="M 78.0,118.0 C 77.7,118.2 80.5,119.3 81.0,120.0 C 81.5,120.7 80.7,122.2 81.0,122.0 C 81.3,121.8 83.5,119.7 83.0,119.0 C 82.5,118.3 78.3,117.8 78.0,118.0 Z M 53.0,25.0 C 49.7,26.3 48.0,29.7 47.0,32.0 C 46.0,34.3 44.0,33.7 47.0,39.0 C 50.0,44.3 59.3,60.3 65.0,64.0 C 70.7,67.7 78.3,63.2 81.0,61.0 C 83.7,58.8 82.3,53.2 81.0,51.0 C 79.7,48.8 74.3,49.0 73.0,48.0 C 71.7,47.0 72.3,45.7 73.0,45.0 C 73.7,44.3 78.5,46.7 77.0,44.0 C 75.5,41.3 65.7,32.3 64.0,29.0 C 62.3,25.7 68.8,24.7 67.0,24.0 C 65.2,23.3 56.3,23.7 53.0,25.0 Z M 77.0,13.0 C 73.3,14.5 68.8,20.5 69.0,23.0 C 69.2,25.5 75.5,25.2 78.0,28.0 C 80.5,30.8 82.0,38.2 84.0,40.0 C 86.0,41.8 89.3,38.0 90.0,39.0 C 90.7,40.0 86.8,44.2 88.0,46.0 C 89.2,47.8 95.0,47.5 97.0,50.0 C 99.0,52.5 100.0,58.2 100.0,61.0 C 100.0,63.8 96.0,66.0 97.0,67.0 C 98.0,68.0 102.3,64.5 106.0,67.0 C 109.7,69.5 118.5,85.2 119.0,82.0 C 119.5,78.8 111.0,52.8 109.0,48.0 C 107.0,43.2 108.0,52.5 107.0,53.0 C 106.0,53.5 103.3,52.7 103.0,51.0 C 102.7,49.3 106.0,45.0 105.0,43.0 C 104.0,41.0 97.8,40.3 97.0,39.0 C 96.2,37.7 101.5,38.3 100.0,35.0 C 98.5,31.7 89.5,22.5 88.0,19.0 C 86.5,15.5 92.8,15.0 91.0,14.0 C 89.2,13.0 80.7,11.5 77.0,13.0 Z M 102.0,7.0 C 97.8,6.7 90.8,9.0 93.0,13.0 C 95.2,17.0 108.3,20.3 115.0,31.0 C 121.7,41.7 131.5,68.3 133.0,77.0 C 134.5,85.7 124.0,78.5 124.0,83.0 C 124.0,87.5 132.8,95.3 133.0,104.0 C 133.2,112.7 131.8,127.5 125.0,135.0 C 118.2,142.5 109.2,155.7 92.0,149.0 C 74.8,142.3 35.8,101.2 22.0,95.0 C 8.2,88.8 3.0,101.5 9.0,112.0 C 15.0,122.5 40.3,147.8 58.0,158.0 C 75.7,168.2 100.7,172.2 115.0,173.0 C 129.3,173.8 134.3,168.8 144.0,163.0 C 153.7,157.2 166.7,149.0 173.0,138.0 C 179.3,127.0 186.7,117.7 182.0,97.0 C 177.3,76.3 155.0,28.0 145.0,14.0 C 135.0,0.0 122.5,11.0 122.0,13.0 C 121.5,15.0 136.7,15.0 142.0,26.0 C 147.3,37.0 158.0,80.8 154.0,79.0 C 150.0,77.2 126.7,27.0 118.0,15.0 C 109.3,3.0 106.2,7.3 102.0,7.0 Z M 161.0,117.0 C 162.0,116.7 165.5,116.7 167.0,117.0 C 168.5,117.3 169.5,118.3 170.0,119.0 C 170.5,119.7 171.0,120.7 170.0,121.0 C 169.0,121.3 165.5,121.3 164.0,121.0 C 162.5,120.7 161.5,119.7 161.0,119.0 C 160.5,118.3 160.0,117.3 161.0,117.0 Z M 138.0,114.0 C 139.7,113.3 147.0,112.7 149.0,113.0 C 151.0,113.3 151.7,115.3 150.0,116.0 C 148.3,116.7 141.0,117.3 139.0,117.0 C 137.0,116.7 136.3,114.7 138.0,114.0 Z" fill="#c77358" fill-rule="evenodd"/>
+  <path d="M 54.0,89.0 C 53.3,88.5 53.5,90.7 53.0,91.0 C 52.5,91.3 51.3,90.2 51.0,91.0 C 50.7,91.8 50.2,95.3 51.0,96.0 C 51.8,96.7 55.0,94.3 56.0,95.0 C 57.0,95.7 56.2,99.3 57.0,100.0 C 57.8,100.7 60.2,98.3 61.0,99.0 C 61.8,99.7 61.0,103.2 62.0,104.0 C 63.0,104.8 66.2,103.2 67.0,104.0 C 67.8,104.8 66.0,107.7 67.0,109.0 C 68.0,110.3 72.3,110.8 73.0,112.0 C 73.7,113.2 70.8,115.3 71.0,116.0 C 71.2,116.7 73.2,115.7 74.0,116.0 C 74.8,116.3 76.0,117.0 76.0,118.0 C 76.0,119.0 73.7,121.0 74.0,122.0 C 74.3,123.0 77.2,123.0 78.0,124.0 C 78.8,125.0 79.3,127.2 79.0,128.0 C 78.7,128.8 75.8,128.3 76.0,129.0 C 76.2,129.7 79.3,131.0 80.0,132.0 C 80.7,133.0 80.5,134.2 80.0,135.0 C 79.5,135.8 76.7,136.2 77.0,137.0 C 77.3,137.8 80.5,140.2 82.0,140.0 C 83.5,139.8 86.0,137.0 86.0,136.0 C 86.0,135.0 82.7,134.8 82.0,134.0 C 81.3,133.2 81.5,132.0 82.0,131.0 C 82.5,130.0 85.3,128.8 85.0,128.0 C 84.7,127.2 80.8,127.0 80.0,126.0 C 79.2,125.0 79.7,123.2 80.0,122.0 C 80.3,120.8 82.5,119.7 82.0,119.0 C 81.5,118.3 77.5,119.2 77.0,118.0 C 76.5,116.8 79.3,113.0 79.0,112.0 C 78.7,111.0 76.0,112.3 75.0,112.0 C 74.0,111.7 73.2,111.3 73.0,110.0 C 72.8,108.7 74.5,104.8 74.0,104.0 C 73.5,103.2 71.0,105.2 70.0,105.0 C 69.0,104.8 68.3,104.2 68.0,103.0 C 67.7,101.8 68.8,98.7 68.0,98.0 C 67.2,97.3 64.0,99.7 63.0,99.0 C 62.0,98.3 63.0,94.8 62.0,94.0 C 61.0,93.2 58.3,94.8 57.0,94.0 C 55.7,93.2 54.7,89.5 54.0,89.0 Z M 92.0,63.0 C 91.5,63.0 91.5,64.7 91.0,65.0 C 90.5,65.3 89.3,64.7 89.0,65.0 C 88.7,65.3 88.5,66.3 89.0,67.0 C 89.5,67.7 91.8,67.7 92.0,69.0 C 92.2,70.3 89.7,73.7 90.0,75.0 C 90.3,76.3 93.3,76.0 94.0,77.0 C 94.7,78.0 94.3,80.0 94.0,81.0 C 93.7,82.0 92.0,82.7 92.0,83.0 C 92.0,83.3 93.2,82.5 94.0,83.0 C 94.8,83.5 96.5,85.0 97.0,86.0 C 97.5,87.0 97.5,88.3 97.0,89.0 C 96.5,89.7 93.8,89.7 94.0,90.0 C 94.2,90.3 96.8,90.3 98.0,91.0 C 99.2,91.7 100.5,93.2 101.0,94.0 C 101.5,94.8 101.5,95.3 101.0,96.0 C 100.5,96.7 97.5,97.5 98.0,98.0 C 98.5,98.5 103.0,97.8 104.0,99.0 C 105.0,100.2 103.3,104.2 104.0,105.0 C 104.7,105.8 106.8,103.7 108.0,104.0 C 109.2,104.3 110.5,105.8 111.0,107.0 C 111.5,108.2 110.2,110.5 111.0,111.0 C 111.8,111.5 115.0,109.3 116.0,110.0 C 117.0,110.7 115.8,114.3 117.0,115.0 C 118.2,115.7 122.3,115.2 123.0,114.0 C 123.7,112.8 122.0,108.8 121.0,108.0 C 120.0,107.2 118.0,109.2 117.0,109.0 C 116.0,108.8 115.3,107.8 115.0,107.0 C 114.7,106.2 115.7,104.3 115.0,104.0 C 114.3,103.7 111.8,105.8 111.0,105.0 C 110.2,104.2 110.8,100.0 110.0,99.0 C 109.2,98.0 106.7,99.8 106.0,99.0 C 105.3,98.2 106.8,95.2 106.0,94.0 C 105.2,92.8 101.7,93.2 101.0,92.0 C 100.3,90.8 102.5,88.2 102.0,87.0 C 101.5,85.8 98.5,86.3 98.0,85.0 C 97.5,83.7 99.3,80.2 99.0,79.0 C 98.7,77.8 96.2,79.2 96.0,78.0 C 95.8,76.8 98.3,73.2 98.0,72.0 C 97.7,70.8 94.2,72.2 94.0,71.0 C 93.8,69.8 97.0,66.0 97.0,65.0 C 97.0,64.0 94.8,65.3 94.0,65.0 C 93.2,64.7 92.5,63.0 92.0,63.0 Z M 145.0,15.0 C 136.8,17.5 145.0,24.7 153.0,27.0 C 161.0,29.3 187.5,26.0 193.0,29.0 C 198.5,32.0 179.8,41.2 186.0,45.0 C 192.2,48.8 213.5,46.8 230.0,52.0 C 246.5,57.2 287.3,69.7 285.0,76.0 C 282.7,82.3 229.7,86.2 216.0,90.0 C 202.3,93.8 203.3,96.5 203.0,99.0 C 202.7,101.5 219.3,98.5 214.0,105.0 C 208.7,111.5 163.2,135.8 171.0,138.0 C 178.8,140.2 251.2,122.3 261.0,118.0 C 270.8,113.7 230.3,114.8 230.0,112.0 C 229.7,109.2 239.5,103.7 259.0,101.0 C 278.5,98.3 342.3,103.2 347.0,96.0 C 351.7,88.8 308.8,68.0 287.0,58.0 C 265.2,48.0 223.0,42.0 216.0,36.0 C 209.0,30.0 247.3,26.0 245.0,22.0 C 242.7,18.0 218.7,13.2 202.0,12.0 C 185.3,10.8 153.2,12.5 145.0,15.0 Z" fill="#f75251" fill-rule="evenodd"/>
+  <path d="M 75.0,149.0 C 76.0,147.7 74.3,148.0 73.0,149.0 C 71.7,150.0 68.0,153.7 67.0,155.0 C 66.0,156.3 65.7,158.0 67.0,157.0 C 68.3,156.0 74.0,150.3 75.0,149.0 Z M 160.0,116.0 C 158.5,115.8 158.5,117.2 160.0,118.0 C 161.5,118.8 167.5,120.8 169.0,121.0 C 170.5,121.2 170.5,119.8 169.0,119.0 C 167.5,118.2 161.5,116.2 160.0,116.0 Z M 139.0,114.0 C 137.3,114.3 137.3,115.7 139.0,116.0 C 140.7,116.3 147.3,116.3 149.0,116.0 C 150.7,115.7 150.7,114.3 149.0,114.0 C 147.3,113.7 140.7,113.7 139.0,114.0 Z M 106.0,93.0 C 106.2,92.8 102.8,92.5 102.0,92.0 C 101.2,91.5 101.3,90.0 101.0,90.0 C 100.7,90.0 101.0,91.7 100.0,92.0 C 99.0,92.3 95.3,92.0 95.0,92.0 C 94.7,92.0 97.2,91.3 98.0,92.0 C 98.8,92.7 99.5,95.8 100.0,96.0 C 100.5,96.2 100.0,93.5 101.0,93.0 C 102.0,92.5 105.8,93.2 106.0,93.0 Z M 51.0,90.0 C 50.8,90.2 54.0,89.5 55.0,90.0 C 56.0,90.5 56.8,93.2 57.0,93.0 C 57.2,92.8 57.0,89.5 56.0,89.0 C 55.0,88.5 51.2,89.8 51.0,90.0 Z M 46.0,87.0 C 45.2,88.5 40.7,95.3 41.0,98.0 C 41.3,100.7 46.8,101.7 48.0,103.0 C 49.2,104.3 48.5,104.8 48.0,106.0 C 47.5,107.2 44.5,108.7 45.0,110.0 C 45.5,111.3 50.5,114.8 51.0,114.0 C 51.5,113.2 48.5,107.7 48.0,105.0 C 47.5,102.3 47.7,99.3 48.0,98.0 C 48.3,96.7 50.0,97.3 50.0,97.0 C 50.0,96.7 48.2,97.0 48.0,96.0 C 47.8,95.0 49.3,92.2 49.0,91.0 C 48.7,89.8 46.5,89.7 46.0,89.0 C 45.5,88.3 46.8,85.5 46.0,87.0 Z M 87.0,37.0 C 86.3,36.8 85.8,36.5 85.0,38.0 C 84.2,39.5 83.7,45.0 82.0,46.0 C 80.3,47.0 76.5,44.0 75.0,44.0 C 73.5,44.0 73.0,45.2 73.0,46.0 C 73.0,46.8 73.7,48.2 75.0,49.0 C 76.3,49.8 80.2,49.5 81.0,51.0 C 81.8,52.5 79.8,56.3 80.0,58.0 C 80.2,59.7 81.2,60.5 82.0,61.0 C 82.8,61.5 84.5,62.2 85.0,61.0 C 85.5,59.8 84.7,55.5 85.0,54.0 C 85.3,52.5 85.2,52.3 87.0,52.0 C 88.8,51.7 94.7,52.5 96.0,52.0 C 97.3,51.5 96.3,49.8 95.0,49.0 C 93.7,48.2 89.0,48.7 88.0,47.0 C 87.0,45.3 89.2,40.7 89.0,39.0 C 88.8,37.3 87.7,37.2 87.0,37.0 Z M 113.0,30.0 C 112.3,29.5 111.0,29.8 110.0,31.0 C 109.0,32.2 109.0,36.2 107.0,37.0 C 105.0,37.8 99.5,35.7 98.0,36.0 C 96.5,36.3 96.8,37.8 98.0,39.0 C 99.2,40.2 103.8,40.8 105.0,43.0 C 106.2,45.2 104.5,50.7 105.0,52.0 C 105.5,53.3 107.2,52.2 108.0,51.0 C 108.8,49.8 108.0,46.0 110.0,45.0 C 112.0,44.0 118.5,45.5 120.0,45.0 C 121.5,44.5 120.3,43.0 119.0,42.0 C 117.7,41.0 112.8,40.3 112.0,39.0 C 111.2,37.7 113.8,35.5 114.0,34.0 C 114.2,32.5 113.7,30.5 113.0,30.0 Z M 153.0,28.0 C 151.2,37.8 178.0,72.3 182.0,89.0 C 186.0,105.7 172.0,125.2 177.0,128.0 C 182.0,130.8 207.7,111.0 212.0,106.0 C 216.3,101.0 202.3,100.8 203.0,98.0 C 203.7,95.2 202.2,92.3 216.0,89.0 C 229.8,85.7 283.2,83.8 286.0,78.0 C 288.8,72.2 249.7,59.3 233.0,54.0 C 216.3,48.7 192.7,50.0 186.0,46.0 C 179.3,42.0 198.5,33.0 193.0,30.0 C 187.5,27.0 154.8,18.2 153.0,28.0 Z M 140.0,25.0 C 139.3,24.5 138.0,23.8 137.0,25.0 C 136.0,26.2 135.5,31.2 134.0,32.0 C 132.5,32.8 129.7,30.2 128.0,30.0 C 126.3,29.8 124.5,30.3 124.0,31.0 C 123.5,31.7 123.8,33.0 125.0,34.0 C 126.2,35.0 130.3,35.5 131.0,37.0 C 131.7,38.5 129.2,41.5 129.0,43.0 C 128.8,44.5 129.3,45.5 130.0,46.0 C 130.7,46.5 132.0,47.2 133.0,46.0 C 134.0,44.8 134.5,39.8 136.0,39.0 C 137.5,38.2 140.3,40.8 142.0,41.0 C 143.7,41.2 145.5,40.7 146.0,40.0 C 146.5,39.3 146.2,38.0 145.0,37.0 C 143.8,36.0 139.7,35.5 139.0,34.0 C 138.3,32.5 140.8,29.5 141.0,28.0 C 141.2,26.5 140.7,25.5 140.0,25.0 Z" fill="#f0a664" fill-rule="evenodd"/>
+  <path d="M 87.0,53.0 C 85.7,53.8 85.8,57.7 86.0,59.0 C 86.2,60.3 87.0,60.7 88.0,61.0 C 89.0,61.3 91.0,60.5 92.0,61.0 C 93.0,61.5 93.5,63.7 94.0,64.0 C 94.5,64.3 94.2,63.2 95.0,63.0 C 95.8,62.8 98.2,62.8 99.0,63.0 C 99.8,63.2 100.3,65.0 100.0,64.0 C 99.7,63.0 98.0,58.7 97.0,57.0 C 96.0,55.3 95.7,54.7 94.0,54.0 C 92.3,53.3 88.3,52.2 87.0,53.0 Z M 56.0,51.0 C 50.8,53.2 38.7,69.3 33.0,77.0 C 27.3,84.7 22.7,93.5 22.0,97.0 C 21.3,100.5 26.7,96.8 29.0,98.0 C 31.3,99.2 32.8,106.7 36.0,104.0 C 39.2,101.3 43.3,88.7 48.0,82.0 C 52.7,75.3 62.7,69.2 64.0,64.0 C 65.3,58.8 61.2,48.8 56.0,51.0 Z M 120.0,47.0 C 116.5,41.7 110.0,36.2 111.0,45.0 C 112.0,53.8 124.0,87.3 126.0,100.0 C 128.0,112.7 126.3,114.3 123.0,121.0 C 119.7,127.7 113.8,136.7 106.0,140.0 C 98.2,143.3 75.5,140.0 76.0,141.0 C 76.5,142.0 100.0,148.8 109.0,146.0 C 118.0,143.2 127.3,134.3 130.0,124.0 C 132.7,113.7 124.7,91.8 125.0,84.0 C 125.3,76.2 132.8,83.2 132.0,77.0 C 131.2,70.8 123.5,52.3 120.0,47.0 Z M 137.0,40.0 C 135.3,40.7 133.8,43.0 135.0,47.0 C 136.2,51.0 142.0,59.2 144.0,64.0 C 146.0,68.8 145.3,73.7 147.0,76.0 C 148.7,78.3 152.3,78.5 154.0,78.0 C 155.7,77.5 158.5,78.8 157.0,73.0 C 155.5,67.2 148.3,48.5 145.0,43.0 C 141.7,37.5 138.7,39.3 137.0,40.0 Z M 66.0,25.0 C 64.8,26.0 63.5,26.0 65.0,29.0 C 66.5,32.0 72.2,40.5 75.0,43.0 C 77.8,45.5 80.5,44.8 82.0,44.0 C 83.5,43.2 84.8,40.7 84.0,38.0 C 83.2,35.3 79.0,30.5 77.0,28.0 C 75.0,25.5 73.8,23.5 72.0,23.0 C 70.2,22.5 67.2,24.0 66.0,25.0 Z M 89.0,16.0 C 88.7,17.2 88.7,18.5 90.0,21.0 C 91.3,23.5 95.2,28.7 97.0,31.0 C 98.8,33.3 99.3,34.2 101.0,35.0 C 102.7,35.8 105.7,36.8 107.0,36.0 C 108.3,35.2 110.7,33.7 109.0,30.0 C 107.3,26.3 99.8,16.7 97.0,14.0 C 94.2,11.3 93.3,13.7 92.0,14.0 C 90.7,14.3 89.3,14.8 89.0,16.0 Z M 120.0,14.0 C 118.8,14.7 117.5,16.2 117.0,17.0 C 116.5,17.8 116.0,17.2 117.0,19.0 C 118.0,20.8 120.3,26.0 123.0,28.0 C 125.7,30.0 131.0,31.2 133.0,31.0 C 135.0,30.8 136.0,29.7 135.0,27.0 C 134.0,24.3 128.8,17.3 127.0,15.0 C 125.2,12.7 125.2,13.2 124.0,13.0 C 122.8,12.8 121.2,13.3 120.0,14.0 Z" fill="#bd5d4b" fill-rule="evenodd"/>
+  <path d="M 234.0,110.0 C 233.2,110.0 229.0,111.7 229.0,112.0 C 229.0,112.3 233.2,112.3 234.0,112.0 C 234.8,111.7 234.8,110.0 234.0,110.0 Z M 98.0,93.0 C 99.2,94.8 111.7,110.3 110.0,117.0 C 108.3,123.7 93.0,134.2 88.0,133.0 C 83.0,131.8 83.2,115.3 80.0,110.0 C 76.8,104.7 68.0,98.2 69.0,101.0 C 70.0,103.8 83.7,120.2 86.0,127.0 C 88.3,133.8 79.5,140.2 83.0,142.0 C 86.5,143.8 100.3,142.2 107.0,138.0 C 113.7,133.8 123.7,122.3 123.0,117.0 C 122.3,111.7 107.2,110.0 103.0,106.0 C 98.8,102.0 96.8,91.2 98.0,93.0 Z M 47.0,86.0 C 46.7,85.7 45.7,87.2 46.0,88.0 C 46.3,88.8 48.5,88.8 49.0,91.0 C 49.5,93.2 49.7,99.3 49.0,101.0 C 48.3,102.7 45.3,100.7 45.0,101.0 C 44.7,101.3 46.7,102.2 47.0,103.0 C 47.3,103.8 46.5,105.3 47.0,106.0 C 47.5,106.7 48.8,104.7 50.0,107.0 C 51.2,109.3 51.7,115.7 54.0,120.0 C 56.3,124.3 61.2,130.0 64.0,133.0 C 66.8,136.0 68.3,136.7 71.0,138.0 C 73.7,139.3 79.2,141.2 80.0,141.0 C 80.8,140.8 76.7,138.0 76.0,137.0 C 75.3,136.0 75.5,135.5 76.0,135.0 C 76.5,134.5 79.2,134.7 79.0,134.0 C 78.8,133.3 75.5,132.0 75.0,131.0 C 74.5,130.0 76.3,128.0 76.0,128.0 C 75.7,128.0 73.8,130.5 73.0,131.0 C 72.2,131.5 72.7,131.7 71.0,131.0 C 69.3,130.3 65.7,128.8 63.0,127.0 C 60.3,125.2 57.2,122.8 55.0,120.0 C 52.8,117.2 51.0,113.5 50.0,110.0 C 49.0,106.5 48.3,101.0 49.0,99.0 C 49.7,97.0 53.0,97.7 54.0,98.0 C 55.0,98.3 53.8,100.2 55.0,101.0 C 56.2,101.8 60.0,102.2 61.0,103.0 C 62.0,103.8 60.3,105.3 61.0,106.0 C 61.7,106.7 64.2,106.2 65.0,107.0 C 65.8,107.8 65.2,110.3 66.0,111.0 C 66.8,111.7 69.0,110.7 70.0,111.0 C 71.0,111.3 72.7,113.2 72.0,113.0 C 71.3,112.8 67.0,111.3 66.0,110.0 C 65.0,108.7 66.8,105.8 66.0,105.0 C 65.2,104.2 61.7,105.7 61.0,105.0 C 60.3,104.3 62.8,101.7 62.0,101.0 C 61.2,100.3 57.2,101.8 56.0,101.0 C 54.8,100.2 55.7,96.5 55.0,96.0 C 54.3,95.5 53.0,97.8 52.0,98.0 C 51.0,98.2 49.3,98.2 49.0,97.0 C 48.7,95.8 49.3,92.5 50.0,91.0 C 50.7,89.5 52.0,88.5 53.0,88.0 C 54.0,87.5 55.2,87.2 56.0,88.0 C 56.8,88.8 57.0,92.3 58.0,93.0 C 59.0,93.7 61.0,91.2 62.0,92.0 C 63.0,92.8 62.8,97.2 64.0,98.0 C 65.2,98.8 69.0,97.2 69.0,97.0 C 69.0,96.8 65.0,97.8 64.0,97.0 C 63.0,96.2 64.0,93.0 63.0,92.0 C 62.0,91.0 59.2,91.8 58.0,91.0 C 56.8,90.2 56.8,87.7 56.0,87.0 C 55.2,86.3 53.8,86.5 53.0,87.0 C 52.2,87.5 51.8,89.5 51.0,90.0 C 50.2,90.5 48.7,90.7 48.0,90.0 C 47.3,89.3 47.3,86.3 47.0,86.0 Z M 90.0,81.0 C 90.0,81.0 89.3,82.2 90.0,83.0 C 90.7,83.8 93.3,84.5 94.0,86.0 C 94.7,87.5 94.2,91.5 94.0,92.0 C 93.8,92.5 92.7,89.7 93.0,89.0 C 93.3,88.3 95.8,88.7 96.0,88.0 C 96.2,87.3 95.0,85.8 94.0,85.0 C 93.0,84.2 90.7,83.7 90.0,83.0 C 89.3,82.3 90.0,81.0 90.0,81.0 Z M 99.0,65.0 C 97.0,65.2 95.0,68.8 95.0,70.0 C 95.0,71.2 98.7,70.7 99.0,72.0 C 99.3,73.3 96.8,77.0 97.0,78.0 C 97.2,79.0 99.3,77.7 100.0,78.0 C 100.7,78.3 100.8,80.0 101.0,80.0 C 101.2,80.0 101.5,78.5 101.0,78.0 C 100.5,77.5 98.5,78.7 98.0,77.0 C 97.5,75.3 97.5,69.7 98.0,68.0 C 98.5,66.3 99.8,66.5 101.0,67.0 C 102.2,67.5 103.2,68.3 105.0,71.0 C 106.8,73.7 110.5,78.7 112.0,83.0 C 113.5,87.3 114.2,94.5 114.0,97.0 C 113.8,99.5 111.8,98.2 111.0,98.0 C 110.2,97.8 109.3,96.8 109.0,96.0 C 108.7,95.2 110.0,94.0 109.0,93.0 C 108.0,92.0 104.0,91.3 103.0,90.0 C 102.0,88.7 103.3,85.8 103.0,85.0 C 102.7,84.2 101.5,85.5 101.0,85.0 C 100.5,84.5 100.3,82.0 100.0,82.0 C 99.7,82.0 98.5,84.3 99.0,85.0 C 99.5,85.7 102.5,85.0 103.0,86.0 C 103.5,87.0 101.5,89.8 102.0,91.0 C 102.5,92.2 105.2,91.8 106.0,93.0 C 106.8,94.2 106.2,97.0 107.0,98.0 C 107.8,99.0 110.2,98.0 111.0,99.0 C 111.8,100.0 111.2,103.5 112.0,104.0 C 112.8,104.5 115.0,101.3 116.0,102.0 C 117.0,102.7 117.0,107.2 118.0,108.0 C 119.0,108.8 121.0,106.2 122.0,107.0 C 123.0,107.8 123.7,114.7 124.0,113.0 C 124.3,111.3 124.8,102.0 124.0,97.0 C 123.2,92.0 121.8,87.7 119.0,83.0 C 116.2,78.3 110.3,72.0 107.0,69.0 C 103.7,66.0 101.0,64.8 99.0,65.0 Z M 111.0,99.0 C 111.3,98.3 113.3,97.7 114.0,98.0 C 114.7,98.3 115.3,100.3 115.0,101.0 C 114.7,101.7 112.7,102.3 112.0,102.0 C 111.3,101.7 110.7,99.7 111.0,99.0 Z M 62.0,67.0 C 62.8,67.2 66.5,66.8 69.0,66.0 C 71.5,65.2 74.2,62.7 77.0,62.0 C 79.8,61.3 84.3,61.2 86.0,62.0 C 87.7,62.8 86.3,65.8 87.0,67.0 C 87.7,68.2 89.7,68.2 90.0,69.0 C 90.3,69.8 88.8,71.5 89.0,72.0 C 89.2,72.5 90.7,72.5 91.0,72.0 C 91.3,71.5 91.7,69.8 91.0,69.0 C 90.3,68.2 87.7,67.7 87.0,67.0 C 86.3,66.3 86.3,65.5 87.0,65.0 C 87.7,64.5 90.3,64.5 91.0,64.0 C 91.7,63.5 93.3,62.3 91.0,62.0 C 88.7,61.7 80.8,61.3 77.0,62.0 C 73.2,62.7 70.2,65.5 68.0,66.0 C 65.8,66.5 65.0,64.8 64.0,65.0 C 63.0,65.2 61.2,66.8 62.0,67.0 Z M 223.0,33.0 C 222.3,33.2 217.3,34.5 217.0,35.0 C 216.7,35.5 220.3,36.2 221.0,36.0 C 221.7,35.8 220.7,34.5 221.0,34.0 C 221.3,33.5 223.7,32.8 223.0,33.0 Z" fill="#f7dab7" fill-rule="evenodd"/>
+</svg>`;
+        }
+
         function showElem(elem) {
             if (!elem) return;
             elem.classList.remove('invisible', 'opacity-0', 'pointer-events-none');
@@ -690,18 +780,15 @@
             elem.classList.remove('opacity-100', 'pointer-events-auto');
         }
 
-        /* 操作プレイヤーに応じてUIテーマ（青/赤）を更新する関数 */
         function applyPlayerTheme(playerNum) {
             activePlayer = playerNum;
             const isP1 = playerNum === 1;
 
             if (!UI.actionPanel) initUI();
 
-            // 1. 右カラムの外枠とグロー効果
             UI.actionPanel.classList.remove('theme-p1-glow', 'theme-p2-glow', 'border-gray-800');
             UI.actionPanel.classList.add(isP1 ? 'theme-p1-glow' : 'theme-p2-glow');
 
-            // 2. ピッチャーマーク枠線色
             for (let i = 0; i < 4; i++) {
                 const mark = document.getElementById(`pitcher-mark-${i}`);
                 if (mark) {
@@ -710,14 +797,12 @@
                 }
             }
 
-            // 3. ピッチ決定ボタン（決定）のカラー
             if (isP1) {
                 UI.pitchBtn.className = "absolute inset-0 w-full h-full bg-blue-600 hover:bg-blue-500 text-white font-extrabold text-xl rounded-2xl shadow-[0_0_20px_rgba(37,99,235,0.4)] transition transform hover:scale-[1.02] active:scale-95 invisible opacity-0 pointer-events-none";
             } else {
                 UI.pitchBtn.className = "absolute inset-0 w-full h-full bg-red-600 hover:bg-red-500 text-white font-extrabold text-xl rounded-2xl shadow-[0_0_20px_rgba(239,68,68,0.4)] transition transform hover:scale-[1.02] active:scale-95 invisible opacity-0 pointer-events-none";
             }
 
-            // 4. ターンチェンジオーバーレイの色合い
             UI.turnOverlay.classList.remove('border-blue-500/80', 'border-red-500/80', 'shadow-[0_0_30px_rgba(59,130,246,0.3)]', 'shadow-[0_0_30px_rgba(239,68,68,0.3)]');
             UI.overlayBadge.classList.remove('bg-blue-500/20', 'text-blue-300', 'border-blue-500/40', 'bg-red-500/20', 'text-red-300', 'border-red-500/40');
             UI.overlayTitle.classList.remove('from-blue-300', 'via-cyan-400', 'to-blue-500', 'from-red-300', 'via-rose-400', 'to-red-500');
@@ -749,8 +834,12 @@
             currentInning = 1;
             isTop = true;
             score = { team1: 0, team2: 0 };
-            inningScores = { team1: Array(maxInnings).fill(''), team2: Array(maxInnings).fill('') };
-            
+            totalInnings = baseInnings;
+            extraInningUsed = false;
+            gameEnded = false;
+            inningScores = { team1: Array(baseInnings).fill(''), team2: Array(baseInnings).fill('') };
+            isSayonara = false;
+
             initInningState();
             setupScoreboard();
             updateScoreDisplay();
@@ -780,9 +869,9 @@
             let headerHTML = '';
             let cellsHTML = '';
             
-            for(let i = 1; i <= maxInnings; i++) {
-                headerHTML += `<div class="inline-block w-6 sm:w-7 text-center">${i}</div>`;
-                cellsHTML += `<div class="inline-block w-6 sm:w-7 text-center" id="score-${i}">-</div>`;
+            for(let i = 1; i <= totalInnings; i++) {
+                headerHTML += `<div class="inline-block w-8 sm:w-10 text-center">${i}</div>`;
+                cellsHTML += `<div class="inline-block w-8 sm:w-10 text-center" id="score-${i}">-</div>`;
             }
             
             header.innerHTML = `<div class="flex gap-1">${headerHTML}</div>`;
@@ -797,17 +886,36 @@
             const t1Cells = document.getElementById('team1-inning-cells').children;
             const t2Cells = document.getElementById('team2-inning-cells').children;
             
-            for(let i = 0; i < maxInnings; i++) {
+            for(let i = 0; i < totalInnings; i++) {
+                // 先攻のスコア表示
                 t1Cells[i].innerText = inningScores.team1[i] !== '' ? inningScores.team1[i] : '-';
-                t2Cells[i].innerText = inningScores.team2[i] !== '' ? inningScores.team2[i] : '-';
-                
-                if(i + 1 === currentInning && isTop) {
+
+                // 後攻のスコア表示（サヨナラの判定を含む）
+                let t2ScoreText = inningScores.team2[i] !== '' ? inningScores.team2[i] : '-';
+                // 最終回以降でサヨナラ勝ちが決まったイニングなら「x」を付ける
+                if (isSayonara && i === currentInning - 1) {
+                    if (t2ScoreText === '-') {
+                         t2ScoreText = 'x';
+                    } else {
+                         t2ScoreText += 'x';
+                    }
+                }
+
+                // xのフォントを変えるためにspanで囲む処理を追加（サヨナラのxが見やすいように）
+                if (typeof t2ScoreText === 'string' && t2ScoreText.includes('x')) {
+                    t2Cells[i].innerHTML = t2ScoreText.replace('x', '<span style="font-family: sans-serif; font-size: 0.8em; margin-left:1px;">x</span>');
+                } else {
+                    t2Cells[i].innerText = t2ScoreText;
+                }
+
+                // 試合終了後は「選択中」のハイライトを出さず、全イニングを同じ見た目にする
+                if(!gameEnded && i + 1 === currentInning && isTop) {
                     t1Cells[i].classList.add('text-white', 'bg-gray-700');
                 } else {
                     t1Cells[i].classList.remove('text-white', 'bg-gray-700');
                 }
-                
-                if(i + 1 === currentInning && !isTop) {
+
+                if(!gameEnded && i + 1 === currentInning && !isTop) {
                     t2Cells[i].classList.add('text-white', 'bg-gray-700');
                 } else {
                     t2Cells[i].classList.remove('text-white', 'bg-gray-700');
@@ -868,6 +976,7 @@
         function startPitchingPhase() {
             currentPhase = 'pitching';
             hitPosition = -1;
+            batPosition = -1;
             resetCards();
             clearTrajectory();
             hideElem(UI.nextPitchBtn);
@@ -891,6 +1000,7 @@
 
         function startBattingPhase() {
             currentPhase = 'batting';
+            batPosition = -1;
             hideElem(UI.pitchBtn);
             
             for(let i=0; i<4; i++) {
@@ -925,13 +1035,35 @@
                 const card = document.getElementById(`card-${index}`);
                 if (card.classList.contains('is-flipped')) return;
                 
-                revealCard(index);
+                batPosition = index;
+                for(let i=0; i<4; i++) {
+                    document.getElementById(`pitcher-mark-${i}`).classList.add('hidden');
+                }
+                document.getElementById(`pitcher-mark-${index}`).classList.remove('hidden');
+                
+                UI.pitchBtn.innerText = '決定';
+                showElem(UI.pitchBtn);
+            }
+        }
+
+        function handleConfirmBtn() {
+            if (currentPhase === 'pitching') {
+                confirmPitch();
+            } else if (currentPhase === 'batting') {
+                confirmBat();
             }
         }
 
         function confirmPitch() {
             if (hitPosition !== -1) {
                 startBattingPhase();
+            }
+        }
+
+        function confirmBat() {
+            if (batPosition !== -1) {
+                hideElem(UI.pitchBtn);
+                revealCard(batPosition);
             }
         }
 
@@ -944,13 +1076,13 @@
             
             if (index === hitPosition) {
                 const hitType = HIT_TYPES[index];
-                resultIcon.innerText = hitType.icon;
+                resultIcon.innerHTML = hitIconSVG();
                 resultText.innerText = hitType.name;
                 resultText.style.color = hitType.color;
                 backFace.style.borderColor = hitType.color;
                 backFace.style.backgroundColor = '#fffbeb';
             } else {
-                resultIcon.innerText = '❌';
+                resultIcon.innerHTML = outIconSVG();
                 resultText.innerText = 'アウト';
                 resultText.style.color = '#ef4444';
                 backFace.style.borderColor = '#f87171';
@@ -971,11 +1103,13 @@
         function handleOut() {
             outs++;
             updateBSO();
-            
+
             if (outs >= 3) {
+                revealHiddenHitPosition(); // チェンジのタイミングでヒットの隠し場所を明かす
+
                 UI.statusMessage.innerHTML = `<span class="text-red-400 text-xl font-black tracking-widest">3アウト！ チェンジ！</span>`;
                 UI.statusMessage.className = "text-base font-bold mb-2 text-center h-[64px] flex flex-col items-center justify-center bg-gray-800/90 px-3 py-1.5 rounded-2xl border-4 border-red-500 w-full shadow-lg shrink-0";
-                
+
                 setTimeout(() => {
                     changeInning();
                 }, 2000);
@@ -983,6 +1117,26 @@
                 UI.statusMessage.innerHTML = `<span class="text-white">アウト！</span><span class="text-red-400 text-lg font-bold mt-0.5">${outs}アウト</span>`;
                 currentPhase = 'batting';
             }
+        }
+
+        // チェンジ（3アウト）のタイミングで、ピッチャーが本当はどこにヒットを隠していたかを公開する
+        function revealHiddenHitPosition() {
+            if (hitPosition === -1) return;
+            const card = document.getElementById(`card-${hitPosition}`);
+            if (!card || card.classList.contains('is-flipped')) return; // すでにヒットしていた場合は公開済み
+
+            const hitType = HIT_TYPES[hitPosition];
+            const backFace = document.getElementById(`card-back-${hitPosition}`);
+            const resultIcon = document.getElementById(`card-result-icon-${hitPosition}`);
+            const resultText = document.getElementById(`card-result-text-${hitPosition}`);
+
+            resultIcon.innerHTML = hitIconSVG();
+            resultText.innerText = hitType.name;
+            resultText.style.color = hitType.color;
+            backFace.style.borderColor = hitType.color;
+            backFace.style.backgroundColor = '#fffbeb';
+
+            card.classList.add('is-flipped');
         }
 
         function handleHit(typeIndex) {
@@ -1023,10 +1177,17 @@
                     
                     addScore(runsScored);
                     triggerTVScoreBanner(prevScore1, prevScore2, runsScored);
+                } else {
+                    checkGameEndCondition(); // 点が入らなくてもサヨナラ条件を満たしているかチェック
                 }
             }, 1000);
 
-            showElem(UI.nextPitchBtn);
+            // サヨナラ勝ちでなければ「次の投球へ」ボタンを表示
+            setTimeout(() => {
+                if(!isSayonara) {
+                   showElem(UI.nextPitchBtn);
+                }
+            }, 1500);
         }
 
         function triggerTVScoreBanner(prev1, prev2, runs) {
@@ -1038,7 +1199,7 @@
 
             document.getElementById('tv-team1-name').innerText = player1Name;
             document.getElementById('tv-team2-name').innerText = player2Name;
-            runsElem.innerText = `+${runs} RUN${runs > 1 ? 'S' : ''}`;
+            runsElem.innerText = `+${runs}点`;
 
             score1Elem.innerText = prev1;
             score2Elem.innerText = prev2;
@@ -1090,6 +1251,10 @@
                                 glowElem.classList.add('opacity-0');
                                 banner.classList.remove('opacity-100', 'scale-100');
                                 banner.classList.add('opacity-0', 'scale-90');
+                                
+                                // テロップ終了後にサヨナラ判定を行う
+                                checkGameEndCondition();
+                                
                             }, 1400);
                         }
                     }
@@ -1099,51 +1264,38 @@
             }, 350);
         }
 
+        // パソコン版（横画面）の軌道を基準に、各制御点を400x400のビューボックスに対する
+        // 割合（0〜1、ホームランのみ上方向にはみ出すので負の値もあり）として定義したもの。
+        // これを実際のフィールド表示サイズに掛け合わせることで、縦画面でも横画面と
+        // 「同じだけ飛んでいるように見える」軌道になる。
+        const TRAJECTORY_FRACTIONS = [
+            { start: [0.5, 0.725], c1: [0.575, 0.275], e1: [0.6125, 0.375], c2: [0.625, 0.35], e2: [0.6375, 0.3575] }, // 1塁打
+            { start: [0.5, 0.725], c1: [0.375, 0.275], e1: [0.325, 0.4], c2: [0.2875, 0.3375], e2: [0.2625, 0.375] }, // 2塁打
+            { start: [0.5, 0.725], c1: [0.675, 0.2375], e1: [0.7375, 0.3875], c2: [0.8, 0.3], e2: [0.8375, 0.35] }, // 3塁打
+            { start: [0.5, 0.725], c1: [0.25, -0.225], e1: [0.15, 0.1125] } // ホームラン
+        ];
+
         function animateTrajectory(typeIndex) {
             const pathElem = document.getElementById('ball-path');
             const ballElem = document.getElementById('ball-head');
             const scoreboard = document.getElementById('scoreboard-box');
-            
-            const isPortrait = document.getElementById('app').classList.contains('is-portrait');
-            
-            let d = "";
+            const svgElem = document.getElementById('trajectory-svg');
+            const container = document.getElementById('field-container');
 
-            if (isPortrait) {
-                const startX = 200;
-                const startY = 320;
-                // スマホ縦画面専用軌道
-                switch(typeIndex) {
-                    case 0: // 1塁打 (ライト前クリーンヒット)
-                        d = `M ${startX} ${startY} Q 235 150 250 175 Q 255 170 260 173`;
-                        break;
-                    case 1: // 2塁打 (左中間深々オーバー)
-                        d = `M ${startX} ${startY} Q 140 80 100 120 Q 85 105 75 115`;
-                        break;
-                    case 2: // 3塁打 (右中間深々オーバー)
-                        d = `M ${startX} ${startY} Q 290 60 325 110 Q 340 90 350 100`;
-                        break;
-                    case 3: // ホームラン (グラウンドを完全に越えてスタンド奥へ飛ぶ本物の特大ホームラン！)
-                        d = `M ${startX} ${startY} Q 75 -150 25 -30`;
-                        break;
-                }
+            // 実際に表示されているフィールドの縦横サイズ（縦画面/横画面どちらでも実寸を取得）
+            const W = (container && container.clientWidth) || 400;
+            const H = (container && container.clientHeight) || 400;
+            svgElem.setAttribute('viewBox', `0 0 ${W} ${H}`);
+
+            const t = TRAJECTORY_FRACTIONS[typeIndex];
+            const px = (p) => (p[0] * W).toFixed(1);
+            const py = (p) => (p[1] * H).toFixed(1);
+
+            let d;
+            if (typeIndex === 3) {
+                d = `M ${px(t.start)} ${py(t.start)} Q ${px(t.c1)} ${py(t.c1)} ${px(t.e1)} ${py(t.e1)}`;
             } else {
-                // パソコン版：打球がホームベース(200, 290)から直接飛び出すように座標設定
-                const startX = 200;
-                const startY = 290;
-                switch(typeIndex) {
-                    case 0: // 1塁打
-                        d = `M ${startX} ${startY} Q 230 110 245 150 Q 250 140 255 143`;
-                        break;
-                    case 1: // 2塁打
-                        d = `M ${startX} ${startY} Q 150 110 130 160 Q 115 135 105 150`;
-                        break;
-                    case 2: // 3塁打
-                        d = `M ${startX} ${startY} Q 270 95 295 155 Q 320 120 335 140`;
-                        break;
-                    case 3: // ホームラン
-                        d = `M ${startX} ${startY} Q 100 -90 60 45`;
-                        break;
-                }
+                d = `M ${px(t.start)} ${py(t.start)} Q ${px(t.c1)} ${py(t.c1)} ${px(t.e1)} ${py(t.e1)} Q ${px(t.c2)} ${py(t.c2)} ${px(t.e2)} ${py(t.e2)}`;
             }
 
             pathElem.setAttribute('d', d);
@@ -1201,8 +1353,25 @@
             updateScoreDisplay();
         }
 
+        function checkGameEndCondition() {
+            // 後攻（裏）の攻撃中、かつ最終回以降で、後攻の点数が先攻を上回った瞬間にサヨナラ勝ち
+            if (!isTop && currentInning >= totalInnings && score.team2 > score.team1) {
+                isSayonara = true;
+                updateScoreDisplay(); // xを描画させるため再更新
+                
+                UI.statusMessage.innerHTML = `<span class="text-yellow-400 text-2xl font-black tracking-widest">サヨナラ勝ち！</span>`;
+                UI.statusMessage.className = "text-base font-bold mb-2 text-center h-[64px] flex flex-col items-center justify-center bg-gray-800/90 px-3 py-1.5 rounded-2xl border-4 border-yellow-500 w-full shadow-lg shrink-0";
+                
+                setTimeout(() => {
+                    endGame();
+                }, 2000);
+            }
+        }
+
         function nextPitch() {
-            startPitchingPhase();
+            if(!isSayonara) {
+                startPitchingPhase();
+            }
         }
 
         function resetCards() {
@@ -1228,24 +1397,37 @@
             if (inningScores[currentTeam][currentInning - 1] === '') {
                 inningScores[currentTeam][currentInning - 1] = 0;
             }
+            // 電光掲示板を必ずこの時点で確定表示させる（ゲーム終了パターンでも反映されるように）
+            updateScoreDisplay();
 
             if (isTop) {
                 isTop = false;
+                // 後攻の攻撃が始まる前に、すでに後攻が勝っていて最終回なら、その時点でサヨナラ扱い（xのみ表示）で終了
+                if (currentInning >= totalInnings && score.team2 > score.team1) {
+                     isSayonara = true;
+                     inningScores.team2[currentInning - 1] = ''; // 点数は入っていない
+                     updateScoreDisplay(); // xを描画
+                     endGame();
+                     return;
+                }
             } else {
                 isTop = true;
                 currentInning++;
             }
 
-            if (currentInning > maxInnings) {
-                endGame();
-                return;
+            // 規定イニングを終えても同点なら、延長戦を1回だけ追加する
+            if (currentInning > totalInnings && !extraInningUsed && score.team1 === score.team2) {
+                extraInningUsed = true;
+                totalInnings = currentInning;
+                inningScores.team1.push('');
+                inningScores.team2.push('');
+                setupScoreboard();
+                updateScoreDisplay();
             }
 
-            if (currentInning === maxInnings && !isTop) {
-                if (score.team2 > score.team1) {
-                    endGame();
-                    return;
-                }
+            if (currentInning > totalInnings) {
+                endGame();
+                return;
             }
 
             initInningState();
@@ -1254,27 +1436,132 @@
         }
 
         function endGame() {
+            gameEnded = true;
+            updateScoreDisplay(); // 電光掲示板の「選択中」ハイライトを消し、すべて同じ見た目にする
+
+            // 決着がついた瞬間に、画面中央へ最終スコアと勝敗を発表する（自動では消えない）
+            let winnerLine;
+            if (score.team1 > score.team2) {
+                winnerLine = `${player1Name} の勝利！`;
+            } else if (score.team2 > score.team1) {
+                winnerLine = isSayonara ? `${player2Name} のサヨナラ勝利！` : `${player2Name} の勝利！`;
+            } else {
+                winnerLine = '引き分け！';
+            }
+
+            showDecisionAnnounce(winnerLine);
+        }
+
+        // 決着発表オーバーレイを画面中央に表示する。自動では消えず、
+        // 「メインメニューに戻る」ボタンを押すまでそのまま表示され続ける。
+        function showDecisionAnnounce(text) {
+            const overlay = document.getElementById('decision-announce');
+            const textEl = document.getElementById('decision-announce-text');
+            if (!overlay || !textEl) return;
+
+            textEl.innerText = text;
+            document.getElementById('decision-name1').innerText = player1Name;
+            document.getElementById('decision-name2').innerText = player2Name;
+
+            const s1El = document.getElementById('decision-score1');
+            const s2El = document.getElementById('decision-score2');
+            s1El.innerText = score.team1;
+            s2El.innerText = score.team2;
+
+            // 勝ったほうのスコアだけ光らせる
+            [s1El, s2El].forEach(el => {
+                el.classList.remove('text-yellow-300', 'winner-glow');
+                el.classList.add('text-white');
+            });
+            if (score.team1 > score.team2) {
+                s1El.classList.remove('text-white');
+                s1El.classList.add('text-yellow-300', 'winner-glow');
+            } else if (score.team2 > score.team1) {
+                s2El.classList.remove('text-white');
+                s2El.classList.add('text-yellow-300', 'winner-glow');
+            }
+
+            overlay.classList.remove('opacity-0', 'scale-90');
+            overlay.classList.add('opacity-100', 'scale-100');
+        }
+
+        // オーバーレイの「メインメニューに戻る」ボタンから直接タイトルへ戻る
+        function decisionGoToTitle() {
+            const overlay = document.getElementById('decision-announce');
+            overlay.classList.remove('opacity-100', 'scale-100');
+            overlay.classList.add('opacity-0', 'scale-90');
+            setTimeout(() => {
+                returnToTitle();
+            }, 300);
+        }
+
+        function showFinalResultScreen() {
             UI.gameScreen.classList.add('hidden');
             UI.gameoverScreen.classList.remove('hidden');
             UI.gameoverScreen.classList.add('flex');
 
-            document.getElementById('final-score-team1').innerText = score.team1;
-            document.getElementById('final-score-team2').innerText = score.team2;
-
+            const nameEl1 = document.getElementById('final-name-team1');
+            const nameEl2 = document.getElementById('final-name-team2');
+            const s1 = document.getElementById('final-score-team1');
+            const s2 = document.getElementById('final-score-team2');
+            const side1 = document.getElementById('finalside-team1');
+            const side2 = document.getElementById('finalside-team2');
+            const flag1 = document.getElementById('win-flag-team1');
+            const flag2 = document.getElementById('win-flag-team2');
             const resultText = document.getElementById('final-result-text');
+            const crown = document.getElementById('winner-crown');
+            const title = document.getElementById('gameover-title');
+
+            nameEl1.innerText = player1Name;
+            nameEl2.innerText = player2Name;
+            s1.innerText = score.team1;
+            s2.innerText = score.team2;
+
+            // 表示状態をリセット
+            [side1, side2].forEach(el => el.classList.remove('scale-110', 'opacity-60'));
+            [s1, s2].forEach(el => el.classList.remove('text-yellow-300', 'winner-glow'));
+            s1.classList.add('text-white');
+            s2.classList.add('text-white');
+            flag1.classList.add('hidden');
+            flag2.classList.add('hidden');
+            crown.classList.remove('hidden');
+
             if (score.team1 > score.team2) {
                 resultText.innerText = `${player1Name} の勝利！`;
-                resultText.className = "text-3xl font-bold text-blue-400 mb-6 drop-shadow-md";
+                side1.classList.add('scale-110');
+                side2.classList.add('opacity-60');
+                s1.classList.remove('text-white');
+                s1.classList.add('text-yellow-300', 'winner-glow');
+                flag1.classList.remove('hidden');
             } else if (score.team2 > score.team1) {
-                resultText.innerText = `${player2Name} の勝利！`;
-                resultText.className = "text-3xl font-bold text-red-400 mb-6 drop-shadow-md";
+                resultText.innerText = isSayonara ? `${player2Name} のサヨナラ勝利！` : `${player2Name} の勝利！`;
+                side2.classList.add('scale-110');
+                side1.classList.add('opacity-60');
+                s2.classList.remove('text-white');
+                s2.classList.add('text-yellow-300', 'winner-glow');
+                flag2.classList.remove('hidden');
             } else {
                 resultText.innerText = '引き分け！';
-                resultText.className = "text-3xl font-bold text-yellow-400 mb-6 drop-shadow-md";
+                crown.classList.add('hidden');
             }
+
+            // 登場アニメーション（再表示のたびに再生させる）
+            [title, s1, s2].forEach(el => el.classList.remove('animate-gameset-in', 'animate-score-pop'));
+            resultText.parentElement.classList.remove('animate-score-pop');
+            void title.offsetWidth;
+
+            title.classList.add('animate-gameset-in');
+            setTimeout(() => {
+                s1.classList.add('animate-score-pop');
+                s2.classList.add('animate-score-pop');
+            }, 300);
+            setTimeout(() => {
+                resultText.parentElement.classList.add('animate-score-pop');
+            }, 650);
         }
 
         function returnToTitle() {
+            UI.gameScreen.classList.add('hidden');
             UI.gameoverScreen.classList.add('hidden');
             UI.gameoverScreen.classList.remove('flex');
             UI.titleScreen.classList.remove('hidden');
@@ -1315,19 +1602,13 @@
             }, 300);
         }
 
-        /* 
-         * 【高精度 リアルタイム自動フィット (Auto Fit)】
-         * visualViewport（スマホツールバー除外領域）および縦横画面（Portrait / Landscape）に対応
-         */
         function fitToWindow() {
             const app = document.getElementById('app');
             if (!app) return;
 
-            // visualViewportがあれば高精度な可視サイズを取得（スマホ下部切れバグを完璧に回避）
             const vw = window.visualViewport ? window.visualViewport.width : window.innerWidth;
             const vh = window.visualViewport ? window.visualViewport.height : window.innerHeight;
 
-            // アスペクト比判定 (vw/vh < 1.05 の場合: スマホ縦持ち等の縦画面モード)
             const isPortrait = (vw / vh) < 1.05;
 
             let baseWidth, baseHeight;
@@ -1344,12 +1625,10 @@
                 baseHeight = 600;
             }
 
-            // 画面限界まで最大表示するための極小パディング
             const padding = 4;
             const availableW = Math.max(100, vw - padding * 2);
             const availableH = Math.max(100, vh - padding * 2);
 
-            // ピッタリ納まる最大スケールを算出
             const scaleW = availableW / baseWidth;
             const scaleH = availableH / baseHeight;
             const scale = Math.min(scaleW, scaleH);
@@ -1357,7 +1636,6 @@
             app.style.transform = `translate(-50%, -50%) scale(${scale})`;
         }
 
-        // 各種リサイズ・回転イベントへのミリ秒単位のぬるぬるリアルタイム追従
         window.addEventListener('resize', fitToWindow);
         window.addEventListener('orientationchange', () => {
             setTimeout(fitToWindow, 100);
