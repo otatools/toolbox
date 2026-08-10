@@ -331,9 +331,12 @@ body::before{
   background:repeating-linear-gradient(97deg, rgba(255,255,255,.5) 0 1px, rgba(255,255,255,0) 1px 12px); opacity:.55; }
 .rink::before{ content:''; position:absolute; left:0; right:0; top:0; height:38px; pointer-events:none; z-index:30;
   background:linear-gradient(180deg, rgba(160,200,228,.55), rgba(160,200,228,0)); }
-.rink-core{ position:absolute; left:50%; top:52%; width:clamp(96px,12vw,150px); height:auto; aspect-ratio:1/.30;
-  transform:translate(-50%,-50%); border-radius:50%; opacity:.5;
-  background:radial-gradient(ellipse closest-side at 50% 50%, #ffffff 0 16%, #e2483c 17% 40%, #ffffff 41% 64%, #3d92dd 65% 88%, rgba(61,146,221,0) 89%); }
+.rink-core{ position:absolute; left:50%; top:52%; width:clamp(96px,12vw,150px); height:auto; aspect-ratio:1/1;
+  transform:translate(-50%,-50%) scaleY(.30); transform-origin:50% 50%;
+  border-radius:50%; opacity:.45;
+  /* いったん「真円」で描いてから縦につぶす。端末によって楕円グラデが変な形に
+     なることがあるので、円で描くのがいちばん確実 */
+  background:radial-gradient(circle closest-side at 50% 50%, #ffffff 0 16%, #e2483c 17% 40%, #ffffff 41% 64%, #3d92dd 65% 88%, rgba(61,146,221,0) 89%); }
 .rider{ position:absolute; left:0; top:0; will-change:transform; }
 /* 斜めから見たカーリングストーン（実物にならって：御影石の胴＋上面の色板） */
 /* ===== ストーン（SVGで斜め上から） ===== */
@@ -1908,15 +1911,16 @@ function doMove(from,to){
 
   el.style.zIndex='30';
   el.classList.add('moving');
-  // 「いまの位置」をブラウザに確定させてから動かす。これをしないと端末によっては
-  // トランジションが走らず、瞬間移動して見える
+  // メインメニューの石と同じ「JSアニメ」で滑らせる。
+  // CSSトランジションだと端末の設定（視差効果を減らす）で潰されて瞬間移動に見えるため
   el.style.transition='none';
-  el.style.transform='translate(0px,0px)';
-  void el.offsetWidth;
-  el.style.transition='transform '+dur+'ms cubic-bezier(.16,.72,.24,1)';
-  el.style.transform='translate('+dx+'px,'+dy+'px)';
+  el.style.transform='';
+  const slideAnim = el.animate(
+    [{transform:'translate(0px,0px)'},{transform:'translate('+dx+'px,'+dy+'px)'}],
+    {duration:dur, easing:'cubic-bezier(.16,.72,.24,1)', fill:'forwards'});
 
   setTimeout(()=>{
+    try{ slideAnim.cancel(); }catch(e){}
     el.dataset.x=to.x; el.dataset.y=to.y;
     el.style.transition='none'; el.style.transform='';
     el.style.left=c2.offsetLeft+'px'; el.style.top=c2.offsetTop+'px';
