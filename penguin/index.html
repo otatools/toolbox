@@ -363,7 +363,7 @@ body::before{
   --gbox: clamp(120px, 30vh, 300px); }
 .scr-top{ display:flex; align-items:center; justify-content:space-between; gap:12px;
   width:100%; padding:12px clamp(12px,2.4vw,30px) 0; flex:none; }
-.g-turn{ font-family:'Orbitron',sans-serif; font-size:12px; font-weight:800; letter-spacing:.14em;
+.g-turn{ font-size:12.5px; font-weight:900; letter-spacing:.06em;
   color:var(--ink-3); padding:7px 15px; border-radius:99px;
   background:linear-gradient(150deg,rgba(255,255,255,.95),rgba(255,255,255,.6));
   border:1px solid rgba(255,255,255,.95); box-shadow:0 5px 12px rgba(20,70,110,.12); }
@@ -391,6 +391,7 @@ body::before{
   #screen-game{ --gbox: clamp(80px,16vh,150px); }
   .g-stage{ flex-direction:column; gap:8px; }
   #screen-game .board-wrap{ width:min(94vw, 58vh); }
+  #screen-game.has-undo .board-wrap{ width:min(94vw, 53vh); }
   .g-side{ flex:none; flex-direction:row; gap:10px; align-items:center; width:100%; justify-content:center; }
   .g-imgbox{ height:clamp(56px,10vh,92px); }
   .g-name{ margin-top:0; }
@@ -513,6 +514,30 @@ body::before{
   background:linear-gradient(90deg, rgba(255,255,255,0), rgba(120,200,255,.95), rgba(255,255,255,0));
   box-shadow:0 0 18px rgba(120,200,255,.85); }
 
+/* ---------- 待った（盤の下の魚） ---------- */
+.undo-fish{
+  position:relative; display:block; margin:8px auto 0; padding:0; border:0; background:none;
+  width:clamp(70px, 16vh, 126px); max-width:126px; line-height:0; cursor:pointer; overflow:hidden;
+  -webkit-tap-highlight-color:transparent;
+  filter:drop-shadow(0 5px 9px rgba(20,70,110,.28));
+  transition:transform .16s cubic-bezier(.2,1.4,.4,1), filter .2s, opacity .2s;
+}
+.undo-fish img{ width:100%; height:auto; display:block; }
+/* 使ったあともペンギンの位置が動かないよう、場所だけ残して見えなくする */
+.undo-fish.gone{ visibility:hidden; pointer-events:none; }
+.undo-fish.off{ display:none; }
+.g-side.p1 .undo-fish img{ transform:scaleX(-1); }   /* 向かい合わせにする */
+.undo-fish span{
+  position:absolute; left:50%; top:50%; transform:translate(-50%,-50%);
+  font-size:clamp(8px, 1.6vh, 12px); font-weight:900; color:#0b3f87; letter-spacing:0;
+  white-space:nowrap; pointer-events:none; line-height:1;
+  text-shadow:0 1px 0 rgba(255,255,255,.95), 0 0 7px rgba(255,255,255,.95), 0 0 12px rgba(255,255,255,.9);
+}
+.undo-fish:hover{ transform:scale(1.07); }
+.undo-fish:active{ transform:scale(.92); }
+.undo-fish[disabled]{ opacity:.3; filter:grayscale(.65); cursor:default; }
+.undo-fish[disabled]:hover{ transform:none; }
+
 /* ---------- ARROWS ---------- */
 .arrow{
   position:absolute; width:40px; height:40px; margin:-20px 0 0 -20px; border-radius:50%;
@@ -524,6 +549,19 @@ body::before{
   animation:arrowPop .22s cubic-bezier(.2,1.6,.4,1) backwards;
 }
 .arrow.show{ display:grid; }
+/* そっちには行けない、を ×印で見せる */
+.arrow .ico-x{ display:none; }
+.arrow.no .ico-x{ display:block; }
+.arrow.no .ico-dir{ display:none; }
+.arrow.no{
+  background:linear-gradient(150deg,#f4f7fa,#d3dde6);
+  color:#8496a6; border-color:rgba(255,255,255,.92);
+  box-shadow:0 4px 9px rgba(50,85,115,.2), inset 0 2px 3px rgba(255,255,255,.75);
+  cursor:default; opacity:.9;
+}
+.arrow.no:hover{ transform:none;
+  box-shadow:0 4px 9px rgba(50,85,115,.2), inset 0 2px 3px rgba(255,255,255,.75); }
+.arrow.no:active{ transform:scale(.94); }
 .arrow:hover{ transform:scale(1.18); box-shadow:0 9px 20px rgba(180,120,0,.5), inset 0 2px 3px rgba(255,255,255,.7); }
 .arrow:active{ transform:scale(.9); }
 @keyframes arrowPop{ from{ opacity:0; transform:scale(.4) } to{ opacity:1; transform:scale(1) } }
@@ -602,7 +640,7 @@ body::before{
 .stat-row{ display:flex; gap:9px; justify-content:center; margin:16px 0 18px; }
 .stat{ flex:1; border-radius:14px; padding:10px 6px; background:rgba(255,255,255,.75); border:1px solid rgba(255,255,255,.95); box-shadow:0 4px 10px rgba(20,70,110,.08); }
 .stat b{ display:block; font-size:17px; font-weight:900; color:#0f5ec4; line-height:1.4; }
-.stat b.num{ font-family:'Orbitron',sans-serif; font-size:19px; }
+.stat b.num{ font-size:26px; letter-spacing:.01em; }
 .stat small{ font-size:10px; color:var(--ink-3); font-weight:800; letter-spacing:.02em; }
 
 #fx-canvas{ position:fixed; inset:0; pointer-events:none; z-index:80; }
@@ -805,20 +843,23 @@ body::before{
   .modal{ padding:14px 12px calc(14px + env(safe-area-inset-bottom)); }
   .sheet{ max-height:80dvh; border-radius:22px; padding:18px; }
 
-  /* --- タイトル --- */
-  .hero{ width:94vw; padding:calc(10px + env(safe-area-inset-top)) 0 8px; gap:12px; }
-  .big-logo{ font-size:clamp(34px,11.5vw,56px); }
-  .big-sub{ font-size:clamp(12px,4vw,17px); letter-spacing:.16em; margin-top:6px; }
-  .hero-lead{ font-size:11.5px; margin:6px 0 12px; }
+  /* --- タイトル：1画面に収める（スクロールさせない） --- */
+  #screen-title{ overflow:hidden; }
+  .hero{ width:94vw; padding:calc(8px + env(safe-area-inset-top)) 0 6px; gap:9px; flex:none; }
+  .big-logo{ font-size:clamp(30px,10.5vw,54px); }
+  .big-sub{ font-size:clamp(11.5px,3.7vw,17px); letter-spacing:.14em; margin-top:5px; }
+  .hero-lead{ font-size:11px; margin:5px 0 9px; line-height:1.65; }
   .play-row{ gap:8px; }
-  .menu-btn.play{ font-size:13.5px; padding:14px 8px; }
-  .menu-btn.slim{ padding:10px; }
-  .quick{ padding:4px 13px; }
-  .qrow{ grid-template-columns:1fr 136px; gap:9px; padding:9px 0; }
-  .qrow b{ font-size:11.5px; }
-  .qrow b small{ font-size:9.5px; }
-  .seg button{ font-size:9.5px; padding:8px 2px; }
-  .rink{ height:clamp(120px,18dvh,180px); }
+  .menu-btn.play{ font-size:13px; padding:12px 8px; }
+  .play-row .menu-btn{ margin-bottom:8px; }
+  .menu-btn.slim{ padding:9px; }
+  .quick{ padding:2px 12px; }
+  .qrow{ grid-template-columns:1fr 132px; gap:8px; padding:7px 0; }
+  .qrow b{ font-size:11px; line-height:1.35; }
+  .qrow b small{ font-size:9px; margin-top:2px; }
+  .seg button{ font-size:9.5px; padding:7px 2px; }
+  /* リンクは残りの高さを使う。足りなければ縮む */
+  .rink{ flex:1 1 auto; height:auto; min-height:78px; max-height:180px; }
 
   /* --- ペンギン選択 --- */
   .sel-wrap{ width:96vw; padding-bottom:calc(8px + env(safe-area-inset-bottom)); }
@@ -879,7 +920,10 @@ body::before{
   .g-side.p2{ grid-column:2; grid-row:1; }
   #screen-game .board-wrap{ grid-column:1 / -1; grid-row:2; align-self:start;
     width:min(92vw, 52dvh); }
+  #screen-game.has-undo .board-wrap{ width:min(92vw, 46dvh); }
   .g-imgbox{ height:var(--gbox); }
+  .undo-fish{ width:clamp(42px, 6.6dvh, 70px); max-width:70px; margin-top:5px; }
+  .undo-fish span{ font-size:clamp(7px, 1dvh, 9.5px); }
   .g-name{ margin-top:4px; font-size:11.5px; line-height:1.35; }
   .g-state{ margin-top:2px; font-size:11px; min-height:1.3em; }
   .g-menu{ font-size:11px; padding:8px 12px; }
@@ -913,6 +957,8 @@ body::before{
   .g-side{ flex:1 1 0; width:auto; }
   .g-side.p1{ order:1; } .g-side.p2{ order:3; }
   #screen-game .board-wrap{ order:2; width:min(52vw, 84dvh); }
+  .undo-fish{ width:clamp(36px, 11dvh, 62px); max-width:62px; margin-top:4px; }
+  .undo-fish span{ font-size:clamp(7px, 1.9dvh, 9.5px); }
   .sel-stage.go{ grid-template-columns:minmax(0,1fr) min(52vw,84dvh) minmax(0,1fr);
     grid-template-rows:auto; align-items:center; min-height:0; gap:8px; padding-top:0; }
   .g-side{ animation:none; }
@@ -990,6 +1036,12 @@ body::before{
             <b>真ん中のマスに止まれる石<small id="note-core"></small></b>
             <div class="seg" id="seg-core">
               <button data-core="block" class="on">ペンギンだけ</button><button data-core="normal">どの石でも</button>
+            </div>
+          </div>
+          <div class="qrow">
+            <b>待った（1手もどす）<small id="note-undo"></small></b>
+            <div class="seg" id="seg-undo">
+              <button data-undo="0" class="on">なし</button><button data-undo="1">あり</button>
             </div>
           </div>
           <div class="qrow">
@@ -1126,6 +1178,7 @@ body::before{
         <div class="g-imgbox"><img id="gside1-img" alt=""></div>
         <div class="g-name" id="p1-label">1P</div>
         <div class="g-state" id="p1-status">手番中</div>
+        <button class="undo-fish" id="btn-undo-1" aria-label="1つもどす"><img class="uf-img" alt=""><span>1つもどす</span></button>
       </div>
 
       <div class="board-wrap" id="board-wrap">
@@ -1136,10 +1189,10 @@ body::before{
         <div class="layer" id="layer-pieces"></div>
         <div class="layer" id="layer-fx"></div>
         <div class="layer" id="layer-arrows">
-          <button class="arrow" data-dir="up"    aria-label="上へ"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V6M5.5 12.5 12 6l6.5 6.5"/></svg></button>
-          <button class="arrow" data-dir="down"  aria-label="下へ"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v13M5.5 11.5 12 18l6.5-6.5"/></svg></button>
-          <button class="arrow" data-dir="left"  aria-label="左へ"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H6M12.5 5.5 6 12l6.5 6.5"/></svg></button>
-          <button class="arrow" data-dir="right" aria-label="右へ"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h13M11.5 5.5 18 12l-6.5 6.5"/></svg></button>
+          <button class="arrow" data-dir="up"    aria-label="上へ"><svg class="ico-dir" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V6M5.5 12.5 12 6l6.5 6.5"/></svg><svg class="ico-x" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.6" stroke-linecap="round"><path d="M6.5 6.5 17.5 17.5M17.5 6.5 6.5 17.5"/></svg></button>
+          <button class="arrow" data-dir="down"  aria-label="下へ"><svg class="ico-dir" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v13M5.5 11.5 12 18l6.5-6.5"/></svg><svg class="ico-x" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.6" stroke-linecap="round"><path d="M6.5 6.5 17.5 17.5M17.5 6.5 6.5 17.5"/></svg></button>
+          <button class="arrow" data-dir="left"  aria-label="左へ"><svg class="ico-dir" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H6M12.5 5.5 6 12l6.5 6.5"/></svg><svg class="ico-x" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.6" stroke-linecap="round"><path d="M6.5 6.5 17.5 17.5M17.5 6.5 6.5 17.5"/></svg></button>
+          <button class="arrow" data-dir="right" aria-label="右へ"><svg class="ico-dir" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h13M11.5 5.5 18 12l-6.5 6.5"/></svg><svg class="ico-x" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.6" stroke-linecap="round"><path d="M6.5 6.5 17.5 17.5M17.5 6.5 6.5 17.5"/></svg></button>
         </div>
       </div>
 
@@ -1147,6 +1200,7 @@ body::before{
         <div class="g-imgbox"><img id="gside2-img" alt=""></div>
         <div class="g-name" id="p2-label">2P</div>
         <div class="g-state" id="p2-status">待機中</div>
+        <button class="undo-fish" id="btn-undo-2" aria-label="1つもどす"><img class="uf-img" alt=""><span>1つもどす</span></button>
       </div>
     </div>
   </section>
@@ -1161,6 +1215,18 @@ body::before{
     <div style="display:flex;gap:10px">
       <button class="btn" id="quit-no" style="flex:1;padding:15px">いいえ</button>
       <button class="btn primary" id="quit-yes" style="flex:1;padding:15px">はい</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal" id="modal-undo">
+  <div class="sheet" style="max-width:340px;text-align:center">
+    <div style="font-size:15.5px;font-weight:900;color:var(--ink);line-height:1.8;margin:6px 0 20px">
+      1手もどしますか？<br><small style="display:block;font-size:11.5px;font-weight:700;color:var(--ink-3);margin-top:6px">魚は1匹しかありません</small>
+    </div>
+    <div style="display:flex;gap:10px">
+      <button class="btn" id="undo-no" style="flex:1;padding:15px">いいえ</button>
+      <button class="btn primary" id="undo-yes" style="flex:1;padding:15px">はい</button>
     </div>
   </div>
 </div>
@@ -1330,6 +1396,15 @@ function loadWins(){
 function saveWins(){
   try{ localStorage.setItem('penguinCurling.wins', JSON.stringify(winRec)); }catch(e){}
 }
+/* ゲームの設定は、次に開いたときも同じになるよう覚えておく */
+let gameOpts = {};
+function loadOpts(){
+  try{ gameOpts = JSON.parse(localStorage.getItem('penguinCurling.opts') || '{}') || {}; }
+  catch(e){ gameOpts = {}; }
+}
+function saveOpts(){
+  try{ localStorage.setItem('penguinCurling.opts', JSON.stringify(gameOpts)); }catch(e){}
+}
 const winsOf = k => winRec[k] || 0;
 /* 一度倒した相手は少しだけ手強くなる（銀=1段階／金=2段階） */
 const winBoost = () => Math.min(2, winsOf(cpuPenguin));
@@ -1355,6 +1430,9 @@ const DIFF_TIE   = { normal:8, mid:5, hard:3 };
 const DIFF_SLIP  = { normal:0.24, mid:0.10, hard:0.05 };  // たまに読みを省略してしまう率
 let soundEnabled = true;
 let ghostEnabled = true;
+let undoEnabled  = false;   // 待った（初期はなし）
+let undoLeft = {1:1, 2:1};  // 待ったは 1人 1回だけ
+let undoAsk  = 0;           // 確認ダイアログで待っているプレイヤー
 
 /* --- 追加ルール設定 --- */
 let banLimit   = 0;                 // 同じ石を連続で動かせる回数（0=無制限 / 2=2連続まで / 1=連続禁止）
@@ -1371,7 +1449,9 @@ let crownFace = {1:1, 2:-1};
 let sideFace  = {1:null, 2:null};      // ゲーム画面の左右ペンギンの表情
 let faceTimer = {1:null, 2:null};
 let prevThreat= {1:false, 2:false};    // 直前に「次の一手で勝てる」状態だったか
-let prevDoomed= {1:false, 2:false};    // 直前に「詰んでいる」状態だったか
+/* びっくりの理由を持っておく（顔は理由が消えるまで出しっぱなし） */
+let doomFlag  = {1:false, 2:false};    // 詰んでいる（負けが決まっている）
+let blockFlag = {1:false, 2:false};    // 一手勝ちを阻止された
 
 /* ===== 詰み判定 =====
    p の手番で、どう指しても負けが決まっているかを先まで読んで調べる。
@@ -1402,6 +1482,12 @@ function mateVal(st,p,depth,banP,banO){
   }
   return best;                                       // -1 なら全部の手が負け
 }
+/* p の手番。びっくりする状況かどうか。
+   2人プレイは先まで読むとヒントになってしまうので「相手が次に決められる」だけを見る。
+   1人プレイは、どう指しても負けが決まっている（詰み）まで読む。 */
+function scaryNow(p){
+  return (gameMode==='vs-p2') ? canWinNow(boardState, other(p)) : isDoomed(p);
+}
 /* p の手番。何をしても負ける（詰んでいる）か */
 function isDoomed(p){
   mateNodes=0;
@@ -1409,6 +1495,14 @@ function isDoomed(p){
   return mateVal(st,p,MATE_DEPTH,lastMoved[p],lastMoved[other(p)])===-1;
 }
 
+/* びっくりの理由があるあいだ、ずっとその顔にしておく */
+function applyFaces(){
+  if(gameOver) return;
+  [1,2].forEach(p=>{
+    const want = (doomFlag[p] || blockFlag[p]) ? 'surp' : null;
+    if(sideFace[p] !== want) setSideFace(p, want);   // 時間を指定しない＝出しっぱなし
+  });
+}
 function setSideFace(p, kind, ms){
   sideFace[p]=kind;
   const img=document.getElementById(p===1?'gside1-img':'gside2-img');
@@ -1621,7 +1715,9 @@ function newGame(){
   currentTurn=startingPlayer; selected=null; history=[]; gameOver=false; isAnimating=false; moveCount=0;
   lastMoved={1:null,2:null};
   crownFace={1:1,2:-1};
-  sideFace={1:null,2:null}; prevThreat={1:false,2:false}; prevDoomed={1:false,2:false};
+  sideFace={1:null,2:null}; prevThreat={1:false,2:false};
+  doomFlag={1:false,2:false}; blockFlag={1:false,2:false};
+  undoLeft={1:1,2:1};
   clearTimeout(faceTimer[1]); clearTimeout(faceTimer[2]);
   rollCpuStyle();
   buildCells();
@@ -1789,20 +1885,26 @@ function highlightPath(dir){
 
 function showArrows(){
   const arrows=arrowLay.querySelectorAll('.arrow');
-  arrows.forEach(a=>a.classList.remove('show'));
+  arrows.forEach(a=>a.classList.remove('show','no'));
   if(!selected) return;
   const mv=legalMoves(selected.x,selected.y);
   const {cx,cy,sw,sh}=cellCenter(selected.x,selected.y);
   const distX=sw*0.82, distY=sh*0.82;
   arrows.forEach((a,i)=>{
     const d=a.dataset.dir;
-    if(!mv[d]) return;
+    const ok=!!mv[d];
     a.classList.add('show');
+    a.classList.toggle('no', !ok);          // 行けない向きは × で見せる
     a.style.animationDelay=(i*0.03)+'s';
     a.style.left=(cx+DIRS[d][0]*distX)+'px';
     a.style.top =(cy+DIRS[d][1]*distY)+'px';
-    a.onclick=e=>{ e.stopPropagation(); doMove(selected,mv[d]); };
-    a.onmouseenter=()=>highlightPath(d);
+    if(ok){
+      a.onclick=e=>{ e.stopPropagation(); doMove(selected,mv[d]); };
+      a.onmouseenter=()=>highlightPath(d);
+    }else{
+      a.onclick=e=>{ e.stopPropagation(); toast('そっちへは すべれません'); };
+      a.onmouseenter=null;
+    }
     a.onmouseleave=()=>{ pathLay.innerHTML=''; ghostLay.querySelectorAll('.ghost').forEach(g=>g.classList.remove('hot')); };
   });
 }
@@ -1978,16 +2080,16 @@ function doMove(from,to){
     currentTurn = other(mover);
     updateUI();
 
-    // びっくりするのは、これから指す側だけ。
-    //  ① 自分の一手勝ちを潰されたとき
-    //  ② どう指しても負けが決まってしまったとき（詰み）
+    // びっくりの理由を作りなおす（見るのは、これから指す側）
+    //  ① 一手勝ちを阻止された → その人が次に指すまで びっくり
+    //  ② どう指しても負けが決まった（詰み） → 詰みが解けるか、負けるまで びっくり
     const nextP = currentTurn;
+    blockFlag[mover] = false;                       // 指したので「阻止された」は解除
     const hadWin = prevThreat[nextP];
     const hasWin = canWinNow(boardState, nextP);
-    const doomed = isDoomed(nextP);
-    // 詰みは「詰んだ瞬間」だけ驚く（毎手おどろき続けないように）
-    if((hadWin && !hasWin) || (doomed && !prevDoomed[nextP])) setSideFace(nextP,'surp',1800);
-    prevDoomed[nextP] = doomed;
+    if(hadWin && !hasWin) blockFlag[nextP] = true;
+    doomFlag[nextP] = scaryNow(nextP);              // 危なくなくなれば もとの顔へ
+    applyFaces();
     prevThreat = {1:canWinNow(boardState,1), 2:canWinNow(boardState,2)};
 
     // 動かせる石が1つもなければ負け
@@ -2104,27 +2206,100 @@ function wallFlash(at,dirX,dirY){
 }
 
 /* =========================================================
-   UNDO
+   UNDO（待った）
    ========================================================= */
-function undo(){
-  if(!history.length||isAnimating||gameOver) return;
-  let snap;
-  if(gameMode==='vs-cpu'){
-    snap=history.pop();
-    if(snap.turn===2 && history.length) snap=history.pop();
-    // プレイヤー手番の局面まで戻す
-    while(snap.turn!==1 && history.length) snap=history.pop();
-  }else{
-    snap=history.pop();
+/* その人が「待った」を持っているか（CPU は使わない） */
+function undoOwner(p){
+  if(!undoEnabled) return false;
+  return (p===1) || (gameMode==='vs-p2');
+}
+/* その人が いま 待ったを使えるか */
+function canUndo(p){
+  return undoOwner(p) && undoLeft[p]>0 && currentTurn===p
+      && !gameOver && !isAnimating && history.some(s=>s.turn===p);
+}
+function syncUndoBtn(){
+  const sc=document.getElementById('screen-game');
+  if(sc) sc.classList.toggle('has-undo', !!undoEnabled);
+  [1,2].forEach(p=>{
+    const b=document.getElementById('btn-undo-'+p);
+    if(!b) return;
+    b.classList.toggle('off',  !undoOwner(p));          // そもそも持っていない
+    b.classList.toggle('gone', undoLeft[p]<=0);         // 使いきった（場所は残す）
+    const im=b.querySelector('.uf-img');
+    if(im && !im.getAttribute('src')) im.src = FISH_FLAT;
+    b.disabled = !canUndo(p);
+  });
+}
+/* 2つの盤を見くらべて「どの石が どこから どこへ もどるか」を求める */
+function diffMove(a,b){
+  let from=null, to=null;
+  for(let y=0;y<N;y++) for(let x=0;x<N;x++){
+    if(a[y][x]===b[y][x]) continue;
+    if(a[y][x] && !b[y][x]) from={x,y,v:a[y][x]};      // いま石があって、もどると無くなる
+    if(!a[y][x] && b[y][x]) to  ={x,y,v:b[y][x]};      // もどると石が現れる
   }
+  return (from && to && from.v===to.v) ? {from,to} : null;
+}
+function undo(p){
+  if(!canUndo(p)) return;
+  // 自分がいちばん最近に指す前の局面まで もどす（とちゅうの盤も覚えておく）
+  const frames=[boardState.map(r=>r.slice())];
+  let snap=null;
+  while(history.length){
+    const s=history.pop();
+    frames.push(s.board.map(r=>r.slice()));
+    if(s.turn===p){ snap=s; break; }
+  }
+  if(!snap) return;
+  undoLeft[p]--;
+  const b=document.getElementById('btn-undo-'+p);
+  if(b && b.animate) b.animate(
+    [{opacity:1, transform:'translateX(0) scale(1)'},
+     {opacity:0, transform:'translateX('+(p===1?-26:26)+'px) scale(.65)'}],
+    {duration:420, easing:'cubic-bezier(.4,0,.7,.4)'});
   boardState=snap.board.map(r=>r.slice());
   currentTurn=snap.turn;
   moveCount=snap.moves;
   lastMoved={ 1:snap.last&&snap.last[1]?{...snap.last[1]}:null, 2:snap.last&&snap.last[2]?{...snap.last[2]}:null };
   buildPieces();
   clearSelection();
+  // 顔も、もどした局面で判定しなおす
+  blockFlag={1:false,2:false}; doomFlag={1:false,2:false};
+  doomFlag[currentTurn]=scaryNow(currentTurn);
+  prevThreat={1:canWinNow(boardState,1), 2:canWinNow(boardState,2)};
+  applyFaces();
   updateUI();
   toast('一手もどしました');
+
+  // どこがもどったかが分かるよう、シュッ・シュッと石をすべらせて見せる
+  const steps=[];
+  for(let k=0;k<frames.length-1;k++){
+    const d=diffMove(frames[k],frames[k+1]);
+    if(d) steps.push(d);
+  }
+  if(!steps.length){ SFX.select(); return; }
+  isAnimating=true; syncUndoBtn();
+  steps.forEach((s,i)=>{
+    setTimeout(()=>{
+      const id=idBoard[s.to.y][s.to.x];
+      const el=id && pieceEls[id];
+      if(el){
+        const c1=cellAt(s.from.x,s.from.y), c2=cellAt(s.to.x,s.to.y);
+        const dx=c1.offsetLeft-c2.offsetLeft, dy=c1.offsetTop-c2.offsetTop;
+        el.style.zIndex='30';
+        const an=el.animate(
+          [{transform:'translate('+dx+'px,'+dy+'px)'},{transform:'none'}],
+          {duration:300, easing:'cubic-bezier(.25,.9,.35,1)'});
+        an.onfinish=()=>{ el.style.zIndex=''; };
+        spawnTrail(s.from, s.to, 300);
+      }
+      SFX.slide(0.3);
+      if(i===steps.length-1){
+        setTimeout(()=>{ isAnimating=false; SFX.select(); markMovable(); syncUndoBtn(); }, 330);
+      }
+    }, i*300);
+  });
 }
 
 /* =========================================================
@@ -2391,6 +2566,7 @@ function updateUI(){
   const g1=document.getElementById('gside1'),   g2=document.getElementById('gside2');
   const tp=document.getElementById('turn-pill');
   if(tp) tp.textContent=(moveCount+1)+'手め';
+  syncUndoBtn();
 
   const solo=(gameMode==='vs-cpu');
   const n1=document.getElementById('p1-label'), n2=document.getElementById('p2-label');
@@ -3046,6 +3222,7 @@ document.addEventListener('DOMContentLoaded',()=>{
   }
 
   loadWins();
+  loadOpts();
   renderTopStrip();
   showScreen('title');
   document.getElementById('menu-1p').onclick=()=>{ gameMode='vs-cpu'; openCharSelect(); };
@@ -3078,33 +3255,45 @@ document.addEventListener('DOMContentLoaded',()=>{
     ban  : {'0':'同じ石を何度でも動かせる',    '1':'直前に動かした石は1回休み'},
     core : {'block':'ふつうの石は真ん中を通りすぎる','normal':'真ん中に置いた石は次の番でどかす'},
     sound: {'1':'効果音が鳴る',                '0':'音は鳴らない'},
-    ghost: {'1':'止まる場所に印が出る',        '0':'印は出ない'}
+    ghost: {'1':'止まる場所に印が出る',        '0':'印は出ない'},
+    undo : {'1':'1手前にもどせる',             '0':'もどせない'}
   };
   const SEG_SET = {
     ban  : v=>{ banLimit=+v; },
     core : v=>{ coreRule=v; },
-    sound: v=>{ soundEnabled=(v==='1'); if(soundEnabled){ SFX.init(); SFX.select(); } },
-    ghost: v=>{ ghostEnabled=(v==='1'); if(selected) showGhosts(); }
+    sound: (v,quiet)=>{ soundEnabled=(v==='1'); if(soundEnabled && !quiet){ SFX.init(); SFX.select(); } },
+    ghost: v=>{ ghostEnabled=(v==='1'); if(selected) showGhosts(); },
+    undo : v=>{ undoEnabled=(v==='1'); syncUndoBtn(); }
   };
-  ['ban','core','sound','ghost'].forEach(name=>{
+  ['ban','core','sound','ghost','undo'].forEach(name=>{
     const seg=document.getElementById('seg-'+name);
     const note=document.getElementById('note-'+name);
     if(!seg) return;
     const btns=Array.from(seg.children);
     if(!btns.length) return;
-    const apply=(b)=>{
+    const apply=(b,quiet)=>{
       btns.forEach(o=>o.classList.remove('on'));
       b.classList.add('on');
       const v=b.dataset[name];
-      SEG_SET[name](v);
+      SEG_SET[name](v,quiet);
       if(note) note.textContent=SEG_NOTE[name][v]||'';
+      if(!quiet){ gameOpts[name]=v; saveOpts(); }
     };
     btns.forEach(b=>{ b.onclick=()=>apply(b); });
-    const cur=btns.find(b=>b.classList.contains('on'))||btns[0];
-    if(note && cur) note.textContent=SEG_NOTE[name][cur.dataset[name]]||'';
+    // 前に選んでいた設定があればそれを、なければ最初から on のものを使う
+    const saved=gameOpts[name];
+    const cur=(saved!==undefined && btns.find(b=>b.dataset[name]===saved))
+           || btns.find(b=>b.classList.contains('on')) || btns[0];
+    if(cur) apply(cur, true);
   });
 
   document.getElementById('btn-mode').onclick=()=>openModal('modal-quit');
+  [1,2].forEach(p=>{
+    const ub=document.getElementById('btn-undo-'+p);
+    if(ub) ub.onclick=()=>{ if(canUndo(p)){ undoAsk=p; openModal('modal-undo'); } };
+  });
+  document.getElementById('undo-no').onclick=closeModals;
+  document.getElementById('undo-yes').onclick=()=>{ closeModals(); if(undoAsk) undo(undoAsk); undoAsk=0; };
   document.getElementById('quit-no').onclick=closeModals;
   document.getElementById('quit-yes').onclick=()=>{ closeModals(); openTopMenu(); };
   document.getElementById('btn-win-restart').onclick=()=>{ closeModals(); startMatch(); };
