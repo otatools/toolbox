@@ -1587,9 +1587,18 @@ const pieceEls = {};
 const SFX = {
   ctx:null,
   init(){
-    if(this.ctx) { if(this.ctx.state==='suspended') this.ctx.resume(); return; }
+    if(this.ctx){ if(this.ctx.state!=='running' && this.ctx.resume) this.ctx.resume(); return; }
     const AC = window.AudioContext || window.webkitAudioContext;
-    if(AC) this.ctx = new AC();
+    if(!AC) return;
+    this.ctx = new AC();
+    // iPhone / iPad は、指でさわった瞬間に「無音を1回鳴らす」まで音が出ない
+    try{
+      const c=this.ctx;
+      const b=c.createBuffer(1,1,c.sampleRate||22050);
+      const s=c.createBufferSource(); s.buffer=b; s.connect(c.destination);
+      (s.start||s.noteOn).call(s,0);
+    }catch(e){}
+    if(this.ctx.state!=='running' && this.ctx.resume) this.ctx.resume();
   },
   noiseBuf(sec){
     const ctx=this.ctx, len=Math.max(1,Math.floor(ctx.sampleRate*sec));
@@ -3354,8 +3363,20 @@ document.addEventListener('DOMContentLoaded',()=>{
   });
 
   // 初回タッチで音声解禁
-  const unlock=()=>{ SFX.init(); document.removeEventListener('pointerdown',unlock); };
-  document.addEventListener('pointerdown',unlock);
+  // 音の解除。iPhone は指をはなした瞬間（touchend）がいちばん確実なので、
+  // いくつかの操作をまとめて拾い、鳴るようになるまで外さない
+  const unlock=()=>{
+    SFX.init();
+    if(SFX.ctx && SFX.ctx.state==='running'){
+      ['pointerdown','touchend','click','keydown'].forEach(t=>document.removeEventListener(t,unlock));
+    }
+  };
+  ['pointerdown','touchend','click','keydown'].forEach(t=>
+    document.addEventListener(t, unlock, {passive:true}));
+  // アプリを切りかえて戻ったとき、iPhone は音が止まったままになるので鳴らしなおす
+  document.addEventListener('visibilitychange',()=>{
+    if(!document.hidden && SFX.ctx && SFX.ctx.state!=='running' && SFX.ctx.resume) SFX.ctx.resume();
+  });
 
 
 });
