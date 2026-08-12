@@ -140,6 +140,14 @@
         /* タイトル・プレイヤー名など：マーカー風 */
         .marker-text { font-family: 'Yusei Magic', 'Kosugi Maru', cursive; }
 
+        /* ボタンのラベルは折り返さない（狭い画面でも1行に収まる文字サイズにしてある） */
+        button { white-space: nowrap; }
+
+        /* 見出しは画面幅に合わせて可変。1行に収まる範囲でできるだけ大きく */
+        #setup-title { font-size: clamp(28px, 8.5vw, 48px); line-height: 1.25; }
+        #finish-title { font-size: clamp(22px, 7.2vw, 44px); line-height: 1.25; }
+        #result-title { font-size: clamp(28px, 9vw, 48px); line-height: 1.25; }
+
         /* お題の文字は「回答用キャンバス」と同じ 3:1 の枠に入れ、
            枠の大きさはウィンドウに合わせて可変。文字サイズはJSが枠いっぱいに調整する */
         #info-word-display {
@@ -394,7 +402,7 @@
                 </div>
 
                 <div id="setup-screen" class="absolute inset-0 flex flex-col items-center justify-center p-6 bg-white z-50 overflow-y-auto">
-                    <h1 class="text-4xl font-black marker-text border-b-4 border-blue-500 mb-8 text-gray-800 text-center">お絵かき伝言ゲーム</h1>
+                    <h1 id="setup-title" class="font-black marker-text border-b-4 border-blue-500 mb-8 text-gray-800 text-center whitespace-nowrap">お絵かき伝言ゲーム</h1>
                     <div class="w-full max-w-md space-y-6">
                         <div class="grid grid-cols-3 gap-2">
                             <div class="bg-gray-50 p-3 rounded-xl border text-center">
@@ -408,10 +416,11 @@
                             </div>
                             <div class="bg-gray-50 p-3 rounded-xl border text-center">
                                 <label class="block text-[10px] font-black text-gray-400 mb-1 tracking-widest">むずかしさ</label>
-                                <select id="difficulty-select" class="w-full bg-white border border-gray-300 rounded-lg px-1 py-1.5 font-bold outline-none text-base">
+                                <select id="difficulty-select" onchange="updateDifficultyHint()" class="w-full bg-white border border-gray-300 rounded-lg px-1 py-1.5 font-bold outline-none text-base">
                                     <option value="easy">かんたん</option>
                                     <option value="normal" selected>ふつう</option>
                                     <option value="hard">むずかしい</option>
+                                    <option value="custom">じぶんできめる</option>
                                 </select>
                             </div>
                             <div class="bg-gray-50 p-3 rounded-xl border text-center">
@@ -422,35 +431,48 @@
                                 </select>
                             </div>
                         </div>
+                        <p id="custom-hint" class="hidden -mt-3 text-[11px] font-black text-amber-600 text-center">さいしょの人が、自分でお題を入力します</p>
                         <div id="name-inputs" class="grid grid-cols-2 gap-2 max-h-[30vh] overflow-y-auto p-1"></div>
                         <button onclick="startGame()" class="w-full bg-blue-600 text-white py-5 rounded-xl font-black text-2xl shadow-lg active:scale-95 transition-all">はじめる！</button>
                     </div>
                     <div class="mt-8 flex flex-col items-center gap-3">
-                        <button id="sound-toggle" onclick="toggleSound()" class="text-xs font-black px-4 py-2 rounded-full border-2 border-gray-200 text-gray-500 active:scale-95 transition-all">おと：ON</button>
-                        <div class="text-xs text-gray-400 opacity-60 tracking-wider">
-                            お絵かき伝言ゲーム　|　ver7.0　|　ota tools
+                        <button id="sound-toggle" data-nosound onclick="toggleSound()" class="text-xs font-black px-4 py-2 rounded-full border-2 border-gray-200 text-gray-500 active:scale-95 transition-all">おと：ON</button>
+                        <div class="text-[10px] md:text-xs text-gray-400 opacity-60 tracking-wider whitespace-nowrap">
+                            お絵かき伝言ゲーム　|　ver7.1　|　ota tools
                         </div>
                     </div>
                 </div>
 
                 <div id="pass-screen" class="hidden absolute inset-0 flex flex-col items-center justify-center bg-blue-50 z-40 p-4 text-center">
                     <p class="text-sm font-black text-blue-500 mb-2 tracking-widest uppercase">つぎのひと</p>
-                    <h2 id="next-player-name" class="text-5xl md:text-7xl font-black marker-text text-gray-800 mb-12"></h2>
-                    <button onclick="startTurn()" class="bg-gray-800 text-white px-16 py-6 rounded-2xl font-black text-3xl shadow-xl active:scale-95 transition-all">じゅんびOK</button>
+                    <h2 id="next-player-name" class="text-4xl md:text-7xl font-black marker-text text-gray-800 mb-12 max-w-full px-2 truncate"></h2>
+                    <button onclick="startTurn()" class="bg-gray-800 text-white px-10 md:px-16 py-5 md:py-6 rounded-2xl font-black text-2xl md:text-3xl shadow-xl active:scale-95 transition-all">じゅんびOK</button>
+                </div>
+
+                <div id="custom-word-screen" class="hidden absolute inset-0 flex flex-col items-center justify-center bg-amber-50 z-40 p-6 text-center overflow-y-auto">
+                    <p class="text-xs font-black text-amber-600 mb-2 tracking-widest">じぶんでおだいをきめる</p>
+                    <h2 class="font-black marker-text text-gray-800 mb-6" style="font-size: clamp(20px, 6vw, 32px)">なにを描くか入力してね</h2>
+                    <input id="custom-word-input" type="text" maxlength="12" placeholder="ハシビロコウ"
+                        onkeydown="if(event.key==='Enter'){event.preventDefault();confirmCustomWord();}"
+                        class="w-full max-w-md text-center p-4 bg-white border-4 border-amber-300 rounded-2xl outline-none focus:border-amber-500"
+                        style="font-family:'Klee One','Kosugi Maru',serif; font-weight:600; color:#2563eb; font-size: clamp(22px, 6vw, 34px)">
+                    <p id="custom-word-error" class="hidden mt-3 text-sm font-black text-red-500"></p>
+                    <p class="mt-4 text-xs font-bold text-gray-500">ほかの人には見せないでね（12文字まで）</p>
+                    <button onclick="confirmCustomWord()" class="mt-8 bg-amber-500 text-white px-10 md:px-16 py-5 md:py-6 rounded-2xl font-black text-2xl md:text-3xl shadow-xl active:scale-95 transition-all">これでOK！</button>
                 </div>
 
                 <div id="game-screen" class="hidden game-layout">
                     <div class="flex justify-between items-center px-4 py-2 bg-gray-50 border-b shrink-0 h-16">
-                        <div class="flex flex-col">
-                            <span id="player-indicator" class="text-lg font-black marker-text text-gray-700 leading-none"></span>
+                        <div class="flex flex-col min-w-0">
+                            <span id="player-indicator" class="text-base md:text-lg font-black marker-text text-gray-700 leading-none truncate"></span>
                             <span id="step-counter-label" class="text-[10px] font-bold text-gray-400"></span>
                         </div>
-                        <div class="flex items-center space-x-4">
+                        <div class="flex items-center space-x-3 md:space-x-4 shrink-0">
                             <div class="text-center">
                                 <p class="text-[10px] font-black text-gray-400 leading-none">のこり</p>
                                 <span id="timer" class="text-2xl font-mono font-black text-gray-800">60</span>
                             </div>
-                            <button onclick="submitStep()" class="bg-emerald-600 text-white px-6 py-2 rounded-full font-black text-lg shadow-md hover:bg-emerald-700 active:scale-95">おわった！</button>
+                            <button onclick="submitStep()" class="bg-emerald-600 text-white px-5 md:px-6 py-2 rounded-full font-black text-base md:text-lg shadow-md hover:bg-emerald-700 active:scale-95">おわった！</button>
                         </div>
                     </div>
 
@@ -520,22 +542,22 @@
 
                 <div id="finish-screen" class="hidden absolute inset-0 flex flex-col items-center justify-center p-4 bg-white z-50 text-center">
                     <div class="mb-8">
-                        <h2 class="text-4xl font-black marker-text text-gray-800">さいごまでつながった！</h2>
+                        <h2 id="finish-title" class="font-black marker-text text-gray-800 whitespace-nowrap">さいごまでつながった！</h2>
                     </div>
-                    <button onclick="triggerReviewSequence()" class="bg-blue-600 text-white px-16 py-6 rounded-2xl font-black text-3xl shadow-xl active:scale-95 transition-all">みんなでみる</button>
+                    <button data-nosound onclick="triggerReviewSequence()" class="bg-blue-600 text-white px-10 md:px-16 py-5 md:py-6 rounded-2xl font-black text-2xl md:text-3xl shadow-xl active:scale-95 transition-all">みんなでみる</button>
                 </div>
 
                 <div id="reveal-screen" class="hidden h-full flex flex-col bg-slate-100 overflow-hidden">
                     <div class="bg-white p-4 border-b flex justify-between items-center z-10">
-                        <h2 id="reveal-title" class="text-xl font-black marker-text">振り返りタイム</h2>
-                        <span id="reveal-counter" class="text-sm font-bold text-gray-400"></span>
+                        <h2 id="reveal-title" class="text-sm md:text-xl font-black marker-text min-w-0 truncate">振り返りタイム</h2>
+                        <span id="reveal-counter" class="text-xs md:text-sm font-bold text-gray-400 shrink-0 ml-3"></span>
                     </div>
                     <div class="flex-grow relative">
                         <div id="reveal-stage"></div>
                     </div>
                     <div class="h-24 border-t bg-white flex items-center justify-center gap-3 px-4 shrink-0 z-50">
-                        <button id="reveal-restart-btn" onclick="resetGame()" class="hidden bg-gray-200 text-gray-800 px-6 py-4 rounded-full font-black text-base shadow-md active:scale-95">もういちど遊ぶ</button>
-                        <button id="next-reveal-btn" onclick="handleRevealNext()" class="bg-blue-600 text-white px-8 py-4 rounded-full font-black text-lg md:text-xl shadow-lg active:scale-95">つぎへ →</button>
+                        <button id="reveal-restart-btn" onclick="resetGame()" class="hidden bg-gray-200 text-gray-800 px-4 md:px-6 py-4 rounded-full font-black text-sm md:text-base shadow-md active:scale-95">もういちど遊ぶ</button>
+                        <button id="next-reveal-btn" data-nosound onclick="handleRevealNext()" class="bg-blue-600 text-white px-5 md:px-8 py-4 rounded-full font-black text-base md:text-xl shadow-lg active:scale-95">つぎへ →</button>
                     </div>
                 </div>
 
@@ -551,7 +573,7 @@
                 </div>
 
                 <div id="result-comparison-screen" class="hidden absolute inset-0 flex flex-col items-center justify-center p-6 bg-white z-[150] text-center overflow-y-auto">
-                    <h2 id="result-title" class="reveal-step text-3xl md:text-4xl font-black marker-text text-gray-800 mb-6 md:mb-10">結果発表！</h2>
+                    <h2 id="result-title" class="reveal-step font-black marker-text text-gray-800 mb-6 md:mb-10 whitespace-nowrap">結果発表！</h2>
                     <div class="flex flex-col md:flex-row items-center justify-center gap-3 md:gap-8 w-full max-w-4xl">
                         <div id="result-first" class="reveal-step flex-1 w-full space-y-2 md:space-y-4">
                             <p class="text-xs md:text-sm font-black text-blue-500 tracking-widest">最初のお題</p>
@@ -568,8 +590,8 @@
                         </div>
                     </div>
                     <div id="result-buttons" class="reveal-step mt-8 md:mt-14 flex flex-col md:flex-row gap-3">
-                        <button onclick="startReview()" class="bg-blue-600 text-white px-8 py-4 rounded-full font-black text-lg md:text-xl shadow-xl hover:bg-blue-700 active:scale-95 transition-all">みんなのつながりを確認してみよう！</button>
-                        <button onclick="resetGame()" class="bg-gray-200 text-gray-800 px-8 py-4 rounded-full font-black text-lg md:text-xl shadow-md hover:bg-gray-300 active:scale-95 transition-all">もういちど遊ぶ</button>
+                        <button onclick="startReview()" class="bg-blue-600 text-white px-5 md:px-8 py-4 rounded-full font-black text-[15px] md:text-xl shadow-xl hover:bg-blue-700 active:scale-95 transition-all">みんなのつながりを確認してみよう！</button>
+                        <button onclick="resetGame()" class="bg-gray-200 text-gray-800 px-5 md:px-8 py-4 rounded-full font-black text-[15px] md:text-xl shadow-md hover:bg-gray-300 active:scale-95 transition-all">もういちど遊ぶ</button>
                     </div>
                 </div>
 
@@ -711,6 +733,11 @@ hard: [
                     const AC = window.AudioContext || window.webkitAudioContext;
                     if (!AC) return null;
                     audioCtx = new AC();
+                    // iOS対策：最初の操作時に無音を1回鳴らして音声出力を有効化する
+                    const s = audioCtx.createBufferSource();
+                    s.buffer = audioCtx.createBuffer(1, 1, audioCtx.sampleRate);
+                    s.connect(audioCtx.destination);
+                    s.start(0);
                 }
                 if (audioCtx.state === 'suspended') audioCtx.resume();
                 return audioCtx;
@@ -826,6 +853,41 @@ hard: [
             src.start(t); src.stop(t + 0.22);
         }
 
+        // 画面を進めるボタン用の「ポン」
+        function sfxClick() {
+            if (!ensureAudio()) return;
+            sfxTone(660, 0, 0.09, 'sine', 0.14);
+            sfxTone(990, 0.045, 0.09, 'sine', 0.09);
+        }
+
+        // 時間切れの合図
+        function sfxTimeUp() {
+            if (!ensureAudio()) return;
+            sfxTone(520, 0, 0.18, 'triangle', 0.16);
+            sfxTone(390, 0.16, 0.35, 'triangle', 0.16);
+        }
+
+        // ペン・消しゴム・色などツール選択用の軽い「カチッ」
+        function sfxTick() {
+            if (!ensureAudio()) return;
+            sfxTone(1400, 0, 0.045, 'square', 0.045);
+        }
+
+        /* ボタンを押したら必ず音が出るようにする（キャンバスの描画中は無音のまま）。
+           captureで拾うので、個別のonclickより先に鳴る。 */
+        document.addEventListener('click', (e) => {
+            const btn = e.target.closest && e.target.closest('button');
+            if (!btn || btn.disabled) return;
+            if (btn.hasAttribute('data-nosound')) return;   // 専用の効果音を持つボタン
+            if (btn.classList.contains('tool-btn') ||
+                btn.classList.contains('color-btn') ||
+                btn.classList.contains('util-btn')) {
+                sfxTick();
+            } else {
+                sfxClick();
+            }
+        }, true);
+
         let USED_WORDS = [];
         let players = [], book = { steps: [] }, currentPlayerIdx = 0;
         let isDrawing = false, canvas, ctx, timerInterval;
@@ -834,6 +896,7 @@ hard: [
         let resizeTimer = null;
         let reviewSteps = [];
         let currentRevealIdx = 0;
+        let customWordPending = false;
 
         function updateNameInputs() {
             const count = parseInt(document.getElementById('player-count-select').value);
@@ -861,11 +924,27 @@ hard: [
             return a;
         }
 
+        function updateDifficultyHint() {
+            const custom = document.getElementById('difficulty-select').value === 'custom';
+            document.getElementById('custom-hint').classList.toggle('hidden', !custom);
+        }
+        updateDifficultyHint();
+
         function startGame() {
             const names = Array.from(document.querySelectorAll('.player-name')).map(i => i.value.trim() || "プレイヤー");
             const shuffleType = document.getElementById('shuffle-select').value;
             players = (shuffleType === 'shuffle') ? shuffleArray(names) : [...names];
             const diff = document.getElementById('difficulty-select').value;
+
+            // 「じぶんできめる」は、さいしょの人が端末を受け取ってからお題を入力する
+            if (diff === 'custom') {
+                book = { steps: [] };
+                customWordPending = true;
+                currentPlayerIdx = 0;
+                showPassScreen();
+                return;
+            }
+
             let availableWords = WORD_LISTS[diff].filter(w => !USED_WORDS.includes(w));
             if (availableWords.length === 0) { USED_WORDS = []; availableWords = WORD_LISTS[diff]; }
             const word = availableWords[Math.floor(Math.random() * availableWords.length)];
@@ -881,7 +960,37 @@ hard: [
             document.getElementById('next-player-name').innerText = players[currentPlayerIdx];
         }
 
+        function showCustomWordScreen() {
+            document.querySelectorAll('.whiteboard-surface > div:not(#curtain)').forEach(d => d.classList.add('hidden'));
+            const screen = document.getElementById('custom-word-screen');
+            screen.classList.remove('hidden');
+            const input = document.getElementById('custom-word-input');
+            input.value = '';
+            document.getElementById('custom-word-error').classList.add('hidden');
+            setTimeout(() => input.focus(), 50);
+        }
+
+        function confirmCustomWord() {
+            const input = document.getElementById('custom-word-input');
+            const err = document.getElementById('custom-word-error');
+            const word = input.value.trim();
+            const len = [...word].length;
+
+            if (len === 0) { err.innerText = 'お題を入力してね'; err.classList.remove('hidden'); input.focus(); return; }
+            if (len > 12) { err.innerText = '12文字までにしてね'; err.classList.remove('hidden'); input.focus(); return; }
+
+            err.classList.add('hidden');
+            input.blur();
+            book = { steps: [{ type: 'word', value: word, author: "さいしょのおだい", originalIdx: 0 }] };
+            customWordPending = false;
+            document.getElementById('custom-word-screen').classList.add('hidden');
+            startTurn();
+        }
+
         function startTurn() {
+            // 「じぶんできめる」のときは、先にお題の入力画面を出す
+            if (customWordPending) { showCustomWordScreen(); return; }
+
             document.getElementById('pass-screen').classList.add('hidden');
             document.getElementById('game-screen').classList.remove('hidden');
 
@@ -1046,6 +1155,7 @@ hard: [
             const availableH = Math.max(container.clientHeight - padding - labelHeight, 100);
 
             const lastStep = book.steps[book.steps.length - 1];
+            if (!lastStep) return;   // お題がまだ決まっていない（じぶんできめる の入力中）
 
             let targetW, targetH;
             if (lastStep.type === 'sketch') {
@@ -1203,7 +1313,11 @@ hard: [
             clearInterval(timerInterval);
             timerInterval = setInterval(() => {
                 t--; el.innerText = t;
-                if(t <= 0) { clearInterval(timerInterval); submitStep(); }
+                if (t <= 0) {
+                    clearInterval(timerInterval);
+                    sfxTimeUp();   // 時間切れは自分で押していないので、音で知らせる
+                    submitStep();
+                }
             }, 1000);
         }
 
@@ -1414,6 +1528,8 @@ hard: [
             document.getElementById('curtain-message').classList.remove('show');
             const arrow = document.getElementById('result-arrow');
             if (arrow) arrow.classList.remove('drumroll-shake');
+            customWordPending = false;
+            document.getElementById('custom-word-input').value = '';
             const finishBtn = document.querySelector('#finish-screen button');
             if (finishBtn) finishBtn.disabled = false;
         }
