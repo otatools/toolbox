@@ -14,6 +14,14 @@
            古い環境は vh → dvh対応なら dvh → JSが実測値(px)で最終上書き（iOS Safari対策） */
         :root { --wb-bg: #ffffff; --app-h: 100vh; }
         @supports (height: 100dvh) { :root { --app-h: 100dvh; } }
+        /* iOS/iPadOS Safari は viewport の maximum-scale / user-scalable=no を無視するため、
+           ダブルタップ拡大と長押しの拡大鏡は touch-action と callout で止める。
+           manipulation = スクロールとピンチは残し、ダブルタップ拡大だけ無効化 */
+        * {
+            touch-action: manipulation;
+            -webkit-touch-callout: none;
+        }
+
         html { opacity: 0; }
         html.fonts-loaded { opacity: 1; transition: opacity 0.3s ease-in; }
         body {
@@ -438,7 +446,7 @@
                     <div class="mt-8 flex flex-col items-center gap-3">
                         <button id="sound-toggle" data-nosound onclick="toggleSound()" class="text-xs font-black px-4 py-2 rounded-full border-2 border-gray-200 text-gray-500 active:scale-95 transition-all">おと：ON</button>
                         <div class="text-[10px] md:text-xs text-gray-400 opacity-60 tracking-wider whitespace-nowrap">
-                            お絵かき伝言ゲーム　|　ver7.1　|　ota tools
+                            お絵かき伝言ゲーム　|　ver7.2　|　ota tools
                         </div>
                     </div>
                 </div>
@@ -873,6 +881,12 @@ hard: [
             sfxTone(1400, 0, 0.045, 'square', 0.045);
         }
 
+        /* iPad/iPhone Safari のピンチ拡大（gestureイベント）を止める。
+           一度拡大されると position:fixed の画面では元に戻せなくなるため。 */
+        ['gesturestart', 'gesturechange', 'gestureend'].forEach(type => {
+            document.addEventListener(type, (e) => e.preventDefault(), { passive: false });
+        });
+
         /* ボタンを押したら必ず音が出るようにする（キャンバスの描画中は無音のまま）。
            captureで拾うので、個別のonclickより先に鳴る。 */
         document.addEventListener('click', (e) => {
@@ -1280,6 +1294,10 @@ hard: [
                 canvas.onpointermove = (e) => { e.preventDefault(); draw(e); };
                 window.onpointerup = () => isDrawing = false;
                 window.onpointercancel = () => isDrawing = false;
+                // iPadでは Pointer Event と別に touch の既定動作が残るため、
+                // ここでも止めないと長押しで拡大鏡（選択ルーペ）が出る
+                canvas.ontouchstart = (e) => e.preventDefault();
+                canvas.ontouchmove = (e) => e.preventDefault();
             } else {
                 canvas.onmousedown = start;
                 canvas.onmousemove = draw;
