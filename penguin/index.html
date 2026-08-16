@@ -6,11 +6,31 @@
 <meta name="theme-color" content="#dceefb">
 <title>教育アプリ｜ペンギンカーリング</title>
 <meta name="description" content="楽しく遊びながら思考力の向上に役立つ大阪市の現役小学校教員が制作したアプリです。ota toolsのアプリの１つです。">
+<meta name="author" content="太田圭一">
+<link rel="canonical" href="https://otatools.github.io/toolbox/penguin/">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='31' fill='%233d92dd'/%3E%3Ccircle cx='32' cy='32' r='23' fill='%23ffffff'/%3E%3Ccircle cx='32' cy='32' r='14.5' fill='%23e2483c'/%3E%3Ccircle cx='32' cy='32' r='6' fill='%23ffffff'/%3E%3C/svg%3E">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="apple-mobile-web-app-title" content="ペンギンカーリング">
+
+<!-- SNS で共有されたときの見え方 -->
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="ota tools">
+<meta property="og:locale" content="ja_JP">
+<meta property="og:title" content="教育アプリ｜ペンギンカーリング">
+<meta property="og:description" content="石をすべらせて、真ん中のマスでピタリと止めたら勝ち。遊びながら考える力が育つ無料の教育アプリです。">
+<meta property="og:url" content="https://otatools.github.io/toolbox/penguin/">
+<meta property="og:image" content="https://otatools.github.io/toolbox/penguin/ogp.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="ペンギンカーリングの画面イメージ">
+<meta name="twitter:card" content="summary_large_image">
 <script type="application/ld+json">
 {
   "@context": "https://schema.org",
   "@type": "SoftwareApplication",
   "name": "ペンギンカーリング",
+  "url": "https://otatools.github.io/toolbox/penguin/",
+  "image": "https://otatools.github.io/toolbox/penguin/ogp.png",
   "operatingSystem": "Web",
   "applicationCategory": "EducationalApplication",
   "inLanguage": "ja",
@@ -235,7 +255,8 @@ body::before{
 }
 
 /* ---------- STONE (駒) ---------- */
-.piece{ position:absolute; display:grid; place-items:center; pointer-events:auto; cursor:pointer; }
+.piece{ position:absolute; display:grid; place-items:center; pointer-events:auto; cursor:pointer;
+  touch-action:none; }
 .piece.moving{ will-change:transform; }   /* 動いているコマだけGPUに載せる */
 .stone{
   width:84%; height:auto; aspect-ratio:1/1; border-radius:50%; position:relative;
@@ -340,6 +361,9 @@ body::before{
 .hero{ width:min(1120px,94vw); margin:0 auto; padding:clamp(18px,4vh,46px) 0 clamp(10px,2vh,20px);
   display:grid; grid-template-columns:1.12fr .88fr; gap:clamp(20px,4vw,44px); align-items:end; text-align:left; }
 .hero-left{ min-width:0; }
+/* 読み上げ・検索エンジン用。画面には出さない */
+.sr-only{ position:absolute; width:1px; height:1px; padding:0; margin:-1px;
+  overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; border:0; }
 /* フォントが届く前の別書体がチラッと見えないよう、そろってから出す */
 .big-logo, .big-sub{ opacity:0; transition:opacity .3s ease; }
 html.fonts-ready .big-logo, html.fonts-ready .big-sub{ opacity:1; }
@@ -1117,13 +1141,15 @@ html.fonts-ready .big-logo, html.fonts-ready .big-sub{ opacity:1; }
 </style>
 </head>
 <body>
+<noscript><p style="text-align:center;padding:24px;font-weight:900;color:#0e2b45">
+このゲームで遊ぶには JavaScript を有効にしてください。</p></noscript>
 <div class="shell">
 
   <!-- ===== TITLE SCREEN ===== -->
   <section id="screen-title" class="screen">
     <div class="hero">
       <div class="hero-left">
-        <h1 class="big-logo">PENGUIN<em>CURLING</em></h1>
+        <h1 class="big-logo">PENGUIN<em>CURLING</em><span class="sr-only">ペンギンカーリング</span></h1>
         <p class="big-sub">ペンギンカーリング</p>
         <p class="hero-lead">止まれない石をかべにぶつけて、<br>ど真ん中でピタリと止めろ。</p>
         <div class="play-row">
@@ -1171,7 +1197,7 @@ html.fonts-ready .big-logo, html.fonts-ready .big-sub{ opacity:1; }
     </div>
 
     <div class="rink" id="rink">
-      <div class="rink-credit" aria-hidden="true">ペンギンカーリング｜ver.1.1｜ota tools</div>
+      <div class="rink-credit" aria-hidden="true">ペンギンカーリング｜ver.1.2｜ota tools</div>
       <div class="rink-core"></div>
     </div>
   </section>
@@ -1886,23 +1912,27 @@ function buildPieces(){
   layoutPieces();
 }
 
+/* マスの位置は、重ねてある層から見た実際の位置を測って求める。
+   端末によって基準がずれることがあるので、計算ではなく実測にする */
+function cellBox(c){
+  const lr=pieceLay.getBoundingClientRect(), cr=c.getBoundingClientRect();
+  return { l:cr.left-lr.left, t:cr.top-lr.top, w:cr.width, h:cr.height };
+}
 function layoutPieces(){
   for(const id in pieceEls){
     const el=pieceEls[id];
     const c=cellAt(+el.dataset.x,+el.dataset.y);
     if(!c) continue;
+    const b=cellBox(c);
     el.style.transition='none';
     el.style.transform='';
-    el.style.left=c.offsetLeft+'px';
-    el.style.top=c.offsetTop+'px';
-    el.style.width=c.offsetWidth+'px';
-    el.style.height=c.offsetHeight+'px';
+    el.style.left=b.l+'px';   el.style.top=b.t+'px';
+    el.style.width=b.w+'px';  el.style.height=b.h+'px';
   }
 }
 function cellCenter(x,y){
-  const c=cellAt(x,y);
-  return { cx:c.offsetLeft+c.offsetWidth/2, cy:c.offsetTop+c.offsetHeight/2,
-           s:c.offsetWidth, sw:c.offsetWidth, sh:c.offsetHeight };
+  const b=cellBox(cellAt(x,y));
+  return { cx:b.l+b.w/2, cy:b.t+b.h/2, s:b.w, sw:b.w, sh:b.h };
 }
 
 /* =========================================================
@@ -1965,13 +1995,13 @@ function showGhosts(){
   const pv=boardState[selected.y][selected.x];
   const crown = (pv===11||pv===22);
   for(const d in mv){
-    const t=mv[d], c=cellAt(t.x,t.y);
+    const t=mv[d], c=cellAt(t.x,t.y), cb=cellBox(c);
     const g=document.createElement('div');
     const winning = crown && t.x===CORE.x && t.y===CORE.y;
     g.className='ghost'+(currentTurn===2?' for2':'')+(winning?' win':'');
     g.dataset.dir=d;
-    g.style.left=c.offsetLeft+'px'; g.style.top=c.offsetTop+'px';
-    g.style.width=c.offsetWidth+'px'; g.style.height=c.offsetHeight+'px';
+    g.style.left=cb.l+'px'; g.style.top=cb.t+'px';
+    g.style.width=cb.w+'px'; g.style.height=cb.h+'px';
     g.innerHTML='<div class="g">'+(winning
       ? '<svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M3 8.4 7.2 12 12 4.6 16.8 12 21 8.4l-1.6 9.4a1 1 0 0 1-1 .8H5.6a1 1 0 0 1-1-.8L3 8.4Z"/></svg>'
       : '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><circle cx="12" cy="12" r="3.2" fill="currentColor" stroke="none"/></svg>')+'</div>';
@@ -1992,8 +2022,9 @@ function highlightPath(dir){
     const c=cellAt(x,y);
     const p=document.createElement('div');
     p.style.cssText='position:absolute;border-radius:14px;background:linear-gradient(150deg,rgba(255,244,214,.95),rgba(255,228,160,.7));box-shadow:inset 0 0 0 1.5px rgba(233,168,18,.45);opacity:0;animation:ghostIn .16s ease '+(i*0.035)+'s forwards';
-    p.style.left=c.offsetLeft+'px'; p.style.top=c.offsetTop+'px';
-    p.style.width=c.offsetWidth+'px'; p.style.height=c.offsetHeight+'px';
+    const pb=cellBox(c);
+    p.style.left=pb.l+'px'; p.style.top=pb.t+'px';
+    p.style.width=pb.w+'px'; p.style.height=pb.h+'px';
     pathLay.appendChild(p);
   }
   ghostLay.querySelectorAll('.ghost').forEach(g=>g.classList.toggle('hot', g.dataset.dir===dir));
@@ -2051,18 +2082,21 @@ function onPointerDown(e){
 
   drag={ el, x, y, sx:e.clientX, sy:e.clientY, dir:null, moved:false, moves:mv, id:e.pointerId };
   try{ el.setPointerCapture(e.pointerId); }catch(_){}
-  el.addEventListener('pointermove', onPointerMove);
-  el.addEventListener('pointerup', onPointerUp);
-  el.addEventListener('pointercancel', onPointerUp);
+  // 指が石の外へ出ても追いかけられるよう、画面全体で受ける
+  window.addEventListener('pointermove', onPointerMove, {passive:false});
+  window.addEventListener('pointerup', onPointerUp);
+  window.addEventListener('pointercancel', onPointerUp);
 }
 
 function onPointerMove(e){
   if(!drag) return;
+  if(e.pointerId!==undefined && drag.id!==undefined && e.pointerId!==drag.id) return;
+  if(e.cancelable) e.preventDefault();
   const dx=e.clientX-drag.sx, dy=e.clientY-drag.sy;
   const dist=Math.hypot(dx,dy);
   const stone=drag.el.querySelector('.stone');
 
-  if(dist<9){
+  if(dist<7){
     if(drag.dir){ drag.dir=null; pathLay.innerHTML=''; ghostLay.querySelectorAll('.ghost').forEach(g=>g.classList.remove('hot')); }
     drag.el.style.transform='';
     return;
@@ -2087,9 +2121,9 @@ function onPointerMove(e){
 function onPointerUp(){
   if(!drag) return;
   const d=drag; drag=null;
-  d.el.removeEventListener('pointermove',onPointerMove);
-  d.el.removeEventListener('pointerup',onPointerUp);
-  d.el.removeEventListener('pointercancel',onPointerUp);
+  window.removeEventListener('pointermove',onPointerMove);
+  window.removeEventListener('pointerup',onPointerUp);
+  window.removeEventListener('pointercancel',onPointerUp);
   d.el.style.transform='';
   pathLay.innerHTML='';
   ghostLay.querySelectorAll('.ghost').forEach(g=>g.classList.remove('hot'));
@@ -2134,7 +2168,8 @@ function doMove(from,to){
   markMovable();
 
   const c1=cellAt(from.x,from.y), c2=cellAt(to.x,to.y);
-  const dx=c2.offsetLeft-c1.offsetLeft, dy=c2.offsetTop-c1.offsetTop;
+  const b1=cellBox(c1), b2=cellBox(c2);
+  const dx=b2.l-b1.l, dy=b2.t-b1.t;
   const cells=Math.abs(to.x-from.x)+Math.abs(to.y-from.y);
   const dur=Math.round(165+cells*88);
 
@@ -2177,7 +2212,8 @@ function doMove(from,to){
     try{ slideAnim.cancel(); }catch(e){}
     el.dataset.x=to.x; el.dataset.y=to.y;
     el.style.transition='none'; el.style.transform='';
-    el.style.left=c2.offsetLeft+'px'; el.style.top=c2.offsetTop+'px';
+    const nb=cellBox(c2);
+    el.style.left=nb.l+'px'; el.style.top=nb.t+'px';
     el.style.zIndex=''; el.classList.remove('moving');
 
     const dirX=Math.sign(to.x-from.x), dirY=Math.sign(to.y-from.y);
@@ -2305,16 +2341,16 @@ function wallFlash(at,dirX,dirY){
   const c=cellAt(at.x,at.y);
   const f=document.createElement('div');
   f.className='wall-flash';
-  const thick=5;
+  const thick=5, wb=cellBox(c);
   if(dirX!==0){
-    f.style.width=thick+'px'; f.style.height=(c.offsetHeight*1.1)+'px';
-    f.style.top=(c.offsetTop-c.offsetHeight*0.05)+'px';
-    f.style.left=(dirX>0 ? c.offsetLeft+c.offsetWidth+2 : c.offsetLeft-thick-2)+'px';
+    f.style.width=thick+'px'; f.style.height=(wb.h*1.1)+'px';
+    f.style.top=(wb.t-wb.h*0.05)+'px';
+    f.style.left=(dirX>0 ? wb.l+wb.w+2 : wb.l-thick-2)+'px';
     f.style.background='linear-gradient(180deg,rgba(255,255,255,0),rgba(120,200,255,.95),rgba(255,255,255,0))';
   }else{
-    f.style.height=thick+'px'; f.style.width=(c.offsetWidth*1.1)+'px';
-    f.style.left=(c.offsetLeft-c.offsetWidth*0.05)+'px';
-    f.style.top=(dirY>0 ? c.offsetTop+c.offsetHeight+2 : c.offsetTop-thick-2)+'px';
+    f.style.height=thick+'px'; f.style.width=(wb.w*1.1)+'px';
+    f.style.left=(wb.l-wb.w*0.05)+'px';
+    f.style.top=(dirY>0 ? wb.t+wb.h+2 : wb.t-thick-2)+'px';
   }
   fxLay.appendChild(f);
   f.animate([{opacity:0,transform:'scale(.6)'},{opacity:1,transform:'scale(1)'},{opacity:0,transform:'scale(1.15)'}],
@@ -2401,8 +2437,8 @@ function undo(p){
       const id=idBoard[s.to.y][s.to.x];
       const el=id && pieceEls[id];
       if(el){
-        const c1=cellAt(s.from.x,s.from.y), c2=cellAt(s.to.x,s.to.y);
-        const dx=c1.offsetLeft-c2.offsetLeft, dy=c1.offsetTop-c2.offsetTop;
+        const u1=cellBox(cellAt(s.from.x,s.from.y)), u2=cellBox(cellAt(s.to.x,s.to.y));
+        const dx=u1.l-u2.l, dy=u1.t-u2.t;
         el.style.zIndex='30';
         const an=el.animate(
           [{transform:'translate('+dx+'px,'+dy+'px)'},{transform:'none'}],
