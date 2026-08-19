@@ -256,6 +256,15 @@
         #app.is-portrait #pitch-history-box {
             display: none;
         }
+
+        /* 縦画面ではスペースが足りず投球履歴を常時表示できないので、
+           グラウンド右下に小さなボタンを置き、押した時だけポップアップで見せる */
+        .history-toggle-btn {
+            display: none;
+        }
+        #app.is-portrait .history-toggle-btn {
+            display: flex;
+        }
         .pitch-badge {
             height: 24px;
             padding: 0 7px;
@@ -845,6 +854,11 @@
                             </div>
                         </div>
                     </div>
+
+                    <!-- 縦画面専用：投球履歴ポップアップを開くボタン（グラウンド右下） -->
+                    <button id="history-toggle-btn" onclick="openHistoryModal()" class="history-toggle-btn absolute bottom-1 right-1 z-40 items-center gap-1 text-[10px] font-bold text-gray-200 bg-gray-900/85 hover:bg-gray-900 border border-gray-600 hover:border-yellow-500/70 rounded-full pl-2 pr-2.5 py-1.5 shadow-lg transition">
+                        <span class="text-xs leading-none">📜</span>履歴
+                    </button>
                 </div>
 
                 <!-- 投球履歴：今まさに投げている人の分だけを、枠なしでグラウンド直下に表示 -->
@@ -1149,6 +1163,22 @@
             </div>
         </div>
 
+        <!-- === 投球履歴ポップアップ（縦画面用） === -->
+        <div id="history-modal" class="fixed inset-0 bg-black/80 flex items-center justify-center z-[110] hidden opacity-0 transition-opacity duration-300 p-4">
+            <div id="history-box" class="bg-gray-900 border-2 border-yellow-500/80 rounded-3xl max-w-sm w-full max-h-[80%] overflow-hidden shadow-[0_0_40px_rgba(234,179,8,0.35)] transform scale-95 transition-transform duration-300 flex flex-col">
+                <div class="rounded-t-3xl bg-gray-900/95 backdrop-blur border-b border-gray-700 px-5 py-4 flex items-center justify-between">
+                    <h2 class="text-lg sm:text-xl font-black text-yellow-400 tracking-wide">📜 投球履歴</h2>
+                    <button onclick="closeHistoryModal()" class="w-9 h-9 shrink-0 rounded-full bg-gray-800 hover:bg-gray-700 text-gray-300 font-bold text-lg transition">✕</button>
+                </div>
+
+                <div class="px-5 py-5 overflow-y-auto">
+                    <p id="history-modal-pitcher-label" class="text-xs text-gray-400 font-bold mb-3"></p>
+                    <div id="pitch-history-current-modal" class="flex flex-wrap gap-1.5"></div>
+                    <p id="history-modal-empty" class="text-sm text-gray-500 hidden">まだ履歴はありません。</p>
+                </div>
+            </div>
+        </div>
+
         <!-- 決着発表オーバーレイ (画面中央) -->
         <div id="decision-announce" class="fixed inset-0 z-[100] flex items-center justify-center pointer-events-none opacity-0 scale-90 transition-all duration-500">
             <div id="decision-card" class="bg-gradient-to-b from-gray-950 via-gray-900 to-black border-4 border-yellow-400 rounded-3xl shadow-[0_0_60px_rgba(234,179,8,0.7)] px-8 py-7 sm:px-16 sm:py-10 flex flex-col items-center text-center max-w-[85%]">
@@ -1300,6 +1330,9 @@
             elem.innerHTML = buildHTML(entries);
 
             // 3行を超えたら一番古い（先頭の）記録を削除して詰める
+            // （横画面の帯表示は幅が決まっているため、実際に描画してみて
+            //   何行になったかで判定している。縦画面ではこの要素自体が
+            //   非表示のためレイアウトされず、この間引きは働かない）
             let guard = 0;
             while (entries.length > 0 && guard < 50) {
                 const rowTops = new Set(Array.from(elem.children).map(c => c.offsetTop));
@@ -1310,6 +1343,17 @@
                 entries = pitchHistory.filter(p => p.pitcherKey === currentPitcherKey);
                 elem.innerHTML = buildHTML(entries);
                 guard++;
+            }
+
+            // 縦画面用のポップアップにも同じ内容を反映しておく
+            // （ボタンを押した時点の最新状態がそのまま出るように、常に更新する）
+            const modalElem = document.getElementById('pitch-history-current-modal');
+            const modalLabel = document.getElementById('history-modal-pitcher-label');
+            const modalEmpty = document.getElementById('history-modal-empty');
+            if (modalElem) {
+                modalElem.innerHTML = buildHTML(entries);
+                if (modalLabel) modalLabel.innerText = `ピッチャー：${getRoleName('pitcher')}`;
+                if (modalEmpty) modalEmpty.classList.toggle('hidden', entries.length > 0);
             }
         }
         let maxDeficit = { team1: 0, team2: 0 }; // 試合中にそのチームが最大何点差つけられていたか
@@ -2933,6 +2977,35 @@
         function closeSettings() {
             const modal = document.getElementById('settings-modal');
             const box = document.getElementById('settings-box');
+            if (!modal || !box) return;
+
+            modal.classList.add('opacity-0');
+            box.classList.remove('scale-100');
+            box.classList.add('scale-95');
+            setTimeout(() => {
+                modal.classList.add('hidden');
+            }, 300);
+        }
+
+        // 縦画面：投球履歴ポップアップを開く（開く直前に最新の内容へ更新しておく）
+        function openHistoryModal() {
+            const modal = document.getElementById('history-modal');
+            const box = document.getElementById('history-box');
+            if (!modal || !box) return;
+
+            renderPitchHistory();
+
+            modal.classList.remove('hidden');
+            setTimeout(() => {
+                modal.classList.remove('opacity-0');
+                box.classList.remove('scale-95');
+                box.classList.add('scale-100');
+            }, 10);
+        }
+
+        function closeHistoryModal() {
+            const modal = document.getElementById('history-modal');
+            const box = document.getElementById('history-box');
             if (!modal || !box) return;
 
             modal.classList.add('opacity-0');
