@@ -8,7 +8,8 @@
 <meta name="description" content="楽しく遊びながら思考力の向上に役立つ大阪市の現役小学校教員が制作したアプリです。ota toolsのアプリの１つです。">
 <meta name="author" content="太田圭一">
 <link rel="canonical" href="https://otatools.github.io/toolbox/penguin/">
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='31' fill='%233d92dd'/%3E%3Ccircle cx='32' cy='32' r='23' fill='%23ffffff'/%3E%3Ccircle cx='32' cy='32' r='14.5' fill='%23e2483c'/%3E%3Ccircle cx='32' cy='32' r='6' fill='%23ffffff'/%3E%3C/svg%3E">
+<link rel="icon" type="image/png" sizes="64x64" href="favicon.png">
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='31' fill='%233d92dd'/%3E%3Ccircle cx='32' cy='32' r='23' fill='%23ffffff'/%3E%3Ccircle cx='32' cy='32' r='14.5' fill='%23e2483c'/%3E%3Ccircle cx='32' cy='32' r='6' fill='%23ffffff'/%3E%3C/svg%3E">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <meta name="apple-mobile-web-app-title" content="ペンギンカーリング">
 
@@ -697,7 +698,8 @@ html.fonts-ready .big-sub{ animation:fadeInOnly .3s ease; }
 
 
 /* winner */
-#modal-winner .sheet.result{ text-align:center; max-width:430px; padding:0 22px 22px; overflow:visible; }
+#modal-winner .sheet.result{ text-align:center; max-width:430px; padding:0 22px 22px; overflow:visible;
+  -webkit-transform:translateZ(0); }   /* Safari の描画ずれ対策 */
 .rs-ribbon{ position:relative; margin:0 -22px 6px; padding:16px 22px 14px;
   font-family:'Orbitron',sans-serif; font-size:clamp(21px,4.4vw,30px); font-weight:900; letter-spacing:.02em;
   color:#fff; border-radius:28px 28px 0 0;
@@ -822,9 +824,7 @@ html.fonts-ready .big-sub{ animation:fadeInOnly .3s ease; }
   color:#fff; -webkit-text-stroke:2px #123c63;
   text-shadow:0 6px 0 rgba(18,60,99,.35), 0 0 26px rgba(255,255,255,.9); }
 .bolt{ position:absolute; left:50%; top:50%; width:min(86vw,780px); height:min(54vh,460px);
-  transform:translate(-50%,-50%); pointer-events:none; opacity:0;
-  will-change:opacity; }
-#vs-crack, #vs-shards, #vs-burst{ will-change:transform, opacity; }
+  transform:translate(-50%,-50%); pointer-events:none; opacity:0; }
 /* VS のあいだは、ゲーム画面とまったく同じ枠取りにする
    （中央＝盤面と同じ大きさの空き／左右＝残りを半分ずつ／上下中央） */
 .sel-stage.go{
@@ -2880,7 +2880,9 @@ function handleWin(winner, reason){
 /* ---------- confetti ---------- */
 function confetti(winner){
   const cv=document.getElementById('fx-canvas'), ctx=cv.getContext('2d');
-  const dpr=Math.min(2,window.devicePixelRatio||1);
+  // 画面が大きい端末で作りすぎると、iPad では描画用のメモリが足りず
+  // 真っ黒になることがあるので、大きさを抑える
+  const dpr = LOWFX ? 1 : Math.min(2, window.devicePixelRatio||1);
   cv.width=innerWidth*dpr; cv.height=innerHeight*dpr;
   cv.style.width=innerWidth+'px'; cv.style.height=innerHeight+'px';
   ctx.setTransform(dpr,0,0,dpr,0,0);
@@ -2908,7 +2910,7 @@ function confetti(winner){
       ctx.restore();
     });
     if(el<4200) requestAnimationFrame(loop);
-    else ctx.clearRect(0,0,innerWidth,innerHeight);
+    else { ctx.clearRect(0,0,innerWidth,innerHeight); cv.width=cv.height=0; }   // 使い終わったら手放す
   })(t0);
 }
 
