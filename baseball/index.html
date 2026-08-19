@@ -357,6 +357,16 @@
             flex-shrink: 0;
         }
 
+        /* ①②のミニパネルはめくれない静的な表示なので、.card-faceの
+           iOS対策用transform（translateZ）を持たせない。
+           スマホでの縮小表示時に、そのtransformが原因でできる合成レイヤーの
+           境界と文字がわずかに競合し、文字の両端が欠けて見えることがあったための対策。
+           （③の結果発表デモは.card-innerでめくる必要があるため対象外） */
+        .rulebook-card-demo > .card-face {
+            transform: none;
+            -webkit-transform: none;
+        }
+
         /* ヒットのイラストは実際のカードと同じ画像を使い回すが、画面幅に
            よってサイズが変わってしまうため、ルールブックの小さな枠に
            収まるよう固定サイズに上書きする */
@@ -600,6 +610,50 @@
             animation: winnerGlow 1.6s ease-in-out infinite;
         }
 
+        /* 試合設定モーダルのトグルスイッチ */
+        .setting-toggle-input {
+            position: absolute;
+            opacity: 0;
+            width: 1px;
+            height: 1px;
+            pointer-events: none;
+        }
+        .setting-toggle {
+            position: relative;
+            display: inline-block;
+            width: 44px;
+            height: 24px;
+            flex-shrink: 0;
+            background: #4b5563;
+            border-radius: 9999px;
+            transition: background-color 0.2s ease;
+        }
+        .setting-toggle::after {
+            content: '';
+            position: absolute;
+            top: 2px;
+            left: 2px;
+            width: 20px;
+            height: 20px;
+            background: #ffffff;
+            border-radius: 50%;
+            transition: transform 0.2s ease;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.4);
+        }
+        .setting-toggle-input:checked + .setting-toggle {
+            background: #eab308;
+        }
+        .setting-toggle-input:checked + .setting-toggle::after {
+            transform: translateX(20px);
+        }
+        .setting-toggle-input:disabled + .setting-toggle {
+            opacity: 0.4;
+        }
+        #tiebreak-setting-row.setting-row-disabled {
+            opacity: 0.45;
+            cursor: not-allowed;
+        }
+
         ::-webkit-scrollbar {
             width: 8px;
         }
@@ -628,18 +682,23 @@
                 <div class="bg-gray-800/90 p-5 rounded-2xl border border-gray-600 text-left shadow-lg">
                     <div class="flex items-center justify-between mb-3 border-b border-gray-600 pb-2">
                         <h2 class="text-base font-bold text-yellow-400">対戦者名設定</h2>
-                        <button id="rulebook-open-btn" onclick="openRulebook()" class="shrink-0 flex items-center gap-1 text-xs font-bold text-gray-300 hover:text-yellow-400 bg-gray-900/60 hover:bg-gray-900 border border-gray-600 hover:border-yellow-500/70 rounded-lg px-2.5 py-1 transition">
-                            <span class="text-sm leading-none">📖</span>遊び方
-                        </button>
+                        <div class="flex items-center gap-1.5 shrink-0">
+                            <button id="rulebook-open-btn" onclick="openRulebook()" class="shrink-0 flex items-center gap-1 text-xs font-bold text-gray-300 hover:text-yellow-400 bg-gray-900/60 hover:bg-gray-900 border border-gray-600 hover:border-yellow-500/70 rounded-lg px-2.5 py-1 transition">
+                                <span class="text-sm leading-none">📖</span>遊び方
+                            </button>
+                            <button id="settings-open-btn" onclick="openSettings()" class="shrink-0 flex items-center gap-1 text-xs font-bold text-gray-300 hover:text-yellow-400 bg-gray-900/60 hover:bg-gray-900 border border-gray-600 hover:border-yellow-500/70 rounded-lg px-2.5 py-1 transition">
+                                <span class="text-sm leading-none">⚙️</span>設定
+                            </button>
+                        </div>
                     </div>
                     <div class="space-y-3">
                         <div>
                             <label class="text-xs text-blue-400 font-bold block mb-1">先攻（先にバッター）</label>
-                            <input type="text" id="input-p1-name" placeholder="Player 1" value="Player 1" class="w-full bg-gray-900 border border-blue-500/50 focus:border-blue-400 rounded-xl px-4 py-2 text-white focus:outline-none transition">
+                            <input type="text" id="input-p1-name" placeholder="Player 1" value="" class="w-full bg-gray-900 border border-blue-500/50 focus:border-blue-400 rounded-xl px-4 py-2 text-white focus:outline-none transition" oninput="persistSettings()">
                         </div>
                         <div id="p2-input-area">
                             <label class="text-xs text-red-400 font-bold block mb-1">後攻（先にピッチャー）</label>
-                            <input type="text" id="input-p2-name" placeholder="Player 2" value="Player 2" class="w-full bg-gray-900 border border-red-500/50 focus:border-red-400 rounded-xl px-4 py-2 text-white focus:outline-none transition">
+                            <input type="text" id="input-p2-name" placeholder="Player 2" value="" class="w-full bg-gray-900 border border-red-500/50 focus:border-red-400 rounded-xl px-4 py-2 text-white focus:outline-none transition" oninput="persistSettings()">
                         </div>
                     </div>
                 </div>
@@ -949,7 +1008,7 @@
                     <section>
                         <h3 class="text-sm font-black text-yellow-400 tracking-wider mb-2 border-b border-gray-700 pb-1">① 投手：ヒットの場所をこっそり選ぶ</h3>
                         <p class="text-sm leading-relaxed mb-3">新しい打席が始まるたびに、投手は4つのパネル（1塁打・2塁打・3塁打・ホームラン）の中から、本当にヒットになる場所を1つだけ選んで「決定」を押します。この場所は、打者が当てるか3アウトになるまで変わりません。打者に見えないように選びましょう。</p>
-                        <div class="flex gap-2 justify-center flex-wrap">
+                        <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5 justify-items-center">
                             <div class="rulebook-card-demo">
                                 <div class="card-face absolute inset-0 bg-gray-800/90 border-4 border-gray-600/80 rounded-2xl flex flex-col items-center justify-center p-1">
                                     <span class="text-blue-400 font-black text-xs mb-1 text-center leading-tight whitespace-nowrap">1塁打</span>
@@ -970,7 +1029,7 @@
                             </div>
                             <div class="rulebook-card-demo">
                                 <div class="card-face absolute inset-0 bg-gray-800/90 border-4 border-gray-600/80 rounded-2xl flex flex-col items-center justify-center p-1">
-                                    <span class="text-red-500 font-black text-[10px] mb-1 text-center leading-tight whitespace-nowrap">ホームラン</span>
+                                    <span class="text-red-500 font-black text-[9px] leading-[1.1] mb-1 text-center">ホーム<br>ラン</span>
                                     <span class="text-gray-500 text-2xl font-black">?</span>
                                 </div>
                             </div>
@@ -1035,7 +1094,7 @@
 
                     <section>
                         <h3 class="text-sm font-black text-yellow-400 tracking-wider mb-2 border-b border-gray-700 pb-1">試合の終わり方</h3>
-                        <p class="text-sm leading-relaxed">3回終了時点で同点なら、延長として1回だけ追加されます。延長の裏で後攻が逆転すれば、その時点で試合終了（サヨナラ勝ち）です。</p>
+                        <p class="text-sm leading-relaxed">3回終了時点で同点なら、延長として1回だけ追加されます。延長の裏で後攻が逆転すれば、その時点で試合終了（サヨナラ勝ち）です。延長の有無・タイブレーク（延長をノーアウト一・二塁からスタートするルール）・投球履歴の表示は、タイトル画面の「⚙️設定」からいつでも変更できます。</p>
                     </section>
 
                 </div>
@@ -1043,6 +1102,49 @@
                 <div class="px-5 pb-5">
                     <button onclick="closeRulebook()" class="w-full py-3 bg-yellow-500 hover:bg-yellow-400 text-gray-900 font-black rounded-xl transition">わかった！</button>
                 </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- === 試合設定モーダル === -->
+        <div id="settings-modal" class="fixed inset-0 bg-black/80 flex items-center justify-center z-[110] hidden opacity-0 transition-opacity duration-300 p-4">
+            <div id="settings-box" class="bg-gray-900 border-2 border-yellow-500/80 rounded-3xl max-w-md w-full max-h-[92%] overflow-hidden shadow-[0_0_40px_rgba(234,179,8,0.35)] transform scale-95 transition-transform duration-300 flex flex-col">
+                <div class="rounded-t-3xl bg-gray-900/95 backdrop-blur border-b border-gray-700 px-5 py-4 flex items-center justify-between">
+                    <h2 class="text-xl sm:text-2xl font-black text-yellow-400 tracking-wide">⚙️ 試合設定</h2>
+                    <button onclick="closeSettings()" class="w-9 h-9 shrink-0 rounded-full bg-gray-800 hover:bg-gray-700 text-gray-300 font-bold text-lg transition">✕</button>
+                </div>
+
+                <div class="px-5 py-5 text-left space-y-4 text-gray-200">
+                    <label class="flex items-center justify-between gap-3 cursor-pointer">
+                        <span class="text-sm leading-snug">
+                            延長戦<br>
+                            <span class="text-xs text-gray-400">3回終了時に同点なら、延長を1回だけ追加する</span>
+                        </span>
+                        <input type="checkbox" id="setting-extra-innings" checked class="setting-toggle-input" onchange="onExtraInningsSettingChange(); persistSettings();">
+                        <span class="setting-toggle"></span>
+                    </label>
+
+                    <label id="tiebreak-setting-row" class="flex items-center justify-between gap-3 cursor-pointer">
+                        <span class="text-sm leading-snug">
+                            タイブレーク<br>
+                            <span class="text-xs text-gray-400">延長はノーアウト一・二塁からスタートする</span>
+                        </span>
+                        <input type="checkbox" id="setting-tiebreak" class="setting-toggle-input" onchange="persistSettings()">
+                        <span class="setting-toggle"></span>
+                    </label>
+
+                    <label class="flex items-center justify-between gap-3 cursor-pointer">
+                        <span class="text-sm leading-snug">
+                            投球履歴の表示<br>
+                            <span class="text-xs text-gray-400">相手が今まで選んだ場所の一覧を表示する</span>
+                        </span>
+                        <input type="checkbox" id="setting-pitch-history" checked class="setting-toggle-input" onchange="persistSettings()">
+                        <span class="setting-toggle"></span>
+                    </label>
+                </div>
+
+                <div class="px-5 pb-5">
+                    <button onclick="closeSettings()" class="w-full py-3 bg-yellow-500 hover:bg-yellow-400 text-gray-900 font-black rounded-xl transition">閉じる</button>
                 </div>
             </div>
         </div>
@@ -1088,6 +1190,7 @@
             <div class="bg-gradient-to-r from-gray-950 via-gray-900 to-gray-950 border-2 border-yellow-500/90 rounded-2xl shadow-[0_0_50px_rgba(234,179,8,0.6)] px-8 py-5 flex flex-col items-center gap-1 min-w-[260px] sm:min-w-[340px] backdrop-blur-md">
                 <span class="text-2xl sm:text-3xl font-black text-yellow-300 tracking-wider whitespace-nowrap">延長戦！</span>
                 <span class="text-sm sm:text-base font-bold text-gray-200 whitespace-nowrap">この1回で終了！</span>
+                <span id="extra-innings-tiebreak-note" class="hidden mt-1 text-xs sm:text-sm font-black text-orange-300 bg-orange-900/40 border border-orange-500/60 rounded-lg px-3 py-1 whitespace-nowrap">タイブレーク：ノーアウト1・2塁からスタート</span>
             </div>
         </div>
 
@@ -1144,6 +1247,12 @@
         const baseInnings = 3;
         let totalInnings = baseInnings; // 同点なら延長で1回だけ増える
         let extraInningUsed = false;
+
+        // タイトル画面の「⚙️設定」モーダルで変更できる、試合ルールの設定値
+        // （startGame()でチェックボックスの状態を読み込んで反映する）
+        let settingExtraInnings = true;   // 延長戦の有無
+        let settingTiebreak = false;      // 延長時にタイブレーク（ノーアウト一・二塁）にするか
+        let settingPitchHistory = true;   // 投球履歴を表示するか
 
         let player1Name = "Player 1";
         let player2Name = "Player 2";
@@ -1326,6 +1435,22 @@
             document.getElementById('name-team1').innerText = player1Name;
             document.getElementById('name-team2').innerText = player2Name;
 
+            // 名前・試合設定は最後に必ず保存し直しておく（onchange/oninputが
+            // 何らかの理由で発火していない場合でも、ここで確実に記憶される）
+            persistSettings();
+
+            // 「⚙️設定」モーダルのチェックボックスの状態を読み込む
+            const extraInningsCheckbox = document.getElementById('setting-extra-innings');
+            const tiebreakCheckbox = document.getElementById('setting-tiebreak');
+            const pitchHistoryCheckbox = document.getElementById('setting-pitch-history');
+            settingExtraInnings = extraInningsCheckbox ? extraInningsCheckbox.checked : true;
+            // 延長戦なしならタイブレークも意味を持たないので、必ず無効にする
+            settingTiebreak = settingExtraInnings && (tiebreakCheckbox ? tiebreakCheckbox.checked : false);
+            settingPitchHistory = pitchHistoryCheckbox ? pitchHistoryCheckbox.checked : true;
+
+            const historyBox = document.getElementById('pitch-history-box');
+            if (historyBox) historyBox.classList.toggle('hidden', !settingPitchHistory);
+
             currentInning = 1;
             isTop = true;
             score = { team1: 0, team2: 0 };
@@ -1363,7 +1488,13 @@
 
         function initInningState() {
             outs = 0;
-            bases = [false, false, false];
+            // タイブレーク設定が有効で、かつ規定回を超えた延長回なら、
+            // ノーアウト一・二塁からスタートする
+            if (settingTiebreak && currentInning > baseInnings) {
+                bases = [true, true, false];
+            } else {
+                bases = [false, false, false];
+            }
             updateBSO();
             updateBasesUI();
             resetCards();
@@ -1376,6 +1507,10 @@
                     el.classList.add('opacity-0');
                 }
             });
+            // タイブレークでランナーがいる場合は、リセット直後に正しい位置へ即座に表示する
+            if (bases.some(b => b)) {
+                syncRestingRunnersInstant();
+            }
         }
 
         function setupScoreboard() {
@@ -1534,7 +1669,13 @@
             UI.statusMessage.className = `text-base sm:text-lg font-bold mb-2 text-center h-[64px] flex flex-col items-center justify-center bg-gray-800/90 px-3 py-1.5 rounded-2xl border-2 ${borderClass} w-full shadow-lg shrink-0`;
 
             document.getElementById('overlay-role-badge').innerText = `PITCHING TURN (${pPlayerNum === 1 ? 'P1' : 'P2'})`;
-            showOverlay(`⚾ ピッチャー ⚾`, `<span class="text-2xl font-black ${pColorClass} block mb-2">${pName}</span>打者に見えないように、<br>ヒットのパネルを決めてください`);
+
+            let pitchOverlayDesc = `<span class="text-2xl font-black ${pColorClass} block mb-2">${pName}</span>打者に見えないように、<br>ヒットのパネルを決めてください`;
+            // タイブレークの延長回は、両チームの攻撃が始まる瞬間に毎回はっきり伝える
+            if (settingTiebreak && currentInning > baseInnings) {
+                pitchOverlayDesc += `<span class="mt-3 block text-xs sm:text-sm font-black text-orange-300 bg-orange-900/40 border border-orange-500/60 rounded-lg px-3 py-1 mx-auto w-fit">タイブレーク：ノーアウト1・2塁からスタート</span>`;
+            }
+            showOverlay(`⚾ ピッチャー ⚾`, pitchOverlayDesc);
         }
 
         function startBattingPhase() {
@@ -1765,12 +1906,17 @@
         function showExtraInningsBanner() {
             const banner = document.getElementById('extra-innings-banner');
             if (!banner) return;
+
+            // タイブレーク設定が有効なら、スタート位置をここで大きく告知しておく
+            const tiebreakNote = document.getElementById('extra-innings-tiebreak-note');
+            if (tiebreakNote) tiebreakNote.classList.toggle('hidden', !settingTiebreak);
+
             banner.classList.remove('opacity-0', 'scale-90');
             banner.classList.add('opacity-100', 'scale-100');
             setTimeout(() => {
                 banner.classList.remove('opacity-100', 'scale-100');
                 banner.classList.add('opacity-0', 'scale-90');
-            }, 2200);
+            }, settingTiebreak ? 2800 : 2200);
         }
 
         // パソコン版（横画面）の軌道を基準に、各制御点を400x400のビューボックスに対する
@@ -2390,7 +2536,8 @@
             }
 
             // 規定イニングを終えても同点なら、延長戦を1回だけ追加する
-            if (currentInning > totalInnings && !extraInningUsed && score.team1 === score.team2) {
+            // （設定で延長戦なしにしている場合はここをスキップし、そのまま引き分けで終了する）
+            if (settingExtraInnings && currentInning > totalInnings && !extraInningUsed && score.team1 === score.team2) {
                 extraInningUsed = true;
                 totalInnings = currentInning;
                 inningScores.team1.push('');
@@ -2702,6 +2849,100 @@
             }, 300);
         }
 
+        // ブラウザを再起動しても名前・試合設定を覚えておくためのキー
+        const SETTINGS_STORAGE_KEY = 'psychoBaseballSettings_v1';
+
+        // 現在の名前入力・試合設定をブラウザに保存する
+        function persistSettings() {
+            try {
+                const p1Input = document.getElementById('input-p1-name');
+                const p2Input = document.getElementById('input-p2-name');
+                const extraCheckbox = document.getElementById('setting-extra-innings');
+                const tiebreakCheckbox = document.getElementById('setting-tiebreak');
+                const historyCheckbox = document.getElementById('setting-pitch-history');
+
+                const data = {
+                    p1Name: p1Input ? p1Input.value : '',
+                    p2Name: p2Input ? p2Input.value : '',
+                    extraInnings: extraCheckbox ? extraCheckbox.checked : true,
+                    tiebreak: tiebreakCheckbox ? tiebreakCheckbox.checked : false,
+                    pitchHistory: historyCheckbox ? historyCheckbox.checked : true
+                };
+                localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(data));
+            } catch (e) {
+                // プライベートブラウジング等でlocalStorageが使えない環境では、
+                // 保存できないだけで通常通り遊べるようにしておく
+            }
+        }
+
+        // 前回保存された名前・試合設定を読み込み、タイトル画面に反映する
+        function loadPersistedSettings() {
+            try {
+                const raw = localStorage.getItem(SETTINGS_STORAGE_KEY);
+                if (!raw) return;
+                const data = JSON.parse(raw);
+
+                const p1Input = document.getElementById('input-p1-name');
+                const p2Input = document.getElementById('input-p2-name');
+                const extraCheckbox = document.getElementById('setting-extra-innings');
+                const tiebreakCheckbox = document.getElementById('setting-tiebreak');
+                const historyCheckbox = document.getElementById('setting-pitch-history');
+
+                if (p1Input && typeof data.p1Name === 'string') p1Input.value = data.p1Name;
+                if (p2Input && typeof data.p2Name === 'string') p2Input.value = data.p2Name;
+                if (extraCheckbox && typeof data.extraInnings === 'boolean') extraCheckbox.checked = data.extraInnings;
+                if (tiebreakCheckbox && typeof data.tiebreak === 'boolean') tiebreakCheckbox.checked = data.tiebreak;
+                if (historyCheckbox && typeof data.pitchHistory === 'boolean') historyCheckbox.checked = data.pitchHistory;
+
+                onExtraInningsSettingChange();
+            } catch (e) {
+                // 保存データが壊れている場合などは、デフォルト設定のまま起動する
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', loadPersistedSettings);
+
+        // 延長戦のトグルに合わせて、タイブレークのトグルの有効/無効を切り替える
+        // （延長戦なしの場合、タイブレークは選べても意味がないため）
+        function onExtraInningsSettingChange() {
+            const extraCheckbox = document.getElementById('setting-extra-innings');
+            const tiebreakCheckbox = document.getElementById('setting-tiebreak');
+            const tiebreakRow = document.getElementById('tiebreak-setting-row');
+            if (!extraCheckbox || !tiebreakCheckbox) return;
+
+            const extraOn = extraCheckbox.checked;
+            tiebreakCheckbox.disabled = !extraOn;
+            if (tiebreakRow) tiebreakRow.classList.toggle('setting-row-disabled', !extraOn);
+        }
+
+        function openSettings() {
+            const modal = document.getElementById('settings-modal');
+            const box = document.getElementById('settings-box');
+            if (!modal || !box) return;
+
+            onExtraInningsSettingChange();
+
+            modal.classList.remove('hidden');
+            setTimeout(() => {
+                modal.classList.remove('opacity-0');
+                box.classList.remove('scale-95');
+                box.classList.add('scale-100');
+            }, 10);
+        }
+
+        function closeSettings() {
+            const modal = document.getElementById('settings-modal');
+            const box = document.getElementById('settings-box');
+            if (!modal || !box) return;
+
+            modal.classList.add('opacity-0');
+            box.classList.remove('scale-100');
+            box.classList.add('scale-95');
+            setTimeout(() => {
+                modal.classList.add('hidden');
+            }, 300);
+        }
+
         function fitToWindow() {
             const app = document.getElementById('app');
             if (!app) return;
@@ -2787,5 +3028,50 @@
         document.addEventListener('DOMContentLoaded', revealAppWhenReady);
         window.addEventListener('load', fitToWindow);
     </script>
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+    import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+    import { getFirestore, doc, setDoc, updateDoc, increment, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+    const firebaseConfig = {
+        apiKey: "AIzaSyB4fpt6ffIuTBDJo_9g37kYr6KOWNgIcEY",
+        authDomain: "otatoolssite.firebaseapp.com",
+        projectId: "otatoolssite",
+        storageBucket: "otatoolssite.firebasestorage.app",
+        messagingSenderId: "20522292752",
+        appId: "1:20522292752:web:22fba7fecb61736593dc95"
+    };
+
+    // アプリ固有のID
+    const THIS_APP_ID = "31"; 
+    
+    const PORTAL_APP_ID = "otatoolssite-v1";
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+    const auth = getAuth(app);
+    signInAnonymously(auth).then(async () => {
+        const todayStr = new Date().toISOString().split('T')[0];
+        const storageKey = `ota_visited_${THIS_APP_ID}`;
+        
+        if (localStorage.getItem(storageKey) === todayStr) {
+            return;
+        }
+        const docRef = doc(db, 'artifacts', PORTAL_APP_ID, 'public', 'data', 'app_views', THIS_APP_ID);
+                try {
+            const docSnap = await getDoc(docRef);
+            if (docSnap.exists()) {
+                await updateDoc(docRef, { count: increment(1) });
+            } else {
+                await setDoc(docRef, { count: 1 }); 
+            }
+            localStorage.setItem(storageKey, todayStr);
+        } catch (e) { 
+            console.error("閲覧数のカウントに失敗しました:", e); 
+        }
+    }).catch((error) => {
+        console.error("Firebase認証エラー:", error);
+    });
+</script>
+
 </body>
 </html>
