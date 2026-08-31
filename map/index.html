@@ -40,6 +40,13 @@
 
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
+        /* iPad/iPhone Safari のダブルタップ拡大を無効化する。
+           スクロールとピンチは残る（specificity 0 なので、
+           個別に touch-action: none を指定している要素はそのまま） */
+        * {
+            touch-action: manipulation;
+            -webkit-touch-callout: none;
+        }
         @import url('https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@700;900&display=swap');
         
         html {
@@ -155,6 +162,37 @@
     </style>
 </head>
 <body class="text-[#5c3a21]">
+
+    <script>
+        // iPad/iPhoneのSafariはピンチによる拡大ジェスチャーをtouch-actionや
+        // viewportのmaximum-scale/user-scalableだけでは止めてくれないため、
+        // Safari独自のgestureイベントを直接キャンセルする。
+        ['gesturestart', 'gesturechange', 'gestureend'].forEach((type) => {
+            document.addEventListener(type, (e) => e.preventDefault(), { passive: false });
+        });
+
+        // 上の対策でも防ぎきれず拡大されたままになることがあるための保険。
+        // 実際の拡大率が1より大きくなっていたら、viewportのmeta指定を
+        // 一度上書き→戻すことで強制的に等倍へスナップバックさせる。
+        function resetZoomIfNeeded() {
+            if (!window.visualViewport || window.visualViewport.scale <= 1.02) return;
+            const viewportMeta = document.querySelector('meta[name="viewport"]');
+            if (!viewportMeta) return;
+            const original = viewportMeta.getAttribute('content');
+            viewportMeta.setAttribute('content', original + ', maximum-scale=1.0');
+            requestAnimationFrame(() => {
+                viewportMeta.setAttribute('content', original);
+            });
+        }
+        if (window.visualViewport) {
+            window.visualViewport.addEventListener('resize', resetZoomIfNeeded);
+            window.visualViewport.addEventListener('scroll', resetZoomIfNeeded);
+        }
+        // ピンチ操作が終わった直後にも念のため確認する
+        document.addEventListener('gestureend', () => {
+            setTimeout(resetZoomIfNeeded, 50);
+        }, { passive: true });
+    </script>
 
 <div id="app" class="w-full max-w-5xl h-full max-h-full bg-[#fdfaf3] relative flex flex-col shadow-[0_10px_40px_rgba(92,64,51,0.6)] overflow-hidden rounded-3xl border-[8px] border-[#8b5a2b] border-double box-border">
     
@@ -348,6 +386,16 @@
 </div>
 
 <script>
+// 配列をかきまぜる（Fisher-Yates）。
+// sort(() => Math.random() - 0.5) は並びが偏るので使わない
+function shuffleArray(arr) {
+    for (let i = arr.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+    return arr;
+}
+
 const PREFECTURES = [
     { id: 1, name: "北海道", kana: "ほっかいどう", short: "北海道", skana: "ほっかいどう", region: 1 },
     { id: 2, name: "青森県", kana: "あおもりけん", short: "青森", skana: "あおもり", region: 2 },
@@ -654,7 +702,7 @@ function generateQuestionList(useMissData) {
             return rateA - rateB; 
         });
     } else {
-        pool.sort(() => Math.random() - 0.5);
+        shuffleArray(pool);
     }
     return pool;
 }
@@ -669,7 +717,7 @@ function setNextQuestion() {
     // 問題プールが尽きたら再度シャッフルしてループさせる
     if (gameState.currentIndex >= gameState.questions.length) {
         gameState.currentIndex = 0;
-        gameState.questions.sort(() => Math.random() - 0.5);
+        shuffleArray(gameState.questions);
     }
 
     gameState.isProcessing = false;
@@ -699,8 +747,8 @@ function generateChoicesUI(targetPref) {
     
     if (gameState.difficulty === 'normal') {
         const sameRegion = pool.filter(p => p.region === targetPref.region);
-        sameRegion.sort(() => Math.random() - 0.5);
-        pool.sort(() => Math.random() - 0.5);
+        shuffleArray(sameRegion);
+        shuffleArray(pool);
         
         const dummyCandidates = [...sameRegion, ...pool];
         for (let p of dummyCandidates) {
@@ -708,11 +756,11 @@ function generateChoicesUI(targetPref) {
             if (choices.length === choiceCount) break;
         }
     } else {
-        pool.sort(() => Math.random() - 0.5);
+        shuffleArray(pool);
         choices = choices.concat(pool.slice(0, choiceCount - 1));
     }
 
-    choices.sort(() => Math.random() - 0.5);
+    shuffleArray(choices);
 
     choices.forEach(p => {
         const btn = document.createElement('button');
@@ -1004,7 +1052,8 @@ function findSVGElements(prefId, containerId) {
     const db = getFirestore(app);
     const auth = getAuth(app);
     signInAnonymously(auth).then(async () => {
-        const todayStr = new Date().toISOString().split('T')[0];
+        const _d = new Date();
+        const todayStr = `${_d.getFullYear()}-${String(_d.getMonth()+1).padStart(2,'0')}-${String(_d.getDate()).padStart(2,'0')}`;
         const storageKey = `ota_visited_${THIS_APP_ID}`;
         
         if (localStorage.getItem(storageKey) === todayStr) {
