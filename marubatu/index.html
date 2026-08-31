@@ -13,10 +13,18 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>教育アプリ｜３つだけ〇×</title>
+    <meta name="description" content="マークは3つまで、4つ目を置くと最初のマークが消える〇×ゲーム。大阪市の現役小学校教員が制作した教育アプリです。ota toolsのアプリの１つです。">
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Dela+Gothic+One&family=Noto+Sans+JP:wght@700;900&display=swap" rel="stylesheet">
     
     <style>
+        /* iPad/iPhone Safari のダブルタップ拡大を無効化する。
+           スクロールとピンチは残る（specificity 0 なので、
+           個別に touch-action: none を指定している要素はそのまま） */
+        * {
+            touch-action: manipulation;
+            -webkit-touch-callout: none;
+        }
         :root {
             --neon-blue: #00f3ff;
             --neon-pink: #ff00ea;
@@ -55,6 +63,15 @@
             /* 中央を基準に拡大縮小する */
             transform-origin: center center; 
             transition: transform 0.1s ease-out;
+            /* 起動直後はアドレスバーの開閉で高さが数百ms揺れるため、
+               大きさが確定するまで隠しておく（間違った大きさで一瞬見えるのを防ぐ）。
+               中の .digital-font が background-clip:text なので、
+               iOS で黒い四角が出ないよう opacity ではなく visibility で切りかえる */
+            visibility: hidden;
+        }
+
+        #game-scale-wrapper.is-ready {
+            visibility: visible;
         }
 
         .cyber-container {
@@ -82,8 +99,11 @@
             letter-spacing: 0.06em;
             background: linear-gradient(135deg, #ffffff 0%, #b3f5ff 50%, #ffc2f8 100%);
             -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
             -webkit-text-fill-color: transparent;
-            filter: drop-shadow(0 0 10px rgba(0, 243, 255, 0.4));
+            /* filter: drop-shadow は background-clip:text と併用すると
+               iOS Safari で黒い四角になるため外している */
         }
 
         /* サイバーアンダーライン */
@@ -255,8 +275,10 @@
             position: fixed;
             top: 0;
             left: 0;
-            width: 100vw;
-            height: 100vh;
+            /* JS 側は innerWidth / innerHeight で描いているので、
+               100vw / 100vh（iOS では実寸とずれる）ではなく実寸に合わせる */
+            width: 100%;
+            height: 100%;
             pointer-events: none;
             z-index: 99;
         }
@@ -283,6 +305,37 @@
     </style>
 </head>
 <body>
+
+    <script>
+        // iPad/iPhoneのSafariはピンチによる拡大ジェスチャーをtouch-actionや
+        // viewportのmaximum-scale/user-scalableだけでは止めてくれないため、
+        // Safari独自のgestureイベントを直接キャンセルする。
+        ['gesturestart', 'gesturechange', 'gestureend'].forEach((type) => {
+            document.addEventListener(type, (e) => e.preventDefault(), { passive: false });
+        });
+
+        // 上の対策でも防ぎきれず拡大されたままになることがあるための保険。
+        // 実際の拡大率が1より大きくなっていたら、viewportのmeta指定を
+        // 一度上書き→戻すことで強制的に等倍へスナップバックさせる。
+        function resetZoomIfNeeded() {
+            if (!window.visualViewport || window.visualViewport.scale <= 1.02) return;
+            const viewportMeta = document.querySelector('meta[name="viewport"]');
+            if (!viewportMeta) return;
+            const original = viewportMeta.getAttribute('content');
+            viewportMeta.setAttribute('content', original + ', maximum-scale=1.0');
+            requestAnimationFrame(() => {
+                viewportMeta.setAttribute('content', original);
+            });
+        }
+        if (window.visualViewport) {
+            window.visualViewport.addEventListener('resize', resetZoomIfNeeded);
+            window.visualViewport.addEventListener('scroll', resetZoomIfNeeded);
+        }
+        // ピンチ操作が終わった直後にも念のため確認する
+        document.addEventListener('gestureend', () => {
+            setTimeout(resetZoomIfNeeded, 50);
+        }, { passive: true });
+    </script>
 
     <!-- 勝者決定時の紙吹雪キャンバス (画面全体) -->
     <canvas id="confetti-canvas"></canvas>
@@ -363,11 +416,21 @@
 
     <script>
         // Web Audio API による効果音生成システム
+        const SOUND_STORAGE_KEY = 'marubatuSoundEnabled';
+
         class SoundFX {
             constructor() {
                 this.ctx = null;
-                this.enabled = true;
                 this.unlocked = false;
+                // 前回選んだON/OFFを復元する（プライベートブラウズでは例外が出るのでtry/catch）
+                let saved = null;
+                try { saved = localStorage.getItem(SOUND_STORAGE_KEY); } catch (e) {}
+                this.enabled = saved === null ? true : saved === 'true';
+            }
+
+            // 復元時にここで音は鳴らさない（開いた瞬間に確認音が鳴らないように）
+            saveEnabled() {
+                try { localStorage.setItem(SOUND_STORAGE_KEY, this.enabled); } catch (e) {}
             }
 
             init() {
@@ -647,8 +710,7 @@
             const ctx = canvas.getContext('2d');
             
             // 紙吹雪は画面全体(フルスクリーン)に描画する
-            canvas.width = window.innerWidth;
-            canvas.height = window.innerHeight;
+            syncConfettiCanvasSize();
 
             const particles = [];
             const colors = ['#00f3ff', '#ff00ea', '#ffea00', '#ffffff'];
@@ -703,8 +765,19 @@
         modalResetBtn.addEventListener('click', resetGame);
         soundToggle.addEventListener('click', () => {
             sfx.enabled = !sfx.enabled;
+            sfx.saveEnabled();
             updateSoundIcon();
         });
+
+        // 実際に使える表示領域を実測する。
+        // innerWidth / innerHeight は iOS でツールバー分ずれるので visualViewport を優先する
+        function getViewportSize() {
+            const vv = window.visualViewport;
+            return {
+                w: Math.round(vv ? vv.width : window.innerWidth),
+                h: Math.round(vv ? vv.height : window.innerHeight)
+            };
+        }
 
         function adjustGameScale() {
             const wrapper = document.getElementById('game-scale-wrapper');
@@ -712,31 +785,58 @@
             const baseWidth = 580;
             const baseHeight = 820;
             const padding = 16; // 画面端のマージン
-            
+
+            const { w, h } = getViewportSize();
+
             // 画面の幅と高さに対するスケール率を計算
-            const scaleX = (window.innerWidth - padding) / baseWidth;
-            const scaleY = (window.innerHeight - padding) / baseHeight;
+            const scaleX = (w - padding) / baseWidth;
+            const scaleY = (h - padding) / baseHeight;
             
             // はみ出さないよう最小のスケールを適用
             const scale = Math.min(scaleX, scaleY);
             wrapper.style.transform = `scale(${scale})`;
         }
 
-        // ウィンドウのリサイズ時にもスケーリングと紙吹雪キャンバスのサイズを合わせる
-        window.addEventListener('resize', () => {
-            adjustGameScale();
+        // 紙吹雪キャンバスは、CSSの表示サイズと描画バッファのサイズを必ず一致させる
+        // （canvas.width への代入は中身を消すので、変わっていないときは何もしない）
+        function syncConfettiCanvasSize() {
             const canvas = document.getElementById('confetti-canvas');
-            if (canvas) {
-                canvas.width = window.innerWidth;
-                canvas.height = window.innerHeight;
-            }
-        });
+            if (!canvas) return;
+            const { w, h } = getViewportSize();
+            if (canvas.width === w && canvas.height === h) return;
+            canvas.style.width = `${w}px`;
+            canvas.style.height = `${h}px`;
+            canvas.width = w;
+            canvas.height = h;
+        }
+
+        function handleViewportChange() {
+            adjustGameScale();
+            syncConfettiCanvasSize();
+        }
+
+        // ウィンドウのリサイズ時にもスケーリングと紙吹雪キャンバスのサイズを合わせる
+        window.addEventListener('resize', handleViewportChange);
+        window.addEventListener('pageshow', handleViewportChange);
+        window.addEventListener('orientationchange', () => setTimeout(handleViewportChange, 250));
+        if (window.visualViewport) {
+            window.visualViewport.addEventListener('resize', handleViewportChange);
+            window.visualViewport.addEventListener('scroll', handleViewportChange);
+        }
 
         // 初期化実行
-        adjustGameScale();
+        handleViewportChange();
         initBoardDOM();
         updateStatusBox();
         updateSoundIcon();
+
+        // アドレスバーの表示/非表示アニメーションが終わって高さが確定してから、
+        // もう一度計算し直したうえで画面を出す
+        setTimeout(() => {
+            handleViewportChange();
+            const wrapper = document.getElementById('game-scale-wrapper');
+            if (wrapper) wrapper.classList.add('is-ready');
+        }, 300);
     </script>
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
@@ -760,7 +860,8 @@
     const db = getFirestore(app);
     const auth = getAuth(app);
     signInAnonymously(auth).then(async () => {
-        const todayStr = new Date().toISOString().split('T')[0];
+        const _d = new Date();
+        const todayStr = `${_d.getFullYear()}-${String(_d.getMonth()+1).padStart(2,'0')}-${String(_d.getDate()).padStart(2,'0')}`;
         const storageKey = `ota_visited_${THIS_APP_ID}`;
         
         if (localStorage.getItem(storageKey) === todayStr) {
