@@ -13,8 +13,16 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>まるかき名人 - 最高の一筆を！</title>
+    <meta name="description" content="どれだけきれいな円が描けるかに挑戦する無料アプリ。指やマウスで一筆描きした円を採点します。ota toolsのアプリの１つです。">
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
+        /* iPad/iPhone Safari のダブルタップ拡大を無効化する。
+           スクロールとピンチは残る（specificity 0 なので、
+           個別に touch-action: none を指定している要素はそのまま） */
+        * {
+            touch-action: manipulation;
+            -webkit-touch-callout: none;
+        }
         body {
             touch-action: none;
             user-select: none;
@@ -68,6 +76,37 @@
     </style>
 </head>
 <body class="relative">
+
+    <script>
+        // iPad/iPhoneのSafariはピンチによる拡大ジェスチャーをtouch-actionや
+        // viewportのmaximum-scale/user-scalableだけでは止めてくれないため、
+        // Safari独自のgestureイベントを直接キャンセルする。
+        ['gesturestart', 'gesturechange', 'gestureend'].forEach((type) => {
+            document.addEventListener(type, (e) => e.preventDefault(), { passive: false });
+        });
+
+        // 上の対策でも防ぎきれず拡大されたままになることがあるための保険。
+        // 実際の拡大率が1より大きくなっていたら、viewportのmeta指定を
+        // 一度上書き→戻すことで強制的に等倍へスナップバックさせる。
+        function resetZoomIfNeeded() {
+            if (!window.visualViewport || window.visualViewport.scale <= 1.02) return;
+            const viewportMeta = document.querySelector('meta[name="viewport"]');
+            if (!viewportMeta) return;
+            const original = viewportMeta.getAttribute('content');
+            viewportMeta.setAttribute('content', original + ', maximum-scale=1.0');
+            requestAnimationFrame(() => {
+                viewportMeta.setAttribute('content', original);
+            });
+        }
+        if (window.visualViewport) {
+            window.visualViewport.addEventListener('resize', resetZoomIfNeeded);
+            window.visualViewport.addEventListener('scroll', resetZoomIfNeeded);
+        }
+        // ピンチ操作が終わった直後にも念のため確認する
+        document.addEventListener('gestureend', () => {
+            setTimeout(resetZoomIfNeeded, 50);
+        }, { passive: true });
+    </script>
 
     <canvas id="game-canvas" class="absolute inset-0"></canvas>
 
@@ -150,8 +189,15 @@
         highScoreEl.innerText = highScore;
 
         function resizeCanvas() {
-            canvas.width = window.innerWidth;
-            canvas.height = window.innerHeight;
+            const w = window.innerWidth;
+            const h = window.innerHeight;
+            // サイズが変わっていないなら何もしない（canvas.width への代入は絵を消してしまう）
+            if (canvas.width === w && canvas.height === h) return;
+            // 描いている最中・採点結果の表示中は、絵とガイドを消さない
+            // （iOS はアドレスバーの開閉だけで resize が飛んでくる）
+            if (isDrawing || isResultMode) return;
+            canvas.width = w;
+            canvas.height = h;
             clearCanvas();
         }
 
@@ -412,6 +458,8 @@
             resultOverlay.classList.add('hidden');
             instruction.style.opacity = '1';
             isResultMode = false;
+            // 結果表示中は resize を無視しているので、ここで実サイズに合わせ直す
+            resizeCanvas();
             clearCanvas();
             currentScoreEl.innerText = "--";
         });
@@ -439,7 +487,8 @@
     const db = getFirestore(app);
     const auth = getAuth(app);
     signInAnonymously(auth).then(async () => {
-        const todayStr = new Date().toISOString().split('T')[0];
+        const _d = new Date();
+        const todayStr = `${_d.getFullYear()}-${String(_d.getMonth()+1).padStart(2,'0')}-${String(_d.getDate()).padStart(2,'0')}`;
         const storageKey = `ota_visited_${THIS_APP_ID}`;
         
         if (localStorage.getItem(storageKey) === todayStr) {
