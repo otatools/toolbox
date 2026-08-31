@@ -41,6 +41,13 @@
     <script src="https://cdn.tailwindcss.com"></script>
     
     <style>
+        /* iPad/iPhone Safari のダブルタップ拡大を無効化する。
+           スクロールとピンチは残る（specificity 0 なので、
+           個別に touch-action: none を指定している要素はそのまま） */
+        * {
+            touch-action: manipulation;
+            -webkit-touch-callout: none;
+        }
         body { 
             margin: 0; 
             overflow: hidden; 
@@ -110,6 +117,37 @@
     </style>
 </head>
 <body>
+
+    <script>
+        // iPad/iPhoneのSafariはピンチによる拡大ジェスチャーをtouch-actionや
+        // viewportのmaximum-scale/user-scalableだけでは止めてくれないため、
+        // Safari独自のgestureイベントを直接キャンセルする。
+        ['gesturestart', 'gesturechange', 'gestureend'].forEach((type) => {
+            document.addEventListener(type, (e) => e.preventDefault(), { passive: false });
+        });
+
+        // 上の対策でも防ぎきれず拡大されたままになることがあるための保険。
+        // 実際の拡大率が1より大きくなっていたら、viewportのmeta指定を
+        // 一度上書き→戻すことで強制的に等倍へスナップバックさせる。
+        function resetZoomIfNeeded() {
+            if (!window.visualViewport || window.visualViewport.scale <= 1.02) return;
+            const viewportMeta = document.querySelector('meta[name="viewport"]');
+            if (!viewportMeta) return;
+            const original = viewportMeta.getAttribute('content');
+            viewportMeta.setAttribute('content', original + ', maximum-scale=1.0');
+            requestAnimationFrame(() => {
+                viewportMeta.setAttribute('content', original);
+            });
+        }
+        if (window.visualViewport) {
+            window.visualViewport.addEventListener('resize', resetZoomIfNeeded);
+            window.visualViewport.addEventListener('scroll', resetZoomIfNeeded);
+        }
+        // ピンチ操作が終わった直後にも念のため確認する
+        document.addEventListener('gestureend', () => {
+            setTimeout(resetZoomIfNeeded, 50);
+        }, { passive: true });
+    </script>
 
     <!-- ★ 追加: 初期化が終わるまで表示するローディング画面 -->
     <div id="loading-screen" class="fixed inset-0 bg-[#1a202c] z-[100] flex flex-col items-center justify-center transition-opacity duration-500">
@@ -1286,7 +1324,8 @@
     const db = getFirestore(app);
     const auth = getAuth(app);
     signInAnonymously(auth).then(async () => {
-        const todayStr = new Date().toISOString().split('T')[0];
+        const _d = new Date();
+        const todayStr = `${_d.getFullYear()}-${String(_d.getMonth()+1).padStart(2,'0')}-${String(_d.getDate()).padStart(2,'0')}`;
         const storageKey = `ota_visited_${THIS_APP_ID}`;
         
         if (localStorage.getItem(storageKey) === todayStr) {
