@@ -678,6 +678,36 @@
     </div>
 
     <script>
+        // ---- デバッグ用リセット: URLに ?reset を付けてアクセスすると、
+        // このアプリのセーブデータ（購入車両・装備・BGM設定・ベスト記録）と
+        // 共通の「もらった切符の合計」をすべて消して初期状態に戻す ----
+        (function handleDebugReset() {
+            try {
+                const params = new URLSearchParams(location.search);
+                if (!params.has('reset')) return;
+
+                const keysToRemove = [
+                    'purchasedTrains_yamanote', 'equippedTrain_yamanote', 'bgmLevels_yamanote',
+                    'total_fare_all_time'
+                ];
+                [60, 90, 120].forEach(sec => {
+                    keysToRemove.push(`best_inner_${sec}_yamanote`, `best_outer_${sec}_yamanote`, `best_fare_${sec}_yamanote`);
+                });
+                keysToRemove.forEach(k => localStorage.removeItem(k));
+
+                // リロードのたびに再リセットされないよう、URLから ?reset を消しておく
+                params.delete('reset');
+                const query = params.toString();
+                const newUrl = location.pathname + (query ? '?' + query : '') + location.hash;
+                history.replaceState(null, '', newUrl);
+
+                console.log('[debug] リセットしました:', keysToRemove);
+                alert('デバッグ用: セーブデータをリセットしました');
+            } catch (e) {
+                console.log('[debug] reset error', e);
+            }
+        })();
+
         const ROMAJI_TABLE = {
             'あ':['a'], 'い':['i'], 'う':['u'], 'え':['e'], 'お':['o'],
             'か':['ka'], 'き':['ki'], 'く':['ku'], 'け':['ke'], 'こ':['ko'],
