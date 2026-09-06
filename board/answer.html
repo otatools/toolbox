@@ -1,6 +1,6 @@
 <!DOCTYPE html><html lang="ja"><head>
     <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>入室 - Ver 5.5</title>
+    <title>入室 - Ver 6.0</title>
     <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-database-compat.js"></script>
     <style>
@@ -38,7 +38,7 @@
         <button style="margin-top:15px; padding:15px; background:#888; color:white; border:none; border-radius:8px;" onclick="closeNoPanel()">もどる</button>
     </div>
 
-    <div class="footer">オンライン回答ボード | Ver 5.5 | ota tools</div>
+    <div class="footer">オンライン回答ボード | Ver 6.0 | ota tools</div>
 
     <script>
         const config = { apiKey: "AIzaSyCQeNeHqy9VbtBv-hYHa7nantsoE6KLigw", authDomain: "ota-tools.firebaseapp.com", databaseURL: "https://ota-tools-default-rtdb.firebaseio.com", projectId: "ota-tools", appId: "1:671143719220:web:c89149c15de830e6d03561" };
@@ -54,12 +54,22 @@
             return id;
         }
 
+        function toHalfWidthDigits(str) {
+            return str.replace(/[０-９]/g, ch => String.fromCharCode(ch.charCodeAt(0) - 0xFEE0));
+        }
+
         window.onload = () => {
             const r = new URLSearchParams(window.location.search).get('r');
             if (r) document.getElementById('roomID').value = r;
             document.getElementById('userName').value = localStorage.getItem('quiz_name') || '';
             const savedNo = localStorage.getItem('quiz_no') || '';
             if(savedNo) setNo(savedNo);
+
+            const roomInput = document.getElementById('roomID');
+            roomInput.addEventListener('input', () => {
+                let v = toHalfWidthDigits(roomInput.value).replace(/[^0-9]/g, '').slice(0, 4);
+                roomInput.value = v;
+            });
         };
 
         function openNoPanel() { document.getElementById('noPanel').style.display = 'flex'; }
@@ -78,20 +88,34 @@
             if(!room || !name) return alert('部屋番号となまえを入れてね');
             
             btn.disabled = true;
-            localStorage.setItem('quiz_name', name); 
-            localStorage.setItem('quiz_no', currentNo);
-            
-            const uid = btoa(encodeURIComponent(name + currentNo + getDeviceId())).replace(/=/g, "");
-            
-            await db.ref(`rooms/${room}/users/${uid}`).update({ 
-                name: name, 
-                no: currentNo, 
-                status: 'normal',
-                image: "" 
-            });
-            
-            sessionStorage.setItem('quiz_room', room); 
-            sessionStorage.setItem('quiz_uid', uid);
-            location.href = 'student.html';
+
+            try {
+                const roomSnap = await db.ref(`rooms/${room}`).once('value');
+                if (!roomSnap.exists()) {
+                    alert('その部屋番号は見つかりません。部屋番号を確認してもう一度入力してください。');
+                    btn.disabled = false;
+                    return;
+                }
+
+                localStorage.setItem('quiz_name', name); 
+                localStorage.setItem('quiz_no', currentNo);
+                
+                const uid = btoa(encodeURIComponent(name + currentNo + getDeviceId())).replace(/=/g, "");
+                
+                await db.ref(`rooms/${room}/users/${uid}`).update({ 
+                    name: name, 
+                    no: currentNo, 
+                    status: 'normal',
+                    image: "" 
+                });
+                
+                sessionStorage.setItem('quiz_room', room); 
+                sessionStorage.setItem('quiz_uid', uid);
+                location.href = 'student.html';
+            } catch (e) {
+                console.error('入室エラー:', e);
+                alert('入室に失敗しました。通信状態を確認してもう一度お試しください。');
+                btn.disabled = false;
+            }
         }
     </script></body></html>
