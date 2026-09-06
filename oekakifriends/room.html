@@ -205,7 +205,7 @@ const myRoom = sessionStorage.getItem('friends_room');
 const myUid = sessionStorage.getItem('friends_uid');
 const myName = sessionStorage.getItem('friends_name');
 const isHost = sessionStorage.getItem('friends_isHost') === "1";
-if (!myRoom || !myUid) location.href = 'oekaki-friends-index.html';
+if (!myRoom || !myUid) location.href = 'index.html';
 
 function escapeHtml(str) {
     return String(str).replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
@@ -355,7 +355,7 @@ async function hostCloseRoom() {
     await db.ref(`casual_rooms/${myRoom}`).onDisconnect().cancel();
     await db.ref(`casual_rooms/${myRoom}`).remove();
     sessionStorage.removeItem('friends_room');
-    location.href = 'oekaki-friends-index.html';
+    location.href = 'index.html';
 }
 
 /* ===== 画面の更新 ===== */
@@ -399,7 +399,7 @@ authReady.then(() => {
 
     db.ref(`casual_rooms/${myRoom}`).on('value', snap => {
         const data = snap.val();
-        if (!data) { location.href = 'oekaki-friends-index.html'; return; }
+        if (!data) { location.href = 'index.html'; return; }
 
         const state = data.state || {};
         usersData = data.users || {};
@@ -411,7 +411,14 @@ authReady.then(() => {
         currentIsPlaying = (state.phase === "playing" && state.active);
 
         document.getElementById('lobbyScreen').style.display = (state.phase === "lobby") ? "flex" : "none";
-        document.getElementById('gameStage').style.display = (state.phase === "lobby" || state.phase === "final") ? "none" : "block";
+        const gameStageEl = document.getElementById('gameStage');
+        const wasGameStageHidden = gameStageEl.style.display !== "block";
+        gameStageEl.style.display = (state.phase === "lobby" || state.phase === "final") ? "none" : "block";
+        if (wasGameStageHidden && gameStageEl.style.display === "block") {
+            // ロビー画面の裏では display:none で幅0のままだったキャンバスを、
+            // 実際に表示されたタイミングで正しいサイズに引き直す
+            resize();
+        }
         document.getElementById('finalOverlay').style.display = (state.phase === "final") ? "flex" : "none";
 
         if (state.phase === "lobby") {
