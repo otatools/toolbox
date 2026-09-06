@@ -7,73 +7,98 @@
 <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-database-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-auth-compat.js"></script>
-<script src="odailist.js"></script>
+<script src="friends-odailist.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@500;700;900&display=swap" rel="stylesheet">
 <style>
-body { margin: 0; background: #222; color: white; font-family: sans-serif; overflow: hidden; height: 100vh; touch-action: none; }
+* { box-sizing: border-box; }
+body {
+    margin: 0; color: #eef0ff; font-family: 'Zen Maru Gothic', sans-serif; overflow: hidden; height: 100vh; touch-action: none;
+    background: radial-gradient(circle at 20% 15%, #2c2560 0%, #1a1440 45%, #0f0c28 100%);
+}
 
 /* ロビー画面 */
-#lobbyScreen { position: fixed; inset: 0; background: #0047AB; display: flex; align-items: center; justify-content: center; overflow-y: auto; }
-.lobby-box { background: rgba(255,255,255,0.15); padding: 30px; border-radius: 20px; width: 90%; max-width: 420px; text-align: center; box-sizing: border-box; margin: 20px 0; }
-.room-code-big { font-size: 60px; font-weight: bold; color: #ffcc00; letter-spacing: 8px; margin: 10px 0; }
-.lobby-list { text-align: left; background: rgba(0,0,0,0.2); border-radius: 10px; padding: 10px; margin: 15px 0; max-height: 200px; overflow-y: auto; }
-.lobby-list div { padding: 6px 4px; border-bottom: 1px solid rgba(255,255,255,0.1); }
-.lobby-host-controls { border-top: 1px solid rgba(255,255,255,0.3); margin-top: 15px; padding-top: 15px; }
-select, .lobby-host-controls input { width: 100%; padding: 12px; border-radius: 8px; border: none; font-size: 16px; margin: 6px 0; box-sizing: border-box; }
-.btn { padding: 14px; border: none; border-radius: 10px; font-weight: bold; cursor: pointer; font-size: 17px; width: 100%; box-sizing: border-box; margin-top: 8px; }
-.btn-gold { background: #ffcc00; color: #333; }
-.btn-danger { background: #aa0000; color: white; }
-.waiting-note { opacity: 0.8; font-size: 14px; margin-top: 10px; }
+#lobbyScreen { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; overflow-y: auto; z-index: 1; }
+.lobby-box {
+    background: rgba(255,255,255,0.06); backdrop-filter: blur(6px);
+    padding: 30px; border-radius: 18px; width: 90%; max-width: 420px; text-align: center; box-sizing: border-box; margin: 20px 0;
+    border: 1px solid rgba(255,255,255,0.15); box-shadow: 0 10px 30px rgba(0,0,0,0.35);
+}
+.lobby-box h2 { font-weight: 700; font-size: 18px; letter-spacing: 1px; }
+.room-code-big { font-size: 56px; font-weight: 900; color: #ff8a3d; letter-spacing: 8px; margin: 10px 0; }
+.lobby-list { text-align: left; background: rgba(0,0,0,0.25); border-radius: 10px; padding: 10px; margin: 15px 0; max-height: 200px; overflow-y: auto; }
+.lobby-list div { padding: 6px 4px; border-bottom: 1px solid rgba(255,255,255,0.1); font-weight: 500; }
+.lobby-host-controls { border-top: 1px solid rgba(255,255,255,0.2); margin-top: 15px; padding-top: 15px; }
+select, .lobby-host-controls input {
+    width: 100%; padding: 12px; border-radius: 10px; border: 2px solid rgba(255,255,255,0.2); font-size: 16px; margin: 6px 0;
+    box-sizing: border-box; font-family: 'Zen Maru Gothic', sans-serif; background: rgba(255,255,255,0.9); color: #22204a;
+}
+.btn {
+    padding: 15px; border: none; border-radius: 12px; font-weight: 700; cursor: pointer; font-size: 16px;
+    width: 100%; box-sizing: border-box; margin-top: 8px; font-family: 'Zen Maru Gothic', sans-serif;
+    box-shadow: 0 5px 0 rgba(0,0,0,0.25); transition: transform 0.08s ease, box-shadow 0.08s ease; letter-spacing: 1px;
+}
+.btn:active { transform: translateY(3px); box-shadow: 0 2px 0 rgba(0,0,0,0.25); }
+.btn-orange { background: #ff8a3d; color: #2a1500; }
+.btn-danger { background: #ef5f6b; color: #340a0d; }
+.waiting-note { opacity: 0.75; font-size: 14px; margin-top: 10px; color: #b9bce8; }
 
-/* ゲーム画面（student.htmlから流用） */
-#gameStage { display: none; position: fixed; inset: 0; }
+/* ゲーム画面 */
+#gameStage { display: none; position: fixed; inset: 0; z-index: 1; }
 #stage { position: relative; width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; }
-#canvasBox { position: relative; width: 100%; max-width: 100vh; aspect-ratio: 4 / 3; background: white; box-shadow: 0 0 20px black; }
+#canvasBox { position: relative; width: 100%; max-width: 100vh; aspect-ratio: 4 / 3; background: white; box-shadow: 0 0 30px rgba(0,0,0,0.6); border-radius: 6px; overflow: hidden; }
 canvas, #viewer img { position: absolute; top:0; left:0; width: 100%; height: 100%; object-fit: contain; image-rendering: pixelated; }
 #sharedImg:not([src]), #sharedImg[src=""] { opacity: 0; }
-#infoBar { position: fixed; top: 0; left: 0; width: 100%; background: rgba(0,0,0,0.6); padding: 5px; display: flex; justify-content: space-around; align-items: center; font-size: 14px; z-index: 3000; }
-#drawerDisplay { color: #00f0ff; font-weight: bold; flex: 1; text-align: left; padding-left: 10px; }
+#infoBar {
+    position: fixed; top: 0; left: 0; width: 100%; background: rgba(15,12,40,0.85); backdrop-filter: blur(4px);
+    padding: 8px; display: flex; justify-content: space-around; align-items: center; font-size: 14px; z-index: 3000;
+    font-weight: 500; border-bottom: 1px solid rgba(255,255,255,0.1);
+}
+#drawerDisplay { color: #3ed6c6; font-weight: 700; flex: 1; text-align: left; padding-left: 10px; }
 #scoreArea { flex: 1; text-align: right; padding-right: 10px; }
-#myScoreDisplay { color: #ffcc00; }
-#limitTimer { background: #ff3333; color: white; font-size: 24px; font-weight: bold; padding: 2px 15px; border-radius: 10px; min-width: 50px; text-align: center; }
-#odaiGhost { position: absolute; top: 10%; width: 100%; text-align: center; font-size: 32px; color: rgba(180, 0, 0, 0.6); pointer-events: none; z-index: 5; font-weight: bold; text-shadow: 2px 2px 2px white; }
-#hintDisplay { position: fixed; top: 50px; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 8px; z-index: 3000; background: rgba(0,0,0,0.4); padding: 5px 15px; border-radius: 20px; min-height: 30px; }
-#hintLabel { font-weight: bold; font-size: 20px; color: #ffcc00; margin-right: 5px; }
-.hint-dot { width: 18px; height: 18px; border: 2px solid white; border-radius: 50%; background: rgba(255,255,255,0.4); }
+#myScoreDisplay { color: #ff8a3d; font-weight: 700; }
+#limitTimer { background: #ef5f6b; color: white; font-size: 22px; font-weight: 700; padding: 2px 15px; border-radius: 10px; min-width: 50px; text-align: center; }
+#odaiGhost { position: absolute; top: 10%; width: 100%; text-align: center; font-size: 32px; color: rgba(120, 30, 100, 0.55); pointer-events: none; z-index: 5; font-weight: 700; text-shadow: 2px 2px 2px white; }
+#hintDisplay { position: fixed; top: 55px; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 8px; z-index: 3000; background: rgba(15,12,40,0.7); padding: 5px 15px; border-radius: 20px; min-height: 30px; }
+#hintLabel { font-weight: 700; font-size: 18px; color: #ff8a3d; margin-right: 5px; }
+.hint-dot { width: 18px; height: 18px; border: 2px solid #eef0ff; border-radius: 50%; background: rgba(255,255,255,0.25); }
 .hint-dot.small { width: 12px; height: 12px; }
-#judgeEffect { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 100px; font-weight: bold; z-index: 10000; pointer-events: none; display: none; text-shadow: 0 0 20px rgba(0,0,0,0.5); }
-#kbdWrapper { position: fixed; bottom: 0; left: 0; width: 100%; background: rgba(30, 30, 30, 0.85); backdrop-filter: blur(4px); z-index: 5000; display: none; flex-direction: column; padding: 5px 0 env(safe-area-inset-bottom) 0; border-top: 4px solid #ffcc00; }
+#judgeEffect { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 100px; font-weight: 900; z-index: 10000; pointer-events: none; display: none; text-shadow: 0 0 20px rgba(0,0,0,0.5); font-family: 'Zen Maru Gothic', sans-serif; }
+#kbdWrapper { position: fixed; bottom: 0; left: 0; width: 100%; background: rgba(20, 15, 45, 0.92); backdrop-filter: blur(6px); z-index: 5000; display: none; flex-direction: column; padding: 5px 0 env(safe-area-inset-bottom) 0; border-top: 3px solid #3ed6c6; }
 .input-display { display: flex; width: 95%; margin: 5px auto; gap: 8px; align-items: center; position: relative; }
-#answerInput { flex: 1; height: 50px; font-size: 28px; text-align: center; border-radius: 10px; border: 2px solid #ccc; background: white; color: black; font-weight: bold; }
-.k-key { background: #eee; color: #000; border: none; border-radius: 8px; height: 48px; font-size: 20px; font-weight: bold; box-shadow: 0 3px 0 #bbb; display: flex; align-items: center; justify-content: center; }
-.k-key:active { transform: translateY(2px); box-shadow: none; background: #ddd; }
-.k-close-x { position: absolute; top: -45px; right: 0; background: #666; color: white; border: 2px solid #fff; border-radius: 50%; width: 40px; height: 40px; font-size: 24px; display: flex; align-items: center; justify-content: center; }
+#answerInput { flex: 1; height: 50px; font-size: 28px; text-align: center; border-radius: 10px; border: 2px solid #3ed6c6; background: white; color: #22204a; font-weight: 700; }
+.k-key { background: #322a68; color: #eef0ff; border: none; border-radius: 8px; height: 48px; font-size: 20px; font-weight: 700; box-shadow: 0 3px 0 rgba(0,0,0,0.4); display: flex; align-items: center; justify-content: center; }
+.k-key:active { transform: translateY(2px); box-shadow: none; background: #443a86; }
+.k-close-x { position: absolute; top: -45px; right: 0; background: #443a86; color: white; border: 2px solid #eef0ff; border-radius: 50%; width: 40px; height: 40px; font-size: 24px; display: flex; align-items: center; justify-content: center; }
 .k-main-area { display: flex; direction: rtl; padding: 5px; gap: 5px; }
 .k-grid { display: grid; grid-template-columns: repeat(11, 1fr); gap: 4px; flex: 1; }
 .k-side { width: 80px; display: flex; flex-direction: column; gap: 4px; }
-.k-special { background: #ccc; font-size: 16px; }
-.k-bs { background: #ff6666; color: white; width: 100px; height: 50px; font-size: 16px; }
-.k-decide { background: #00cc00; color: white; height: 100%; font-size: 24px; grid-row: span 5; }
-#drawTools { position: fixed; bottom: 0; left: 0; width: 100%; background: #333; z-index: 4000; display: none; flex-direction: column; padding: 10px 5px env(safe-area-inset-bottom) 5px; gap: 10px; border-top: 2px solid #555; }
+.k-special { background: #4a4090; font-size: 16px; }
+.k-bs { background: #ef5f6b; color: white; width: 100px; height: 50px; font-size: 16px; }
+.k-decide { background: #3ed6c6; color: #04302b; height: 100%; font-size: 22px; grid-row: span 5; }
+#drawTools { position: fixed; bottom: 0; left: 0; width: 100%; background: rgba(20, 15, 45, 0.95); z-index: 4000; display: none; flex-direction: column; padding: 10px 5px env(safe-area-inset-bottom) 5px; gap: 10px; border-top: 2px solid rgba(255,255,255,0.15); }
 .color-row { display: grid; grid-template-columns: repeat(7, 1fr); gap: 8px; justify-items: center; max-width: 500px; margin: 0 auto; }
-.color-btn { width: 35px; height: 35px; border-radius: 50%; border: 2px solid #fff; }
-.color-btn.active { transform: scale(1.2); border-color: #ffcc00; box-shadow: 0 0 10px #ffcc00; }
+.color-btn { width: 35px; height: 35px; border-radius: 50%; border: 2px solid rgba(255,255,255,0.4); }
+.color-btn.active { transform: scale(1.2); border-color: #ff8a3d; box-shadow: 0 0 10px #ff8a3d; }
 .tool-row-bottom { display: flex; align-items: center; justify-content: center; gap: 25px; min-height: 60px; }
 .size-dot-wrap { display: flex; flex-direction: column; align-items: center; justify-content: center; cursor: pointer; }
 .size-dot { border-radius: 50%; background: black; border: 2px solid transparent; }
-.size-dot-wrap.active .size-dot { border-color: white; box-shadow: 0 0 8px white; }
-.eraser-btn { background: #eee; color: #333; border-radius: 8px; padding: 8px 15px; font-weight: bold; }
-.eraser-btn.active { background: #ffcc00; outline: 3px solid white; }
+.size-dot-wrap.active .size-dot { border-color: #eef0ff; box-shadow: 0 0 8px #eef0ff; }
+.eraser-btn { background: #eee; color: #333; border-radius: 8px; padding: 8px 15px; font-weight: 700; }
+.eraser-btn.active { background: #ff8a3d; color: #2a1500; outline: 3px solid #eef0ff; }
 .overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 10000; display: none; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
-#countdownOverlay { z-index: 15000; background: rgba(0,0,0,0.95); color: white; }
-#answerOverlay { background: rgba(255,204,0,0.85); color: black; }
-#finalOverlay { background: rgba(0,0,0,0.95); overflow-y: auto; padding-top: 50px; justify-content: flex-start; z-index: 20000; }
-.final-row { background: rgba(255,255,255,0.1); border-radius: 20px; padding: 20px 30px; margin: 10px; width: 85%; max-width: 500px; display: flex; align-items: center; border: 2px solid transparent; box-sizing: border-box; }
-.f-rank-1 { background: rgba(255, 215, 0, 0.2); border-color: gold; }
-.f-rank-2 { background: rgba(192, 192, 192, 0.2); border-color: silver; }
-.f-rank-3 { background: rgba(205, 127, 50, 0.2); border-color: #cd7f32; }
-.f-rank { font-size: 36px; font-weight: bold; color: gold; margin-right: 25px; }
-.f-name { flex: 1; font-size: 26px; font-weight: bold; text-align: left; }
-.f-score { font-size: 24px; font-weight: bold; opacity: 0.85; }
+#countdownOverlay { z-index: 15000; background: rgba(15,12,40,0.96); color: #eef0ff; }
+#answerOverlay { background: rgba(255,138,61,0.92); color: #2a1500; }
+#finalOverlay { background: rgba(15,12,40,0.97); overflow-y: auto; padding-top: 50px; justify-content: flex-start; z-index: 20000; }
+#finalOverlay h1 { font-weight: 900; letter-spacing: 1px; color: #ff8a3d; }
+.final-row { background: rgba(255,255,255,0.06); border-radius: 16px; padding: 20px 30px; margin: 10px; width: 85%; max-width: 500px; display: flex; align-items: center; border: 2px solid rgba(255,255,255,0.1); box-sizing: border-box; }
+.f-rank-1 { background: rgba(255, 138, 61, 0.18); border-color: #ff8a3d; }
+.f-rank-2 { background: rgba(62, 214, 198, 0.15); border-color: #3ed6c6; }
+.f-rank-3 { background: rgba(124, 107, 255, 0.15); border-color: #7c6bff; }
+.f-rank { font-size: 32px; font-weight: 900; color: #ff8a3d; margin-right: 25px; }
+.f-name { flex: 1; font-size: 24px; font-weight: 700; text-align: left; }
+.f-score { font-size: 22px; font-weight: 700; opacity: 0.85; }
 </style>
 </head>
 <body>
@@ -91,7 +116,7 @@ canvas, #viewer img { position: absolute; top:0; left:0; width: 100%; height: 10
             <select id="categorySel"></select>
             <div>ひとり何回描く？</div>
             <input type="number" id="roundsIn" value="1" min="1" max="10">
-            <button class="btn btn-gold" onclick="hostStartGame()">はじめる！</button>
+            <button class="btn btn-orange" onclick="hostStartGame()">はじめる</button>
         </div>
         <div id="guestWaitingNote" class="waiting-note" style="display:none;">ホストが準備するまで待っててね…</div>
     </div>
@@ -153,7 +178,7 @@ canvas, #viewer img { position: absolute; top:0; left:0; width: 100%; height: 10
 
 <!-- 最終ランキング画面 -->
 <div id="finalOverlay" class="overlay">
-    <h1 style="color:gold;">🏆 さいしゅう結果 🏆</h1>
+    <h1>さいしゅう結果</h1>
     <div id="finalRankContainer" style="width:100%; display:flex; flex-direction:column; align-items:center;"></div>
     <button id="closeRoomBtn" class="btn btn-danger" style="max-width:300px; margin-top:20px; display:none;" onclick="hostCloseRoom()">部屋を閉じる</button>
 </div>
@@ -180,7 +205,7 @@ const myRoom = sessionStorage.getItem('friends_room');
 const myUid = sessionStorage.getItem('friends_uid');
 const myName = sessionStorage.getItem('friends_name');
 const isHost = sessionStorage.getItem('friends_isHost') === "1";
-if (!myRoom || !myUid) location.href = 'index.html';
+if (!myRoom || !myUid) location.href = 'oekaki-friends-index.html';
 
 function escapeHtml(str) {
     return String(str).replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
@@ -330,7 +355,7 @@ async function hostCloseRoom() {
     await db.ref(`casual_rooms/${myRoom}`).onDisconnect().cancel();
     await db.ref(`casual_rooms/${myRoom}`).remove();
     sessionStorage.removeItem('friends_room');
-    location.href = 'index.html';
+    location.href = 'oekaki-friends-index.html';
 }
 
 /* ===== 画面の更新 ===== */
@@ -374,7 +399,7 @@ authReady.then(() => {
 
     db.ref(`casual_rooms/${myRoom}`).on('value', snap => {
         const data = snap.val();
-        if (!data) { location.href = 'index.html'; return; }
+        if (!data) { location.href = 'oekaki-friends-index.html'; return; }
 
         const state = data.state || {};
         usersData = data.users || {};
