@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>お絵かきクイズ フレンズ - 入口</title>
+    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-database-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-auth-compat.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@500;700;900&display=swap" rel="stylesheet">
+    <style>
+        * { box-sizing: border-box; }
+        body {
+            margin: 0; min-height: 100vh; overflow-x: hidden;
+            display: flex; align-items: center; justify-content: center; flex-direction: column;
+            font-family: 'Zen Maru Gothic', sans-serif; color: #eef0ff;
+            background: radial-gradient(circle at 20% 15%, #2c2560 0%, #1a1440 45%, #0f0c28 100%);
+            position: relative;
+        }
+
+        .bg-shapes { position: fixed; inset: 0; z-index: 0; pointer-events: none; opacity: 0.5; }
+
+        .title-wrap { text-align: center; margin-bottom: 22px; z-index: 2; }
+        .title-wrap h1 {
+            font-family: 'Zen Maru Gothic', sans-serif;
+            font-weight: 900;
+            font-size: 34px; margin: 0; line-height: 1.25;
+            color: #fff;
+            letter-spacing: 1px;
+        }
+        .title-wrap h1 .accent { color: #ff9248; }
+        .title-underline { display: block; margin: 8px auto 0; width: 160px; }
+        .title-wrap .sub { font-size: 14px; color: #9ea3d6; font-weight: 500; margin-top: 10px; letter-spacing: 1px; }
+
+        .box {
+            background: rgba(255,255,255,0.06);
+            backdrop-filter: blur(6px);
+            padding: 28px; border-radius: 18px; width: 350px; max-width: 88vw;
+            text-align: center; box-shadow: 0 10px 30px rgba(0,0,0,0.35);
+            border: 1px solid rgba(255,255,255,0.15);
+            z-index: 2;
+        }
+        .box h2 { font-family: 'Zen Maru Gothic', sans-serif; font-weight: 700; font-size: 18px; color: #fff; margin-top: 0; letter-spacing: 1px; }
+        input {
+            width: 100%; padding: 14px; margin: 10px 0; border-radius: 10px;
+            border: 2px solid rgba(255,255,255,0.2); box-sizing: border-box; font-size: 17px;
+            font-family: 'Zen Maru Gothic', sans-serif; text-align: center;
+            background: rgba(255,255,255,0.9); color: #22204a;
+        }
+        input:focus { outline: none; border-color: #ff9248; }
+        .btn {
+            width: 100%; padding: 15px; border: none; border-radius: 12px;
+            font-weight: 700; cursor: pointer; margin: 8px 0; font-size: 16px;
+            font-family: 'Zen Maru Gothic', sans-serif; box-sizing: border-box;
+            display: flex; align-items: center; justify-content: center; gap: 10px;
+            box-shadow: 0 5px 0 rgba(0,0,0,0.25);
+            transition: transform 0.08s ease, box-shadow 0.08s ease;
+            letter-spacing: 1px;
+        }
+        .btn:active { transform: translateY(3px); box-shadow: 0 2px 0 rgba(0,0,0,0.25); }
+        .btn svg { width: 22px; height: 22px; flex-shrink: 0; }
+        .btn-orange { background: #ff8a3d; color: #2a1500; }
+        .btn-cyan { background: #3ed6c6; color: #04302b; }
+        .btn-sub { background: rgba(255,255,255,0.1); color: #cfd2f2; box-shadow: 0 4px 0 rgba(0,0,0,0.2); font-size: 14px; font-weight: 500; }
+        .footer { margin-top: 22px; font-size: 12px; color: #7d81b8; z-index: 2; font-weight: 500; letter-spacing: 1px; }
+    </style>
+</head>
+<body>
+    <svg class="bg-shapes" viewBox="0 0 400 800" preserveAspectRatio="xMidYMid slice">
+        <circle cx="40" cy="90" r="70" fill="#ff8a3d" opacity="0.08"/>
+        <circle cx="370" cy="650" r="110" fill="#3ed6c6" opacity="0.07"/>
+        <circle cx="350" cy="120" r="45" fill="#7c6bff" opacity="0.10"/>
+        <circle cx="30" cy="700" r="55" fill="#ff5d8f" opacity="0.08"/>
+    </svg>
+
+    <div class="title-wrap">
+        <h1>お絵かき<span class="accent">クイズ</span><br>フレンズ</h1>
+        <svg class="title-underline" viewBox="0 0 160 10" width="160" height="10">
+            <path d="M2 6 C 40 2, 80 9, 120 4 S 158 2, 158 5" stroke="#ff8a3d" stroke-width="3" fill="none" stroke-linecap="round"/>
+        </svg>
+        <div class="sub">みんなでリレー式・お絵かき当てゲーム</div>
+    </div>
+
+    <div class="box" id="modeSelect">
+        <h2>スタート方法をえらぶ</h2>
+        <button class="btn btn-orange" onclick="showCreate()">
+            <svg viewBox="0 0 24 24" fill="none"><path d="M4 21v-4.2L16.6 4.2c.5-.5 1.4-.5 2 0l1.2 1.2c.5.5.5 1.4 0 2L7.2 20 4 21z" fill="currentColor"/><path d="M14.5 6.3l3.2 3.2" stroke="#2a1500" stroke-width="1.3"/></svg>
+            部屋を作る（ホスト）
+        </button>
+        <button class="btn btn-cyan" onclick="showJoin()">
+            <svg viewBox="0 0 24 24" fill="none"><path d="M10 4h6a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M13 12H3m0 0l3.5-3.5M3 12l3.5 3.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            部屋に入る
+        </button>
+    </div>
+
+    <div class="box" id="createBox" style="display:none;">
+        <h2>部屋を作る</h2>
+        <input type="text" id="hostName" placeholder="なまえ" autocomplete="off">
+        <button class="btn btn-orange" id="createBtn" onclick="createRoom()">この名前ではじめる</button>
+        <button class="btn btn-sub" onclick="backToSelect()">もどる</button>
+    </div>
+
+    <div class="box" id="joinBox" style="display:none;">
+        <h2>部屋に入る</h2>
+        <input type="text" id="roomID" placeholder="部屋番号" inputmode="numeric" autocomplete="off">
+        <input type="text" id="guestName" placeholder="なまえ" autocomplete="off">
+        <button class="btn btn-cyan" id="joinBtn" onclick="joinRoom()">入室する</button>
+        <button class="btn btn-sub" onclick="backToSelect()">もどる</button>
+    </div>
+
+    <div class="footer">お絵かきクイズ フレンズ | Ver 1.0 | ota tools</div>
+
+    <script>
+        const config = {
+            apiKey: "AIzaSyCo4uq1uJBRcgU-c7mWemukU25MrX635m0",
+            authDomain: "oekaki-quiz-23ab5.firebaseapp.com",
+            databaseURL: "https://oekaki-quiz-23ab5-default-rtdb.asia-southeast1.firebasedatabase.app",
+            projectId: "oekaki-quiz-23ab5",
+            appId: "1:61801325910:web:330fa68a1701dbbc9822f7"
+        };
+        firebase.initializeApp(config);
+        const db = firebase.database();
+        const authReady = new Promise(resolve => {
+            firebase.auth().onAuthStateChanged(user => {
+                if (user) resolve(user); else firebase.auth().signInAnonymously();
+            });
+        });
+
+        function toHalfWidthDigits(str) {
+            return String(str).replace(/[０-９]/g, ch => String.fromCharCode(ch.charCodeAt(0) - 0xFEE0));
+        }
+        function makeUid(name) {
+            return 'u_' + btoa(encodeURIComponent(name)).replace(/[^A-Za-z0-9]/g, '');
+        }
+
+        function showCreate() { modeSelect.style.display = 'none'; createBox.style.display = 'block'; }
+        function backToSelect() {
+            createBox.style.display = 'none';
+            joinBox.style.display = 'none';
+            modeSelect.style.display = 'block';
+        }
+        function showJoin() {
+            modeSelect.style.display = 'none';
+            joinBox.style.display = 'block';
+            const roomInput = document.getElementById('roomID');
+            roomInput.addEventListener('input', (e) => {
+                if (e.isComposing) return;
+                normalizeRoomInput(roomInput);
+            });
+            roomInput.addEventListener('compositionend', () => normalizeRoomInput(roomInput));
+        }
+        function normalizeRoomInput(el) {
+            const converted = toHalfWidthDigits(el.value).replace(/[^0-9]/g, '');
+            if (el.value !== converted) el.value = converted;
+        }
+
+        async function createRoom() {
+            const name = document.getElementById('hostName').value.trim();
+            if (!name) return alert('なまえを入れてね');
+            const btn = document.getElementById('createBtn');
+            btn.disabled = true;
+            await authReady;
+
+            const room = String(Math.floor(1000 + Math.random() * 9000));
+            const uid = makeUid(name);
+
+            await db.ref(`casual_rooms/${room}`).set({
+                hostUid: uid,
+                settings: { category: "", roundsPerPerson: 1 },
+                turnOrder: [],
+                usedWords: {},
+                progress: { roundNumber: 0, totalRounds: 0 },
+                state: {
+                    phase: "lobby",
+                    currentDrawer: "",
+                    drawerName: "",
+                    correctAnswer: "",
+                    countdown: 3,
+                    timeLeft: 45,
+                    correctCount: 0,
+                    active: false
+                },
+                users: {
+                    [uid]: { name: name, score: 0, image: "", isCorrect: false, joinedAt: Date.now() }
+                }
+            });
+
+            sessionStorage.setItem('friends_room', room);
+            sessionStorage.setItem('friends_uid', uid);
+            sessionStorage.setItem('friends_name', name);
+            sessionStorage.setItem('friends_isHost', "1");
+            location.href = 'oekaki-friends-room.html';
+        }
+
+        async function joinRoom() {
+            const room = toHalfWidthDigits(document.getElementById('roomID').value).replace(/[^0-9]/g, '');
+            const name = document.getElementById('guestName').value.trim();
+            if (!room || !name) return alert('部屋番号となまえを入れてね');
+            const btn = document.getElementById('joinBtn');
+            btn.disabled = true;
+            await authReady;
+
+            const roomSnap = await db.ref(`casual_rooms/${room}`).once('value');
+            if (!roomSnap.exists()) {
+                alert('その部屋番号は見つかりません。部屋番号を確認してね。');
+                btn.disabled = false;
+                return;
+            }
+            const roomData = roomSnap.val();
+            if ((roomData.state || {}).phase !== 'lobby') {
+                alert('このお部屋はもうゲームが始まっています。次のゲームまで待ってね。');
+                btn.disabled = false;
+                return;
+            }
+
+            const uid = makeUid(name);
+            await db.ref(`casual_rooms/${room}/users/${uid}`).update({
+                name: name,
+                score: (roomData.users && roomData.users[uid] && roomData.users[uid].score) || 0,
+                image: "",
+                isCorrect: false,
+                joinedAt: Date.now()
+            });
+
+            sessionStorage.setItem('friends_room', room);
+            sessionStorage.setItem('friends_uid', uid);
+            sessionStorage.setItem('friends_name', name);
+            sessionStorage.setItem('friends_isHost', "0");
+            location.href = 'oekaki-friends-room.html';
+        }
+    </script>
+</body>
+</html>
