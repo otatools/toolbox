@@ -66,9 +66,16 @@
             if(savedNo) setNo(savedNo);
 
             const roomInput = document.getElementById('roomID');
-            roomInput.addEventListener('input', () => {
+            let composing = false;
+            const sanitizeRoomInput = () => {
                 let v = toHalfWidthDigits(roomInput.value).replace(/[^0-9]/g, '').slice(0, 4);
                 roomInput.value = v;
+            };
+            roomInput.addEventListener('compositionstart', () => { composing = true; });
+            roomInput.addEventListener('compositionend', () => { composing = false; sanitizeRoomInput(); });
+            roomInput.addEventListener('input', (e) => {
+                if (composing || e.isComposing) return;
+                sanitizeRoomInput();
             });
         };
 
