@@ -23,7 +23,7 @@
 <body>
     <div class="box">
         <h2 style="margin-top:0">お絵かきクイズ 入室</h2>
-        <input type="text" id="roomID" placeholder="部屋番号" inputmode="numeric" autocomplete="off" oninput="normalizeRoomInput(this)">
+        <input type="text" id="roomID" placeholder="部屋番号" inputmode="numeric" autocomplete="off">
         <div id="noSelector" onclick="openNoPanel()">出席番号をえらぶ</div>
         <input type="text" id="userName" placeholder="なまえ" autocomplete="off">
         <button id="enterBtn" class="btn-gold" onclick="enter()">入室する</button>
@@ -77,6 +77,17 @@
             document.getElementById('userName').value = localStorage.getItem('quiz_name') || '';
             const savedNo = localStorage.getItem('quiz_no') || '';
             if(savedNo) setNo(savedNo);
+
+            // 部屋番号欄：日本語IMEなどの「入力中(変換確定前)」に値を書き換えると
+            // 文字が重複・崩壊するので、入力中は何もせず、変換が確定した時だけ半角化する
+            const roomInput = document.getElementById('roomID');
+            roomInput.addEventListener('input', (e) => {
+                if (e.isComposing) return;
+                normalizeRoomInput(roomInput);
+            });
+            roomInput.addEventListener('compositionend', () => {
+                normalizeRoomInput(roomInput);
+            });
         };
 
         function openNoPanel() { document.getElementById('noPanel').style.display = 'flex'; }

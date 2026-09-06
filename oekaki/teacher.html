@@ -142,7 +142,11 @@
     let sortMode = 'no'; let sortAsc = true; let monitorWin = null; 
     let currentMaxAttempts = 999;
 
-    authReady.then(() => { db.ref(`rooms/${myRoom}`).on('value', snap => {
+    authReady.then(() => {
+        // 先生の端末がネットワーク切断・タブ×閉じ・ブラウザ終了などで
+        // 突然いなくなった場合、Firebaseサーバー側で自動的に部屋を削除する
+        db.ref(`rooms/${myRoom}`).onDisconnect().remove();
+        db.ref(`rooms/${myRoom}`).on('value', snap => {
         if(!snap.exists()) return;
         const data = snap.val(), users = data.users || {}, state = data.state || {};
         usersData = users;
@@ -171,7 +175,8 @@
             document.getElementById('monitorName').innerText = "待機中";
         }
         renderList(state.currentDrawer);
-    }); });
+        });
+    });
 
     function setSort(mode) { sortMode = mode; sortAsc = (mode === 'no'); updateSortUI(); renderList(); }
     function toggleDir() { sortAsc = !sortAsc; updateSortUI(); renderList(); }
@@ -336,7 +341,14 @@
     }
     
     function resetScores() { if(confirm("リセットしますか？")) db.ref(`rooms/${myRoom}/users`).once('value', s => s.forEach(u => db.ref(`rooms/${myRoom}/users/${u.key}`).update({score:0, prevScore:0, hasDrawn:false, isCorrect:false, image:"", answerAttempts:0}))); }
-    function closeRoom() { if(confirm("部屋を閉じますか？")) db.ref(`rooms/${myRoom}`).remove().then(() => { sessionStorage.removeItem('quiz_room'); location.href="index.html"; }); }
+    async function closeRoom() {
+        if(!confirm("部屋を閉じますか？")) return;
+        // 自分で閉じる場合は「切断時の自動削除」を先に解除してから削除する
+        await db.ref(`rooms/${myRoom}`).onDisconnect().cancel();
+        await db.ref(`rooms/${myRoom}`).remove();
+        sessionStorage.removeItem('quiz_room');
+        location.href = "index.html";
+    }
     function showRoomZoom() {
         document.getElementById('qrcode').innerHTML = "";
         new QRCode(document.getElementById("qrcode"), { text: window.location.origin + "/answer.html", width: 250, height: 250 });
