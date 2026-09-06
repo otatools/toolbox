@@ -45,6 +45,15 @@
         firebase.initializeApp(config); const db = firebase.database();
         let currentNo = "";
 
+        function getDeviceId() {
+            let id = localStorage.getItem('quiz_device_id');
+            if (!id) {
+                id = (crypto.randomUUID ? crypto.randomUUID() : (Date.now().toString(36) + Math.random().toString(36).slice(2)));
+                localStorage.setItem('quiz_device_id', id);
+            }
+            return id;
+        }
+
         window.onload = () => {
             const r = new URLSearchParams(window.location.search).get('r');
             if (r) document.getElementById('roomID').value = r;
@@ -72,7 +81,7 @@
             localStorage.setItem('quiz_name', name); 
             localStorage.setItem('quiz_no', currentNo);
             
-            const uid = btoa(encodeURIComponent(name + currentNo)).replace(/=/g, "");
+            const uid = btoa(encodeURIComponent(name + currentNo + getDeviceId())).replace(/=/g, "");
             
             await db.ref(`rooms/${room}/users/${uid}`).update({ 
                 name: name, 
