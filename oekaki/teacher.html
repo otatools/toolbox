@@ -118,6 +118,11 @@
 <script>
     const config = { apiKey: "AIzaSyCo4uq1uJBRcgU-c7mWemukU25MrX635m0", authDomain: "oekaki-quiz-23ab5.firebaseapp.com", databaseURL: "https://oekaki-quiz-23ab5-default-rtdb.asia-southeast1.firebasedatabase.app", projectId: "oekaki-quiz-23ab5", appId: "1:61801325910:web:330fa68a1701dbbc9822f7" };
     firebase.initializeApp(config); const db = firebase.database();
+    const authReady = new Promise(resolve => {
+        firebase.auth().onAuthStateChanged(user => {
+            if (user) resolve(user); else firebase.auth().signInAnonymously();
+        });
+    });
     const myRoom = sessionStorage.getItem('quiz_room');
     if(!myRoom) location.href="index.html";
     document.getElementById('roomID').innerText = "部屋: " + myRoom;
@@ -136,7 +141,7 @@
     let sortMode = 'no'; let sortAsc = true; let monitorWin = null; 
     let currentMaxAttempts = 999;
 
-    db.ref(`rooms/${myRoom}`).on('value', snap => {
+    authReady.then(() => { db.ref(`rooms/${myRoom}`).on('value', snap => {
         if(!snap.exists()) return;
         const data = snap.val(), users = data.users || {}, state = data.state || {};
         usersData = users;
@@ -165,7 +170,7 @@
             document.getElementById('monitorName').innerText = "待機中";
         }
         renderList(state.currentDrawer);
-    });
+    }); });
 
     function setSort(mode) { sortMode = mode; sortAsc = (mode === 'no'); updateSortUI(); renderList(); }
     function toggleDir() { sortAsc = !sortAsc; updateSortUI(); renderList(); }

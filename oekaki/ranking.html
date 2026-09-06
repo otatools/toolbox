@@ -85,13 +85,18 @@
     <script>
         const config = { apiKey: "AIzaSyCo4uq1uJBRcgU-c7mWemukU25MrX635m0", authDomain: "oekaki-quiz-23ab5.firebaseapp.com", databaseURL: "https://oekaki-quiz-23ab5-default-rtdb.asia-southeast1.firebasedatabase.app", projectId: "oekaki-quiz-23ab5", appId: "1:61801325910:web:330fa68a1701dbbc9822f7" };
         firebase.initializeApp(config); const db = firebase.database();
+        const authReady = new Promise(resolve => {
+            firebase.auth().onAuthStateChanged(user => {
+                if (user) resolve(user); else firebase.auth().signInAnonymously();
+            });
+        });
         const myRoom = sessionStorage.getItem('quiz_room');
 
         let lastPhase = "";
         let usersData = {};
         let userElements = {};
 
-        db.ref(`rooms/${myRoom}`).on('value', snap => {
+        authReady.then(() => { db.ref(`rooms/${myRoom}`).on('value', snap => {
             const data = snap.val(); if(!data) return;
             const state = data.state || {};
             usersData = data.users || {};
@@ -112,7 +117,7 @@
                 document.getElementById('pTimer').innerText = state.countdown;
                 document.getElementById('pName').innerText = state.drawerName || "---";
             }
-        });
+        }); });
 
         function updateWinnerDisplay(users) {
             const container = document.getElementById('winnerContainer');

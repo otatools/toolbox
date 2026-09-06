@@ -133,6 +133,11 @@ image-rendering: pixelated;
 <script>
 const config = { apiKey: "AIzaSyCo4uq1uJBRcgU-c7mWemukU25MrX635m0", authDomain: "oekaki-quiz-23ab5.firebaseapp.com", databaseURL: "https://oekaki-quiz-23ab5-default-rtdb.asia-southeast1.firebasedatabase.app", projectId: "oekaki-quiz-23ab5", appId: "1:61801325910:web:330fa68a1701dbbc9822f7" };
 firebase.initializeApp(config); const db = firebase.database();
+const authReady = new Promise(resolve => {
+    firebase.auth().onAuthStateChanged(user => {
+        if (user) resolve(user); else firebase.auth().signInAnonymously();
+    });
+});
 const myRoom = sessionStorage.getItem('quiz_room'), myUid = sessionStorage.getItem('quiz_uid');
 if(!myRoom || !myUid) location.href = "answer.html";
 const canvas = document.getElementById('canvas'), ctx = canvas.getContext('2d');
@@ -152,7 +157,7 @@ let uploadTimeout = null;
 function throttleUpload() { if (!uploadTimeout) { uploadTimeout = setTimeout(() => { upload(); uploadTimeout = null; }, 120); } }
 function upload() { const temp = document.createElement('canvas'); temp.width = 800; temp.height = 600; temp.getContext('2d').drawImage(canvas, 0, 0, 800, 600); db.ref(`rooms/${myRoom}/users/${myUid}/image`).set(temp.toDataURL('image/webp', 0.8)); }
 
-db.ref(`rooms/${myRoom}`).on('value', snap => {
+authReady.then(() => { db.ref(`rooms/${myRoom}`).on('value', snap => {
 const data = snap.val(); if(!data) { location.href = "answer.html"; return; }
 const state = data.state || {}, users = data.users || {};
 if (!users[myUid]) return;
@@ -245,7 +250,7 @@ if (!isDrawer && currentIsPlaying && state.hintOn && (state.timeLeft <= 30)) {
     const label = document.createElement('div'); label.id = "hintLabel"; label.innerText = "ヒント："; hintBox.appendChild(label);
     [...state.correctAnswer].forEach(char => { const dot = document.createElement('div'); dot.className = "hint-dot" + ("ぁぃぅぇぉゃゅょっァィゥェォャュョッ".includes(char) ? " small" : ""); hintBox.appendChild(dot); });
 }
-});
+}); });
 
 function toHira(str) { return str.replace(/[\u30a1-\u30f6]/g, m => String.fromCharCode(m.charCodeAt(0) - 0x60)); }
 async function checkAnswer() {

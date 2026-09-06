@@ -22,7 +22,7 @@
 <body>
     <div class="box">
         <h2 style="margin-top:0">お絵かきクイズ 入室</h2>
-        <input type="text" id="roomID" placeholder="部屋番号" inputmode="numeric" autocomplete="off">
+        <input type="text" id="roomID" placeholder="部屋番号" inputmode="numeric" autocomplete="off" oninput="normalizeRoomInput(this)">
         <div id="noSelector" onclick="openNoPanel()">出席番号をえらぶ</div>
         <input type="text" id="userName" placeholder="なまえ" autocomplete="off">
         <button id="enterBtn" class="btn-gold" onclick="enter()">入室する</button>
@@ -53,11 +53,26 @@
             appId: "1:61801325910:web:330fa68a1701dbbc9822f7"
         };
         firebase.initializeApp(config); const db = firebase.database();
+        const authReady = new Promise(resolve => {
+            firebase.auth().onAuthStateChanged(user => {
+                if (user) resolve(user); else firebase.auth().signInAnonymously();
+            });
+        });
         let currentNo = "";
+
+        // 全角数字→半角数字への変換（１文字ずつ置換するので "１"が"11"になるような事故は起きない）
+        function toHalfWidthDigits(str) {
+            return String(str).replace(/[０-９]/g, ch => String.fromCharCode(ch.charCodeAt(0) - 0xFEE0));
+        }
+
+        function normalizeRoomInput(el) {
+            const converted = toHalfWidthDigits(el.value).replace(/[^0-9]/g, '');
+            if (el.value !== converted) el.value = converted;
+        }
 
         window.onload = () => {
             const r = new URLSearchParams(window.location.search).get('r');
-            if (r) document.getElementById('roomID').value = r;
+            if (r) document.getElementById('roomID').value = toHalfWidthDigits(r).replace(/[^0-9]/g, '');
             document.getElementById('userName').value = localStorage.getItem('quiz_name') || '';
             const savedNo = localStorage.getItem('quiz_no') || '';
             if(savedNo) setNo(savedNo);
@@ -73,18 +88,27 @@
         }
 
         async function enter() {
-            const btn = document.getElementById('enterBtn'); 
-            const room = document.getElementById('roomID').value;
+            const btn = document.getElementById('enterBtn');
+            const room = toHalfWidthDigits(document.getElementById('roomID').value).replace(/[^0-9]/g, '');
             const name = document.getElementById('userName').value;
             if(!room || !name) return alert('部屋番号となまえを入れてね');
-            
+
             btn.disabled = true;
-            localStorage.setItem('quiz_name', name); 
+            await authReady;
+
+            const roomSnap = await db.ref(`rooms/${room}`).once('value');
+            if (!roomSnap.exists()) {
+                alert('その部屋番号は見つかりません。先生に部屋番号を確認してください。');
+                btn.disabled = false;
+                return;
+            }
+
+            localStorage.setItem('quiz_name', name);
             localStorage.setItem('quiz_no', currentNo);
-            
+
             const uid = btoa(encodeURIComponent(name + currentNo)).replace(/=/g, "");
-            
-            await db.ref(`rooms/${room}/users/${uid}`).update({ 
+
+            await db.ref(`rooms/${room}/users/${uid}`).update({
                 name: name, 
                 no: currentNo, 
                 score: 0,

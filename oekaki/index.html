@@ -49,8 +49,14 @@
             appId: "1:61801325910:web:330fa68a1701dbbc9822f7"
         };
         firebase.initializeApp(config); const db = firebase.database();
+        const authReady = new Promise(resolve => {
+            firebase.auth().onAuthStateChanged(user => {
+                if (user) resolve(user); else firebase.auth().signInAnonymously();
+            });
+        });
 
-        function createRoom() {
+        async function createRoom() {
+            await authReady;
             const room = Math.floor(1000 + Math.random() * 9000);
             db.ref(`rooms/${room}`).set({ 
                 active: false, 
