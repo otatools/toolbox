@@ -161,37 +161,43 @@
             if (!name) return alert('なまえを入れてね');
             const btn = document.getElementById('createBtn');
             btn.disabled = true;
-            await authReady;
+            try {
+                await authReady;
 
-            const room = String(Math.floor(1000 + Math.random() * 9000));
-            const uid = makeUid(name);
+                const room = String(Math.floor(1000 + Math.random() * 9000));
+                const uid = makeUid(name);
 
-            await db.ref(`casual_rooms/${room}`).set({
-                hostUid: uid,
-                settings: { category: "", roundsPerPerson: 1 },
-                turnOrder: [],
-                usedWords: {},
-                progress: { roundNumber: 0, totalRounds: 0 },
-                state: {
-                    phase: "lobby",
-                    currentDrawer: "",
-                    drawerName: "",
-                    correctAnswer: "",
-                    countdown: 3,
-                    timeLeft: 45,
-                    correctCount: 0,
-                    active: false
-                },
-                users: {
-                    [uid]: { name: name, score: 0, image: "", isCorrect: false, joinedAt: Date.now() }
-                }
-            });
+                await db.ref(`casual_rooms/${room}`).set({
+                    hostUid: uid,
+                    settings: { category: "", roundsPerPerson: 1 },
+                    turnOrder: [],
+                    usedWords: {},
+                    progress: { roundNumber: 0, totalRounds: 0 },
+                    state: {
+                        phase: "lobby",
+                        currentDrawer: "",
+                        drawerName: "",
+                        correctAnswer: "",
+                        countdown: 3,
+                        timeLeft: 45,
+                        correctCount: 0,
+                        active: false
+                    },
+                    users: {
+                        [uid]: { name: name, score: 0, image: "", isCorrect: false, joinedAt: Date.now() }
+                    }
+                });
 
-            sessionStorage.setItem('friends_room', room);
-            sessionStorage.setItem('friends_uid', uid);
-            sessionStorage.setItem('friends_name', name);
-            sessionStorage.setItem('friends_isHost', "1");
-            location.href = 'oekaki-friends-room.html';
+                sessionStorage.setItem('friends_room', room);
+                sessionStorage.setItem('friends_uid', uid);
+                sessionStorage.setItem('friends_name', name);
+                sessionStorage.setItem('friends_isHost', "1");
+                location.href = 'oekaki-friends-room.html';
+            } catch (err) {
+                console.error(err);
+                alert('部屋を作れませんでした。時間をおいてもう一度お試しください。\n(エラー: ' + (err && err.message ? err.message : err) + ')');
+                btn.disabled = false;
+            }
         }
 
         async function joinRoom() {
@@ -200,29 +206,37 @@
             if (!room || !name) return alert('部屋番号となまえを入れてね');
             const btn = document.getElementById('joinBtn');
             btn.disabled = true;
-            await authReady;
+            let uid;
+            try {
+                await authReady;
 
-            const roomSnap = await db.ref(`casual_rooms/${room}`).once('value');
-            if (!roomSnap.exists()) {
-                alert('その部屋番号は見つかりません。部屋番号を確認してね。');
+                const roomSnap = await db.ref(`casual_rooms/${room}`).once('value');
+                if (!roomSnap.exists()) {
+                    alert('その部屋番号は見つかりません。部屋番号を確認してね。');
+                    btn.disabled = false;
+                    return;
+                }
+                const roomData = roomSnap.val();
+                if ((roomData.state || {}).phase !== 'lobby') {
+                    alert('このお部屋はもうゲームが始まっています。次のゲームまで待ってね。');
+                    btn.disabled = false;
+                    return;
+                }
+
+                uid = makeUid(name);
+                await db.ref(`casual_rooms/${room}/users/${uid}`).update({
+                    name: name,
+                    score: (roomData.users && roomData.users[uid] && roomData.users[uid].score) || 0,
+                    image: "",
+                    isCorrect: false,
+                    joinedAt: Date.now()
+                });
+            } catch (err) {
+                console.error(err);
+                alert('入室できませんでした。時間をおいてもう一度お試しください。\n(エラー: ' + (err && err.message ? err.message : err) + ')');
                 btn.disabled = false;
                 return;
             }
-            const roomData = roomSnap.val();
-            if ((roomData.state || {}).phase !== 'lobby') {
-                alert('このお部屋はもうゲームが始まっています。次のゲームまで待ってね。');
-                btn.disabled = false;
-                return;
-            }
-
-            const uid = makeUid(name);
-            await db.ref(`casual_rooms/${room}/users/${uid}`).update({
-                name: name,
-                score: (roomData.users && roomData.users[uid] && roomData.users[uid].score) || 0,
-                image: "",
-                isCorrect: false,
-                joinedAt: Date.now()
-            });
 
             sessionStorage.setItem('friends_room', room);
             sessionStorage.setItem('friends_uid', uid);
