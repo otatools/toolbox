@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>大型モニタ - Oekaki Quiz Ver 18.3 (Filter 0pts)</title>
+    <title>大型モニタ - Oekaki Quiz Ver 18.0</title>
     <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-database-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-auth-compat.js"></script>
@@ -121,10 +121,14 @@
             }
         }); });
 
+        function escapeHtml(str) {
+            return String(str).replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+        }
+
         function updateWinnerDisplay(users) {
             const container = document.getElementById('winnerContainer');
             const winners = Object.values(users).filter(u => u.isCorrect).map(u => u.name);
-            if(container.childElementCount !== winners.length) { container.innerHTML = winners.map(name => `<span class="winner-tag">✓ ${name}</span>`).join(''); }
+            if(container.childElementCount !== winners.length) { container.innerHTML = winners.map(name => `<span class="winner-tag">✓ ${escapeHtml(name)}</span>`).join(''); }
         }
 
         function switchPhase(phase, state) {
@@ -182,7 +186,7 @@
                     row.style.top = `${i * 75}px`;
                     row.innerHTML = `
                         <div class="rank-num" id="ranknum-${u.uid}">${rank}位</div>
-                        <div class="rank-name">${u.name}</div>
+                        <div class="rank-name">${escapeHtml(u.name)}</div>
                         <div class="rank-score" id="score-${u.uid}">${u.prevScore || 0}</div>
                         <div class="rank-diff" id="diff-${u.uid}">+${(u.score || 0) - (u.prevScore || 0)}</div>
                     `;
@@ -234,7 +238,7 @@
                     fRow.style.display = "flex";
                     fRow.innerHTML = `
                         <div class="f-rank">${group.rank}位</div>
-                        <div class="f-names">${group.names.join('、')} さん</div>
+                        <div class="f-names">${group.names.map(escapeHtml).join('、')} さん</div>
                         <div class="f-score">${group.score} pts</div>
                     `;
                     finalPodium.appendChild(fRow);

@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>児童用 Ver 19.8.1 (Roulette Sync Support)</title>
+<title>児童用 Ver 18.0</title>
 <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-database-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-auth-compat.js"></script>
@@ -264,8 +264,14 @@ async function checkAnswer() {
         const addPoint = 10 * (state.multiplier || 1);
         db.ref(`rooms/${myRoom}/users/${myUid}`).update({ isCorrect: true, answerAttempts: myAttempts + 1 });
         db.ref(`rooms/${myRoom}/users/${myUid}/score`).transaction(s => (s||0) + addPoint);
-        if(state.correctCount === 0) db.ref(`rooms/${myRoom}/users/${state.currentDrawer}/score`).transaction(s => (s||0) + addPoint);
-        db.ref(`rooms/${myRoom}/state/correctCount`).transaction(c => (c||0) + 1);
+        // correctCountの更新をトランザクションにし、その結果カウントが1になった
+        // （＝自分が今回最初の正解者だった）クライアントだけが描いた人にボーナスを渡す。
+        // これにより複数人がほぼ同時に正解しても、描いた人のボーナスが二重に入らない。
+        db.ref(`rooms/${myRoom}/state/correctCount`).transaction(c => (c||0) + 1, (error, committed, snapshot) => {
+            if (!error && committed && snapshot.val() === 1) {
+                db.ref(`rooms/${myRoom}/users/${state.currentDrawer}/score`).transaction(s => (s||0) + addPoint);
+            }
+        });
         document.getElementById('kbdWrapper').style.display = 'none';
     } else {
         myAttempts++;
