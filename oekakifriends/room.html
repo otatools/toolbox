@@ -636,7 +636,7 @@ function renderLobby(data) {
         chip.className = 'user-chip' + (uid === myUid ? ' me' : '');
         chip.style.borderColor = u.color || 'rgba(60,50,120,0.12)';
         chip.style.color = u.color || '#2c2a4a';
-        chip.innerText = u.name;
+        chip.innerText = u.name + "さん";
         list.appendChild(chip);
     });
 
@@ -716,7 +716,7 @@ function renderPlayerSidebar(data) {
             const nameSpan = document.createElement('span');
             nameSpan.className = 'player-tag-name';
             nameSpan.id = `playerTagName-${uid}`;
-            nameSpan.innerText = u.name;
+            nameSpan.innerText = u.name + "さん";
             tag.appendChild(nameSpan);
             const bubble = document.createElement('div');
             bubble.className = 'tag-bubble';
@@ -732,7 +732,7 @@ function renderPlayerSidebar(data) {
             if (!u || !tag) return;
             tag.style.borderColor = u.color || '#ccc';
             tag.style.color = u.color || '#2c2a4a';
-            if (nameSpan) nameSpan.innerText = u.name;
+            if (nameSpan) nameSpan.innerText = u.name + "さん";
         });
     }
 }
@@ -809,7 +809,7 @@ authReady.then(() => {
             lastWrongGuessTs = wg ? wg.ts : 0;
         } else if (currentIsPlaying && wg && wg.ts > lastWrongGuessTs) {
             lastWrongGuessTs = wg.ts;
-            showWrongGuessBubble(wg.uid, wg.name || "だれか", wg.text || "");
+            showWrongGuessBubble(wg.uid, wg.name, wg.text || "");
         }
 
         if (state.phase !== lastStatePhase) {
@@ -821,18 +821,18 @@ authReady.then(() => {
             lastStatePhase = state.phase;
         }
 
-        document.getElementById('drawerDisplay').innerText = `描いている人: ${state.drawerName || "---"}`;
+        document.getElementById('drawerDisplay').innerText = `描いている人: ${state.drawerName ? state.drawerName + "さん" : "---"}`;
 
         document.getElementById('countdownOverlay').style.display = (state.phase === "countdown") ? 'flex' : 'none';
         if (state.phase === "countdown") {
-            document.getElementById('cdName').innerText = `次は ${state.drawerName || '...'} さん`;
+            document.getElementById('cdName').innerText = `次は ${state.drawerName ? state.drawerName + 'さん' : '...'}`;
             document.getElementById('cdNumber').innerText = state.countdown ?? "";
         }
 
         document.getElementById('answerOverlay').style.display = (state.phase === "result") ? 'flex' : 'none';
         if (state.phase === "result") {
             document.getElementById('finalAnswer').innerText = state.correctAnswer || "？";
-            const winners = Object.values(usersData).filter(u => u.isCorrect).map(u => u.name);
+            const winners = Object.values(usersData).filter(u => u.isCorrect).map(u => u.name + "さん");
             document.getElementById('winnerList').innerText = "正解者：" + (winners.length > 0 ? winners.join('、 ') : "なし");
         }
 
@@ -880,7 +880,7 @@ function renderFinal() {
         values.forEach(u => {
             const row = document.createElement('div');
             row.className = "final-row";
-            row.innerHTML = `<div class="f-name" style="flex:1;">${escapeHtml(u.name)}</div><div class="f-score">${u.score || 0}点</div>`;
+            row.innerHTML = `<div class="f-name" style="flex:1;">${escapeHtml(u.name)}さん</div><div class="f-score">${u.score || 0}点</div>`;
             container.appendChild(row);
         });
     } else {
@@ -889,7 +889,7 @@ function renderFinal() {
             const row = document.createElement('div');
             const rank = i + 1;
             row.className = "final-row" + (rank <= 3 ? ` f-rank-${rank}` : "");
-            row.innerHTML = `<div class="f-rank">${rank}位</div><div class="f-name">${escapeHtml(u.name)}</div><div class="f-score">${u.score || 0}点</div>`;
+            row.innerHTML = `<div class="f-rank">${rank}位</div><div class="f-name">${escapeHtml(u.name)}さん</div><div class="f-score">${u.score || 0}点</div>`;
             container.appendChild(row);
         });
     }
@@ -943,7 +943,7 @@ function showWrongGuessBubble(uid, name, text) {
         return;
     }
     const el = document.getElementById('wrongGuessBubble');
-    el.innerText = `${name}： × ${text}`;
+    el.innerText = `${name ? name + 'さん' : 'だれか'}： × ${text}`;
     el.classList.add('show');
     clearTimeout(wrongGuessHideTimer);
     wrongGuessHideTimer = setTimeout(() => { el.classList.remove('show'); }, 2500);
