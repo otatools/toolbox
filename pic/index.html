@@ -28,7 +28,11 @@
   h1{font-size:18px;margin:0;font-weight:700;}
   .app-header{
     display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;
-    margin-bottom:16px;
+    margin:-24px -24px 16px;
+    padding:12px 24px;
+    position:sticky;top:0;z-index:100;
+    background:var(--bg);
+    box-shadow:0 2px 6px rgba(0,0,0,0.06);
   }
   .app-header-right{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
   .status-pill{
@@ -167,6 +171,8 @@
   <h1>🙈 顔ぼかし＆画像結合ツール</h1>
   <div class="app-header-right">
     <span id="statusBar" class="status-pill">顔検出モデルを読み込み中…</span>
+    <button class="btn small" id="btnUndo" title="1つ前の操作に戻します (Ctrl+Z)" disabled>↶ 元に戻す</button>
+    <button class="btn small" id="btnRedo" title="元に戻した操作をやり直します (Ctrl+Y)" disabled>↷ やり直す</button>
     <button class="btn small" id="btnResetSettings" title="ぼかしの強さ・比率・間隔などの設定を初期値に戻します">⚙ 設定をリセット</button>
   </div>
 </div>
@@ -498,6 +504,107 @@
     resetSettingsToDefaults();
   });
 
+  // ==================== 元に戻す／やり直す（Undo / Redo） ====================
+  const btnUndo = document.getElementById('btnUndo');
+  const btnRedo = document.getElementById('btnRedo');
+  let undoStack = [];
+  let redoStack = [];
+  const UNDO_LIMIT = 60;
+
+  function cloneBoxes(boxes){ return boxes.map(b => ({x:b.x,y:b.y,w:b.w,h:b.h,src:b.src})); }
+
+  function snapshotState(){
+    return {
+      controls: {
+        strength: strengthEl.value, feather: featherEl.value, padding: paddingEl.value,
+        sensitivity: sensitivityEl.value, detectorType: detectorTypeEl.value, inputSize: inputSizeEl.value,
+        canvasRatio: canvasRatioEl.value, orientation, gap: gapEl.value, bgColor: bgColorEl.value
+      },
+      currentCount, currentPresetId, activeSlot, selectedId,
+      items: items.map(it => ({id:it.id, name:it.name, img:it.img, w:it.w, h:it.h, boxes: cloneBoxes(it.boxes), detected: it.detected})),
+      slots: slots.map(s => ({rect:{...s.rect}, itemId: s.item ? s.item.id : null, zoom:s.zoom, offX:s.offX, offY:s.offY, baseScale:s.baseScale}))
+    };
+  }
+
+  function restoreSnapshot(snap){
+    const c = snap.controls;
+    strengthEl.value = c.strength; strengthVal.textContent = c.strength;
+    featherEl.value = c.feather; featherVal.textContent = c.feather + '%';
+    paddingEl.value = c.padding; paddingVal.textContent = c.padding + '%';
+    sensitivityEl.value = c.sensitivity; sensVal.textContent = (parseInt(c.sensitivity,10)/100).toFixed(2);
+    detectorTypeEl.value = c.detectorType; inputSizeField.style.display = c.detectorType === 'tiny' ? 'block' : 'none';
+    inputSizeEl.value = c.inputSize;
+    canvasRatioEl.value = c.canvasRatio;
+    orientation = c.orientation;
+    btnOrientPortrait.classList.toggle('active', orientation === 'portrait');
+    btnOrientLandscape.classList.toggle('active', orientation === 'landscape');
+    gapEl.value = c.gap; gapVal.textContent = c.gap + 'px';
+    bgColorEl.value = c.bgColor;
+
+    currentCount = snap.currentCount;
+    currentPresetId = snap.currentPresetId;
+    selectedId = snap.selectedId;
+
+    items = snap.items.map(it => ({id:it.id, name:it.name, img:it.img, w:it.w, h:it.h, boxes: cloneBoxes(it.boxes), detected: it.detected}));
+    slots = snap.slots.map(s => ({rect:{...s.rect}, item: s.itemId!=null ? items.find(i=>i.id===s.itemId) || null : null, zoom:s.zoom, offX:s.offX, offY:s.offY, baseScale:s.baseScale}));
+    activeSlot = snap.activeSlot;
+
+    processedCache.clear();
+    renderThumbs();
+    if(getSelected()){ editorPanel.style.display = 'block'; drawEditor(); } else { editorPanel.style.display = 'none'; }
+    renderCountTabs();
+    renderPresetGrid();
+    renderThumbs2();
+    renderCollage();
+    updateSlotSidePanel();
+  }
+
+  function pushUndo(){
+    undoStack.push(snapshotState());
+    if(undoStack.length > UNDO_LIMIT) undoStack.shift();
+    redoStack = [];
+    updateUndoRedoButtons();
+  }
+  function doUndo(){
+    if(undoStack.length === 0) return;
+    redoStack.push(snapshotState());
+    restoreSnapshot(undoStack.pop());
+    updateUndoRedoButtons();
+  }
+  function doRedo(){
+    if(redoStack.length === 0) return;
+    undoStack.push(snapshotState());
+    restoreSnapshot(redoStack.pop());
+    updateUndoRedoButtons();
+  }
+  function updateUndoRedoButtons(){
+    btnUndo.disabled = undoStack.length === 0;
+    btnRedo.disabled = redoStack.length === 0;
+  }
+  btnUndo.addEventListener('click', doUndo);
+  btnRedo.addEventListener('click', doRedo);
+  window.addEventListener('keydown', e => {
+    const meta = e.ctrlKey || e.metaKey;
+    if(!meta) return;
+    const k = e.key.toLowerCase();
+    if(k === 'z' && !e.shiftKey){ e.preventDefault(); doUndo(); }
+    else if(k === 'y' || (k === 'z' && e.shiftKey)){ e.preventDefault(); doRedo(); }
+  });
+
+  // 連続した操作（スライダーのドラッグ、ホイールでの拡大など）は1回分の操作としてまとめる
+  function armContinuousUndo(el){
+    el.addEventListener('pointerdown', () => pushUndo());
+  }
+  [strengthEl, featherEl, paddingEl, sensitivityEl, gapEl, bgColorEl, slotZoomEl,
+   detectorTypeEl, inputSizeEl, canvasRatioEl].forEach(armContinuousUndo);
+
+  let wheelUndoTimer = null;
+  function beginWheelUndoGroup(){
+    if(!wheelUndoTimer) pushUndo();
+    clearTimeout(wheelUndoTimer);
+    wheelUndoTimer = setTimeout(() => { wheelUndoTimer = null; }, 600);
+  }
+
   // ---------- モデル読み込み ----------
   const MODEL_URL = 'https://cdn.jsdelivr.net/gh/justadudewhohacks/face-api.js@master/weights';
   showLoading('顔検出モデルを読み込み中…');
@@ -553,6 +660,7 @@
             boxes: [],
             detected: false
           };
+          pushUndo();
           items.push(item);
           renderThumbs();
           if(!selectedId){ selectItem(item.id); }
@@ -676,6 +784,7 @@
   }
 
   function removeItem(id){
+    pushUndo();
     items = items.filter(i => i.id !== id);
     if(selectedId === id){
       selectedId = items.length ? items[0].id : null;
@@ -780,7 +889,7 @@
       const del = document.createElement('button');
       del.className = 'btn small danger';
       del.textContent = '削除';
-      del.onclick = () => { item.boxes.splice(idx,1); drawEditor(); };
+      del.onclick = () => { pushUndo(); item.boxes.splice(idx,1); drawEditor(); };
       row.appendChild(label);
       row.appendChild(del);
       regionList.appendChild(row);
@@ -815,6 +924,7 @@
       const x = Math.min(dragStart.x, pos.x), y = Math.min(dragStart.y, pos.y);
       const w = Math.abs(pos.x - dragStart.x), h = Math.abs(pos.y - dragStart.y);
       if(w > 4 && h > 4){
+        pushUndo();
         item.boxes.push(clampBox({x,y,w,h,src:'manual'}, item.w, item.h));
         drawEditor();
       } else {
@@ -836,6 +946,7 @@
       const cx = b.x + rx, cy = b.y + ry;
       const nx = (pos.x - cx) / rx, ny = (pos.y - cy) / ry;
       if(nx*nx + ny*ny <= 1){
+        pushUndo();
         item.boxes.splice(i, 1);
         drawEditor();
         return;
@@ -884,12 +995,14 @@
   });
   btnClearBoxes.addEventListener('click', () => {
     const item = getSelected(); if(!item) return;
+    pushUndo();
     item.boxes = [];
     drawEditor();
   });
   btnRedetect.addEventListener('click', () => {
     const item = getSelected(); if(!item) return;
     if(!modelReady){ alert('顔検出モデルがまだ読み込まれていません。'); return; }
+    pushUndo();
     runDetection(item);
   });
   strengthEl.addEventListener('input', () => {
@@ -1112,6 +1225,7 @@
     let idx = activeSlot;
     if(idx < 0 || idx >= slots.length) idx = slots.findIndex(s => !s.item);
     if(idx === -1) idx = 0;
+    pushUndo();
     const slot = slots[idx];
     slot.item = item;
     fitSlotDefault(slot, collageCanvasSize());
@@ -1256,6 +1370,7 @@
     const pos = collagePos(e);
     const idx = hitSlot(pos, size);
     if(idx === -1) return;
+    pushUndo();
     const slot = slots[idx];
     slot.item = item;
     fitSlotDefault(slot, size);
@@ -1265,16 +1380,17 @@
     updateSlotSidePanel();
   });
 
-  let dragInfo = null; // {slotIndex, startX, startY, startOffX, startOffY, moved}
+  let dragInfo = null; // {slotIndex, startX, startY, startOffX, startOffY, moved, baseline}
   collageOverlayCanvas.addEventListener('mousedown', e => {
     const size = collageCanvasSize();
     const pos = collagePos(e);
     const idx = hitSlot(pos, size);
     if(idx === -1) return;
-    dragInfo = { slotIndex: idx, startX: pos.x, startY: pos.y, moved:false };
+    dragInfo = { slotIndex: idx, startX: pos.x, startY: pos.y, moved:false, baseline: null };
     const slot = slots[idx];
     if(slot.item){
       dragInfo.startOffX = slot.offX; dragInfo.startOffY = slot.offY;
+      dragInfo.baseline = snapshotState(); // 実際に動かした場合だけ確定してundoに積む
     }
     collageOverlayCanvas.classList.add('dragging');
   });
@@ -1286,6 +1402,13 @@
     if(Math.abs(dx) > 3 || Math.abs(dy) > 3) dragInfo.moved = true;
     const slot = slots[dragInfo.slotIndex];
     if(dragInfo.moved && slot && slot.item){
+      if(dragInfo.baseline){
+        undoStack.push(dragInfo.baseline);
+        if(undoStack.length > UNDO_LIMIT) undoStack.shift();
+        redoStack = [];
+        updateUndoRedoButtons();
+        dragInfo.baseline = null;
+      }
       slot.offX = dragInfo.startOffX + dx;
       slot.offY = dragInfo.startOffY + dy;
       clampSlotOffset(slot, size);
@@ -1305,6 +1428,7 @@
   collageOverlayCanvas.addEventListener('wheel', e => {
     if(activeSlot < 0 || !slots[activeSlot] || !slots[activeSlot].item) return;
     e.preventDefault();
+    beginWheelUndoGroup();
     const slot = slots[activeSlot];
     const delta = e.deltaY < 0 ? 0.08 : -0.08;
     slot.zoom = Math.max(1, Math.min(3, slot.zoom + delta));
@@ -1324,6 +1448,7 @@
   btnSlotReset.addEventListener('click', () => {
     const slot = slots[activeSlot];
     if(!slot || !slot.item) return;
+    pushUndo();
     fitSlotDefault(slot, collageCanvasSize());
     renderCollage();
     updateSlotSidePanel();
@@ -1331,6 +1456,7 @@
   btnSlotClear.addEventListener('click', () => {
     const slot = slots[activeSlot];
     if(!slot) return;
+    pushUndo();
     resetSlotAssignment(slot);
     renderThumbs2();
     renderCollage();
@@ -1343,11 +1469,13 @@
   }
   canvasRatioEl.addEventListener('change', () => { refitAllSlots(); renderPresetGrid(); renderCollage(); saveSettings(); });
   btnOrientPortrait.addEventListener('click', () => {
+    pushUndo();
     orientation = 'portrait';
     btnOrientPortrait.classList.add('active'); btnOrientLandscape.classList.remove('active');
     refitAllSlots(); renderPresetGrid(); renderCollage(); saveSettings();
   });
   btnOrientLandscape.addEventListener('click', () => {
+    pushUndo();
     orientation = 'landscape';
     btnOrientLandscape.classList.add('active'); btnOrientPortrait.classList.remove('active');
     refitAllSlots(); renderPresetGrid(); renderCollage(); saveSettings();
