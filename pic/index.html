@@ -126,6 +126,18 @@
   #collageBaseCanvas, #collageOverlayCanvas{max-width:100%;max-height:78vh;width:auto;height:auto;border-radius:4px;}
   #collageOverlayCanvas{cursor:grab;}
   #collageOverlayCanvas.dragging{cursor:grabbing;}
+  .loading-overlay{
+    position:fixed;inset:0;background:rgba(20,21,28,.45);
+    display:flex;align-items:center;justify-content:center;flex-direction:column;gap:14px;
+    z-index:9999;
+  }
+  .spinner{
+    width:56px;height:56px;border-radius:50%;
+    border:6px solid rgba(255,255,255,.28);border-top-color:#fff;
+    animation:spin .8s linear infinite;
+  }
+  .loading-overlay .loading-label{color:#fff;font-size:13px;font-weight:600;}
+  @keyframes spin{to{transform:rotate(360deg);}}
   .hint{font-size:12px;color:var(--sub);margin-top:8px;}
   .disabled-panel{opacity:.5;pointer-events:none;}
   footer{color:var(--sub);font-size:12px;text-align:center;margin-top:30px;}
@@ -143,8 +155,11 @@
 </head>
 <body>
 
-<h1>🙈 顔ぼかし＆画像結合ツール</h1>
-<div class="subtitle">画像を読み込むと自動で顔を検出してぼかします。手動での追加・解除や、複数画像を1枚に並べる結合機能つき。すべてこのブラウザ内だけで処理され、画像はどこにも送信されません。</div>
+<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;">
+  <h1>🙈 顔ぼかし＆画像結合ツール</h1>
+  <button class="btn small" id="btnResetSettings" title="ぼかしの強さ・比率・間隔などの設定を初期値に戻します">⚙ 設定をリセット</button>
+</div>
+<div class="subtitle">画像を読み込むと自動で顔を検出してぼかします。手動での追加・解除や、複数画像を1枚に並べる結合機能つき。すべてこのブラウザ内だけで処理され、画像はどこにも送信されません。ぼかしの強さや比率・間隔などの設定はこのブラウザに自動的に記憶されます。</div>
 
 <div id="statusBar" class="status-bar">顔検出モデルを読み込み中です…（初回はインターネット接続が必要です）</div>
 
@@ -303,6 +318,11 @@
   </div>
 </div>
 
+<div class="loading-overlay" id="loadingOverlay" style="display:none;">
+  <div class="spinner"></div>
+  <div class="loading-label" id="loadingLabel">処理中…</div>
+</div>
+
 <footer>顔検出：face-api.js（tiny face detector）／画像そのものは一切どこにも送信されず、すべてこの端末のブラウザ内だけで処理されます</footer>
 
 <script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
@@ -311,6 +331,18 @@
   "use strict";
 
   const statusBar = document.getElementById('statusBar');
+  const loadingOverlay = document.getElementById('loadingOverlay');
+  const loadingLabel = document.getElementById('loadingLabel');
+  let loadingCount = 0;
+  function showLoading(text){
+    loadingCount++;
+    if(text) loadingLabel.textContent = text;
+    loadingOverlay.style.display = 'flex';
+  }
+  function hideLoading(){
+    loadingCount = Math.max(0, loadingCount - 1);
+    if(loadingCount === 0) loadingOverlay.style.display = 'none';
+  }
   const dropzone = document.getElementById('dropzone');
   const fileInput = document.getElementById('fileInput');
   const thumbGrid = document.getElementById('thumbGrid');
@@ -387,9 +419,80 @@
   let slots = [];          // {rect:{x,y,w,h} (0-1), item:null, zoom:1, offX:0, offY:0}
   let activeSlot = -1;
   const COLLAGE_LONG = 1600;
+  let presetUsage = {};    // {presetId: 使った回数} … よく使うプリセットを左に並べるための記録
+
+  // ---------- 設定の保存／復元（このブラウザに記憶させる） ----------
+  const SETTINGS_KEY = 'facewb_settings_v1';
+  function loadSettings(){
+    let s = null;
+    try{ s = JSON.parse(localStorage.getItem(SETTINGS_KEY) || 'null'); }catch(e){ s = null; }
+    if(!s) return;
+    if(s.strength != null) strengthEl.value = s.strength;
+    if(s.feather != null) featherEl.value = s.feather;
+    if(s.padding != null) paddingEl.value = s.padding;
+    if(s.sensitivity != null) sensitivityEl.value = s.sensitivity;
+    if(s.detectorType) detectorTypeEl.value = s.detectorType;
+    if(s.inputSize) inputSizeEl.value = s.inputSize;
+    if(s.canvasRatio) canvasRatioEl.value = s.canvasRatio;
+    if(s.orientation) orientation = s.orientation;
+    if(s.gap != null) gapEl.value = s.gap;
+    if(s.bgColor) bgColorEl.value = s.bgColor;
+    if(s.presetUsage) presetUsage = s.presetUsage;
+
+    strengthVal.textContent = strengthEl.value;
+    featherVal.textContent = featherEl.value + '%';
+    paddingVal.textContent = paddingEl.value + '%';
+    sensVal.textContent = (parseInt(sensitivityEl.value,10)/100).toFixed(2);
+    inputSizeField.style.display = detectorTypeEl.value === 'tiny' ? 'block' : 'none';
+    gapVal.textContent = gapEl.value + 'px';
+    if(orientation === 'landscape'){
+      btnOrientLandscape.classList.add('active'); btnOrientPortrait.classList.remove('active');
+    } else {
+      btnOrientPortrait.classList.add('active'); btnOrientLandscape.classList.remove('active');
+    }
+  }
+  function saveSettings(){
+    const s = {
+      strength: strengthEl.value, feather: featherEl.value, padding: paddingEl.value,
+      sensitivity: sensitivityEl.value, detectorType: detectorTypeEl.value, inputSize: inputSizeEl.value,
+      canvasRatio: canvasRatioEl.value, orientation, gap: gapEl.value, bgColor: bgColorEl.value,
+      presetUsage
+    };
+    try{ localStorage.setItem(SETTINGS_KEY, JSON.stringify(s)); }catch(e){ /* 保存できなくても処理は続行 */ }
+  }
+  loadSettings();
+
+  function resetSettingsToDefaults(){
+    strengthEl.value = 4; strengthVal.textContent = '4';
+    featherEl.value = 40; featherVal.textContent = '40%';
+    paddingEl.value = 30; paddingVal.textContent = '30%';
+    sensitivityEl.value = 35; sensVal.textContent = '0.35';
+    detectorTypeEl.value = 'ssd'; inputSizeField.style.display = 'none';
+    inputSizeEl.value = 416;
+    canvasRatioEl.value = '4:3';
+    orientation = 'portrait';
+    btnOrientPortrait.classList.add('active'); btnOrientLandscape.classList.remove('active');
+    gapEl.value = 0; gapVal.textContent = '0px';
+    bgColorEl.value = '#ffffff';
+    presetUsage = {};
+    try{ localStorage.removeItem(SETTINGS_KEY); }catch(e){}
+    saveSettings();
+
+    const item = getSelected();
+    if(item) drawEditor();
+    refitAllSlots();
+    renderCountTabs();
+    renderPresetGrid();
+    renderCollage();
+  }
+  document.getElementById('btnResetSettings').addEventListener('click', () => {
+    if(!confirm('ぼかしの強さ・検出方法・キャンバス比率・間隔・色などすべての設定を初期値に戻します。読み込んだ画像やぼかしの位置は消えません。よろしいですか？')) return;
+    resetSettingsToDefaults();
+  });
 
   // ---------- モデル読み込み ----------
   const MODEL_URL = 'https://cdn.jsdelivr.net/gh/justadudewhohacks/face-api.js@master/weights';
+  showLoading('顔検出モデルを読み込み中…');
   Promise.all([
     faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL),
     faceapi.nets.ssdMobilenetv1.loadFromUri(MODEL_URL)
@@ -402,6 +505,8 @@
     console.error(err);
     statusBar.textContent = '顔検出モデルの読み込みに失敗しました（インターネット接続を確認してください）。自動検出は使えませんが、手動でのぼかし追加は利用できます。';
     statusBar.className = 'status-bar err';
+  }).finally(() => {
+    hideLoading();
   });
 
   // ---------- ファイル追加 ----------
@@ -447,6 +552,7 @@
     if(!modelReady) return;
     item.detecting = true;
     renderThumbs();
+    showLoading('顔を検出中…');
     try{
       const sens = parseInt(sensitivityEl.value,10)/100;
       let results;
@@ -474,6 +580,7 @@
       console.error('detect error', err);
     }
     item.detecting = false;
+    hideLoading();
     renderThumbs();
     if(selectedId === item.id) drawEditor();
   }
@@ -538,6 +645,13 @@
       const nameDiv = document.createElement('div');
       nameDiv.className = 'name'; nameDiv.textContent = item.name;
       div.appendChild(nameDiv);
+
+      div.draggable = true;
+      div.title = 'クリックで次の空き枠へ／ドラッグして好きな枠へドロップ';
+      div.addEventListener('dragstart', e => {
+        e.dataTransfer.setData('text/plain', String(item.id));
+        e.dataTransfer.effectAllowed = 'copy';
+      });
 
       div.onclick = () => assignItemToSlot(item);
       thumbGrid2.appendChild(div);
@@ -764,20 +878,24 @@
   strengthEl.addEventListener('input', () => {
     strengthVal.textContent = strengthEl.value;
     drawEditor();
+    saveSettings();
   });
   featherEl.addEventListener('input', () => {
     featherVal.textContent = featherEl.value + '%';
     drawEditor();
+    saveSettings();
   });
-  paddingEl.addEventListener('input', () => { paddingVal.textContent = paddingEl.value + '%'; });
-  sensitivityEl.addEventListener('input', () => { sensVal.textContent = (parseInt(sensitivityEl.value,10)/100).toFixed(2); });
+  paddingEl.addEventListener('input', () => { paddingVal.textContent = paddingEl.value + '%'; saveSettings(); });
+  sensitivityEl.addEventListener('input', () => { sensVal.textContent = (parseInt(sensitivityEl.value,10)/100).toFixed(2); saveSettings(); });
 
   detectorTypeEl.addEventListener('change', () => {
     inputSizeField.style.display = detectorTypeEl.value === 'tiny' ? 'block' : 'none';
+    saveSettings();
     const item = getSelected();
     if(item && modelReady) runDetection(item);
   });
   inputSizeEl.addEventListener('change', () => {
+    saveSettings();
     const item = getSelected();
     if(item && modelReady) runDetection(item);
   });
@@ -885,13 +1003,28 @@
     return wrap;
   }
 
+  // よく使う順（使用回数の多い順、同数なら元の並び順）にプリセットを並べ替える
+  function sortedPresetsForCount(n){
+    const presets = (LAYOUTS[n] || []).slice();
+    presets.sort((a,b) => (presetUsage[b.id]||0) - (presetUsage[a.id]||0));
+    return presets;
+  }
+
   function renderCountTabs(){
     countTabs.innerHTML = '';
     Object.keys(LAYOUTS).forEach(n => {
       const btn = document.createElement('button');
       btn.className = 'btn toggle' + (parseInt(n,10) === currentCount ? ' active' : '');
       btn.textContent = n + '枚';
-      btn.onclick = () => { currentCount = parseInt(n,10); currentPresetId = null; renderCountTabs(); renderPresetGrid(); };
+      btn.onclick = () => {
+        currentCount = parseInt(n,10);
+        // 枚数を選んだ時点で、そのままよく使うプリセットへ即切り替える
+        const presets = sortedPresetsForCount(currentCount);
+        currentPresetId = presets.length ? presets[0].id : null;
+        renderCountTabs();
+        renderPresetGrid();
+        applyPreset();
+      };
       countTabs.appendChild(btn);
     });
   }
@@ -899,13 +1032,18 @@
   function renderPresetGrid(){
     layoutPresetGrid.innerHTML = '';
     const size = collageCanvasSize();
-    const presets = LAYOUTS[currentCount] || [];
-    if(!currentPresetId) currentPresetId = presets[0].id;
+    const presets = sortedPresetsForCount(currentCount);
+    if(!currentPresetId && presets.length) currentPresetId = presets[0].id;
     presets.forEach(p => {
       const icon = renderPresetIcon(p.rects, size);
       icon.title = p.label;
       if(p.id === currentPresetId) icon.classList.add('active');
-      icon.onclick = () => { currentPresetId = p.id; applyPreset(); };
+      icon.onclick = () => {
+        currentPresetId = p.id;
+        presetUsage[p.id] = (presetUsage[p.id]||0) + 1;
+        saveSettings();
+        applyPreset();
+      };
       layoutPresetGrid.appendChild(icon);
     });
   }
@@ -1087,6 +1225,29 @@
     return -1;
   }
 
+  // サムネイルからのドラッグ＆ドロップで、狙った枠にはめ込む
+  collageOverlayCanvas.addEventListener('dragover', e => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'copy';
+  });
+  collageOverlayCanvas.addEventListener('drop', e => {
+    e.preventDefault();
+    const idStr = e.dataTransfer.getData('text/plain');
+    const item = items.find(it => String(it.id) === idStr);
+    if(!item) return;
+    const size = collageCanvasSize();
+    const pos = collagePos(e);
+    const idx = hitSlot(pos, size);
+    if(idx === -1) return;
+    const slot = slots[idx];
+    slot.item = item;
+    fitSlotDefault(slot, size);
+    activeSlot = idx;
+    renderThumbs2();
+    renderCollage();
+    updateSlotSidePanel();
+  });
+
   let dragInfo = null; // {slotIndex, startX, startY, startOffX, startOffY, moved}
   collageOverlayCanvas.addEventListener('mousedown', e => {
     const size = collageCanvasSize();
@@ -1163,19 +1324,19 @@
     const size = collageCanvasSize();
     slots.forEach(s => { if(s.item) fitSlotDefault(s, size); });
   }
-  canvasRatioEl.addEventListener('change', () => { refitAllSlots(); renderPresetGrid(); renderCollage(); });
+  canvasRatioEl.addEventListener('change', () => { refitAllSlots(); renderPresetGrid(); renderCollage(); saveSettings(); });
   btnOrientPortrait.addEventListener('click', () => {
     orientation = 'portrait';
     btnOrientPortrait.classList.add('active'); btnOrientLandscape.classList.remove('active');
-    refitAllSlots(); renderPresetGrid(); renderCollage();
+    refitAllSlots(); renderPresetGrid(); renderCollage(); saveSettings();
   });
   btnOrientLandscape.addEventListener('click', () => {
     orientation = 'landscape';
     btnOrientLandscape.classList.add('active'); btnOrientPortrait.classList.remove('active');
-    refitAllSlots(); renderPresetGrid(); renderCollage();
+    refitAllSlots(); renderPresetGrid(); renderCollage(); saveSettings();
   });
-  gapEl.addEventListener('input', () => { gapVal.textContent = gapEl.value + 'px'; refitAllSlots(); renderCollage(); });
-  bgColorEl.addEventListener('input', () => renderCollage());
+  gapEl.addEventListener('input', () => { gapVal.textContent = gapEl.value + 'px'; refitAllSlots(); renderCollage(); saveSettings(); });
+  bgColorEl.addEventListener('input', () => { renderCollage(); saveSettings(); });
 
   btnDownloadCombined.addEventListener('click', () => {
     // 選択枠のハイライトを消した状態で書き出すため、オーバーレイなしのベースキャンバスをそのまま書き出す
