@@ -141,6 +141,12 @@
         function toHalfWidthDigits(str) {
             return String(str).replace(/[０-９]/g, ch => String.fromCharCode(ch.charCodeAt(0) - 0xFEE0));
         }
+        const PLAYER_COLORS = ["#ff6b6b","#ff9f43","#f2c94c","#8bc34a","#26c6da","#42a5f5","#7e57c2","#ec407a","#8d6e63","#26a69a"];
+        function pickRandomColor(existingColors) {
+            const avail = PLAYER_COLORS.filter(c => !existingColors.includes(c));
+            const pool = avail.length ? avail : PLAYER_COLORS;
+            return pool[Math.floor(Math.random() * pool.length)];
+        }
         function makeUid(name) {
             return 'u_' + btoa(encodeURIComponent(name)).replace(/[^A-Za-z0-9]/g, '');
         }
@@ -224,7 +230,7 @@
                         active: false
                     },
                     users: {
-                        [uid]: { name: name, score: 0, image: "", isCorrect: false, joinedAt: Date.now() }
+                        [uid]: { name: name, score: 0, image: "", isCorrect: false, joinedAt: Date.now(), color: pickRandomColor([]) }
                     }
                 });
 
@@ -273,12 +279,14 @@
                 }
 
                 uid = makeUid(name);
+                const takenColors = Object.values(existingUsers).map(u => u && u.color).filter(Boolean);
                 await db.ref(`casual_rooms/${room}/users/${uid}`).update({
                     name: name,
                     score: (roomData.users && roomData.users[uid] && roomData.users[uid].score) || 0,
                     image: "",
                     isCorrect: false,
-                    joinedAt: Date.now()
+                    joinedAt: Date.now(),
+                    color: pickRandomColor(takenColors)
                 });
             } catch (err) {
                 console.error(err);

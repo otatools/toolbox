@@ -36,8 +36,16 @@ body {
 .lobby-box h2 { font-weight: 700; font-size: 18px; letter-spacing: 1px; }
 .room-code-big { font-size: 56px; font-weight: 900; color: #ff8a3d; letter-spacing: 8px; margin: 10px 0; }
 .lobby-list { display: flex; flex-wrap: wrap; align-content: flex-start; gap: 8px; text-align: left; background: #f7f8fd; border-radius: 10px; padding: 10px; margin: 15px 0; max-height: 200px; overflow-y: auto; }
-.lobby-list .user-chip { padding: 6px 14px; background: #ffffff; border: 1px solid rgba(60,50,120,0.12); border-radius: 20px; font-weight: 500; }
-.lobby-list .user-chip.me { color: #ff8a3d; font-weight: 700; border-color: #ff8a3d; }
+.lobby-list .user-chip { padding: 6px 14px; background: #ffffff; border: 2px solid rgba(60,50,120,0.12); border-radius: 20px; font-weight: 600; }
+.lobby-list .user-chip.me { box-shadow: 0 0 0 3px rgba(60,50,120,0.18); }
+.color-picker { margin: 4px 0 12px 0; }
+.color-picker .field-label { text-align: center; margin-bottom: 8px; }
+.color-swatch-row { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; }
+.color-swatch { width: 32px; height: 32px; border-radius: 50%; border: 3px solid transparent; cursor: pointer; transition: transform 0.15s ease; padding: 0; }
+.color-swatch:hover { transform: scale(1.1); }
+.color-swatch.selected { border-color: #2c2a4a; box-shadow: 0 0 0 3px rgba(60,50,120,0.18); }
+.color-swatch.taken { opacity: 0.25; cursor: not-allowed; }
+.color-swatch.taken:hover { transform: none; }
 .lobby-host-controls { border-top: 1px solid rgba(60,50,120,0.12); margin-top: 15px; padding-top: 15px; }
 select, .lobby-host-controls input {
     width: 100%; padding: 12px; border-radius: 10px; border: 2px solid #e4e6f5; font-size: 16px; margin: 6px 0;
@@ -93,6 +101,20 @@ canvas, #viewer img { position: absolute; top:0; left:0; width: 100%; height: 10
 #wrongGuessBubble { position: fixed; top: 100px; left: 50%; transform: translateX(-50%) translateY(-6px) scale(0.85); z-index: 3600; background: #ffffff; border: 3px solid #ff5c5c; border-radius: 20px; padding: 8px 20px; font-weight: 800; font-size: 17px; color: #d40000; box-shadow: 0 6px 18px rgba(60,50,120,0.22); opacity: 0; pointer-events: none; transition: opacity 0.2s ease, transform 0.2s ease; white-space: nowrap; }
 #wrongGuessBubble::after { content: ''; position: absolute; top: -12px; left: 50%; transform: translateX(-50%); border-width: 0 10px 12px 10px; border-style: solid; border-color: transparent transparent #ff5c5c transparent; }
 #wrongGuessBubble.show { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); }
+/* パソコンなど横に余裕がある画面では、まちがえた答えをその人の名前タグから吹き出しで出す */
+.player-sidebar { position: fixed; top: 50%; transform: translateY(-50%); display: flex; flex-direction: column; gap: 14px; z-index: 2500; max-width: 30vw; }
+.player-sidebar.left { left: 10px; align-items: flex-start; }
+.player-sidebar.right { right: 10px; align-items: flex-end; }
+.player-tag { position: relative; background: #ffffff; border: 3px solid #ccc; border-radius: 20px; padding: 6px 14px; font-weight: 700; font-size: 14px; box-shadow: 0 3px 10px rgba(60,50,120,0.15); white-space: nowrap; max-width: 30vw; overflow: hidden; text-overflow: ellipsis; }
+.player-tag.me { box-shadow: 0 0 0 3px rgba(60,50,120,0.22), 0 3px 10px rgba(60,50,120,0.15); }
+.tag-bubble { position: absolute; top: 50%; transform: translateY(-50%) scale(0.85); background: #ffffff; border: 3px solid #ff5c5c; border-radius: 16px; padding: 6px 14px; font-weight: 800; font-size: 14px; color: #d40000; white-space: nowrap; opacity: 0; pointer-events: none; transition: opacity 0.2s ease, transform 0.2s ease; box-shadow: 0 4px 14px rgba(60,50,120,0.2); }
+.player-sidebar.left .tag-bubble { left: calc(100% + 12px); }
+.player-sidebar.right .tag-bubble { right: calc(100% + 12px); }
+.tag-bubble.show { opacity: 1; transform: translateY(-50%) scale(1); }
+.tag-bubble::after { content: ''; position: absolute; top: 50%; transform: translateY(-50%); border-width: 8px; border-style: solid; }
+.player-sidebar.left .tag-bubble::after { left: -16px; border-color: transparent #ff5c5c transparent transparent; }
+.player-sidebar.right .tag-bubble::after { right: -16px; border-color: transparent transparent transparent #ff5c5c; }
+@media (max-width: 900px) { .player-sidebar { display: none; } }
 #kbdWrapper { position: fixed; bottom: 0; left: 0; width: 100%; background: rgba(255,255,255,0.97); backdrop-filter: blur(6px); z-index: 5000; display: none; flex-direction: column; padding: 5px 0 env(safe-area-inset-bottom) 0; border-top: 3px solid #3ed6c6; box-shadow: 0 -4px 20px rgba(60,50,120,0.12); }
 .input-display { display: flex; width: 95%; margin: 5px auto; gap: 8px; align-items: center; position: relative; }
 #answerInput { flex: 1; height: 50px; font-size: 28px; text-align: center; border-radius: 10px; border: 2px solid #3ed6c6; background: white; color: #22204a; font-weight: 700; }
@@ -138,6 +160,11 @@ canvas, #viewer img { position: absolute; top:0; left:0; width: 100%; height: 10
         <div class="room-code-big" id="lobbyRoomCode">----</div>
         <div>この番号をお友だちに伝えてね</div>
         <div class="lobby-list" id="lobbyUserList"></div>
+
+        <div class="color-picker">
+            <div class="field-label">じぶんの色（あとで変えられるよ）</div>
+            <div class="color-swatch-row" id="colorSwatchRow"></div>
+        </div>
 
         <div id="hostControls" class="lobby-host-controls" style="display:none;">
             <div class="host-controls-grid">
@@ -191,6 +218,8 @@ canvas, #viewer img { position: absolute; top:0; left:0; width: 100%; height: 10
     <div id="hintDisplay" style="display:none;"></div>
     <div id="judgeEffect"></div>
     <div id="wrongGuessBubble"></div>
+    <div class="player-sidebar left" id="sidebarLeft"></div>
+    <div class="player-sidebar right" id="sidebarRight"></div>
     <div id="stage">
         <div id="canvasBox">
             <div id="odaiGhost"></div>
@@ -255,6 +284,7 @@ const config = {
 };
 firebase.initializeApp(config);
 const db = firebase.database();
+const PLAYER_COLORS = ["#ff6b6b","#ff9f43","#f2c94c","#8bc34a","#26c6da","#42a5f5","#7e57c2","#ec407a","#8d6e63","#26a69a"];
 const authReady = new Promise(resolve => {
     firebase.auth().onAuthStateChanged(user => {
         if (user) resolve(user); else firebase.auth().signInAnonymously();
@@ -511,12 +541,17 @@ function renderLobby(data) {
     document.getElementById('lobbyRoomCode').innerText = myRoom;
     const list = document.getElementById('lobbyUserList');
     list.innerHTML = '';
-    Object.values(data.users || {}).forEach(u => {
+    Object.entries(data.users || {}).forEach(([uid, u]) => {
         const chip = document.createElement('div');
-        chip.className = 'user-chip' + (u.name === myName ? ' me' : '');
+        chip.className = 'user-chip' + (uid === myUid ? ' me' : '');
+        chip.style.borderColor = u.color || 'rgba(60,50,120,0.12)';
+        chip.style.color = u.color || '#2c2a4a';
         chip.innerText = u.name;
         list.appendChild(chip);
     });
+
+    ensureMyColor(data.users || {});
+    renderColorPicker(data.users || {});
 
     if (isHost) {
         document.getElementById('hostControls').style.display = 'block';
@@ -528,12 +563,83 @@ function renderLobby(data) {
     }
 }
 
+// 参加者にまだ色がついていない場合（古いセッションなど）だけ、使われていない色を割りあてる
+let colorAssignAttempted = false;
+function ensureMyColor(users) {
+    if (colorAssignAttempted) return;
+    if (users[myUid] && users[myUid].color) return;
+    colorAssignAttempted = true;
+    const taken = Object.entries(users).filter(([uid]) => uid !== myUid).map(([, u]) => u.color).filter(Boolean);
+    const avail = PLAYER_COLORS.filter(c => !taken.includes(c));
+    const pool = avail.length ? avail : PLAYER_COLORS;
+    const color = pool[Math.floor(Math.random() * pool.length)];
+    db.ref(`casual_rooms/${myRoom}/users/${myUid}/color`).set(color);
+}
+
+function renderColorPicker(users) {
+    const row = document.getElementById('colorSwatchRow');
+    row.innerHTML = '';
+    const myColor = users[myUid] && users[myUid].color;
+    const takenByOthers = Object.entries(users).filter(([uid]) => uid !== myUid).map(([, u]) => u.color).filter(Boolean);
+    PLAYER_COLORS.forEach(c => {
+        const sw = document.createElement('button');
+        sw.type = 'button';
+        sw.className = 'color-swatch' + (c === myColor ? ' selected' : '') + (takenByOthers.includes(c) && c !== myColor ? ' taken' : '');
+        sw.style.background = c;
+        sw.title = c === myColor ? 'いまの色' : (takenByOthers.includes(c) ? 'ほかの人がつかっています' : 'この色にする');
+        if (!(takenByOthers.includes(c) && c !== myColor)) {
+            sw.onclick = () => db.ref(`casual_rooms/${myRoom}/users/${myUid}/color`).set(c);
+        }
+        row.appendChild(sw);
+    });
+}
+
 function renderGuestSettingsPreview(ps) {
     const el = document.getElementById('guestSettingsPreview');
     if (!ps) { el.textContent = ''; return; }
     const modeLabel = ps.gameMode === 'coop' ? '協力' : '対戦';
     const endLabel = ps.endType === 'time' ? `制限時間 ${ps.timeLimitMinutes || 5}分` : `ひとり ${ps.roundsPerPerson || 1}回`;
     el.textContent = `むずかしさ：${ps.difficulty || ''}\nあそびかた：${modeLabel}\n${endLabel}`;
+}
+
+// ゲーム中、パソコンなど横に余裕がある画面では名前タグを左右に出す（スマホでは非表示・CSSで制御）。
+// 人が入れかわった時だけ作り直し、それ以外は名前や色だけ更新して、表示中のふきだしを消さないようにする。
+let lastSidebarKey = "";
+function renderPlayerSidebar(data) {
+    const uids = (data.turnOrder && data.turnOrder.length) ? data.turnOrder : Object.keys(usersData);
+    const key = uids.join(",");
+    const left = document.getElementById('sidebarLeft');
+    const right = document.getElementById('sidebarRight');
+    if (key !== lastSidebarKey) {
+        lastSidebarKey = key;
+        left.innerHTML = ""; right.innerHTML = "";
+        uids.forEach((uid, i) => {
+            const u = usersData[uid];
+            if (!u) return;
+            const tag = document.createElement('div');
+            tag.className = 'player-tag' + (uid === myUid ? ' me' : '');
+            tag.id = `playerTag-${uid}`;
+            tag.style.borderColor = u.color || '#ccc';
+            tag.style.color = u.color || '#2c2a4a';
+            tag.appendChild(document.createTextNode(u.name));
+            const bubble = document.createElement('div');
+            bubble.className = 'tag-bubble';
+            bubble.id = `tagBubble-${uid}`;
+            tag.appendChild(bubble);
+            (i % 2 === 0 ? left : right).appendChild(tag);
+        });
+    } else {
+        uids.forEach(uid => {
+            const u = usersData[uid];
+            const tag = document.getElementById(`playerTag-${uid}`);
+            if (!u || !tag) return;
+            tag.style.borderColor = u.color || '#ccc';
+            tag.style.color = u.color || '#2c2a4a';
+            for (const node of tag.childNodes) {
+                if (node.nodeType === Node.TEXT_NODE) { node.textContent = u.name; break; }
+            }
+        });
+    }
 }
 
 window.onload = () => {
@@ -598,6 +704,8 @@ authReady.then(() => {
             limitTimerEl.style.background = state.timeLeft <= 10 ? "#ff0000" : "#ff3333";
         } else { limitTimerEl.style.display = "none"; }
 
+        renderPlayerSidebar(data);
+
         // だれかが間違った答えを送ったら、ふきだしで数秒だけみんなに見せる（自分の分は既にshowJudgeで見えているので出さない）
         const wg = state.wrongGuess;
         if (!wrongGuessInitialized) {
@@ -606,7 +714,7 @@ authReady.then(() => {
             lastWrongGuessTs = wg ? wg.ts : 0;
         } else if (currentIsPlaying && wg && wg.ts > lastWrongGuessTs) {
             lastWrongGuessTs = wg.ts;
-            if (wg.uid !== myUid) showWrongGuessBubble(wg.name || "だれか", wg.text || "");
+            if (wg.uid !== myUid) showWrongGuessBubble(wg.uid, wg.name || "だれか", wg.text || "");
         }
 
         if (state.phase !== lastStatePhase) {
@@ -727,7 +835,18 @@ function showJudge(text, color) { const el = document.getElementById('judgeEffec
 let lastWrongGuessTs = 0;
 let wrongGuessInitialized = false;
 let wrongGuessHideTimer = null;
-function showWrongGuessBubble(name, text) {
+const wideScreenQuery = window.matchMedia('(min-width: 901px)');
+function showWrongGuessBubble(uid, name, text) {
+    // パソコンなど横に余裕がある画面では、その人の名前タグから吹き出しを出す。
+    // 名前タグが見つからない・スマホ表示のときは、これまでどおり画面上部に出す。
+    const tagBubble = document.getElementById(`tagBubble-${uid}`);
+    if (wideScreenQuery.matches && tagBubble) {
+        tagBubble.innerText = `× ${text}`;
+        tagBubble.classList.add('show');
+        clearTimeout(tagBubble._hideTimer);
+        tagBubble._hideTimer = setTimeout(() => { tagBubble.classList.remove('show'); }, 2500);
+        return;
+    }
     const el = document.getElementById('wrongGuessBubble');
     el.innerText = `${name}： × ${text}`;
     el.classList.add('show');
