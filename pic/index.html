@@ -25,7 +25,21 @@
     padding:24px;
     line-height:1.5;
   }
-  h1{font-size:22px;margin:0 0 4px;}
+  h1{font-size:18px;margin:0;font-weight:700;}
+  .app-header{
+    display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;
+    margin-bottom:16px;
+  }
+  .app-header-right{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+  .status-pill{
+    font-size:11px;padding:4px 10px;border-radius:999px;white-space:nowrap;
+    background:#fff8e1;border:1px solid #f0d98c;color:#7a5c00;
+    transition:opacity .5s ease, max-width .5s ease, padding .5s ease;
+    max-width:400px;overflow:hidden;
+  }
+  .status-pill.ok{background:#eefaf0;border-color:#bfe6c8;color:#1f6b34;}
+  .status-pill.err{background:#fdeceb;border-color:#f2bdb9;color:#9c2c26;}
+  .status-pill.hidden{opacity:0;max-width:0;padding:4px 0;border-width:0;margin:0;}
   h2{font-size:16px;margin:0 0 12px;display:flex;align-items:center;gap:8px;}
   .step-badge{
     display:inline-flex;align-items:center;justify-content:center;
@@ -33,12 +47,6 @@
     font-size:12px;font-weight:bold;flex:none;
   }
   .subtitle{color:var(--sub);font-size:13px;margin-bottom:20px;}
-  .status-bar{
-    font-size:13px;padding:8px 12px;border-radius:8px;margin-bottom:20px;
-    background:#fff8e1;border:1px solid #f0d98c;color:#7a5c00;
-  }
-  .status-bar.ok{background:#eefaf0;border-color:#bfe6c8;color:#1f6b34;}
-  .status-bar.err{background:#fdeceb;border-color:#f2bdb9;color:#9c2c26;}
   .panel{
     background:var(--panel);
     border:1px solid var(--border);
@@ -155,13 +163,13 @@
 </head>
 <body>
 
-<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;">
+<div class="app-header">
   <h1>🙈 顔ぼかし＆画像結合ツール</h1>
-  <button class="btn small" id="btnResetSettings" title="ぼかしの強さ・比率・間隔などの設定を初期値に戻します">⚙ 設定をリセット</button>
+  <div class="app-header-right">
+    <span id="statusBar" class="status-pill">顔検出モデルを読み込み中…</span>
+    <button class="btn small" id="btnResetSettings" title="ぼかしの強さ・比率・間隔などの設定を初期値に戻します">⚙ 設定をリセット</button>
+  </div>
 </div>
-<div class="subtitle">画像を読み込むと自動で顔を検出してぼかします。手動での追加・解除や、複数画像を1枚に並べる結合機能つき。すべてこのブラウザ内だけで処理され、画像はどこにも送信されません。ぼかしの強さや比率・間隔などの設定はこのブラウザに自動的に記憶されます。</div>
-
-<div id="statusBar" class="status-bar">顔検出モデルを読み込み中です…（初回はインターネット接続が必要です）</div>
 
 <div class="tabs">
   <button class="tab-btn active" id="tabBtn1">STEP 1　顔をぼかす</button>
@@ -323,7 +331,7 @@
   <div class="loading-label" id="loadingLabel">処理中…</div>
 </div>
 
-<footer>顔検出：face-api.js（tiny face detector）／画像そのものは一切どこにも送信されず、すべてこの端末のブラウザ内だけで処理されます</footer>
+<footer>顔検出：face-api.js（tiny face detector）／画像そのものは一切どこにも送信されず、すべてこの端末のブラウザ内だけで処理されます／ぼかしの強さ・比率・間隔などの設定はこのブラウザに自動的に記憶されます</footer>
 
 <script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
 <script>
@@ -498,16 +506,25 @@
     faceapi.nets.ssdMobilenetv1.loadFromUri(MODEL_URL)
   ]).then(() => {
     modelReady = true;
-    statusBar.textContent = '準備完了：画像を追加すると自動で顔を検出してぼかします。';
-    statusBar.className = 'status-bar ok';
+    setStatus('準備完了：自動で顔を検出します', 'ok', true);
     items.filter(it => !it.detected).forEach(runDetection);
   }).catch(err => {
     console.error(err);
-    statusBar.textContent = '顔検出モデルの読み込みに失敗しました（インターネット接続を確認してください）。自動検出は使えませんが、手動でのぼかし追加は利用できます。';
-    statusBar.className = 'status-bar err';
+    setStatus('顔検出モデルの読み込みに失敗しました（自動検出は使えません。手動でのぼかし追加は利用できます）', 'err', false);
   }).finally(() => {
     hideLoading();
   });
+
+  // ステータス表示：準備完了になったら少ししてから自動的に小さく消える
+  let statusHideTimer = null;
+  function setStatus(text, kind, autoHide){
+    if(statusHideTimer){ clearTimeout(statusHideTimer); statusHideTimer = null; }
+    statusBar.textContent = text;
+    statusBar.className = 'status-pill' + (kind ? ' ' + kind : '') ;
+    if(autoHide){
+      statusHideTimer = setTimeout(() => { statusBar.classList.add('hidden'); }, 3500);
+    }
+  }
 
   // ---------- ファイル追加 ----------
   dropzone.addEventListener('click', () => fileInput.click());
