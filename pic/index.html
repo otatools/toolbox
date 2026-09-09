@@ -1,15 +1,6 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-      <!-- Google tag (gtag.js) -->
-<script async src="https://www.googletagmanager.com/gtag/js?id=G-YTH979WTKL"></script>
-<script>
-  window.dataLayer = window.dataLayer || [];
-  function gtag(){dataLayer.push(arguments);}
-  gtag('js', new Date());
-
-  gtag('config', 'G-YTH979WTKL');
-</script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>顔ぼかし＆結合ツール</title>
@@ -137,6 +128,11 @@
   .empty-hint{color:var(--sub);font-size:13px;text-align:center;padding:20px 0;}
 
   .layout-preset-grid{display:flex;flex-wrap:wrap;gap:10px;}
+  .hscroll{flex-wrap:nowrap !important;overflow-x:auto;padding-bottom:6px;}
+  .hscroll > *{flex:none;}
+  .hscroll::-webkit-scrollbar{height:6px;}
+  .hscroll::-webkit-scrollbar-thumb{background:#c7cbd8;border-radius:3px;}
+  .preset-icon{flex:none;}
   .preset-icon{
     width:64px;height:64px;border:2px solid var(--border);border-radius:8px;background:#fff;
     position:relative;cursor:pointer;overflow:hidden;padding:4px;box-sizing:border-box;
@@ -147,6 +143,7 @@
   #collageBaseCanvas, #collageOverlayCanvas{max-width:100%;max-height:78vh;width:auto;height:auto;border-radius:4px;}
   #collageOverlayCanvas{cursor:grab;}
   #collageOverlayCanvas.dragging{cursor:grabbing;}
+  #collageOverlayCanvas.swap-mode{cursor:pointer;}
   .loading-overlay{
     position:fixed;inset:0;background:rgba(20,21,28,.45);
     display:flex;align-items:center;justify-content:center;flex-direction:column;gap:14px;
@@ -278,8 +275,8 @@
     <h2><span class="step-badge">2</span>ぼかし済みの画像を結合する</h2>
     <div class="hint">①キャンバスの比率と並べ方（プリセット）を選ぶ　→　②右の画像をクリックして枠に順番にはめ込む　→　③枠をクリックして選び、ドラッグで位置調整・スライダーで拡大縮小</div>
 
-    <div class="field-row" style="display:flex;gap:24px;flex-wrap:wrap;margin-top:16px;">
-      <div class="field" style="flex:0 0 auto;min-width:160px;">
+    <div class="field-row" style="display:flex;gap:24px;flex-wrap:wrap;margin-top:16px;align-items:flex-end;">
+      <div class="field" style="flex:0 0 auto;min-width:160px;margin-bottom:10px;">
         <label>キャンバスの比率</label>
         <select id="canvasRatio">
           <option value="1:1">1:1（正方形）</option>
@@ -289,22 +286,21 @@
           <option value="5:4">5:4</option>
         </select>
       </div>
-      <div class="field" style="flex:0 0 auto;">
+      <div class="field" style="flex:0 0 auto;margin-bottom:10px;">
         <label>向き</label>
         <div class="btn-row" style="margin-bottom:0;">
           <button class="btn toggle active" id="btnOrientPortrait">縦</button>
           <button class="btn toggle" id="btnOrientLandscape">横</button>
         </div>
       </div>
-    </div>
-
-    <div class="field">
-      <label>画像の枚数</label>
-      <div class="btn-row" id="countTabs"></div>
+      <div class="field" style="flex:1 1 200px;min-width:200px;margin-bottom:10px;">
+        <label>画像の枚数</label>
+        <div class="btn-row hscroll" id="countTabs"></div>
+      </div>
     </div>
     <div class="field">
       <label>並べ方プリセット</label>
-      <div class="layout-preset-grid" id="layoutPresetGrid"></div>
+      <div class="layout-preset-grid hscroll" id="layoutPresetGrid"></div>
     </div>
 
     <div class="editor-layout" style="margin-top:10px;">
@@ -315,7 +311,7 @@
         </div>
       </div>
       <div class="editor-side">
-        <div class="hint">下の画像をクリックすると、選択中の枠（オレンジ色の点線）に順番にはめ込まれます。</div>
+        <div class="hint">下の画像をクリックすると、選択中の枠（オレンジ色の点線）に順番にはめ込まれます。画像右上の×で一覧から削除できます。</div>
         <div class="thumb-grid" id="thumbGrid2" style="margin-top:8px;"></div>
 
         <div class="field" style="margin-top:16px;">
@@ -326,6 +322,10 @@
           <button class="btn small" id="btnSlotReset">位置・拡大をリセット</button>
           <button class="btn small danger" id="btnSlotClear">この枠を空にする</button>
         </div>
+        <div class="btn-row">
+          <button class="btn toggle small" id="btnSwapMode">🔀 画像を入れ替える</button>
+        </div>
+        <div class="hint" id="swapModeHint" style="display:none;">入れ替えたい枠を2つ順にクリックすると、画像同士の位置が入れ替わります。</div>
 
         <div class="field" style="margin-top:16px;">
           <label>画像同士の間隔 <span class="row-val" id="gapVal">0px</span></label>
@@ -334,6 +334,14 @@
         <div class="field">
           <label>背景色（すき間の色）</label>
           <input type="color" id="bgColor" value="#ffffff">
+        </div>
+        <div class="field">
+          <label>ダウンロードサイズ</label>
+          <div class="btn-row" id="downloadSizeTabs">
+            <button class="btn toggle active" id="btnSizeLarge" data-size="large">大</button>
+            <button class="btn toggle" id="btnSizeMedium" data-size="medium">中</button>
+            <button class="btn toggle" id="btnSizeSmall" data-size="small">小</button>
+          </div>
         </div>
         <button class="btn primary" id="btnDownloadCombined" style="width:100%;" disabled>⬇ 結合した画像をダウンロード</button>
       </div>
@@ -419,6 +427,9 @@
   const slotZoomVal = document.getElementById('slotZoomVal');
   const btnSlotReset = document.getElementById('btnSlotReset');
   const btnSlotClear = document.getElementById('btnSlotClear');
+  const btnSwapMode = document.getElementById('btnSwapMode');
+  const swapModeHint = document.getElementById('swapModeHint');
+  const downloadSizeTabs = document.getElementById('downloadSizeTabs');
 
   let items = [];       // {id, name, img, w, h, boxes:[{x,y,w,h,src}], detected}
   let nextId = 1;
@@ -441,8 +452,24 @@
   let currentPresetId = null;
   let slots = [];          // {rect:{x,y,w,h} (0-1), item:null, zoom:1, offX:0, offY:0}
   let activeSlot = -1;
+  let swapMode = false;
+  let swapSourceIdx = -1;
   const COLLAGE_LONG = 1600;
   let presetUsage = {};    // {presetId: 使った回数} … よく使うプリセットを左に並べるための記録
+  const DOWNLOAD_SIZES = { large: 1600, medium: 1000, small: 600 }; // ダウンロード時の長辺サイズ(px)
+  let downloadSizeKey = 'large';
+  function updateDownloadSizeButtons(){
+    downloadSizeTabs.querySelectorAll('button').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.size === downloadSizeKey);
+    });
+  }
+  downloadSizeTabs.querySelectorAll('button').forEach(btn => {
+    btn.addEventListener('click', () => {
+      downloadSizeKey = btn.dataset.size;
+      updateDownloadSizeButtons();
+      saveSettings();
+    });
+  });
 
   // ---------- 設定の保存／復元（このブラウザに記憶させる） ----------
   const SETTINGS_KEY = 'facewb_settings_v1';
@@ -461,6 +488,7 @@
     if(s.gap != null) gapEl.value = s.gap;
     if(s.bgColor) bgColorEl.value = s.bgColor;
     if(s.presetUsage) presetUsage = s.presetUsage;
+    if(s.downloadSizeKey && DOWNLOAD_SIZES[s.downloadSizeKey]) downloadSizeKey = s.downloadSizeKey;
 
     strengthVal.textContent = strengthEl.value;
     featherVal.textContent = featherEl.value + '%';
@@ -479,11 +507,12 @@
       strength: strengthEl.value, feather: featherEl.value, padding: paddingEl.value,
       sensitivity: sensitivityEl.value, detectorType: detectorTypeEl.value, inputSize: inputSizeEl.value,
       canvasRatio: canvasRatioEl.value, orientation, gap: gapEl.value, bgColor: bgColorEl.value,
-      presetUsage
+      presetUsage, downloadSizeKey
     };
     try{ localStorage.setItem(SETTINGS_KEY, JSON.stringify(s)); }catch(e){ /* 保存できなくても処理は続行 */ }
   }
   loadSettings();
+  updateDownloadSizeButtons();
 
   function resetSettingsToDefaults(){
     strengthEl.value = 4; strengthVal.textContent = '4';
@@ -498,6 +527,8 @@
     gapEl.value = 0; gapVal.textContent = '0px';
     bgColorEl.value = '#ffffff';
     presetUsage = {};
+    downloadSizeKey = 'large';
+    updateDownloadSizeButtons();
     try{ localStorage.removeItem(SETTINGS_KEY); }catch(e){}
     saveSettings();
 
@@ -775,6 +806,11 @@
         badge.textContent = '使用中' + (usedCount > 1 ? `×${usedCount}` : '');
         div.appendChild(badge);
       }
+
+      const rm = document.createElement('button');
+      rm.className = 'rm'; rm.textContent = '×'; rm.title = '画像を削除（使用中の枠も空になります）';
+      rm.onclick = (e) => { e.stopPropagation(); removeItem(item.id); };
+      div.appendChild(rm);
 
       const nameDiv = document.createElement('div');
       nameDiv.className = 'name'; nameDiv.textContent = item.name;
@@ -1303,11 +1339,11 @@
 
       // オーバーレイ（枠線・番号・空き表示）
       octx.lineWidth = 3;
-      octx.strokeStyle = (i === activeSlot) ? '#ff9500' : 'rgba(255,255,255,.55)';
+      octx.strokeStyle = (i === swapSourceIdx) ? '#2ecc71' : (i === activeSlot) ? '#ff9500' : 'rgba(255,255,255,.55)';
       if(!slot.item){
         octx.setLineDash([10,8]);
       } else {
-        octx.setLineDash(i === activeSlot ? [10,6] : []);
+        octx.setLineDash((i === activeSlot || i === swapSourceIdx) ? [10,6] : []);
       }
       octx.strokeRect(sx+1.5, sy+1.5, sw-3, sh-3);
       octx.setLineDash([]);
@@ -1397,7 +1433,7 @@
     if(idx === -1) return;
     dragInfo = { slotIndex: idx, startX: pos.x, startY: pos.y, moved:false, baseline: null };
     const slot = slots[idx];
-    if(slot.item){
+    if(slot.item && !swapMode){
       dragInfo.startOffX = slot.offX; dragInfo.startOffY = slot.offY;
       dragInfo.baseline = snapshotState(); // 実際に動かした場合だけ確定してundoに積む
     }
@@ -1405,6 +1441,7 @@
   });
   window.addEventListener('mousemove', e => {
     if(!dragInfo) return;
+    if(swapMode) return; // 入れ替えモード中はドラッグで動かさず、クリックのみ扱う
     const size = collageCanvasSize();
     const pos = collagePos(e);
     const dx = pos.x - dragInfo.startX, dy = pos.y - dragInfo.startY;
@@ -1426,13 +1463,50 @@
   });
   window.addEventListener('mouseup', () => {
     if(!dragInfo){ return; }
-    if(!dragInfo.moved){
+    if(swapMode){
+      trySwapClick(dragInfo.slotIndex);
+    } else if(!dragInfo.moved){
       activeSlot = dragInfo.slotIndex;
       renderCollage();
       updateSlotSidePanel();
     }
     dragInfo = null;
     collageOverlayCanvas.classList.remove('dragging');
+  });
+
+  function trySwapClick(idx){
+    const slot = slots[idx];
+    if(!slot || !slot.item){
+      swapSourceIdx = -1;
+      renderCollage();
+      return;
+    }
+    if(swapSourceIdx === -1 || swapSourceIdx === idx){
+      swapSourceIdx = (swapSourceIdx === idx) ? -1 : idx;
+      renderCollage();
+      return;
+    }
+    pushUndo();
+    const a = slots[swapSourceIdx], b = slots[idx];
+    const itemA = a.item, itemB = b.item;
+    a.item = itemB; b.item = itemA;
+    const size = collageCanvasSize();
+    if(a.item) fitSlotDefault(a, size);
+    if(b.item) fitSlotDefault(b, size);
+    swapSourceIdx = -1;
+    activeSlot = idx;
+    renderThumbs2();
+    renderCollage();
+    updateSlotSidePanel();
+  }
+
+  btnSwapMode.addEventListener('click', () => {
+    swapMode = !swapMode;
+    swapSourceIdx = -1;
+    btnSwapMode.classList.toggle('active', swapMode);
+    swapModeHint.style.display = swapMode ? 'block' : 'none';
+    collageOverlayCanvas.classList.toggle('swap-mode', swapMode);
+    renderCollage();
   });
   collageOverlayCanvas.addEventListener('wheel', e => {
     if(activeSlot < 0 || !slots[activeSlot] || !slots[activeSlot].item) return;
@@ -1494,7 +1568,20 @@
 
   btnDownloadCombined.addEventListener('click', () => {
     // 選択枠のハイライトを消した状態で書き出すため、オーバーレイなしのベースキャンバスをそのまま書き出す
-    downloadCanvas(collageBaseCanvas, 'combined.png');
+    const srcW = collageBaseCanvas.width, srcH = collageBaseCanvas.height;
+    const targetLong = DOWNLOAD_SIZES[downloadSizeKey] || DOWNLOAD_SIZES.large;
+    const currentLong = Math.max(srcW, srcH);
+    const scale = Math.min(1, targetLong / currentLong);
+    if(scale >= 0.999){
+      downloadCanvas(collageBaseCanvas, 'combined.png');
+      return;
+    }
+    const outW = Math.max(1, Math.round(srcW * scale));
+    const outH = Math.max(1, Math.round(srcH * scale));
+    const tmp = document.createElement('canvas');
+    tmp.width = outW; tmp.height = outH;
+    tmp.getContext('2d').drawImage(collageBaseCanvas, 0, 0, outW, outH);
+    downloadCanvas(tmp, 'combined.png');
   });
 
   renderCountTabs();
