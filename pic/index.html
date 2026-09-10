@@ -104,15 +104,18 @@
     position:absolute;bottom:22px;right:4px;width:18px;height:18px;
   }
 
-  .editor-layout{display:flex;gap:16px;flex-wrap:wrap;margin-top:14px;align-items:flex-start;}
+  .editor-layout{display:flex;gap:12px;flex-wrap:wrap;margin-top:14px;align-items:flex-start;}
+  .editor-canvas-col{display:inline-flex;flex-direction:column;gap:8px;max-width:100%;min-width:0;}
+  .editor-canvas-col .field{margin-bottom:0;}
   .editor-canvas-wrap{
     flex:0 1 auto; max-width:100%;
     background:#20222c;border-radius:8px;padding:6px;
     display:inline-flex;align-items:center;justify-content:center;
   }
   .editor-canvas-wrap canvas{max-width:100%;max-height:min(62vh,640px);width:auto;height:auto;display:block;cursor:default;border-radius:4px;}
-  .editor-side{flex:1 1 300px;min-width:260px;}
-  .step2-side-left{flex:0 0 200px;min-width:180px;}
+  #editCanvasWrap{overflow:hidden;max-height:min(62vh,640px);align-items:flex-start;justify-content:flex-start;min-width:0;}
+  .editor-side{flex:1 1 220px;min-width:200px;}
+  .step2-side-left{flex:0 0 170px;min-width:150px;}
   .step2-side-left .field{margin-bottom:16px;}
   .step2-side-left .layout-preset-grid{gap:6px;}
   .step2-side-left .preset-icon{width:54px;height:54px;}
@@ -145,6 +148,8 @@
   .preset-icon .r{position:absolute;background:#c9d3ee;border:1px solid #fff;box-sizing:border-box;}
   #collageCanvasWrap{background:#20222c;border-radius:8px;padding:6px;display:inline-flex;align-items:center;justify-content:center;}
   #collageBaseCanvas, #collageOverlayCanvas{max-width:100%;max-height:min(62vh,640px);width:auto;height:auto;border-radius:4px;}
+  #step2View.orientation-portrait #collageBaseCanvas,
+  #step2View.orientation-portrait #collageOverlayCanvas{max-height:min(50vh,520px);}
   #collageOverlayCanvas{cursor:grab;}
   #collageOverlayCanvas.dragging{cursor:grabbing;}
   #collageOverlayCanvas.swap-mode{cursor:pointer;}
@@ -208,8 +213,14 @@
   <div class="panel" id="editorPanel" style="display:none;">
     <h2><span class="step-badge">2</span>顔ぼかしを編集（ガウスぼかし）</h2>
     <div class="editor-layout">
-      <div class="editor-canvas-wrap">
-        <canvas id="editCanvas"></canvas>
+      <div class="editor-canvas-col">
+        <div class="editor-canvas-wrap" id="editCanvasWrap">
+          <canvas id="editCanvas"></canvas>
+        </div>
+        <div class="field">
+          <label>画像を拡大して細かく確認（表示枠の大きさは変わりません・書き出しには影響しません） <span class="row-val" id="editZoomVal">100%</span></label>
+          <input type="range" id="editZoom" min="100" max="300" value="100">
+        </div>
       </div>
       <div class="editor-side">
         <div class="btn-grid-2">
@@ -222,6 +233,15 @@
         <div class="hint" id="eraseModeHint" style="display:none;">消したいぼかしの上をクリックすると、そのぼかしだけが解除されます。</div>
 
         <div class="field" style="margin-top:14px;">
+          <div class="btn-row" style="margin-bottom:6px;">
+            <button class="btn toggle active" id="btnScopeBatch">🌐 一括設定</button>
+            <button class="btn toggle" id="btnScopeItem">🖼 この画像だけ</button>
+          </div>
+          <div class="hint" id="scopeHintBatch" style="margin-top:0;">すべての画像に共通で適用されます。</div>
+          <div class="hint" id="scopeHintItem" style="display:none;margin-top:0;">この画像だけに適用され、他の画像には影響しません。</div>
+        </div>
+
+        <div class="field">
           <label>ぼかしの強さ <span class="row-val" id="strengthVal">4</span></label>
           <input type="range" id="strength" min="1" max="7" step="0.5" value="4">
         </div>
@@ -237,6 +257,7 @@
           <label>検出感度（低いほど多く検出／誤検出も増加） <span class="row-val" id="sensVal">0.35</span></label>
           <input type="range" id="sensitivity" min="10" max="80" value="35">
         </div>
+        <button class="btn small" id="btnResetItemOverrides" style="width:100%;display:none;">この画像の個別設定を解除（一括設定に戻す）</button>
 
         <button class="btn primary" id="btnDownloadOne" style="width:100%;">⬇ この画像を1枚だけダウンロード</button>
       </div>
@@ -364,6 +385,61 @@
   const editorPanel = document.getElementById('editorPanel');
   const editCanvas = document.getElementById('editCanvas');
   const ectx = editCanvas.getContext('2d');
+  const editCanvasWrap = document.getElementById('editCanvasWrap');
+  const editZoomEl = document.getElementById('editZoom');
+  const editZoomVal = document.getElementById('editZoomVal');
+  let editZoom = 1;
+  let editFitSize = null; // 拡大なし（100%）のときの表示サイズ（px）をキャッシュ
+
+  // 表示枠（黒い背景の部分）の大きさは変えず、その中の画像だけを拡大する。
+  // はみ出た部分は枠の中でスクロール（パン）して見る。書き出し結果には影響しない。
+  function applyEditCanvasZoom(){
+    if(editZoom <= 1.001){
+      editCanvas.style.width = '';
+      editCanvas.style.height = '';
+      editCanvas.style.maxWidth = '';
+      editCanvas.style.maxHeight = '';
+      editCanvasWrap.style.width = '';
+      editCanvasWrap.style.height = '';
+      editCanvasWrap.style.overflow = 'hidden';
+      editCanvasWrap.scrollLeft = 0;
+      editCanvasWrap.scrollTop = 0;
+      editFitSize = null;
+      return;
+    }
+    if(!editFitSize){
+      // 一旦、拡大なしの状態に戻して「枠」と「画像」の自然な表示サイズを測る
+      editCanvas.style.width = '';
+      editCanvas.style.height = '';
+      editCanvas.style.maxWidth = '';
+      editCanvas.style.maxHeight = '';
+      editCanvasWrap.style.width = '';
+      editCanvasWrap.style.height = '';
+      const canvasRect = editCanvas.getBoundingClientRect();
+      const wrapRect = editCanvasWrap.getBoundingClientRect();
+      editFitSize = { canvasW: canvasRect.width, canvasH: canvasRect.height, wrapW: wrapRect.width, wrapH: wrapRect.height };
+    }
+    // 枠自体はこのサイズに固定（拡大しても大きくならない）
+    editCanvasWrap.style.width = Math.round(editFitSize.wrapW) + 'px';
+    editCanvasWrap.style.height = Math.round(editFitSize.wrapH) + 'px';
+    editCanvasWrap.style.overflow = 'auto';
+    // 中の画像だけを拡大し、枠からはみ出た分はスクロールで確認する
+    editCanvas.style.maxWidth = 'none';
+    editCanvas.style.maxHeight = 'none';
+    editCanvas.style.width = Math.round(editFitSize.canvasW * editZoom) + 'px';
+    editCanvas.style.height = Math.round(editFitSize.canvasH * editZoom) + 'px';
+  }
+  editZoomEl.addEventListener('input', () => {
+    const z = parseInt(editZoomEl.value, 10);
+    editZoomVal.textContent = z + '%';
+    editZoom = z / 100;
+    applyEditCanvasZoom();
+  });
+  window.addEventListener('resize', () => {
+    if(!getSelected()) return;
+    editFitSize = null;
+    applyEditCanvasZoom();
+  });
 
   const strengthEl = document.getElementById('strength');
   const paddingEl = document.getElementById('padding');
@@ -390,6 +466,12 @@
   const btnRedetect = document.getElementById('btnRedetect');
   const btnDownloadOne = document.getElementById('btnDownloadOne');
 
+  const btnScopeBatch = document.getElementById('btnScopeBatch');
+  const btnScopeItem = document.getElementById('btnScopeItem');
+  const scopeHintBatch = document.getElementById('scopeHintBatch');
+  const scopeHintItem = document.getElementById('scopeHintItem');
+  const btnResetItemOverrides = document.getElementById('btnResetItemOverrides');
+
   const gapEl = document.getElementById('gap');
   const bgColorEl = document.getElementById('bgColor');
   const gapVal = document.getElementById('gapVal');
@@ -411,12 +493,23 @@
   const swapModeHint = document.getElementById('swapModeHint');
   const downloadSizeTabs = document.getElementById('downloadSizeTabs');
 
-  let items = [];       // {id, name, img, w, h, boxes:[{x,y,w,h,src}], detected}
+  let items = [];       // {id, name, img, w, h, boxes:[{x,y,w,h,src}], detected, overrides:{}}
   let nextId = 1;
   let selectedId = null;
   let addMode = false;
   let eraseMode = false;
   let modelReady = false;
+
+  // ---------- 一括設定／この画像だけの個別設定 ----------
+  let batch = {strength:4, feather:40, padding:30, sensitivity:35};
+  let sliderScope = 'batch'; // 'batch' | 'item'
+  function effVal(item, key){
+    if(item && item.overrides && item.overrides[key] != null) return item.overrides[key];
+    return batch[key];
+  }
+  function hasItemOverrides(item){
+    return !!(item && item.overrides && Object.keys(item.overrides).length > 0);
+  }
 
   // ---------- 結合（コラージュ）関連の状態 ----------
   const RATIOS = {
@@ -457,10 +550,10 @@
     let s = null;
     try{ s = JSON.parse(localStorage.getItem(SETTINGS_KEY) || 'null'); }catch(e){ s = null; }
     if(!s) return;
-    if(s.strength != null) strengthEl.value = s.strength;
-    if(s.feather != null) featherEl.value = s.feather;
-    if(s.padding != null) paddingEl.value = s.padding;
-    if(s.sensitivity != null) sensitivityEl.value = s.sensitivity;
+    if(s.strength != null) batch.strength = s.strength;
+    if(s.feather != null) batch.feather = s.feather;
+    if(s.padding != null) batch.padding = s.padding;
+    if(s.sensitivity != null) batch.sensitivity = s.sensitivity;
     if(s.canvasRatio) canvasRatioEl.value = s.canvasRatio;
     if(s.orientation) orientation = s.orientation;
     if(s.gap != null) gapEl.value = s.gap;
@@ -468,10 +561,6 @@
     if(s.presetUsage) presetUsage = s.presetUsage;
     if(s.downloadSizeKey && DOWNLOAD_SIZES[s.downloadSizeKey]) downloadSizeKey = s.downloadSizeKey;
 
-    strengthVal.textContent = strengthEl.value;
-    featherVal.textContent = featherEl.value + '%';
-    paddingVal.textContent = paddingEl.value + '%';
-    sensVal.textContent = (parseInt(sensitivityEl.value,10)/100).toFixed(2);
     gapVal.textContent = gapEl.value + 'px';
     if(orientation === 'landscape'){
       btnOrientLandscape.classList.add('active'); btnOrientPortrait.classList.remove('active');
@@ -481,8 +570,8 @@
   }
   function saveSettings(){
     const s = {
-      strength: strengthEl.value, feather: featherEl.value, padding: paddingEl.value,
-      sensitivity: sensitivityEl.value,
+      strength: batch.strength, feather: batch.feather, padding: batch.padding,
+      sensitivity: batch.sensitivity,
       canvasRatio: canvasRatioEl.value, orientation, gap: gapEl.value, bgColor: bgColorEl.value,
       presetUsage, downloadSizeKey
     };
@@ -490,12 +579,10 @@
   }
   loadSettings();
   updateDownloadSizeButtons();
+  refreshSliderUI();
 
   function resetSettingsToDefaults(){
-    strengthEl.value = 4; strengthVal.textContent = '4';
-    featherEl.value = 40; featherVal.textContent = '40%';
-    paddingEl.value = 30; paddingVal.textContent = '30%';
-    sensitivityEl.value = 35; sensVal.textContent = '0.35';
+    batch = {strength:4, feather:40, padding:30, sensitivity:35};
     canvasRatioEl.value = '4:3';
     orientation = 'portrait';
     btnOrientPortrait.classList.add('active'); btnOrientLandscape.classList.remove('active');
@@ -508,6 +595,7 @@
     saveSettings();
 
     const item = getSelected();
+    refreshSliderUI();
     if(item) drawEditor();
     refitAllSlots();
     renderCountTabs();
@@ -531,22 +619,17 @@
   function snapshotState(){
     return {
       controls: {
-        strength: strengthEl.value, feather: featherEl.value, padding: paddingEl.value,
-        sensitivity: sensitivityEl.value,
         canvasRatio: canvasRatioEl.value, orientation, gap: gapEl.value, bgColor: bgColorEl.value
       },
+      batch: {...batch},
       currentCount, currentPresetId, activeSlot, selectedId,
-      items: items.map(it => ({id:it.id, name:it.name, img:it.img, w:it.w, h:it.h, boxes: cloneBoxes(it.boxes), detected: it.detected})),
+      items: items.map(it => ({id:it.id, name:it.name, img:it.img, w:it.w, h:it.h, boxes: cloneBoxes(it.boxes), detected: it.detected, overrides: {...(it.overrides||{})}})),
       slots: slots.map(s => ({rect:{...s.rect}, itemId: s.item ? s.item.id : null, zoom:s.zoom, offX:s.offX, offY:s.offY, baseScale:s.baseScale}))
     };
   }
 
   function restoreSnapshot(snap){
     const c = snap.controls;
-    strengthEl.value = c.strength; strengthVal.textContent = c.strength;
-    featherEl.value = c.feather; featherVal.textContent = c.feather + '%';
-    paddingEl.value = c.padding; paddingVal.textContent = c.padding + '%';
-    sensitivityEl.value = c.sensitivity; sensVal.textContent = (parseInt(c.sensitivity,10)/100).toFixed(2);
     canvasRatioEl.value = c.canvasRatio;
     orientation = c.orientation;
     btnOrientPortrait.classList.toggle('active', orientation === 'portrait');
@@ -554,17 +637,19 @@
     gapEl.value = c.gap; gapVal.textContent = c.gap + 'px';
     bgColorEl.value = c.bgColor;
 
+    if(snap.batch) batch = {...snap.batch};
+
     currentCount = snap.currentCount;
     currentPresetId = snap.currentPresetId;
     selectedId = snap.selectedId;
 
-    items = snap.items.map(it => ({id:it.id, name:it.name, img:it.img, w:it.w, h:it.h, boxes: cloneBoxes(it.boxes), detected: it.detected}));
+    items = snap.items.map(it => ({id:it.id, name:it.name, img:it.img, w:it.w, h:it.h, boxes: cloneBoxes(it.boxes), detected: it.detected, overrides: {...(it.overrides||{})}}));
     slots = snap.slots.map(s => ({rect:{...s.rect}, item: s.itemId!=null ? items.find(i=>i.id===s.itemId) || null : null, zoom:s.zoom, offX:s.offX, offY:s.offY, baseScale:s.baseScale}));
     activeSlot = snap.activeSlot;
 
     processedCache.clear();
     renderThumbs();
-    if(getSelected()){ editorPanel.style.display = 'block'; drawEditor(); } else { editorPanel.style.display = 'none'; }
+    if(getSelected()){ editorPanel.style.display = 'block'; refreshSliderUI(); drawEditor(); } else { editorPanel.style.display = 'none'; }
     renderCountTabs();
     renderPresetGrid();
     renderThumbs2();
@@ -693,7 +778,8 @@
           w: img.naturalWidth,
           h: img.naturalHeight,
           boxes: [],
-          detected: false
+          detected: false,
+          overrides: {}
         };
         pushUndo();
         items.push(item);
@@ -720,11 +806,11 @@
     showLoading(label || '顔を検出中…');
     await nextPaint();
     try{
-      const sens = parseInt(sensitivityEl.value,10)/100;
+      const sens = effVal(item, 'sensitivity')/100;
       const results = await faceapi.detectAllFaces(item.img, new faceapi.SsdMobilenetv1Options({minConfidence: sens, maxResults: 300}));
       // 手動で追加した枠は保持し、自動枠だけ入れ替える
       const manual = item.boxes.filter(b => b.src === 'manual');
-      const pad = parseInt(paddingEl.value,10)/100;
+      const pad = effVal(item, 'padding')/100;
       const auto = results.map(r => {
         const b = r.box;
         const padX = b.width * pad, padY = b.height * pad;
@@ -765,6 +851,15 @@
       badge.className = 'badge';
       badge.textContent = item.detecting ? '検出中…' : (item.detected ? `顔${item.boxes.filter(b=>b.src==='auto').length}件` : '未検出');
       div.appendChild(badge);
+
+      if(hasItemOverrides(item)){
+        const ov = document.createElement('div');
+        ov.className = 'badge';
+        ov.style.top = 'auto'; ov.style.bottom = '22px'; ov.style.left = '4px';
+        ov.style.background = 'rgba(63,111,214,.85)';
+        ov.textContent = '個別設定';
+        div.appendChild(ov);
+      }
 
       const rm = document.createElement('button');
       rm.className = 'rm'; rm.textContent = '×'; rm.title='削除';
@@ -830,7 +925,7 @@
       selectedId = items.length ? items[0].id : null;
     }
     renderThumbs();
-    if(selectedId) drawEditor(); else editorPanel.style.display='none';
+    if(selectedId){ refreshSliderUI(); drawEditor(); } else { editorPanel.style.display='none'; }
     slots.forEach(s => { if(s.item && s.item.id === id) resetSlotAssignment(s); });
     if(step2View.style.display !== 'none'){ renderThumbs2(); renderCollage(); }
   }
@@ -839,6 +934,10 @@
     selectedId = id;
     editorPanel.style.display = 'block';
     renderThumbs();
+    editZoom = 1; editFitSize = null;
+    editZoomEl.value = 100; editZoomVal.textContent = '100%';
+    applyEditCanvasZoom();
+    refreshSliderUI();
     drawEditor();
   }
 
@@ -853,13 +952,15 @@
     ectx.clearRect(0,0,item.w,item.h);
     ectx.drawImage(item.img, 0, 0, item.w, item.h);
 
-    const strength = parseFloat(strengthEl.value);
-    const feather = parseInt(featherEl.value,10)/100;
-    item.boxes.forEach(b => applyBlur(ectx, item.img, b, strength, feather));
+    const strength = effVal(item, 'strength');
+    const feather = effVal(item, 'feather')/100;
+    item.boxes.forEach(b => {
+      applyBlur(ectx, item.img, b, strength, feather);
+    });
 
     // 枠線（楕円）
-    item.boxes.forEach((b) => {
-      ectx.strokeStyle = b.src === 'manual' ? '#ff9500' : '#3f6fd6';
+    item.boxes.forEach(b => {
+      ectx.strokeStyle = (b.src === 'manual' ? '#ff9500' : '#3f6fd6');
       ectx.lineWidth = Math.max(2, item.w/300);
       strokeEllipse(ectx, b.x, b.y, b.w, b.h);
     });
@@ -951,23 +1052,31 @@
     dragStart = null;
   });
 
-  // ---------- 消しゴム（クリックでぼかしを削除） ----------
-  editCanvas.addEventListener('click', e => {
-    if(!eraseMode) return;
-    const item = getSelected(); if(!item) return;
-    const pos = canvasPos(e);
+  // 指定した座標に当たっているぼかし範囲のインデックスを探す
+  function hitBoxIndexAt(item, pos){
     for(let i = item.boxes.length - 1; i >= 0; i--){
       const b = item.boxes[i];
       const rx = b.w/2, ry = b.h/2;
       if(rx <= 0 || ry <= 0) continue;
       const cx = b.x + rx, cy = b.y + ry;
       const nx = (pos.x - cx) / rx, ny = (pos.y - cy) / ry;
-      if(nx*nx + ny*ny <= 1){
+      if(nx*nx + ny*ny <= 1) return i;
+    }
+    return -1;
+  }
+
+  // ---------- 消しゴム（クリックでぼかしを削除） ----------
+  editCanvas.addEventListener('click', e => {
+    const item = getSelected(); if(!item) return;
+    const pos = canvasPos(e);
+    if(eraseMode){
+      const idx = hitBoxIndexAt(item, pos);
+      if(idx !== -1){
         pushUndo();
-        item.boxes.splice(i, 1);
+        item.boxes.splice(idx, 1);
         drawEditor();
-        return;
       }
+      return;
     }
   });
 
@@ -987,6 +1096,46 @@
     return {x,y};
   }
 
+  // ---------- 一括設定／この画像だけ：スライダーのUIを同期する ----------
+  function refreshSliderUI(){
+    const item = getSelected();
+    const showItemTab = sliderScope === 'item' && item;
+    const src = showItemTab ? {
+      strength: effVal(item,'strength'), feather: effVal(item,'feather'),
+      padding: effVal(item,'padding'), sensitivity: effVal(item,'sensitivity')
+    } : batch;
+
+    strengthEl.value = src.strength; strengthVal.textContent = src.strength;
+    featherEl.value = src.feather; featherVal.textContent = src.feather + '%';
+    paddingEl.value = src.padding; paddingVal.textContent = src.padding + '%';
+    sensitivityEl.value = src.sensitivity; sensVal.textContent = (parseInt(src.sensitivity,10)/100).toFixed(2);
+
+    btnScopeItem.disabled = !item;
+    if(!item && sliderScope === 'item'){ sliderScope = 'batch'; }
+    btnScopeBatch.classList.toggle('active', sliderScope === 'batch');
+    btnScopeItem.classList.toggle('active', sliderScope === 'item');
+    scopeHintBatch.style.display = sliderScope === 'batch' ? 'block' : 'none';
+    scopeHintItem.style.display = sliderScope === 'item' ? 'block' : 'none';
+    btnResetItemOverrides.style.display = (sliderScope === 'item' && hasItemOverrides(item)) ? 'block' : 'none';
+  }
+
+  btnScopeBatch.addEventListener('click', () => {
+    sliderScope = 'batch';
+    refreshSliderUI();
+  });
+  btnScopeItem.addEventListener('click', () => {
+    if(!getSelected()) return;
+    sliderScope = 'item';
+    refreshSliderUI();
+  });
+  btnResetItemOverrides.addEventListener('click', () => {
+    const item = getSelected(); if(!item) return;
+    pushUndo();
+    item.overrides = {};
+    refreshSliderUI();
+    drawEditor();
+  });
+
   // ---------- コントロール ----------
   btnAddMode.addEventListener('click', () => {
     addMode = !addMode;
@@ -998,6 +1147,7 @@
     btnAddMode.classList.toggle('active', addMode);
     addModeHint.style.display = addMode ? 'block' : 'none';
     editCanvas.style.cursor = addMode ? 'crosshair' : (eraseMode ? 'pointer' : 'default');
+    drawEditor();
   });
   btnEraseMode.addEventListener('click', () => {
     eraseMode = !eraseMode;
@@ -1009,6 +1159,7 @@
     btnEraseMode.classList.toggle('active', eraseMode);
     eraseModeHint.style.display = eraseMode ? 'block' : 'none';
     editCanvas.style.cursor = eraseMode ? 'pointer' : (addMode ? 'crosshair' : 'default');
+    drawEditor();
   });
   btnClearBoxes.addEventListener('click', () => {
     const item = getSelected(); if(!item) return;
@@ -1022,18 +1173,40 @@
     pushUndo();
     runDetection(item);
   });
+
+  function setEffOrBatch(key, value){
+    const item = getSelected();
+    if(sliderScope === 'item' && item){
+      item.overrides = item.overrides || {};
+      item.overrides[key] = value;
+      btnResetItemOverrides.style.display = 'block';
+    } else {
+      batch[key] = value;
+      saveSettings();
+    }
+  }
   strengthEl.addEventListener('input', () => {
+    const v = parseFloat(strengthEl.value);
     strengthVal.textContent = strengthEl.value;
+    setEffOrBatch('strength', v);
     drawEditor();
-    saveSettings();
   });
   featherEl.addEventListener('input', () => {
+    const v = parseInt(featherEl.value,10);
     featherVal.textContent = featherEl.value + '%';
+    setEffOrBatch('feather', v);
     drawEditor();
-    saveSettings();
   });
-  paddingEl.addEventListener('input', () => { paddingVal.textContent = paddingEl.value + '%'; saveSettings(); });
-  sensitivityEl.addEventListener('input', () => { sensVal.textContent = (parseInt(sensitivityEl.value,10)/100).toFixed(2); saveSettings(); });
+  paddingEl.addEventListener('input', () => {
+    const v = parseInt(paddingEl.value,10);
+    paddingVal.textContent = paddingEl.value + '%';
+    setEffOrBatch('padding', v);
+  });
+  sensitivityEl.addEventListener('input', () => {
+    const v = parseInt(sensitivityEl.value,10);
+    sensVal.textContent = (v/100).toFixed(2);
+    setEffOrBatch('sensitivity', v);
+  });
 
   // ---------- STEP切り替え ----------
   function showStep(n){
@@ -1061,18 +1234,6 @@
       document.body.appendChild(a); a.click(); a.remove();
       setTimeout(()=>URL.revokeObjectURL(url), 3000);
     }, 'image/png');
-  }
-
-  // 各画像の「処理済みキャンバス」を作る（結合用）
-  function renderProcessedCanvas(item){
-    const c = document.createElement('canvas');
-    c.width = item.w; c.height = item.h;
-    const cx = c.getContext('2d');
-    cx.drawImage(item.img, 0, 0, item.w, item.h);
-    const strength = parseFloat(strengthEl.value);
-    const feather = parseInt(featherEl.value,10)/100;
-    item.boxes.forEach(b => applyBlur(cx, item.img, b, strength, feather));
-    return c;
   }
 
   // ==================== 結合（コラージュ）====================
@@ -1267,6 +1428,7 @@
   }
 
   function renderCollage(){
+    step2View.classList.toggle('orientation-portrait', orientation === 'portrait');
     const size = collageCanvasSize();
     collageBaseCanvas.width = size.w; collageBaseCanvas.height = size.h;
     collageOverlayCanvas.width = size.w; collageOverlayCanvas.height = size.h;
@@ -1325,7 +1487,7 @@
   // ぼかし処理済みキャンバスをキャッシュ（毎フレーム再生成しない）
   const processedCache = new Map();
   function getProcessedCanvasCached(item){
-    const key = item.id + ':' + strengthEl.value + ':' + featherEl.value + ':' + JSON.stringify(item.boxes);
+    const key = item.id + ':' + effVal(item,'strength') + ':' + effVal(item,'feather') + ':' + JSON.stringify(item.boxes);
     const cached = processedCache.get(item.id);
     if(cached && cached.key === key) return cached.canvas;
     const canvas = renderProcessedCanvas(item);
@@ -1339,9 +1501,11 @@
     c.width = item.w; c.height = item.h;
     const cx = c.getContext('2d');
     cx.drawImage(item.img, 0, 0, item.w, item.h);
-    const strength = parseFloat(strengthEl.value);
-    const feather = parseInt(featherEl.value,10)/100;
-    item.boxes.forEach(b => applyBlur(cx, item.img, b, strength, feather));
+    const strength = effVal(item, 'strength');
+    const feather = effVal(item, 'feather')/100;
+    item.boxes.forEach(b => {
+      applyBlur(cx, item.img, b, strength, feather);
+    });
     return c;
   }
 
