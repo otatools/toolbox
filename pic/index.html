@@ -113,7 +113,14 @@
     display:inline-flex;align-items:center;justify-content:center;
   }
   .editor-canvas-wrap canvas{max-width:100%;max-height:min(62vh,640px);width:auto;height:auto;display:block;cursor:default;border-radius:4px;}
-  #editCanvasWrap{overflow:hidden;max-height:min(62vh,640px);align-items:flex-start;justify-content:flex-start;min-width:0;}
+  #editCanvasWrap{
+    overflow:hidden;
+    width:min(640px,90vw);
+    height:min(480px,56vh);
+    align-items:center;justify-content:center;min-width:0;
+  }
+  #editCanvasWrap.zoomed{overflow:auto;align-items:flex-start;justify-content:flex-start;}
+  #editCanvasWrap canvas{max-width:100%;max-height:100%;width:auto;height:auto;}
   .editor-side{flex:1 1 220px;min-width:200px;}
   .step2-side-left{flex:0 0 170px;min-width:150px;}
   .step2-side-left .field{margin-bottom:16px;}
@@ -201,7 +208,10 @@
 <div id="step1View">
 
   <div class="panel">
-    <h2><span class="step-badge">1</span>画像を追加</h2>
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:12px;">
+      <h2 style="margin:0;"><span class="step-badge">1</span>画像を追加</h2>
+      <button class="btn toggle small active" id="btnBlurToggle" title="OFFにすると、顔にぼかしをかけずにそのまま結合できます">🙈 顔ぼかし：ON</button>
+    </div>
     <div id="dropzone" class="dropzone">
       <div><strong>ここに画像をドラッグ＆ドロップ</strong></div>
       <div>またはクリックしてフォルダから選択（複数選択可）</div>
@@ -229,16 +239,46 @@
           <button class="btn toggle" id="btnAddMode">＋ 手動で追加</button>
           <button class="btn toggle" id="btnEraseMode">🧹 消しゴム</button>
         </div>
+        <div class="btn-row" id="shapeRow" style="display:none;margin-bottom:6px;">
+          <button class="btn toggle small active" id="shapeEllipse" title="楕円形のぼかし">⬭ 楕円</button>
+          <button class="btn toggle small" id="shapeRect" title="長方形のぼかし">▭ 長方形</button>
+          <button class="btn toggle small" id="shapePolygon" title="多角形のぼかし（クリックで頂点を追加）">🔺 多角形</button>
+        </div>
         <div class="hint" id="addModeHint" style="display:none;">キャンバス上をドラッグして四角を描くと、その範囲に楕円形のぼかしが追加されます。</div>
+        <div class="hint" id="polygonHint" style="display:none;">クリックして頂点を追加してください。最初の点の近くをクリックするか「確定」で多角形のぼかしを追加します（3点以上必要）。</div>
+        <div class="btn-row" id="polygonActionRow" style="display:none;margin-bottom:6px;">
+          <button class="btn small" id="btnPolygonFinish">✓ 確定</button>
+          <button class="btn small danger" id="btnPolygonCancel">✕ キャンセル</button>
+        </div>
         <div class="hint" id="eraseModeHint" style="display:none;">消したいぼかしの上をクリックすると、そのぼかしだけが解除されます。</div>
 
         <div class="field" style="margin-top:14px;">
           <div class="btn-row" style="margin-bottom:6px;">
             <button class="btn toggle active" id="btnScopeBatch">🌐 一括設定</button>
             <button class="btn toggle" id="btnScopeItem">🖼 この画像だけ</button>
+            <button class="btn small" id="btnAutoAdjust" title="この画像だけ、明るさ・コントラスト・色合いを自動調整します（他の画像には影響しません）">🎨 自動調整</button>
+            <button class="btn small toggle" id="btnManualAdjust" title="この画像だけ、明るさ・コントラスト・彩度を手動で調整します（他の画像には影響しません）">🎚 手動調整</button>
           </div>
           <div class="hint" id="scopeHintBatch" style="margin-top:0;">すべての画像に共通で適用されます。</div>
           <div class="hint" id="scopeHintItem" style="display:none;margin-top:0;">この画像だけに適用され、他の画像には影響しません。</div>
+          <div class="hint" style="margin-top:0;">🎨 自動調整・🎚 手動調整：どちらもこの画像だけに適用され、他の画像には影響しません。自動調整のあとに手動調整でさらに整えることもできます。</div>
+          <button class="btn small" id="btnResetAutoAdjust" style="width:100%;display:none;margin-top:6px;">↺ この画像の自動調整を解除</button>
+
+          <div id="manualAdjustPanel" style="display:none;margin-top:10px;padding-top:10px;border-top:1px dashed var(--border);">
+            <div class="field">
+              <label>明るさ <span class="row-val" id="manualBrightnessVal">100%</span></label>
+              <input type="range" id="manualBrightness" min="50" max="150" value="100">
+            </div>
+            <div class="field">
+              <label>コントラスト <span class="row-val" id="manualContrastVal">100%</span></label>
+              <input type="range" id="manualContrast" min="50" max="150" value="100">
+            </div>
+            <div class="field">
+              <label>彩度（色の鮮やかさ） <span class="row-val" id="manualSaturateVal">100%</span></label>
+              <input type="range" id="manualSaturate" min="0" max="200" value="100">
+            </div>
+            <button class="btn small" id="btnResetManualAdjust" style="width:100%;display:none;">↺ この画像の手動調整をリセット</button>
+          </div>
         </div>
 
         <div class="field">
@@ -393,41 +433,35 @@
 
   // 表示枠（黒い背景の部分）の大きさは変えず、その中の画像だけを拡大する。
   // はみ出た部分は枠の中でスクロール（パン）して見る。書き出し結果には影響しない。
+  // 表示枠（黒い背景の部分）は、画像の大きさやウィンドウ幅に関わらず一定サイズ（CSSで固定）。
+  // 拡大するときは、その枠の中の画像だけを大きくし、はみ出た分は枠内のスクロールで確認する。
   function applyEditCanvasZoom(){
     if(editZoom <= 1.001){
       editCanvas.style.width = '';
       editCanvas.style.height = '';
       editCanvas.style.maxWidth = '';
       editCanvas.style.maxHeight = '';
-      editCanvasWrap.style.width = '';
-      editCanvasWrap.style.height = '';
-      editCanvasWrap.style.overflow = 'hidden';
+      editCanvasWrap.classList.remove('zoomed');
       editCanvasWrap.scrollLeft = 0;
       editCanvasWrap.scrollTop = 0;
       editFitSize = null;
       return;
     }
     if(!editFitSize){
-      // 一旦、拡大なしの状態に戻して「枠」と「画像」の自然な表示サイズを測る
+      // 一旦、拡大なしの状態に戻して、枠の中で画像が自然に表示されるサイズを測る
       editCanvas.style.width = '';
       editCanvas.style.height = '';
       editCanvas.style.maxWidth = '';
       editCanvas.style.maxHeight = '';
-      editCanvasWrap.style.width = '';
-      editCanvasWrap.style.height = '';
-      const canvasRect = editCanvas.getBoundingClientRect();
-      const wrapRect = editCanvasWrap.getBoundingClientRect();
-      editFitSize = { canvasW: canvasRect.width, canvasH: canvasRect.height, wrapW: wrapRect.width, wrapH: wrapRect.height };
+      editCanvasWrap.classList.remove('zoomed');
+      const rect = editCanvas.getBoundingClientRect();
+      editFitSize = { w: rect.width, h: rect.height };
     }
-    // 枠自体はこのサイズに固定（拡大しても大きくならない）
-    editCanvasWrap.style.width = Math.round(editFitSize.wrapW) + 'px';
-    editCanvasWrap.style.height = Math.round(editFitSize.wrapH) + 'px';
-    editCanvasWrap.style.overflow = 'auto';
-    // 中の画像だけを拡大し、枠からはみ出た分はスクロールで確認する
+    editCanvasWrap.classList.add('zoomed');
     editCanvas.style.maxWidth = 'none';
     editCanvas.style.maxHeight = 'none';
-    editCanvas.style.width = Math.round(editFitSize.canvasW * editZoom) + 'px';
-    editCanvas.style.height = Math.round(editFitSize.canvasH * editZoom) + 'px';
+    editCanvas.style.width = Math.round(editFitSize.w * editZoom) + 'px';
+    editCanvas.style.height = Math.round(editFitSize.h * editZoom) + 'px';
   }
   editZoomEl.addEventListener('input', () => {
     const z = parseInt(editZoomEl.value, 10);
@@ -451,6 +485,7 @@
   const featherVal = document.getElementById('featherVal');
 
   const tabBtn1 = document.getElementById('tabBtn1');
+  const btnBlurToggle = document.getElementById('btnBlurToggle');
   const tabBtn2 = document.getElementById('tabBtn2');
   const step1View = document.getElementById('step1View');
   const step2View = document.getElementById('step2View');
@@ -462,6 +497,14 @@
   const addModeHint = document.getElementById('addModeHint');
   const btnEraseMode = document.getElementById('btnEraseMode');
   const eraseModeHint = document.getElementById('eraseModeHint');
+  const shapeRow = document.getElementById('shapeRow');
+  const shapeEllipseBtn = document.getElementById('shapeEllipse');
+  const shapeRectBtn = document.getElementById('shapeRect');
+  const shapePolygonBtn = document.getElementById('shapePolygon');
+  const polygonHint = document.getElementById('polygonHint');
+  const polygonActionRow = document.getElementById('polygonActionRow');
+  const btnPolygonFinish = document.getElementById('btnPolygonFinish');
+  const btnPolygonCancel = document.getElementById('btnPolygonCancel');
   const btnClearBoxes = document.getElementById('btnClearBoxes');
   const btnRedetect = document.getElementById('btnRedetect');
   const btnDownloadOne = document.getElementById('btnDownloadOne');
@@ -471,6 +514,17 @@
   const scopeHintBatch = document.getElementById('scopeHintBatch');
   const scopeHintItem = document.getElementById('scopeHintItem');
   const btnResetItemOverrides = document.getElementById('btnResetItemOverrides');
+  const btnAutoAdjust = document.getElementById('btnAutoAdjust');
+  const btnResetAutoAdjust = document.getElementById('btnResetAutoAdjust');
+  const btnManualAdjust = document.getElementById('btnManualAdjust');
+  const manualAdjustPanel = document.getElementById('manualAdjustPanel');
+  const manualBrightnessEl = document.getElementById('manualBrightness');
+  const manualContrastEl = document.getElementById('manualContrast');
+  const manualSaturateEl = document.getElementById('manualSaturate');
+  const manualBrightnessVal = document.getElementById('manualBrightnessVal');
+  const manualContrastVal = document.getElementById('manualContrastVal');
+  const manualSaturateVal = document.getElementById('manualSaturateVal');
+  const btnResetManualAdjust = document.getElementById('btnResetManualAdjust');
 
   const gapEl = document.getElementById('gap');
   const bgColorEl = document.getElementById('bgColor');
@@ -499,6 +553,22 @@
   let addMode = false;
   let eraseMode = false;
   let modelReady = false;
+  let blurEnabled = true; // OFFのときは、どの画像にもぼかしを適用しない
+
+  function updateBlurToggleUI(){
+    btnBlurToggle.classList.toggle('active', blurEnabled);
+    btnBlurToggle.textContent = blurEnabled ? '🙈 顔ぼかし：ON' : '🙉 顔ぼかし：OFF';
+    tabBtn1.textContent = blurEnabled ? 'STEP 1　顔をぼかす' : 'STEP 1　顔をぼかさない';
+  }
+  btnBlurToggle.addEventListener('click', () => {
+    pushUndo();
+    blurEnabled = !blurEnabled;
+    updateBlurToggleUI();
+    processedCache.clear();
+    if(getSelected()) drawEditor();
+    if(step2View.style.display !== 'none'){ renderThumbs2(); renderCollage(); }
+    saveSettings();
+  });
 
   // ---------- 一括設定／この画像だけの個別設定 ----------
   let batch = {strength:4, feather:40, padding:30, sensitivity:35};
@@ -509,6 +579,114 @@
   }
   function hasItemOverrides(item){
     return !!(item && item.overrides && Object.keys(item.overrides).length > 0);
+  }
+
+  // この画像の描画元（自動調整済みならそちら、なければ元画像）を返す
+  function baseSource(item){
+    return (item && item.adjustedCanvas) ? item.adjustedCanvas : item.img;
+  }
+  // 実際に描画に使う画像（手動調整があればそれも重ねた結果、なければ自動調整／元画像）を返す
+  function itemSource(item){
+    if(item && item.manualCanvas) return item.manualCanvas;
+    return baseSource(item);
+  }
+
+  // ---------- この画像だけの明るさ・コントラスト・彩度を手動調整 ----------
+  function buildManualFilterString(m){
+    if(!m) return '';
+    const parts = [];
+    if(m.brightness != null && m.brightness !== 100) parts.push('brightness(' + m.brightness + '%)');
+    if(m.contrast != null && m.contrast !== 100) parts.push('contrast(' + m.contrast + '%)');
+    if(m.saturate != null && m.saturate !== 100) parts.push('saturate(' + m.saturate + '%)');
+    return parts.join(' ');
+  }
+  function hasManualAdjust(item){
+    const m = item && item.manualAdjust;
+    return !!(m && (m.brightness !== 100 || m.contrast !== 100 || m.saturate !== 100));
+  }
+  // 手動調整を（自動調整済みの画像があればその上に）重ねた結果のキャンバスを作り直す
+  function rebuildManualCanvas(item){
+    const filterStr = buildManualFilterString(item.manualAdjust);
+    if(!filterStr){ item.manualCanvas = null; return; }
+    const src = baseSource(item);
+    const c = document.createElement('canvas');
+    c.width = item.w; c.height = item.h;
+    const cx = c.getContext('2d');
+    cx.filter = filterStr;
+    cx.drawImage(src, 0, 0, item.w, item.h);
+    cx.filter = 'none';
+    item.manualCanvas = c;
+  }
+
+  // ---------- この画像だけの明るさ・コントラスト・色合いを自動調整 ----------
+  // 縮小した作業用キャンバスでヒストグラムを解析し、各チャンネルのレベル補正量とホワイトバランス補正量を求める
+  function computeAutoAdjust(img, w, h){
+    const maxDim = 220;
+    const scale = Math.min(1, maxDim / Math.max(w, h));
+    const sw = Math.max(1, Math.round(w * scale)), sh = Math.max(1, Math.round(h * scale));
+    const tmp = document.createElement('canvas');
+    tmp.width = sw; tmp.height = sh;
+    const tctx = tmp.getContext('2d');
+    tctx.drawImage(img, 0, 0, sw, sh);
+    const data = tctx.getImageData(0, 0, sw, sh).data;
+
+    const histR = new Array(256).fill(0), histG = new Array(256).fill(0), histB = new Array(256).fill(0);
+    let sumR = 0, sumG = 0, sumB = 0, n = 0;
+    for(let i = 0; i < data.length; i += 4){
+      histR[data[i]]++; histG[data[i+1]]++; histB[data[i+2]]++;
+      sumR += data[i]; sumG += data[i+1]; sumB += data[i+2]; n++;
+    }
+    // 各チャンネルの上下0.5%を切り詰めて、明暗の範囲を伸ばす（オートレベル）
+    function stretchRange(hist){
+      const clip = n * 0.005;
+      let lo = 0, acc = 0;
+      for(lo = 0; lo < 255; lo++){ acc += hist[lo]; if(acc > clip) break; }
+      let hi = 255; acc = 0;
+      for(hi = 255; hi > 0; hi--){ acc += hist[hi]; if(acc > clip) break; }
+      if(hi <= lo){ lo = 0; hi = 255; }
+      return {lo, hi};
+    }
+    const rr = stretchRange(histR), rg = stretchRange(histG), rb = stretchRange(histB);
+
+    // グレーワールド仮定で色かぶり（ホワイトバランス）を補正する。かかりすぎないよう控えめにクランプする
+    const avgR = sumR / n, avgG = sumG / n, avgB = sumB / n;
+    const avgGray = (avgR + avgG + avgB) / 3;
+    function clampGain(v){ return Math.max(0.9, Math.min(1.15, v)); }
+    const gainR = clampGain(avgGray / (avgR || 1));
+    const gainG = clampGain(avgGray / (avgG || 1));
+    const gainB = clampGain(avgGray / (avgB || 1));
+
+    return {
+      r: {lo: rr.lo, hi: rr.hi, gain: gainR},
+      g: {lo: rg.lo, hi: rg.hi, gain: gainG},
+      b: {lo: rb.lo, hi: rb.hi, gain: gainB}
+    };
+  }
+
+  // 元画像の全ピクセルに補正を適用した「自動調整済みキャンバス」を作る
+  function buildAdjustedCanvas(img, w, h, adj){
+    const c = document.createElement('canvas');
+    c.width = w; c.height = h;
+    const cx = c.getContext('2d');
+    cx.drawImage(img, 0, 0, w, h);
+    const imgData = cx.getImageData(0, 0, w, h);
+    const d = imgData.data;
+    function buildLUT(ch){
+      const range = Math.max(1, ch.hi - ch.lo);
+      const lut = new Uint8ClampedArray(256);
+      for(let v = 0; v < 256; v++){
+        lut[v] = (v - ch.lo) * 255 / range * ch.gain;
+      }
+      return lut;
+    }
+    const lutR = buildLUT(adj.r), lutG = buildLUT(adj.g), lutB = buildLUT(adj.b);
+    for(let i = 0; i < d.length; i += 4){
+      d[i] = lutR[d[i]];
+      d[i+1] = lutG[d[i+1]];
+      d[i+2] = lutB[d[i+2]];
+    }
+    cx.putImageData(imgData, 0, 0);
+    return c;
   }
 
   // ---------- 結合（コラージュ）関連の状態 ----------
@@ -560,6 +738,8 @@
     if(s.bgColor) bgColorEl.value = s.bgColor;
     if(s.presetUsage) presetUsage = s.presetUsage;
     if(s.downloadSizeKey && DOWNLOAD_SIZES[s.downloadSizeKey]) downloadSizeKey = s.downloadSizeKey;
+    if(s.blurEnabled != null) blurEnabled = s.blurEnabled;
+    updateBlurToggleUI();
 
     gapVal.textContent = gapEl.value + 'px';
     if(orientation === 'landscape'){
@@ -573,7 +753,7 @@
       strength: batch.strength, feather: batch.feather, padding: batch.padding,
       sensitivity: batch.sensitivity,
       canvasRatio: canvasRatioEl.value, orientation, gap: gapEl.value, bgColor: bgColorEl.value,
-      presetUsage, downloadSizeKey
+      presetUsage, downloadSizeKey, blurEnabled
     };
     try{ localStorage.setItem(SETTINGS_KEY, JSON.stringify(s)); }catch(e){ /* 保存できなくても処理は続行 */ }
   }
@@ -590,6 +770,8 @@
     bgColorEl.value = '#ffffff';
     presetUsage = {};
     downloadSizeKey = 'medium';
+    blurEnabled = true;
+    updateBlurToggleUI();
     updateDownloadSizeButtons();
     try{ localStorage.removeItem(SETTINGS_KEY); }catch(e){}
     saveSettings();
@@ -614,21 +796,29 @@
   let redoStack = [];
   const UNDO_LIMIT = 60;
 
-  function cloneBoxes(boxes){ return boxes.map(b => ({x:b.x,y:b.y,w:b.w,h:b.h,src:b.src})); }
+  function cloneBoxes(boxes){
+    return boxes.map(b => {
+      const out = {x:b.x,y:b.y,w:b.w,h:b.h,src:b.src};
+      if(b.shape) out.shape = b.shape;
+      if(b.points) out.points = b.points.map(p => ({x:p.x,y:p.y}));
+      return out;
+    });
+  }
 
   function snapshotState(){
     return {
       controls: {
-        canvasRatio: canvasRatioEl.value, orientation, gap: gapEl.value, bgColor: bgColorEl.value
+        canvasRatio: canvasRatioEl.value, orientation, gap: gapEl.value, bgColor: bgColorEl.value, blurEnabled
       },
       batch: {...batch},
       currentCount, currentPresetId, activeSlot, selectedId,
-      items: items.map(it => ({id:it.id, name:it.name, img:it.img, w:it.w, h:it.h, boxes: cloneBoxes(it.boxes), detected: it.detected, overrides: {...(it.overrides||{})}})),
+      items: items.map(it => ({id:it.id, name:it.name, img:it.img, w:it.w, h:it.h, boxes: cloneBoxes(it.boxes), detected: it.detected, overrides: {...(it.overrides||{})}, autoAdjust: it.autoAdjust || null, adjustedCanvas: it.adjustedCanvas || null, manualAdjust: it.manualAdjust ? {...it.manualAdjust} : null, manualCanvas: it.manualCanvas || null, adjustVersion: it.adjustVersion || 0})),
       slots: slots.map(s => ({rect:{...s.rect}, itemId: s.item ? s.item.id : null, zoom:s.zoom, offX:s.offX, offY:s.offY, baseScale:s.baseScale}))
     };
   }
 
   function restoreSnapshot(snap){
+    polygonDraft = null;
     const c = snap.controls;
     canvasRatioEl.value = c.canvasRatio;
     orientation = c.orientation;
@@ -636,6 +826,8 @@
     btnOrientLandscape.classList.toggle('active', orientation === 'landscape');
     gapEl.value = c.gap; gapVal.textContent = c.gap + 'px';
     bgColorEl.value = c.bgColor;
+    blurEnabled = c.blurEnabled !== false;
+    updateBlurToggleUI();
 
     if(snap.batch) batch = {...snap.batch};
 
@@ -643,7 +835,7 @@
     currentPresetId = snap.currentPresetId;
     selectedId = snap.selectedId;
 
-    items = snap.items.map(it => ({id:it.id, name:it.name, img:it.img, w:it.w, h:it.h, boxes: cloneBoxes(it.boxes), detected: it.detected, overrides: {...(it.overrides||{})}}));
+    items = snap.items.map(it => ({id:it.id, name:it.name, img:it.img, w:it.w, h:it.h, boxes: cloneBoxes(it.boxes), detected: it.detected, overrides: {...(it.overrides||{})}, autoAdjust: it.autoAdjust || null, adjustedCanvas: it.adjustedCanvas || null, manualAdjust: it.manualAdjust ? {...it.manualAdjust} : null, manualCanvas: it.manualCanvas || null, adjustVersion: it.adjustVersion || 0}));
     slots = snap.slots.map(s => ({rect:{...s.rect}, item: s.itemId!=null ? items.find(i=>i.id===s.itemId) || null : null, zoom:s.zoom, offX:s.offX, offY:s.offY, baseScale:s.baseScale}));
     activeSlot = snap.activeSlot;
 
@@ -694,7 +886,7 @@
     el.addEventListener('pointerdown', () => pushUndo());
   }
   [strengthEl, featherEl, paddingEl, sensitivityEl, gapEl, bgColorEl, slotZoomEl,
-   canvasRatioEl].forEach(armContinuousUndo);
+   canvasRatioEl, manualBrightnessEl, manualContrastEl, manualSaturateEl].forEach(armContinuousUndo);
 
   let wheelUndoTimer = null;
   function beginWheelUndoGroup(){
@@ -779,7 +971,12 @@
           h: img.naturalHeight,
           boxes: [],
           detected: false,
-          overrides: {}
+          overrides: {},
+          autoAdjust: null,
+          adjustedCanvas: null,
+          manualAdjust: null,
+          manualCanvas: null,
+          adjustVersion: 0
         };
         pushUndo();
         items.push(item);
@@ -834,7 +1031,10 @@
   function clampBox(b, W, H){
     let x = Math.max(0, b.x), y = Math.max(0, b.y);
     let w = Math.min(b.w, W - x), h = Math.min(b.h, H - y);
-    return {x,y,w:Math.max(1,w),h:Math.max(1,h),src:b.src};
+    const out = {x,y,w:Math.max(1,w),h:Math.max(1,h),src:b.src};
+    if(b.shape) out.shape = b.shape;
+    if(b.points) out.points = b.points;
+    return out;
   }
 
   // ---------- サムネイル ----------
@@ -852,12 +1052,16 @@
       badge.textContent = item.detecting ? '検出中…' : (item.detected ? `顔${item.boxes.filter(b=>b.src==='auto').length}件` : '未検出');
       div.appendChild(badge);
 
-      if(hasItemOverrides(item)){
+      const marks = [];
+      if(hasItemOverrides(item)) marks.push('個別設定');
+      if(item.adjustedCanvas) marks.push('自動調整');
+      if(hasManualAdjust(item)) marks.push('手動調整');
+      if(marks.length){
         const ov = document.createElement('div');
         ov.className = 'badge';
         ov.style.top = 'auto'; ov.style.bottom = '22px'; ov.style.left = '4px';
         ov.style.background = 'rgba(63,111,214,.85)';
-        ov.textContent = '個別設定';
+        ov.textContent = marks.join('・');
         div.appendChild(ov);
       }
 
@@ -937,6 +1141,7 @@
     editZoom = 1; editFitSize = null;
     editZoomEl.value = 100; editZoomVal.textContent = '100%';
     applyEditCanvasZoom();
+    polygonDraft = null;
     refreshSliderUI();
     drawEditor();
   }
@@ -950,19 +1155,22 @@
     editCanvas.width = item.w;
     editCanvas.height = item.h;
     ectx.clearRect(0,0,item.w,item.h);
-    ectx.drawImage(item.img, 0, 0, item.w, item.h);
+    const src = itemSource(item);
+    ectx.drawImage(src, 0, 0, item.w, item.h);
 
-    const strength = effVal(item, 'strength');
-    const feather = effVal(item, 'feather')/100;
-    item.boxes.forEach(b => {
-      applyBlur(ectx, item.img, b, strength, feather);
-    });
+    if(blurEnabled){
+      const strength = effVal(item, 'strength');
+      const feather = effVal(item, 'feather')/100;
+      item.boxes.forEach(b => {
+        applyBlurForBox(ectx, src, b, strength, feather);
+      });
+    }
 
-    // 枠線（楕円）
+    // 枠線
     item.boxes.forEach(b => {
       ectx.strokeStyle = (b.src === 'manual' ? '#ff9500' : '#3f6fd6');
       ectx.lineWidth = Math.max(2, item.w/300);
-      strokeEllipse(ectx, b.x, b.y, b.w, b.h);
+      strokeBoxOutline(ectx, b);
     });
   }
 
@@ -1014,16 +1222,183 @@
     ctx.drawImage(blurredCrop, x, y);
   }
 
-  // ---------- 手動追加（ドラッグ） ----------
+  // 長方形・多角形用：形に合わせたマスクを作り、フェザー分だけマスク自体をぼかして縁を柔らかくする
+  function applyBlurShaped(ctx, img, box, strength, feather, shape){
+    const {x,y,w,h} = box;
+    if(w<=0||h<=0) return;
+    const bleed = Math.ceil(strength*2);
+
+    const big = document.createElement('canvas');
+    big.width = w + bleed*2; big.height = h + bleed*2;
+    const bctx = big.getContext('2d');
+    bctx.filter = `blur(${strength}px)`;
+    bctx.drawImage(img, x-bleed, y-bleed, w+bleed*2, h+bleed*2, 0, 0, w+bleed*2, h+bleed*2);
+
+    const blurredCrop = document.createElement('canvas');
+    blurredCrop.width = w; blurredCrop.height = h;
+    blurredCrop.getContext('2d').drawImage(big, bleed, bleed, w, h, 0, 0, w, h);
+
+    const featherPx = Math.round(feather * Math.min(w, h) * 0.5);
+    const maskPad = featherPx + 2;
+    const mask = document.createElement('canvas');
+    mask.width = w + maskPad*2; mask.height = h + maskPad*2;
+    const mctx = mask.getContext('2d');
+    mctx.fillStyle = '#fff';
+    mctx.beginPath();
+    if(shape === 'polygon' && box.points && box.points.length >= 3){
+      box.points.forEach((p, i) => {
+        const px = p.x + maskPad, py = p.y + maskPad;
+        if(i === 0) mctx.moveTo(px, py); else mctx.lineTo(px, py);
+      });
+      mctx.closePath();
+    } else {
+      mctx.rect(maskPad, maskPad, w, h);
+    }
+    mctx.fill();
+    if(featherPx > 0){
+      const sharp = document.createElement('canvas');
+      sharp.width = mask.width; sharp.height = mask.height;
+      sharp.getContext('2d').drawImage(mask, 0, 0);
+      mctx.clearRect(0, 0, mask.width, mask.height);
+      mctx.filter = `blur(${featherPx}px)`;
+      mctx.drawImage(sharp, 0, 0);
+      mctx.filter = 'none';
+    }
+
+    const bcx = blurredCrop.getContext('2d');
+    bcx.save();
+    bcx.globalCompositeOperation = 'destination-in';
+    bcx.drawImage(mask, -maskPad, -maskPad);
+    bcx.restore();
+
+    ctx.drawImage(blurredCrop, x, y);
+  }
+
+  // 形状に応じてぼかし処理を振り分ける
+  function applyBlurForBox(ctx, img, box, strength, feather){
+    if(box.shape === 'rect' || box.shape === 'polygon'){
+      applyBlurShaped(ctx, img, box, strength, feather, box.shape);
+    } else {
+      applyBlur(ctx, img, box, strength, feather);
+    }
+  }
+
+  // 枠の輪郭線を形状に応じて描画する
+  function strokeBoxOutline(ctx, b){
+    if(b.shape === 'rect'){
+      ctx.strokeRect(b.x, b.y, b.w, b.h);
+    } else if(b.shape === 'polygon' && b.points && b.points.length >= 3){
+      ctx.beginPath();
+      b.points.forEach((p, i) => {
+        const px = b.x + p.x, py = b.y + p.y;
+        if(i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+      });
+      ctx.closePath();
+      ctx.stroke();
+    } else {
+      strokeEllipse(ctx, b.x, b.y, b.w, b.h);
+    }
+  }
+
+  // 点がぼかし範囲の内側にあるかを形状に応じて判定する
+  function pointInBox(b, pos){
+    if(b.shape === 'rect'){
+      return pos.x >= b.x && pos.x <= b.x + b.w && pos.y >= b.y && pos.y <= b.y + b.h;
+    }
+    if(b.shape === 'polygon' && b.points && b.points.length >= 3){
+      const lx = pos.x - b.x, ly = pos.y - b.y;
+      let inside = false;
+      const pts = b.points;
+      for(let i = 0, j = pts.length - 1; i < pts.length; j = i++){
+        const xi = pts[i].x, yi = pts[i].y, xj = pts[j].x, yj = pts[j].y;
+        const intersect = ((yi > ly) !== (yj > ly)) && (lx < (xj - xi) * (ly - yi) / (yj - yi) + xi);
+        if(intersect) inside = !inside;
+      }
+      return inside;
+    }
+    const rx = b.w/2, ry = b.h/2;
+    if(rx <= 0 || ry <= 0) return false;
+    const cx = b.x + rx, cy = b.y + ry;
+    const nx = (pos.x - cx) / rx, ny = (pos.y - cy) / ry;
+    return (nx*nx + ny*ny) <= 1;
+  }
+
+  // ---------- 手動追加（楕円／長方形はドラッグ、多角形はクリックで頂点を追加） ----------
+  let manualShape = 'ellipse'; // 'ellipse' | 'rect' | 'polygon'
+  let polygonDraft = null;     // 多角形を描いている途中の頂点配列（画像座標）
+
+  function setManualShape(shape){
+    manualShape = shape;
+    shapeEllipseBtn.classList.toggle('active', shape === 'ellipse');
+    shapeRectBtn.classList.toggle('active', shape === 'rect');
+    shapePolygonBtn.classList.toggle('active', shape === 'polygon');
+    const shapeLabel = shape === 'rect' ? '長方形' : (shape === 'polygon' ? '多角形' : '楕円形');
+    addModeHint.textContent = `キャンバス上をドラッグして四角を描くと、その範囲に${shapeLabel}のぼかしが追加されます。`;
+    addModeHint.style.display = (addMode && shape !== 'polygon') ? 'block' : 'none';
+    polygonHint.style.display = (addMode && shape === 'polygon') ? 'block' : 'none';
+    polygonActionRow.style.display = (addMode && shape === 'polygon') ? 'flex' : 'none';
+    cancelPolygonDraft();
+  }
+  shapeEllipseBtn.addEventListener('click', () => setManualShape('ellipse'));
+  shapeRectBtn.addEventListener('click', () => setManualShape('rect'));
+  shapePolygonBtn.addEventListener('click', () => setManualShape('polygon'));
+
+  function cancelPolygonDraft(){
+    polygonDraft = null;
+    if(getSelected()) drawEditor();
+  }
+  btnPolygonCancel.addEventListener('click', cancelPolygonDraft);
+  btnPolygonFinish.addEventListener('click', finishPolygonDraft);
+
+  function finishPolygonDraft(){
+    const item = getSelected();
+    if(!item || !polygonDraft || polygonDraft.length < 3){ polygonDraft = null; if(item) drawEditor(); return; }
+    const xs = polygonDraft.map(p => p.x), ys = polygonDraft.map(p => p.y);
+    const x = Math.max(0, Math.min.apply(null, xs)), y = Math.max(0, Math.min.apply(null, ys));
+    const x2 = Math.min(item.w, Math.max.apply(null, xs)), y2 = Math.min(item.h, Math.max.apply(null, ys));
+    const w = Math.max(1, x2 - x), h = Math.max(1, y2 - y);
+    const points = polygonDraft.map(p => ({x: p.x - x, y: p.y - y}));
+    pushUndo();
+    item.boxes.push({x, y, w, h, src:'manual', shape:'polygon', points});
+    polygonDraft = null;
+    drawEditor();
+  }
+
+  function drawPolygonDraft(mousePos){
+    if(!polygonDraft || !polygonDraft.length) return;
+    ectx.save();
+    ectx.strokeStyle = '#ff9500';
+    ectx.lineWidth = 2;
+    ectx.setLineDash([6,4]);
+    ectx.beginPath();
+    polygonDraft.forEach((p, i) => { if(i===0) ectx.moveTo(p.x,p.y); else ectx.lineTo(p.x,p.y); });
+    if(mousePos) ectx.lineTo(mousePos.x, mousePos.y);
+    ectx.stroke();
+    ectx.setLineDash([]);
+    polygonDraft.forEach((p, i) => {
+      ectx.fillStyle = i === 0 ? '#2ecc71' : '#ff9500';
+      ectx.beginPath();
+      ectx.arc(p.x, p.y, Math.max(3, editCanvas.width/250), 0, Math.PI*2);
+      ectx.fill();
+    });
+    ectx.restore();
+  }
+
   let dragStart = null;
   editCanvas.addEventListener('mousedown', e => {
-    if(!addMode) return;
+    if(!addMode || manualShape === 'polygon') return;
     const pos = canvasPos(e);
     dragStart = pos;
   });
   editCanvas.addEventListener('mousemove', e => {
-    if(!addMode || !dragStart) return;
     const item = getSelected(); if(!item) return;
+    if(addMode && manualShape === 'polygon' && polygonDraft && polygonDraft.length){
+      const pos = canvasPos(e);
+      drawEditor();
+      drawPolygonDraft(pos);
+      return;
+    }
+    if(!addMode || !dragStart) return;
     const pos = canvasPos(e);
     drawEditor();
     const x = Math.min(dragStart.x, pos.x), y = Math.min(dragStart.y, pos.y);
@@ -1031,11 +1406,15 @@
     ectx.strokeStyle = '#ff9500';
     ectx.lineWidth = 2;
     ectx.setLineDash([6,4]);
-    ectx.strokeRect(x,y,w,h);
+    if(manualShape === 'rect'){
+      ectx.strokeRect(x,y,w,h);
+    } else {
+      strokeEllipse(ectx, x, y, w, h);
+    }
     ectx.setLineDash([]);
   });
   window.addEventListener('mouseup', e => {
-    if(!addMode || !dragStart) return;
+    if(!addMode || manualShape === 'polygon' || !dragStart) return;
     const item = getSelected();
     if(item){
       const pos = canvasPos(e, true);
@@ -1043,7 +1422,7 @@
       const w = Math.abs(pos.x - dragStart.x), h = Math.abs(pos.y - dragStart.y);
       if(w > 4 && h > 4){
         pushUndo();
-        item.boxes.push(clampBox({x,y,w,h,src:'manual'}, item.w, item.h));
+        item.boxes.push(clampBox({x,y,w,h,src:'manual',shape:manualShape}, item.w, item.h));
         drawEditor();
       } else {
         drawEditor();
@@ -1052,15 +1431,30 @@
     dragStart = null;
   });
 
+  // 多角形モード：クリックで頂点を追加し、最初の点の近くをクリックすると多角形を確定する
+  editCanvas.addEventListener('click', e => {
+    if(!addMode || manualShape !== 'polygon') return;
+    const item = getSelected(); if(!item) return;
+    const pos = canvasPos(e);
+    if(!polygonDraft) polygonDraft = [];
+    if(polygonDraft.length >= 3){
+      const first = polygonDraft[0];
+      const dist = Math.hypot(pos.x - first.x, pos.y - first.y);
+      const closeThreshold = Math.max(10, item.w / 60);
+      if(dist <= closeThreshold){
+        finishPolygonDraft();
+        return;
+      }
+    }
+    polygonDraft.push(pos);
+    drawEditor();
+    drawPolygonDraft(null);
+  });
+
   // 指定した座標に当たっているぼかし範囲のインデックスを探す
   function hitBoxIndexAt(item, pos){
     for(let i = item.boxes.length - 1; i >= 0; i--){
-      const b = item.boxes[i];
-      const rx = b.w/2, ry = b.h/2;
-      if(rx <= 0 || ry <= 0) continue;
-      const cx = b.x + rx, cy = b.y + ry;
-      const nx = (pos.x - cx) / rx, ny = (pos.y - cy) / ry;
-      if(nx*nx + ny*ny <= 1) return i;
+      if(pointInBox(item.boxes[i], pos)) return i;
     }
     return -1;
   }
@@ -1117,6 +1511,22 @@
     scopeHintBatch.style.display = sliderScope === 'batch' ? 'block' : 'none';
     scopeHintItem.style.display = sliderScope === 'item' ? 'block' : 'none';
     btnResetItemOverrides.style.display = (sliderScope === 'item' && hasItemOverrides(item)) ? 'block' : 'none';
+
+    btnAutoAdjust.disabled = !item;
+    btnResetAutoAdjust.style.display = (item && item.adjustedCanvas) ? 'block' : 'none';
+
+    refreshManualAdjustUI();
+  }
+
+  // ---------- 手動調整のUIを選択中の画像に合わせて同期する ----------
+  function refreshManualAdjustUI(){
+    const item = getSelected();
+    const m = (item && item.manualAdjust) || {brightness:100, contrast:100, saturate:100};
+    manualBrightnessEl.value = m.brightness; manualBrightnessVal.textContent = m.brightness + '%';
+    manualContrastEl.value = m.contrast; manualContrastVal.textContent = m.contrast + '%';
+    manualSaturateEl.value = m.saturate; manualSaturateVal.textContent = m.saturate + '%';
+    btnManualAdjust.disabled = !item;
+    btnResetManualAdjust.style.display = hasManualAdjust(item) ? 'block' : 'none';
   }
 
   btnScopeBatch.addEventListener('click', () => {
@@ -1136,6 +1546,76 @@
     drawEditor();
   });
 
+  btnAutoAdjust.addEventListener('click', async () => {
+    const item = getSelected(); if(!item) return;
+    pushUndo();
+    showLoading('この画像の明るさ・色合いを自動調整中…');
+    await nextPaint();
+    try{
+      const adj = computeAutoAdjust(item.img, item.w, item.h);
+      item.autoAdjust = adj;
+      item.adjustedCanvas = buildAdjustedCanvas(item.img, item.w, item.h, adj);
+      rebuildManualCanvas(item); // 手動調整も設定済みなら、自動調整後の画像に重ね直す
+      item.adjustVersion = (item.adjustVersion || 0) + 1;
+      processedCache.delete(item.id);
+    }catch(err){
+      console.error('auto adjust error', err);
+      alert('自動調整に失敗しました。');
+    }
+    hideLoading();
+    refreshSliderUI();
+    drawEditor();
+    renderThumbs();
+  });
+  btnResetAutoAdjust.addEventListener('click', () => {
+    const item = getSelected(); if(!item) return;
+    pushUndo();
+    item.autoAdjust = null;
+    item.adjustedCanvas = null;
+    rebuildManualCanvas(item); // 手動調整があれば、元画像に重ね直す
+    item.adjustVersion = (item.adjustVersion || 0) + 1;
+    processedCache.delete(item.id);
+    refreshSliderUI();
+    drawEditor();
+    renderThumbs();
+  });
+
+  // ---------- 手動調整（明るさ・コントラスト・彩度） ----------
+  btnManualAdjust.addEventListener('click', () => {
+    const showing = manualAdjustPanel.style.display !== 'none';
+    manualAdjustPanel.style.display = showing ? 'none' : 'block';
+    btnManualAdjust.classList.toggle('active', !showing);
+  });
+  function ensureManualAdjust(item){
+    if(!item.manualAdjust) item.manualAdjust = {brightness:100, contrast:100, saturate:100};
+    return item.manualAdjust;
+  }
+  function onManualInput(key, el, valEl){
+    const item = getSelected(); if(!item) return;
+    const v = parseInt(el.value, 10);
+    ensureManualAdjust(item)[key] = v;
+    valEl.textContent = v + '%';
+    rebuildManualCanvas(item);
+    item.adjustVersion = (item.adjustVersion || 0) + 1;
+    processedCache.delete(item.id);
+    btnResetManualAdjust.style.display = 'block';
+    drawEditor();
+  }
+  manualBrightnessEl.addEventListener('input', () => onManualInput('brightness', manualBrightnessEl, manualBrightnessVal));
+  manualContrastEl.addEventListener('input', () => onManualInput('contrast', manualContrastEl, manualContrastVal));
+  manualSaturateEl.addEventListener('input', () => onManualInput('saturate', manualSaturateEl, manualSaturateVal));
+  btnResetManualAdjust.addEventListener('click', () => {
+    const item = getSelected(); if(!item) return;
+    pushUndo();
+    item.manualAdjust = null;
+    item.manualCanvas = null;
+    item.adjustVersion = (item.adjustVersion || 0) + 1;
+    processedCache.delete(item.id);
+    refreshManualAdjustUI();
+    drawEditor();
+    renderThumbs();
+  });
+
   // ---------- コントロール ----------
   btnAddMode.addEventListener('click', () => {
     addMode = !addMode;
@@ -1143,9 +1623,12 @@
       eraseMode = false;
       btnEraseMode.classList.remove('active');
       eraseModeHint.style.display = 'none';
+    } else {
+      cancelPolygonDraft();
     }
     btnAddMode.classList.toggle('active', addMode);
-    addModeHint.style.display = addMode ? 'block' : 'none';
+    shapeRow.style.display = addMode ? 'flex' : 'none';
+    setManualShape(manualShape);
     editCanvas.style.cursor = addMode ? 'crosshair' : (eraseMode ? 'pointer' : 'default');
     drawEditor();
   });
@@ -1155,6 +1638,10 @@
       addMode = false;
       btnAddMode.classList.remove('active');
       addModeHint.style.display = 'none';
+      shapeRow.style.display = 'none';
+      polygonHint.style.display = 'none';
+      polygonActionRow.style.display = 'none';
+      cancelPolygonDraft();
     }
     btnEraseMode.classList.toggle('active', eraseMode);
     eraseModeHint.style.display = eraseMode ? 'block' : 'none';
@@ -1487,7 +1974,7 @@
   // ぼかし処理済みキャンバスをキャッシュ（毎フレーム再生成しない）
   const processedCache = new Map();
   function getProcessedCanvasCached(item){
-    const key = item.id + ':' + effVal(item,'strength') + ':' + effVal(item,'feather') + ':' + JSON.stringify(item.boxes);
+    const key = item.id + ':' + effVal(item,'strength') + ':' + effVal(item,'feather') + ':' + (item.adjustVersion||0) + ':' + (blurEnabled?1:0) + ':' + JSON.stringify(item.boxes);
     const cached = processedCache.get(item.id);
     if(cached && cached.key === key) return cached.canvas;
     const canvas = renderProcessedCanvas(item);
@@ -1500,12 +1987,15 @@
     const c = document.createElement('canvas');
     c.width = item.w; c.height = item.h;
     const cx = c.getContext('2d');
-    cx.drawImage(item.img, 0, 0, item.w, item.h);
-    const strength = effVal(item, 'strength');
-    const feather = effVal(item, 'feather')/100;
-    item.boxes.forEach(b => {
-      applyBlur(cx, item.img, b, strength, feather);
-    });
+    const src = itemSource(item);
+    cx.drawImage(src, 0, 0, item.w, item.h);
+    if(blurEnabled){
+      const strength = effVal(item, 'strength');
+      const feather = effVal(item, 'feather')/100;
+      item.boxes.forEach(b => {
+        applyBlurForBox(cx, src, b, strength, feather);
+      });
+    }
     return c;
   }
 
