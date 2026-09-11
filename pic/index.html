@@ -2318,22 +2318,9 @@
         }
       }
 
-      // オーバーレイ（選択中の枠の斜線）
+      // オーバーレイ（選択中の枠の縁取り）
       const isActive = (i === activeSlot);
       const isSwap = (i === swapSourceIdx);
-
-      // 選んでいる枠にはオレンジの斜線を重ねて、どこが選択中かわかりやすくする（入れ替え元は緑）
-      if(isActive || isSwap){
-        octx.save();
-        octx.fillStyle = getHatchPattern(octx, isSwap ? 'rgba(46,204,113,.8)' : 'rgba(255,149,0,.8)');
-        if(slot.rect.poly){
-          tracePolyPath(octx, slot.rect.poly);
-          octx.fill();
-        } else {
-          octx.fillRect(sx, sy, sw, sh);
-        }
-        octx.restore();
-      }
 
       // 区切り線用の境界線を集める（矩形／多角形どちらでも対応）
       if(slot.rect.poly){
@@ -2360,11 +2347,11 @@
       return false;
     }
 
-    // 区切り線はすべての境界を1本ずつまとめて、オレンジの実線で一度だけ描く
-    // （点線だと辺が短い箇所でパターンが始まる前に切れて実線に見えてしまうため、実線に統一する）
+    // 区切り線はすべての境界を1本ずつまとめて、黒い点線で一度だけ描く
     octx.save();
     octx.lineWidth = HATCH_LINE_WIDTH;
-    octx.strokeStyle = 'rgba(255,149,0,.9)';
+    octx.strokeStyle = 'rgba(0,0,0,.85)';
+    octx.setLineDash([14,10]);
     octx.beginPath();
     edgeMap.forEach(([x1,y1,x2,y2]) => {
       if(isOuterEdge(x1,y1,x2,y2)) return;
@@ -2373,6 +2360,26 @@
     });
     octx.stroke();
     octx.restore();
+
+    // 選んでいる枠は、画像の周りをオレンジの太い実線で囲んでわかりやすくする（入れ替え元は緑）
+    slots.forEach((slot, i) => {
+      const isActive = (i === activeSlot);
+      const isSwap = (i === swapSourceIdx);
+      if(!isActive && !isSwap) return;
+      const {sx, sy, sw, sh} = slotBox(slot, size);
+      if(sw <= 0 || sh <= 0) return;
+      octx.save();
+      octx.lineWidth = HATCH_LINE_WIDTH + 2;
+      octx.strokeStyle = isSwap ? '#2ecc71' : '#ff9500';
+      if(slot.rect.poly){
+        tracePolyPath(octx, slot.rect.poly);
+      } else {
+        octx.beginPath();
+        octx.rect(sx, sy, sw, sh);
+      }
+      octx.stroke();
+      octx.restore();
+    });
 
     btnDownloadCombined.disabled = !slots.some(s => s.item);
   }
