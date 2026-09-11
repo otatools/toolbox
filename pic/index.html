@@ -105,7 +105,9 @@
   }
 
   .editor-layout{display:flex;gap:12px;flex-wrap:wrap;margin-top:14px;align-items:flex-start;}
-  .editor-canvas-col{display:inline-flex;flex-direction:column;gap:8px;max-width:100%;min-width:0;}
+  /* STEP1は画像を必ず左・ツールを必ず右に保つ。画像側は縮めず、ツール側だけが幅に合わせて縮む（中のボタン等は自然に折り返す） */
+  #editorPanel .editor-layout{flex-wrap:nowrap;}
+  .editor-canvas-col{display:inline-flex;flex-direction:column;gap:8px;flex:0 0 auto;max-width:100%;min-width:0;}
   .editor-canvas-col .field{margin-bottom:0;}
   .editor-canvas-wrap{
     flex:0 1 auto; max-width:100%;
@@ -115,17 +117,22 @@
   .editor-canvas-wrap canvas{max-width:100%;max-height:min(62vh,640px);width:auto;height:auto;display:block;cursor:default;border-radius:4px;}
   #editCanvasWrap{
     overflow:hidden;
-    width:min(640px,90vw);
-    height:min(480px,56vh);
-    align-items:center;justify-content:center;min-width:0;
+    align-items:center;justify-content:center;min-width:0;flex:0 0 auto;
+    /* 実際の幅・高さはJSでpx指定する（写真が横長か縦長かで4:3／3:4に切り替える。flexboxでのaspect-ratioの挙動に依存しないための措置） */
   }
   #editCanvasWrap.zoomed{overflow:auto;align-items:flex-start;justify-content:flex-start;}
   #editCanvasWrap canvas{max-width:100%;max-height:100%;width:auto;height:auto;}
   .editor-side{flex:1 1 220px;min-width:200px;}
+  #editorPanel .editor-side{flex:1 1 0;min-width:0;}
   .step2-side-left{flex:0 0 170px;min-width:150px;}
   .step2-side-left .field{margin-bottom:16px;}
-  .step2-side-left .layout-preset-grid{gap:6px;}
-  .step2-side-left .preset-icon{width:54px;height:54px;}
+  /* 並べ方プリセットは3列で表示（使うほど左上に上がってくる）。ウィンドウが狭い時だけ2列に落とす */
+  .step2-side-left .layout-preset-grid{display:grid;grid-template-columns:repeat(3, 1fr);gap:6px;}
+  .step2-side-left .preset-icon{width:100%;height:auto;aspect-ratio:1/1;}
+  @media (max-width: 700px){
+    .step2-side-left{flex:0 0 140px;min-width:120px;}
+    .step2-side-left .layout-preset-grid{grid-template-columns:repeat(2, 1fr);}
+  }
   .field{margin-bottom:14px;}
   .field label{display:block;font-size:12px;color:var(--sub);margin-bottom:4px;font-weight:600;}
   .field input[type=range]{width:100%;}
@@ -190,7 +197,7 @@
 <body>
 
 <div class="app-header">
-  <h1>🙈 顔ぼかし＆画像結合ツール</h1>
+  <h1>顔ぼかし＆画像結合ツール</h1>
   <div class="app-header-right">
     <span id="statusBar" class="status-pill">顔検出モデルを読み込み中…</span>
     <button class="btn small" id="btnUndo" title="1つ前の操作に戻します (Ctrl+Z)" disabled>↶ 元に戻す</button>
@@ -210,7 +217,7 @@
   <div class="panel">
     <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:12px;">
       <h2 style="margin:0;"><span class="step-badge">1</span>画像を追加</h2>
-      <button class="btn toggle small active" id="btnBlurToggle" title="OFFにすると、顔にぼかしをかけずにそのまま結合できます">🙈 顔ぼかし：ON</button>
+      <button class="btn toggle small active" id="btnBlurToggle" title="OFFにすると、顔にぼかしをかけずにそのまま結合できます">顔ぼかし：ON</button>
     </div>
     <div id="dropzone" class="dropzone">
       <div><strong>ここに画像をドラッグ＆ドロップ</strong></div>
@@ -224,12 +231,8 @@
     <h2><span class="step-badge">2</span>顔ぼかしを編集（ガウスぼかし）</h2>
     <div class="editor-layout">
       <div class="editor-canvas-col">
-        <div class="editor-canvas-wrap" id="editCanvasWrap">
+        <div class="editor-canvas-wrap" id="editCanvasWrap" data-ratio="4/3">
           <canvas id="editCanvas"></canvas>
-        </div>
-        <div class="field">
-          <label>画像を拡大して細かく確認（表示枠の大きさは変わりません・書き出しには影響しません） <span class="row-val" id="editZoomVal">100%</span></label>
-          <input type="range" id="editZoom" min="100" max="300" value="100">
         </div>
       </div>
       <div class="editor-side">
@@ -301,6 +304,10 @@
 
         <button class="btn primary" id="btnDownloadOne" style="width:100%;">⬇ この画像を1枚だけダウンロード</button>
       </div>
+    </div>
+    <div class="field" id="editZoomField" style="margin-top:8px;">
+      <label>画像を拡大して細かく確認（表示枠の大きさは変わりません・書き出しには影響しません） <span class="row-val" id="editZoomVal">100%</span></label>
+      <input type="range" id="editZoom" min="100" max="300" value="100">
     </div>
     <div class="next-row">
       <button class="btn primary" id="btnGoStep2">この内容で STEP 2（画像を結合）へ進む →</button>
@@ -431,6 +438,23 @@
   let editZoom = 1;
   let editFitSize = null; // 拡大なし（100%）のときの表示サイズ（px）をキャッシュ
 
+  // 表示枠（黒い背景の部分）のサイズをJSで直接pxで計算して指定する。
+  // （flexboxの中でCSSのaspect-ratioに任せると、環境によって意図通りの縦横比にならない場合があるため、確実にpx指定する）
+  function computeFrameSize(ratioW, ratioH){
+    const maxW = Math.min(640, Math.max(200, window.innerWidth - 420));
+    const maxH = Math.min(480, window.innerHeight * 0.56);
+    let w = maxW, h = w * ratioH / ratioW;
+    if(h > maxH){ h = maxH; w = h * ratioW / ratioH; }
+    return { w, h };
+  }
+  function applyFrameSize(){
+    const isPortrait = editCanvasWrap.dataset.ratio === '3/4';
+    const size = isPortrait ? computeFrameSize(3,4) : computeFrameSize(4,3);
+    editCanvasWrap.style.width = Math.round(size.w) + 'px';
+    editCanvasWrap.style.height = Math.round(size.h) + 'px';
+  }
+  applyFrameSize(); // 初期表示（画像を選ぶ前）の枠サイズも決めておく
+
   // 表示枠（黒い背景の部分）の大きさは変えず、その中の画像だけを拡大する。
   // はみ出た部分は枠の中でスクロール（パン）して見る。書き出し結果には影響しない。
   // 表示枠（黒い背景の部分）は、画像の大きさやウィンドウ幅に関わらず一定サイズ（CSSで固定）。
@@ -445,6 +469,7 @@
       editCanvasWrap.scrollLeft = 0;
       editCanvasWrap.scrollTop = 0;
       editFitSize = null;
+      updateEditCursor();
       return;
     }
     if(!editFitSize){
@@ -462,6 +487,7 @@
     editCanvas.style.maxHeight = 'none';
     editCanvas.style.width = Math.round(editFitSize.w * editZoom) + 'px';
     editCanvas.style.height = Math.round(editFitSize.h * editZoom) + 'px';
+    updateEditCursor();
   }
   editZoomEl.addEventListener('input', () => {
     const z = parseInt(editZoomEl.value, 10);
@@ -471,9 +497,97 @@
   });
   window.addEventListener('resize', () => {
     if(!getSelected()) return;
+    applyFrameSize();
     editFitSize = null;
     applyEditCanvasZoom();
   });
+
+  // カーソルの見た目（拡大中はドラッグで動かせることが分かるように「掴む」アイコンにする）
+  function updateEditCursor(){
+    if(addMode){ editCanvas.style.cursor = 'crosshair'; return; }
+    if(eraseMode){ editCanvas.style.cursor = 'pointer'; return; }
+    editCanvas.style.cursor = editCanvasWrap.classList.contains('zoomed') ? 'grab' : 'default';
+  }
+
+  // マウスのカーソル位置を中心にズームし、位置がなるべくズレないようにする
+  function setEditZoomAnchored(newZoom, clientX, clientY){
+    if(!getSelected()) return;
+    newZoom = Math.max(1, Math.min(3, newZoom));
+    const wasZoomed = editCanvasWrap.classList.contains('zoomed');
+    const wrapRect = editCanvasWrap.getBoundingClientRect();
+    let ratioX = 0.5, ratioY = 0.5;
+    if(wasZoomed && editFitSize){
+      const contentW = editFitSize.w * editZoom;
+      const contentH = editFitSize.h * editZoom;
+      const contentX = editCanvasWrap.scrollLeft + (clientX - wrapRect.left);
+      const contentY = editCanvasWrap.scrollTop + (clientY - wrapRect.top);
+      ratioX = contentW ? contentX / contentW : 0.5;
+      ratioY = contentH ? contentY / contentH : 0.5;
+    } else if(wrapRect.width && wrapRect.height){
+      ratioX = (clientX - wrapRect.left) / wrapRect.width;
+      ratioY = (clientY - wrapRect.top) / wrapRect.height;
+    }
+    if(Math.abs(newZoom - editZoom) < 0.001) return;
+    editZoom = newZoom;
+    editZoomEl.value = Math.round(editZoom * 100);
+    editZoomVal.textContent = Math.round(editZoom * 100) + '%';
+    applyEditCanvasZoom();
+    updateEditCursor();
+    if(editCanvasWrap.classList.contains('zoomed') && editFitSize){
+      const newContentW = editFitSize.w * editZoom;
+      const newContentH = editFitSize.h * editZoom;
+      editCanvasWrap.scrollLeft = ratioX * newContentW - (clientX - wrapRect.left);
+      editCanvasWrap.scrollTop = ratioY * newContentH - (clientY - wrapRect.top);
+    }
+  }
+  editCanvasWrap.addEventListener('wheel', e => {
+    if(!getSelected()) return;
+    e.preventDefault();
+    const step = 0.15;
+    setEditZoomAnchored(editZoom + (e.deltaY < 0 ? step : -step), e.clientX, e.clientY);
+  }, {passive:false});
+
+  // 拡大時：ドラッグ（カーソルでずるずる）で画像を移動できるようにする
+  let editPanState = null;
+  let suppressNextEditClick = false;
+  editCanvasWrap.addEventListener('mousedown', e => {
+    if(addMode) return; // 手動追加中は範囲選択のドラッグを優先する
+    if(e.button !== 0) return;
+    if(!editCanvasWrap.classList.contains('zoomed')) return;
+    editPanState = {
+      startX: e.clientX, startY: e.clientY,
+      scrollLeft: editCanvasWrap.scrollLeft, scrollTop: editCanvasWrap.scrollTop,
+      moved: false
+    };
+  });
+  window.addEventListener('mousemove', e => {
+    if(!editPanState) return;
+    const dx = e.clientX - editPanState.startX;
+    const dy = e.clientY - editPanState.startY;
+    if(!editPanState.moved && (Math.abs(dx) > 3 || Math.abs(dy) > 3)){
+      editPanState.moved = true;
+      editCanvas.style.cursor = 'grabbing';
+    }
+    if(editPanState.moved){
+      editCanvasWrap.scrollLeft = editPanState.scrollLeft - dx;
+      editCanvasWrap.scrollTop = editPanState.scrollTop - dy;
+    }
+  });
+  window.addEventListener('mouseup', () => {
+    if(editPanState){
+      if(editPanState.moved) suppressNextEditClick = true;
+      updateEditCursor();
+    }
+    editPanState = null;
+  });
+  // ドラッグで画像を動かした直後は、消しゴム／多角形のクリック判定が誤動作しないように抑制する
+  editCanvas.addEventListener('click', e => {
+    if(suppressNextEditClick){
+      suppressNextEditClick = false;
+      e.stopImmediatePropagation();
+      e.preventDefault();
+    }
+  }, true);
 
   const strengthEl = document.getElementById('strength');
   const paddingEl = document.getElementById('padding');
@@ -557,7 +671,7 @@
 
   function updateBlurToggleUI(){
     btnBlurToggle.classList.toggle('active', blurEnabled);
-    btnBlurToggle.textContent = blurEnabled ? '🙈 顔ぼかし：ON' : '🙉 顔ぼかし：OFF';
+    btnBlurToggle.textContent = blurEnabled ? '顔ぼかし：ON' : '顔ぼかし：OFF';
     tabBtn1.textContent = blurEnabled ? 'STEP 1　顔をぼかす' : 'STEP 1　顔をぼかさない';
   }
   btnBlurToggle.addEventListener('click', () => {
@@ -621,7 +735,7 @@
   // ---------- この画像だけの明るさ・コントラスト・色合いを自動調整 ----------
   // 縮小した作業用キャンバスでヒストグラムを解析し、各チャンネルのレベル補正量とホワイトバランス補正量を求める
   function computeAutoAdjust(img, w, h){
-    const maxDim = 220;
+    const maxDim = 300;
     const scale = Math.min(1, maxDim / Math.max(w, h));
     const sw = Math.max(1, Math.round(w * scale)), sh = Math.max(1, Math.round(h * scale));
     const tmp = document.createElement('canvas');
@@ -630,36 +744,51 @@
     tctx.drawImage(img, 0, 0, sw, sh);
     const data = tctx.getImageData(0, 0, sw, sh).data;
 
-    const histR = new Array(256).fill(0), histG = new Array(256).fill(0), histB = new Array(256).fill(0);
+    // 明るさ（輝度）のヒストグラムを作る。R/G/Bを別々に伸ばすと色かぶり（変な色味）の原因になるため、
+    // コントラスト調整は輝度基準で1本のレンジを共通で使い、色味の比率を崩さないようにする。
+    const histY = new Array(256).fill(0);
     let sumR = 0, sumG = 0, sumB = 0, n = 0;
     for(let i = 0; i < data.length; i += 4){
-      histR[data[i]]++; histG[data[i+1]]++; histB[data[i+2]]++;
-      sumR += data[i]; sumG += data[i+1]; sumB += data[i+2]; n++;
+      const r = data[i], g = data[i+1], b = data[i+2];
+      const y = 0.299*r + 0.587*g + 0.114*b;
+      histY[Math.max(0, Math.min(255, Math.round(y)))]++;
+      sumR += r; sumG += g; sumB += b; n++;
     }
-    // 各チャンネルの上下0.5%を切り詰めて、明暗の範囲を伸ばす（オートレベル）
-    function stretchRange(hist){
-      const clip = n * 0.005;
+    n = Math.max(1, n);
+
+    function stretchRange(hist, clipRatio){
+      const clip = n * clipRatio;
       let lo = 0, acc = 0;
       for(lo = 0; lo < 255; lo++){ acc += hist[lo]; if(acc > clip) break; }
       let hi = 255; acc = 0;
       for(hi = 255; hi > 0; hi--){ acc += hist[hi]; if(acc > clip) break; }
+      // すでにコントラストが十分ある写真まで無理に伸ばさないよう、狭すぎる場合だけ少し広げる
+      if(hi - lo < 40){ lo = Math.max(0, lo - 20); hi = Math.min(255, hi + 20); }
       if(hi <= lo){ lo = 0; hi = 255; }
       return {lo, hi};
     }
-    const rr = stretchRange(histR), rg = stretchRange(histG), rb = stretchRange(histB);
+    const ry = stretchRange(histY, 0.008);
+
+    // 露出（画面全体の明るさ）を中間調に少しだけ近づける。効きすぎないよう補正量を半分に抑える
+    const avgR = sumR / n, avgG = sumG / n, avgB = sumB / n;
+    const avgY = (avgR*0.299 + avgG*0.587 + avgB*0.114);
+    let brightGain = 1;
+    if(avgY > 1){
+      const idealGain = 128 / avgY;
+      brightGain = 1 + (idealGain - 1) * 0.5;
+      brightGain = Math.max(0.85, Math.min(1.25, brightGain));
+    }
 
     // グレーワールド仮定で色かぶり（ホワイトバランス）を補正する。かかりすぎないよう控えめにクランプする
-    const avgR = sumR / n, avgG = sumG / n, avgB = sumB / n;
     const avgGray = (avgR + avgG + avgB) / 3;
-    function clampGain(v){ return Math.max(0.9, Math.min(1.15, v)); }
+    function clampGain(v){ return Math.max(0.94, Math.min(1.08, v)); }
     const gainR = clampGain(avgGray / (avgR || 1));
     const gainG = clampGain(avgGray / (avgG || 1));
     const gainB = clampGain(avgGray / (avgB || 1));
 
     return {
-      r: {lo: rr.lo, hi: rr.hi, gain: gainR},
-      g: {lo: rg.lo, hi: rg.hi, gain: gainG},
-      b: {lo: rb.lo, hi: rb.hi, gain: gainB}
+      lo: ry.lo, hi: ry.hi, brightGain,
+      r: {gain: gainR}, g: {gain: gainG}, b: {gain: gainB}
     };
   }
 
@@ -671,15 +800,17 @@
     cx.drawImage(img, 0, 0, w, h);
     const imgData = cx.getImageData(0, 0, w, h);
     const d = imgData.data;
-    function buildLUT(ch){
-      const range = Math.max(1, ch.hi - ch.lo);
+    const range = Math.max(1, adj.hi - adj.lo);
+    function buildLUT(chGain){
       const lut = new Uint8ClampedArray(256);
       for(let v = 0; v < 256; v++){
-        lut[v] = (v - ch.lo) * 255 / range * ch.gain;
+        // 明るさ基準の共通レベル補正（コントラスト）→ 露出の微調整 → チャンネルごとのホワイトバランス、の順に適用
+        const levelled = (v - adj.lo) * 255 / range;
+        lut[v] = levelled * adj.brightGain * chGain;
       }
       return lut;
     }
-    const lutR = buildLUT(adj.r), lutG = buildLUT(adj.g), lutB = buildLUT(adj.b);
+    const lutR = buildLUT(adj.r.gain), lutG = buildLUT(adj.g.gain), lutB = buildLUT(adj.b.gain);
     for(let i = 0; i < d.length; i += 4){
       d[i] = lutR[d[i]];
       d[i+1] = lutG[d[i+1]];
@@ -706,7 +837,7 @@
   let swapMode = false;
   let swapSourceIdx = -1;
   const COLLAGE_LONG = 1600;
-  let presetUsage = {};    // {presetId: 使った回数} … よく使うプリセットを左に並べるための記録
+  let presetUsage = {};    // {presetId: ダウンロードした回数} … よく使うプリセットを左上に並べるための記録（選んだだけではカウントしない）
   const DOWNLOAD_SIZES = { large: 1600, medium: 1000, small: 600 }; // ダウンロード時の長辺サイズ(px)
   let downloadSizeKey = 'medium';
   function updateDownloadSizeButtons(){
@@ -1148,10 +1279,21 @@
 
   function getSelected(){ return items.find(i => i.id === selectedId); }
 
+  // 表示枠の縦横比は横長4:3で固定（縦長の写真は左右に余白が出てもよい、という方針）
+  function updateEditCanvasAspect(item){
+    const ratio = '4/3';
+    if(editCanvasWrap.dataset.ratio === ratio) return;
+    editCanvasWrap.dataset.ratio = ratio;
+    applyFrameSize();
+    editFitSize = null; // 枠の形が変わるので、拡大なし時の基準サイズを測り直す
+    applyEditCanvasZoom();
+  }
+
   // ---------- エディタ描画 ----------
   function drawEditor(){
     const item = getSelected();
     if(!item) return;
+    updateEditCanvasAspect(item);
     editCanvas.width = item.w;
     editCanvas.height = item.h;
     ectx.clearRect(0,0,item.w,item.h);
@@ -1629,7 +1771,7 @@
     btnAddMode.classList.toggle('active', addMode);
     shapeRow.style.display = addMode ? 'flex' : 'none';
     setManualShape(manualShape);
-    editCanvas.style.cursor = addMode ? 'crosshair' : (eraseMode ? 'pointer' : 'default');
+    updateEditCursor();
     drawEditor();
   });
   btnEraseMode.addEventListener('click', () => {
@@ -1645,7 +1787,7 @@
     }
     btnEraseMode.classList.toggle('active', eraseMode);
     eraseModeHint.style.display = eraseMode ? 'block' : 'none';
-    editCanvas.style.cursor = eraseMode ? 'pointer' : (addMode ? 'crosshair' : 'default');
+    updateEditCursor();
     drawEditor();
   });
   btnClearBoxes.addEventListener('click', () => {
@@ -1725,12 +1867,71 @@
 
   // ==================== 結合（コラージュ）====================
 
+  // 多角形（斜め・階段状など）のセルを定義するヘルパー。
+  // pointsは0〜1に正規化した頂点（全体キャンバス基準）。バウンディングボックス(x,y,w,h)は自動計算する。
+  function polyCell(points){
+    const xs = points.map(p => p.x), ys = points.map(p => p.y);
+    const x = Math.min(...xs), y = Math.min(...ys);
+    const w = Math.max(...xs) - x, h = Math.max(...ys) - y;
+    return {x, y, w: w || 0.0001, h: h || 0.0001, poly: points};
+  }
+
+  // セルの左右反転／上下反転。斜め・階段状（poly）のセルにも対応する。
+  // 「反転バージョンが必ずある」プリセットを作るために使う。
+  function mirrorCellH(rc){
+    if(rc.poly) return polyCell(rc.poly.map(p => ({x: 1 - p.x, y: p.y})));
+    return {x: 1 - rc.x - rc.w, y: rc.y, w: rc.w, h: rc.h};
+  }
+  function mirrorCellV(rc){
+    if(rc.poly) return polyCell(rc.poly.map(p => ({x: p.x, y: 1 - p.y})));
+    return {x: rc.x, y: 1 - rc.y - rc.h, w: rc.w, h: rc.h};
+  }
+  function mirrorRectsH(rects){ return rects.map(mirrorCellH); }
+  function mirrorRectsV(rects){ return rects.map(mirrorCellV); }
+
   // 並べ方プリセット定義（0〜1の正規化された矩形。全体をすき間なく分割する）
   function buildLayoutPresets(){
     const L = {};
+    // --- 2枚：大小の差をつけた上下・左右分割 ---
+    const rects2hBig = [{x:0,y:0,w:1,h:.65},{x:0,y:.65,w:1,h:.35}];
+    const rects2vBig = [{x:0,y:0,w:.65,h:1},{x:.65,y:0,w:.35,h:1}];
+    // --- 2枚：ナナメ ---
+    const rectsDiagSlant1 = [
+      polyCell([{x:0,y:0},{x:.65,y:0},{x:.35,y:1},{x:0,y:1}]),
+      polyCell([{x:.65,y:0},{x:1,y:0},{x:1,y:1},{x:.35,y:1}])
+    ];
+    const rectsDiagSlant2 = [
+      polyCell([{x:0,y:0},{x:1,y:0},{x:1,y:.35},{x:0,y:.65}]),
+      polyCell([{x:0,y:.65},{x:1,y:.35},{x:1,y:1},{x:0,y:1}])
+    ];
     L[2] = [
       {id:'2-h', label:'上下2分割', rects:[{x:0,y:0,w:1,h:.5},{x:0,y:.5,w:1,h:.5}]},
-      {id:'2-v', label:'左右2分割', rects:[{x:0,y:0,w:.5,h:1},{x:.5,y:0,w:.5,h:1}]}
+      {id:'2-v', label:'左右2分割', rects:[{x:0,y:0,w:.5,h:1},{x:.5,y:0,w:.5,h:1}]},
+      {id:'2-h-big-top', label:'上下2分割（上大）', rects:rects2hBig},
+      {id:'2-h-big-bottom', label:'上下2分割（下大）', rects:mirrorRectsV(rects2hBig)},
+      {id:'2-v-big-left', label:'左右2分割（左大）', rects:rects2vBig},
+      {id:'2-v-big-right', label:'左右2分割（右大）', rects:mirrorRectsH(rects2vBig)},
+      {id:'2-diag-tlbr', label:'斜め分割（右上／左下）', rects:[
+        polyCell([{x:0,y:0},{x:1,y:0},{x:1,y:1}]),
+        polyCell([{x:0,y:0},{x:1,y:1},{x:0,y:1}])
+      ]},
+      {id:'2-diag-trbl', label:'斜め分割（左上／右下）', rects:[
+        polyCell([{x:0,y:0},{x:1,y:0},{x:0,y:1}]),
+        polyCell([{x:1,y:0},{x:1,y:1},{x:0,y:1}])
+      ]},
+      {id:'2-diag-slant1', label:'ナナメ分割（縦）', rects:rectsDiagSlant1},
+      {id:'2-diag-slant1-r', label:'ナナメ分割（縦・反転）', rects:mirrorRectsH(rectsDiagSlant1)},
+      {id:'2-diag-slant2', label:'ナナメ分割（横）', rects:rectsDiagSlant2},
+      {id:'2-diag-slant2-r', label:'ナナメ分割（横・反転）', rects:mirrorRectsV(rectsDiagSlant2)}
+    ];
+    // --- 3枚：均等なナナメ3分割（中心を軸に左右対称なので、幅の見た目が均等になる） ---
+    const shear3 = 0.3;
+    const b1top = 1/3 + 0.5*shear3, b1bot = 1/3 - 0.5*shear3;
+    const b2top = 2/3 + 0.5*shear3, b2bot = 2/3 - 0.5*shear3;
+    const rectsDiag3 = [
+      polyCell([{x:0,y:0},{x:b1top,y:0},{x:b1bot,y:1},{x:0,y:1}]),
+      polyCell([{x:b1top,y:0},{x:b2top,y:0},{x:b2bot,y:1},{x:b1bot,y:1}]),
+      polyCell([{x:b2top,y:0},{x:1,y:0},{x:1,y:1},{x:b2bot,y:1}])
     ];
     L[3] = [
       {id:'3-t1b2', label:'上1＋下2', rects:[{x:0,y:0,w:1,h:.5},{x:0,y:.5,w:.5,h:.5},{x:.5,y:.5,w:.5,h:.5}]},
@@ -1738,29 +1939,86 @@
       {id:'3-l1r2', label:'左1＋右2', rects:[{x:0,y:0,w:.5,h:1},{x:.5,y:0,w:.5,h:.5},{x:.5,y:.5,w:.5,h:.5}]},
       {id:'3-r1l2', label:'右1＋左2', rects:[{x:.5,y:0,w:.5,h:1},{x:0,y:0,w:.5,h:.5},{x:0,y:.5,w:.5,h:.5}]},
       {id:'3-cols', label:'縦3列', rects:[{x:0,y:0,w:1/3,h:1},{x:1/3,y:0,w:1/3,h:1},{x:2/3,y:0,w:1/3,h:1}]},
-      {id:'3-rows', label:'横3段', rects:[{x:0,y:0,w:1,h:1/3},{x:0,y:1/3,w:1,h:1/3},{x:0,y:2/3,w:1,h:1/3}]}
+      {id:'3-rows', label:'横3段', rects:[{x:0,y:0,w:1,h:1/3},{x:0,y:1/3,w:1,h:1/3},{x:0,y:2/3,w:1,h:1/3}]},
+      {id:'3-tri-fan-top', label:'三角形分割（上大）', rects:[
+        polyCell([{x:0,y:0},{x:1,y:0},{x:.5,y:1}]),
+        polyCell([{x:0,y:0},{x:.5,y:1},{x:0,y:1}]),
+        polyCell([{x:1,y:0},{x:1,y:1},{x:.5,y:1}])
+      ]},
+      {id:'3-tri-fan-bottom', label:'三角形分割（下大）', rects:[
+        polyCell([{x:0,y:1},{x:1,y:1},{x:.5,y:0}]),
+        polyCell([{x:0,y:1},{x:.5,y:0},{x:0,y:0}]),
+        polyCell([{x:1,y:1},{x:1,y:0},{x:.5,y:0}])
+      ]},
+      {id:'3-diag-parallel', label:'ナナメ3分割', rects:rectsDiag3},
+      {id:'3-diag-parallel-r', label:'ナナメ3分割（反転）', rects:mirrorRectsH(rectsDiag3)}
     ];
+    const rects4l1r3 = [{x:0,y:0,w:.5,h:1},{x:.5,y:0,w:.5,h:1/3},{x:.5,y:1/3,w:.5,h:1/3},{x:.5,y:2/3,w:.5,h:1/3}];
     L[4] = [
       {id:'4-grid', label:'2×2グリッド', rects:[{x:0,y:0,w:.5,h:.5},{x:.5,y:0,w:.5,h:.5},{x:0,y:.5,w:.5,h:.5},{x:.5,y:.5,w:.5,h:.5}]},
       {id:'4-t1b3', label:'上1＋下3列', rects:[{x:0,y:0,w:1,h:.5},{x:0,y:.5,w:1/3,h:.5},{x:1/3,y:.5,w:1/3,h:.5},{x:2/3,y:.5,w:1/3,h:.5}]},
       {id:'4-b1t3', label:'下1＋上3列', rects:[{x:0,y:0,w:1/3,h:.5},{x:1/3,y:0,w:1/3,h:.5},{x:2/3,y:0,w:1/3,h:.5},{x:0,y:.5,w:1,h:.5}]},
-      {id:'4-l1r3', label:'左1＋右3段', rects:[{x:0,y:0,w:.5,h:1},{x:.5,y:0,w:.5,h:1/3},{x:.5,y:1/3,w:.5,h:1/3},{x:.5,y:2/3,w:.5,h:1/3}]},
+      {id:'4-l1r3', label:'左1＋右3段', rects:rects4l1r3},
+      {id:'4-r1l3', label:'右1＋左3段', rects:mirrorRectsH(rects4l1r3)},
       {id:'4-cols', label:'縦4列', rects:[{x:0,y:0,w:.25,h:1},{x:.25,y:0,w:.25,h:1},{x:.5,y:0,w:.25,h:1},{x:.75,y:0,w:.25,h:1}]},
-      {id:'4-rows', label:'横4段', rects:[{x:0,y:0,w:1,h:.25},{x:0,y:.25,w:1,h:.25},{x:0,y:.5,w:1,h:.25},{x:0,y:.75,w:1,h:.25}]}
+      {id:'4-rows', label:'横4段', rects:[{x:0,y:0,w:1,h:.25},{x:0,y:.25,w:1,h:.25},{x:0,y:.5,w:1,h:.25},{x:0,y:.75,w:1,h:.25}]},
+      {id:'4-tri-x', label:'十字ナナメ分割', rects:[
+        polyCell([{x:0,y:0},{x:1,y:0},{x:.5,y:.5}]),
+        polyCell([{x:1,y:0},{x:1,y:1},{x:.5,y:.5}]),
+        polyCell([{x:1,y:1},{x:0,y:1},{x:.5,y:.5}]),
+        polyCell([{x:0,y:1},{x:0,y:0},{x:.5,y:.5}])
+      ]}
+    ];
+    const rects5l2r3 = [{x:0,y:0,w:.5,h:.5},{x:0,y:.5,w:.5,h:.5},{x:.5,y:0,w:.5,h:1/3},{x:.5,y:1/3,w:.5,h:1/3},{x:.5,y:2/3,w:.5,h:1/3}];
+    // --- 5枚：大きい1枚＋小さい4枚（四隅それぞれのバージョン） ---
+    const rects5bigTL = [
+      {x:0,y:0,w:.5,h:2/3},
+      {x:0,y:2/3,w:.5,h:1/3},
+      {x:.5,y:0,w:.5,h:1/3},{x:.5,y:1/3,w:.5,h:1/3},{x:.5,y:2/3,w:.5,h:1/3}
     ];
     L[5] = [
       {id:'5-2m2', label:'上2＋中1＋下2', rects:[{x:0,y:0,w:.5,h:1/3},{x:.5,y:0,w:.5,h:1/3},{x:0,y:1/3,w:1,h:1/3},{x:0,y:2/3,w:.5,h:1/3},{x:.5,y:2/3,w:.5,h:1/3}]},
       {id:'5-t2b3', label:'上2＋下3', rects:[{x:0,y:0,w:.5,h:.5},{x:.5,y:0,w:.5,h:.5},{x:0,y:.5,w:1/3,h:.5},{x:1/3,y:.5,w:1/3,h:.5},{x:2/3,y:.5,w:1/3,h:.5}]},
       {id:'5-t3b2', label:'上3＋下2', rects:[{x:0,y:0,w:1/3,h:.5},{x:1/3,y:0,w:1/3,h:.5},{x:2/3,y:0,w:1/3,h:.5},{x:0,y:.5,w:.5,h:.5},{x:.5,y:.5,w:.5,h:.5}]},
-      {id:'5-l2r3', label:'左2＋右3', rects:[{x:0,y:0,w:.5,h:.5},{x:0,y:.5,w:.5,h:.5},{x:.5,y:0,w:.5,h:1/3},{x:.5,y:1/3,w:.5,h:1/3},{x:.5,y:2/3,w:.5,h:1/3}]},
+      {id:'5-l2r3', label:'左2＋右3', rects:rects5l2r3},
+      {id:'5-r2l3', label:'右2＋左3', rects:mirrorRectsH(rects5l2r3)},
       {id:'5-cols', label:'縦5列', rects:[0,1,2,3,4].map(i=>({x:i/5,y:0,w:1/5,h:1}))},
-      {id:'5-rows', label:'横5段', rects:[0,1,2,3,4].map(i=>({x:0,y:i/5,w:1,h:1/5}))}
+      {id:'5-rows', label:'横5段', rects:[0,1,2,3,4].map(i=>({x:0,y:i/5,w:1,h:1/5}))},
+      {id:'5-big-tl', label:'大1＋小4（左上）', rects:rects5bigTL},
+      {id:'5-big-tr', label:'大1＋小4（右上）', rects:mirrorRectsH(rects5bigTL)},
+      {id:'5-big-bl', label:'大1＋小4（左下）', rects:mirrorRectsV(rects5bigTL)},
+      {id:'5-big-br', label:'大1＋小4（右下）', rects:mirrorRectsH(mirrorRectsV(rects5bigTL))}
+    ];
+    // --- 6枚：大きい1枚＋小さい5枚（四隅それぞれのバージョン） ---
+    const rects6bigTL = [
+      {x:0,y:0,w:.5,h:2/3},
+      {x:0,y:2/3,w:.25,h:1/3},{x:.25,y:2/3,w:.25,h:1/3},
+      {x:.5,y:0,w:.5,h:1/3},{x:.5,y:1/3,w:.5,h:1/3},{x:.5,y:2/3,w:.5,h:1/3}
+    ];
+    // --- 6枚：列ごとに分割数を変える（階段状に密度が変わる） ---
+    const rects6cols3 = [
+      {x:0,y:0,w:1/3,h:1},
+      {x:1/3,y:0,w:1/3,h:.5},{x:1/3,y:.5,w:1/3,h:.5},
+      {x:2/3,y:0,w:1/3,h:1/3},{x:2/3,y:1/3,w:1/3,h:1/3},{x:2/3,y:2/3,w:1/3,h:1/3}
+    ];
+    const rects6rows3 = [
+      {x:0,y:0,w:1,h:1/3},
+      {x:0,y:1/3,w:.5,h:1/3},{x:.5,y:1/3,w:.5,h:1/3},
+      {x:0,y:2/3,w:1/3,h:1/3},{x:1/3,y:2/3,w:1/3,h:1/3},{x:2/3,y:2/3,w:1/3,h:1/3}
     ];
     L[6] = [
       {id:'6-grid23', label:'2列×3段', rects:[0,1,2].flatMap(r=>[0,1].map(c=>({x:c*.5,y:r/3,w:.5,h:1/3})))},
       {id:'6-grid32', label:'3列×2段', rects:[0,1].flatMap(r=>[0,1,2].map(c=>({x:c/3,y:r*.5,w:1/3,h:.5})))},
       {id:'6-cols', label:'縦6列', rects:[0,1,2,3,4,5].map(i=>({x:i/6,y:0,w:1/6,h:1}))},
-      {id:'6-rows', label:'横6段', rects:[0,1,2,3,4,5].map(i=>({x:0,y:i/6,w:1,h:1/6}))}
+      {id:'6-rows', label:'横6段', rects:[0,1,2,3,4,5].map(i=>({x:0,y:i/6,w:1,h:1/6}))},
+      {id:'6-big-tl', label:'大1＋小5（左上）', rects:rects6bigTL},
+      {id:'6-big-tr', label:'大1＋小5（右上）', rects:mirrorRectsH(rects6bigTL)},
+      {id:'6-big-bl', label:'大1＋小5（左下）', rects:mirrorRectsV(rects6bigTL)},
+      {id:'6-big-br', label:'大1＋小5（右下）', rects:mirrorRectsH(mirrorRectsV(rects6bigTL))},
+      {id:'6-cols3', label:'列ごとに分割数が変化', rects:rects6cols3},
+      {id:'6-cols3-r', label:'列ごとに分割数が変化（反転）', rects:mirrorRectsH(rects6cols3)},
+      {id:'6-rows3', label:'段ごとに分割数が変化', rects:rects6rows3},
+      {id:'6-rows3-r', label:'段ごとに分割数が変化（反転）', rects:mirrorRectsV(rects6rows3)}
     ];
     return L;
   }
@@ -1772,17 +2030,28 @@
     return orientation === 'portrait' ? {w:short, h:COLLAGE_LONG} : {w:COLLAGE_LONG, h:short};
   }
 
+  // 矩形セルの4隅を多角形の頂点列に変換する（斜め・階段状のセルと同じ方法で描画するため）
+  function rectToPolyPoints(rc){
+    return [{x:rc.x,y:rc.y},{x:rc.x+rc.w,y:rc.y},{x:rc.x+rc.w,y:rc.y+rc.h},{x:rc.x,y:rc.y+rc.h}];
+  }
   function renderPresetIcon(rects, ratioBox){
     const wrap = document.createElement('div');
     wrap.className = 'preset-icon';
     wrap.style.aspectRatio = ratioBox.w + ' / ' + ratioBox.h;
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('viewBox', '0 0 100 100');
+    svg.setAttribute('preserveAspectRatio', 'none');
+    svg.style.width = '100%'; svg.style.height = '100%'; svg.style.display = 'block';
     rects.forEach(rc => {
-      const r = document.createElement('div');
-      r.className = 'r';
-      r.style.left = (rc.x*100)+'%'; r.style.top = (rc.y*100)+'%';
-      r.style.width = (rc.w*100)+'%'; r.style.height = (rc.h*100)+'%';
-      wrap.appendChild(r);
+      const pts = (rc.poly || rectToPolyPoints(rc)).map(p => (p.x*100)+','+(p.y*100)).join(' ');
+      const el = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+      el.setAttribute('points', pts);
+      el.setAttribute('fill', '#c9d3ee');
+      el.setAttribute('stroke', '#fff');
+      el.setAttribute('stroke-width', '2');
+      svg.appendChild(el);
     });
+    wrap.appendChild(svg);
     return wrap;
   }
 
@@ -1823,8 +2092,7 @@
       if(p.id === currentPresetId) icon.classList.add('active');
       icon.onclick = () => {
         currentPresetId = p.id;
-        presetUsage[p.id] = (presetUsage[p.id]||0) + 1;
-        saveSettings();
+        // 並び順は「ダウンロードした回数」で決まる（選んだだけでは並び替えない。押すたびに並びが変わると見づらいため）
         applyPreset();
       };
       layoutPresetGrid.appendChild(icon);
@@ -1847,6 +2115,7 @@
     renderPresetGrid();
     renderThumbs2();
     renderCollage();
+    updateSlotSidePanel();
   }
 
   function resetSlotAssignment(slot){
@@ -1854,6 +2123,16 @@
   }
 
   function slotBox(slot, size){
+    // 斜め・階段状などの多角形セルは、実際の見た目の区切りは描画時のクリップ形状が担うため、
+    // ここでは単純にバウンディングボックスを使う（すき間の余白は矩形セルのときだけ適用する）
+    if(slot.rect.poly){
+      return {
+        sx: slot.rect.x*size.w,
+        sy: slot.rect.y*size.h,
+        sw: Math.max(1, slot.rect.w*size.w),
+        sh: Math.max(1, slot.rect.h*size.h)
+      };
+    }
     const gap = parseInt(gapEl.value,10);
     return {
       sx: slot.rect.x*size.w + gap/2,
@@ -1901,6 +2180,21 @@
       slotZoomEl.value = 100;
       slotZoomVal.textContent = '100%';
     }
+    // 画像が入っていて、かつ位置／拡大が初期値からズレているときだけ「リセット」を押せるようにする
+    const atDefaultPosition = !slot || !slot.item ||
+      (Math.abs(slot.zoom - 1) <= 0.001 && isSlotOffsetAtDefault(slot));
+    btnSlotReset.disabled = atDefaultPosition;
+    btnSlotClear.disabled = !(slot && slot.item);
+  }
+
+  // スロット内の画像が中央寄せの初期位置のままかどうかを調べる
+  function isSlotOffsetAtDefault(slot){
+    const size = collageCanvasSize();
+    const {sw, sh} = slotBox(slot, size);
+    const scale = slot.baseScale;
+    const expectedOffX = (sw - slot.item.w*scale)/2;
+    const expectedOffY = (sh - slot.item.h*scale)/2;
+    return Math.abs(slot.offX - expectedOffX) < 0.5 && Math.abs(slot.offY - expectedOffY) < 0.5;
   }
 
   function clampSlotOffset(slot, size){
@@ -1921,7 +2215,6 @@
     collageOverlayCanvas.width = size.w; collageOverlayCanvas.height = size.h;
 
     const bg = bgColorEl.value;
-    const gap = parseInt(gapEl.value,10);
 
     bctxMain.clearRect(0,0,size.w,size.h);
     bctxMain.fillStyle = bg;
@@ -1929,21 +2222,49 @@
 
     octx.clearRect(0,0,size.w,size.h);
 
+    // 斜め・階段状セルの区切り線を描く（クリップ形状の輪郭に沿ってパスを作る共通処理）
+    function tracePolyPath(ctx2d, poly){
+      ctx2d.beginPath();
+      poly.forEach((p, idx) => {
+        const px = p.x*size.w, py = p.y*size.h;
+        if(idx === 0) ctx2d.moveTo(px, py); else ctx2d.lineTo(px, py);
+      });
+      ctx2d.closePath();
+    }
+
     slots.forEach((slot, i) => {
-      const sx = slot.rect.x*size.w + gap/2, sy = slot.rect.y*size.h + gap/2;
-      const sw = slot.rect.w*size.w - gap, sh = slot.rect.h*size.h - gap;
+      const {sx, sy, sw, sh} = slotBox(slot, size);
       if(sw <= 0 || sh <= 0) return;
 
       if(slot.item){
         const scale = slot.baseScale * slot.zoom;
         const dw = slot.item.w*scale, dh = slot.item.h*scale;
         bctxMain.save();
-        bctxMain.beginPath();
-        bctxMain.rect(sx, sy, sw, sh);
+        if(slot.rect.poly){
+          tracePolyPath(bctxMain, slot.rect.poly);
+        } else {
+          bctxMain.beginPath();
+          bctxMain.rect(sx, sy, sw, sh);
+        }
         bctxMain.clip();
         const proc = getProcessedCanvasCached(slot.item);
         bctxMain.drawImage(proc, sx + slot.offX, sy + slot.offY, dw, dh);
         bctxMain.restore();
+      }
+
+      // 斜め・階段状セルは画像を境界いっぱいまで描画しているため、矩形セルの「すき間」と同じ見た目になるよう、
+      // 区切り線を背景色で書き出し画像にも焼き込む（矩形セルはsx/sy/sw/shの余白がそのまま区切りになる）
+      if(slot.rect.poly){
+        const gap = parseInt(gapEl.value,10);
+        if(gap > 0){
+          bctxMain.save();
+          bctxMain.strokeStyle = bg;
+          bctxMain.lineWidth = gap;
+          bctxMain.lineJoin = 'round';
+          tracePolyPath(bctxMain, slot.rect.poly);
+          bctxMain.stroke();
+          bctxMain.restore();
+        }
       }
 
       // オーバーレイ（枠線・番号・空き表示）
@@ -1954,7 +2275,12 @@
       } else {
         octx.setLineDash((i === activeSlot || i === swapSourceIdx) ? [10,6] : []);
       }
-      octx.strokeRect(sx+1.5, sy+1.5, sw-3, sh-3);
+      if(slot.rect.poly){
+        tracePolyPath(octx, slot.rect.poly);
+        octx.stroke();
+      } else {
+        octx.strokeRect(sx+1.5, sy+1.5, sw-3, sh-3);
+      }
       octx.setLineDash([]);
 
       if(!slot.item){
@@ -2006,9 +2332,25 @@
     const scaleY = collageOverlayCanvas.height / rect.height;
     return { x:(e.clientX-rect.left)*scaleX, y:(e.clientY-rect.top)*scaleY };
   }
+  // 多角形（斜め・階段状）セルの当たり判定（レイキャスト法）
+  function pointInPolyNorm(poly, pos, size){
+    let inside = false;
+    for(let i = 0, j = poly.length - 1; i < poly.length; j = i++){
+      const xi = poly[i].x*size.w, yi = poly[i].y*size.h;
+      const xj = poly[j].x*size.w, yj = poly[j].y*size.h;
+      const intersect = ((yi > pos.y) !== (yj > pos.y)) &&
+        (pos.x < (xj - xi) * (pos.y - yi) / (yj - yi) + xi);
+      if(intersect) inside = !inside;
+    }
+    return inside;
+  }
   function hitSlot(pos, size){
     for(let i=slots.length-1;i>=0;i--){
       const s = slots[i];
+      if(s.rect.poly){
+        if(pointInPolyNorm(s.rect.poly, pos, size)) return i;
+        continue;
+      }
       const x = s.rect.x*size.w, y = s.rect.y*size.h, w = s.rect.w*size.w, h = s.rect.h*size.h;
       if(pos.x>=x && pos.x<=x+w && pos.y>=y && pos.y<=y+h) return i;
     }
@@ -2082,6 +2424,8 @@
     } else if(!dragInfo.moved){
       activeSlot = dragInfo.slotIndex;
       renderCollage();
+      updateSlotSidePanel();
+    } else {
       updateSlotSidePanel();
     }
     dragInfo = null;
@@ -2181,6 +2525,12 @@
   bgColorEl.addEventListener('input', () => { renderCollage(); saveSettings(); });
 
   btnDownloadCombined.addEventListener('click', () => {
+    // 並び替えは「ダウンロードした回数」で決める（プリセットを選んだだけでは並び替えない）
+    if(currentPresetId){
+      presetUsage[currentPresetId] = (presetUsage[currentPresetId]||0) + 1;
+      saveSettings();
+      renderPresetGrid();
+    }
     // 選択枠のハイライトを消した状態で書き出すため、オーバーレイなしのベースキャンバスをそのまま書き出す
     const srcW = collageBaseCanvas.width, srcH = collageBaseCanvas.height;
     const targetLong = DOWNLOAD_SIZES[downloadSizeKey] || DOWNLOAD_SIZES.large;
