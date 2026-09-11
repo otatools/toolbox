@@ -173,19 +173,25 @@ canvas, #viewer img { position: absolute; top:0; left:0; width: 100%; height: 10
 .k-close-x { position: absolute; top: -45px; right: 0; background: #eef1fb; color: #2c2a4a; border: 2px solid #ffffff; box-shadow: 0 2px 10px rgba(60,50,120,0.2); border-radius: 50%; width: 40px; height: 40px; font-size: 24px; display: flex; align-items: center; justify-content: center; }
 .k-main-area { display: flex; direction: rtl; padding: 5px; gap: 5px; }
 /* min-width:0 がないと、グリッドの列が中身の文字サイズより縮められず、
-   せまいスマホ画面では横にはみ出してしまう。「゛゜小」は専用の側ボタンをやめて
-   わ行の空きマス（ーの上）に組み込んだので、その分キー全体を広く使える。 */
+   せまいスマホ画面では横にはみ出してしまう。 */
 .k-grid { display: grid; grid-template-columns: repeat(11, 1fr); gap: 4px; flex: 1; min-width: 0; }
-.k-dakuten { flex-direction: column; font-size: 13px; line-height: 1.2; }
-.k-type-toggle { width: 50px; height: 50px; flex-shrink: 0; font-size: 22px; }
+/* ひらがな/カタカナ切り替えと濁点・半濁点・小さい文字は、細いグリッドの1マスに
+   詰め込むと文字がはみ出すので、専用の少し広めの側の列にまとめて置く。 */
+.k-side { width: 52px; flex-shrink: 0; display: flex; flex-direction: column; gap: 4px; }
+.k-dakuten { flex-direction: column; font-size: 14px; line-height: 1.2; height: 52px; }
+.k-type-toggle { height: 48px; font-size: 22px; font-weight: 900; }
+/* いま「ひらがな」か「カタカナ」かひと目でわかるよう、切り替えボタンの色をモードごとに変える */
+.k-type-toggle.mode-hira { background: #bff2ea; color: #0c6b5c; }
+.k-type-toggle.mode-kana { background: #ffd9b3; color: #a34c00; }
 /* せまい画面では、キーひとつひとつが小さくなりすぎないようすき間を詰める */
 @media (max-width: 480px) {
     .k-main-area { padding: 3px; gap: 3px; }
     .k-grid { gap: 2px; }
     .k-key { font-size: 15px; }
     .k-special { font-size: 10px; }
-    .k-dakuten { font-size: 11px; }
-    .k-type-toggle { width: 40px; height: 40px; font-size: 18px; }
+    .k-side { width: 42px; }
+    .k-dakuten { font-size: 11px; height: 44px; }
+    .k-type-toggle { height: 40px; font-size: 17px; }
 }
 .k-special { background: #dfe3f7; font-size: 16px; }
 .k-bs { background: #ef5f6b; color: white; width: 100px; height: 50px; font-size: 16px; }
@@ -353,12 +359,12 @@ canvas, #viewer img { position: absolute; top:0; left:0; width: 100%; height: 10
     <div id="kbdWrapper">
         <div class="input-display">
             <button class="k-close-x" onclick="toggleKeyboard()">×</button>
-            <button id="kbdTypeToggle" class="k-key k-special k-type-toggle" onclick="toggleKbdType()">あ</button>
             <input type="text" id="answerInput" readonly placeholder="答えを入力...">
             <button class="k-key k-bs" onclick="bs()">1文字消す</button>
         </div>
         <div class="k-main-area">
             <div class="k-grid" id="kanaGrid"></div>
+            <div class="k-side" id="sideGrid"></div>
         </div>
     </div>
 
@@ -1092,8 +1098,6 @@ function initKbd() {
     const target = kbdType === 'hira' ? hira : kana;
     const grid = document.getElementById('kanaGrid');
     grid.innerHTML = "";
-    // 「゛゜小」専用の側ボタンは廃止し、わ行の空きマス（ーのすぐ上）に組み込んで
-    // グリッド全体をもっと広く使えるようにする。
     for (let i = 0; i < 5; i++) {
         target.forEach((row, rowIndex) => {
             if (rowIndex === 0 && i === 0) {
@@ -1102,19 +1106,6 @@ function initKbd() {
                 d.innerText = "決定";
                 d.onclick = checkAnswer;
                 grid.appendChild(d);
-            }
-            if (rowIndex === 9 && i === 3) {
-                const h = document.createElement('button');
-                h.className = 'k-key k-special k-dakuten';
-                h.innerHTML = "゛゜<br>小";
-                h.onclick = () => {
-                    let v = document.getElementById('answerInput').value;
-                    if (!v) return;
-                    let last = v.slice(-1);
-                    document.getElementById('answerInput').value = v.slice(0, -1) + convertChar(last);
-                };
-                grid.appendChild(h);
-                return;
             }
             const c = row[i];
             if (!c || c === "　") { grid.appendChild(document.createElement('div')); return; }
@@ -1125,6 +1116,26 @@ function initKbd() {
             grid.appendChild(b);
         });
     }
+    // ひらがな/カタカナの切り替えと、濁点・半濁点・小さい文字は、細いグリッドの
+    // 1マスだと文字がはみ出すので、専用の少し広い側の列に上下2つで置く。
+    // 切り替えボタンは今どちらのモードかひと目でわかるよう色も変える。
+    const side = document.getElementById('sideGrid');
+    side.innerHTML = "";
+    const toggle = document.createElement('button');
+    toggle.className = 'k-key k-special k-type-toggle ' + (kbdType === 'hira' ? 'mode-hira' : 'mode-kana');
+    toggle.innerText = kbdType === 'hira' ? 'あ' : 'ア';
+    toggle.onclick = toggleKbdType;
+    side.appendChild(toggle);
+    const dakuten = document.createElement('button');
+    dakuten.className = 'k-key k-special k-dakuten';
+    dakuten.innerHTML = "゛゜<br>小";
+    dakuten.onclick = () => {
+        let v = document.getElementById('answerInput').value;
+        if (!v) return;
+        let last = v.slice(-1);
+        document.getElementById('answerInput').value = v.slice(0, -1) + convertChar(last);
+    };
+    side.appendChild(dakuten);
 }
 // ひらがな用・カタカナ用を別の表にして、いま「ひらがな」を選んでいるのに
 // 濁点・半濁点・小さい文字ボタンでカタカナに変わってしまうバグを直した。
@@ -1152,7 +1163,6 @@ function convertChar(c) {
 // 交互に切り替わる方式にして、答えを入力の横に置いてもかんたんに操作できるようにする。
 function toggleKbdType() {
     kbdType = (kbdType === 'hira') ? 'kana' : 'hira';
-    document.getElementById('kbdTypeToggle').innerText = (kbdType === 'hira') ? 'あ' : 'ア';
     initKbd();
 }
 function bs() { const el = document.getElementById('answerInput'); el.value = el.value.slice(0, -1); }
