@@ -350,7 +350,10 @@
           <div class="btn-row" id="countTabs"></div>
         </div>
         <div class="field">
-          <label>並べ方プリセット</label>
+          <label style="display:flex;align-items:center;justify-content:space-between;gap:6px;">
+            <span>並べ方</span>
+            <button class="btn toggle small active" id="btnPresetSortToggle" title="ONにすると、よく使う（ダウンロードした回数が多い）プリセットを左上から順に並べます" style="flex:0 0 auto;">よく使う順：ON</button>
+          </label>
           <div class="layout-preset-grid" id="layoutPresetGrid"></div>
         </div>
       </div>
@@ -600,6 +603,7 @@
 
   const tabBtn1 = document.getElementById('tabBtn1');
   const btnBlurToggle = document.getElementById('btnBlurToggle');
+  const btnPresetSortToggle = document.getElementById('btnPresetSortToggle');
   const tabBtn2 = document.getElementById('tabBtn2');
   const step1View = document.getElementById('step1View');
   const step2View = document.getElementById('step2View');
@@ -838,6 +842,17 @@
   let swapSourceIdx = -1;
   const COLLAGE_LONG = 1600;
   let presetUsage = {};    // {presetId: ダウンロードした回数} … よく使うプリセットを左上に並べるための記録（選んだだけではカウントしない）
+  let sortByUsage = true;  // ONのときはよく使う順、OFFのときは元の並び順で表示する
+  function updatePresetSortToggleUI(){
+    btnPresetSortToggle.classList.toggle('active', sortByUsage);
+    btnPresetSortToggle.textContent = sortByUsage ? 'よく使う順：ON' : 'よく使う順：OFF';
+  }
+  btnPresetSortToggle.addEventListener('click', () => {
+    sortByUsage = !sortByUsage;
+    updatePresetSortToggleUI();
+    renderPresetGrid();
+    saveSettings();
+  });
   const DOWNLOAD_SIZES = { large: 1600, medium: 1000, small: 600 }; // ダウンロード時の長辺サイズ(px)
   let downloadSizeKey = 'medium';
   function updateDownloadSizeButtons(){
@@ -870,7 +885,9 @@
     if(s.presetUsage) presetUsage = s.presetUsage;
     if(s.downloadSizeKey && DOWNLOAD_SIZES[s.downloadSizeKey]) downloadSizeKey = s.downloadSizeKey;
     if(s.blurEnabled != null) blurEnabled = s.blurEnabled;
+    if(s.sortByUsage != null) sortByUsage = s.sortByUsage;
     updateBlurToggleUI();
+    updatePresetSortToggleUI();
 
     gapVal.textContent = gapEl.value + 'px';
     if(orientation === 'landscape'){
@@ -884,7 +901,7 @@
       strength: batch.strength, feather: batch.feather, padding: batch.padding,
       sensitivity: batch.sensitivity,
       canvasRatio: canvasRatioEl.value, orientation, gap: gapEl.value, bgColor: bgColorEl.value,
-      presetUsage, downloadSizeKey, blurEnabled
+      presetUsage, downloadSizeKey, blurEnabled, sortByUsage
     };
     try{ localStorage.setItem(SETTINGS_KEY, JSON.stringify(s)); }catch(e){ /* 保存できなくても処理は続行 */ }
   }
@@ -2056,9 +2073,12 @@
   }
 
   // よく使う順（使用回数の多い順、同数なら元の並び順）にプリセットを並べ替える
+  // ※「よく使う順」がOFFのときは並べ替えず、元の並び順のまま返す
   function sortedPresetsForCount(n){
     const presets = (LAYOUTS[n] || []).slice();
-    presets.sort((a,b) => (presetUsage[b.id]||0) - (presetUsage[a.id]||0));
+    if(sortByUsage){
+      presets.sort((a,b) => (presetUsage[b.id]||0) - (presetUsage[a.id]||0));
+    }
     return presets;
   }
 
@@ -2208,6 +2228,26 @@
     slot.offY = Math.max(minY, Math.min(maxY, slot.offY));
   }
 
+  // 選択中の枠の斜線と、区切り線の点線を同じ太さにする
+  const HATCH_LINE_WIDTH = 6;
+  const hatchPatternCache = {};
+  function getHatchPattern(ctx2d, color){
+    if(hatchPatternCache[color]) return hatchPatternCache[color];
+    const tile = document.createElement('canvas');
+    tile.width = 36; tile.height = 36;
+    const tctx = tile.getContext('2d');
+    tctx.strokeStyle = color;
+    tctx.lineWidth = HATCH_LINE_WIDTH;
+    tctx.beginPath();
+    tctx.moveTo(-4, 4); tctx.lineTo(4, -4);
+    tctx.moveTo(0, 36); tctx.lineTo(36, 0);
+    tctx.moveTo(32, 40); tctx.lineTo(40, 32);
+    tctx.stroke();
+    const pattern = ctx2d.createPattern(tile, 'repeat');
+    hatchPatternCache[color] = pattern;
+    return pattern;
+  }
+
   function renderCollage(){
     step2View.classList.toggle('orientation-portrait', orientation === 'portrait');
     const size = collageCanvasSize();
@@ -2230,6 +2270,17 @@
         if(idx === 0) ctx2d.moveTo(px, py); else ctx2d.lineTo(px, py);
       });
       ctx2d.closePath();
+    }
+
+    // 区切り線用に境界線をすべて集めて重複を取り除く
+    // （隣り合うセルがそれぞれ自分の境界線を描くと、同じ場所に点線が2本重なって「二重」に見えたり
+    // 　斜めの線がちらついたりするため、境界線ごとに1回だけまとめて描く）
+    const edgeMap = new Map();
+    function addEdge(x1,y1,x2,y2){
+      const p1 = Math.round(x1*4)+','+Math.round(y1*4);
+      const p2 = Math.round(x2*4)+','+Math.round(y2*4);
+      const key = p1 < p2 ? (p1+'|'+p2) : (p2+'|'+p1);
+      if(!edgeMap.has(key)) edgeMap.set(key, [x1,y1,x2,y2]);
     }
 
     slots.forEach((slot, i) => {
@@ -2267,32 +2318,61 @@
         }
       }
 
-      // オーバーレイ（枠線・番号・空き表示）
-      octx.lineWidth = 3;
-      octx.strokeStyle = (i === swapSourceIdx) ? '#2ecc71' : (i === activeSlot) ? '#ff9500' : 'rgba(255,255,255,.55)';
-      if(!slot.item){
-        octx.setLineDash([10,8]);
-      } else {
-        octx.setLineDash((i === activeSlot || i === swapSourceIdx) ? [10,6] : []);
-      }
-      if(slot.rect.poly){
-        tracePolyPath(octx, slot.rect.poly);
-        octx.stroke();
-      } else {
-        octx.strokeRect(sx+1.5, sy+1.5, sw-3, sh-3);
-      }
-      octx.setLineDash([]);
+      // オーバーレイ（選択中の枠の斜線）
+      const isActive = (i === activeSlot);
+      const isSwap = (i === swapSourceIdx);
 
-      if(!slot.item){
-        octx.fillStyle = 'rgba(255,255,255,.85)';
-        octx.font = `${Math.max(18, Math.round(Math.min(sw,sh)*0.12))}px sans-serif`;
-        octx.textAlign = 'center';
-        octx.textBaseline = 'middle';
-        octx.fillText('＋', sx+sw/2, sy+sh/2 - 10);
-        octx.font = `${Math.max(12, Math.round(Math.min(sw,sh)*0.06))}px sans-serif`;
-        octx.fillText(`枠 ${i+1}`, sx+sw/2, sy+sh/2 + 18);
+      // 選んでいる枠にはオレンジの斜線を重ねて、どこが選択中かわかりやすくする（入れ替え元は緑）
+      if(isActive || isSwap){
+        octx.save();
+        octx.fillStyle = getHatchPattern(octx, isSwap ? 'rgba(46,204,113,.8)' : 'rgba(255,149,0,.8)');
+        if(slot.rect.poly){
+          tracePolyPath(octx, slot.rect.poly);
+          octx.fill();
+        } else {
+          octx.fillRect(sx, sy, sw, sh);
+        }
+        octx.restore();
+      }
+
+      // 区切り線用の境界線を集める（矩形／多角形どちらでも対応）
+      if(slot.rect.poly){
+        const pts = slot.rect.poly.map(p => ({x: p.x*size.w, y: p.y*size.h}));
+        for(let k=0;k<pts.length;k++){
+          const a = pts[k], b = pts[(k+1)%pts.length];
+          addEdge(a.x, a.y, b.x, b.y);
+        }
+      } else {
+        addEdge(sx, sy, sx+sw, sy);
+        addEdge(sx+sw, sy, sx+sw, sy+sh);
+        addEdge(sx+sw, sy+sh, sx, sy+sh);
+        addEdge(sx, sy+sh, sx, sy);
       }
     });
+
+    // キャンバスの一番外側（黒い枠がすでにある部分）にはオレンジ線を重ねない。内側の区切り線だけ描く
+    function isOuterEdge(x1,y1,x2,y2){
+      const eps = 0.5;
+      if(Math.abs(x1) < eps && Math.abs(x2) < eps) return true;
+      if(Math.abs(x1-size.w) < eps && Math.abs(x2-size.w) < eps) return true;
+      if(Math.abs(y1) < eps && Math.abs(y2) < eps) return true;
+      if(Math.abs(y1-size.h) < eps && Math.abs(y2-size.h) < eps) return true;
+      return false;
+    }
+
+    // 区切り線はすべての境界を1本ずつまとめて、オレンジの実線で一度だけ描く
+    // （点線だと辺が短い箇所でパターンが始まる前に切れて実線に見えてしまうため、実線に統一する）
+    octx.save();
+    octx.lineWidth = HATCH_LINE_WIDTH;
+    octx.strokeStyle = 'rgba(255,149,0,.9)';
+    octx.beginPath();
+    edgeMap.forEach(([x1,y1,x2,y2]) => {
+      if(isOuterEdge(x1,y1,x2,y2)) return;
+      octx.moveTo(x1,y1);
+      octx.lineTo(x2,y2);
+    });
+    octx.stroke();
+    octx.restore();
 
     btnDownloadCombined.disabled = !slots.some(s => s.item);
   }
