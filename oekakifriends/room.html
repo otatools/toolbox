@@ -127,7 +127,11 @@ body {
 
 /* ゲーム画面 */
 #gameStage { display: none; position: fixed; inset: 0; z-index: 1; }
-#stage { position: relative; width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; box-sizing: border-box; padding: 56px 8px 90px 8px; transition: padding 0.15s ease; }
+#stage { position: relative; width: 100%; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; box-sizing: border-box; padding: 56px 8px 90px 8px; transition: padding 0.15s ease; }
+/* スマホでキーボードを開いている間は、キャンバス（とお題表示）を上へスライドして、
+   キーボードのうしろに隠れる前のイラストが少しでも見えるようにする（サイズは変えない）。
+   #stageはflex-direction:columnなので、縦位置の起点はjustify-contentで決まる。 */
+#stage.kbd-open { justify-content: flex-start; }
 #canvasBox { position: relative; max-width: 100%; max-height: 100%; aspect-ratio: 4 / 3; background: white; box-shadow: 0 4px 24px rgba(60,50,120,0.25); border-radius: 6px; overflow: hidden; }
 canvas, #viewer img { position: absolute; top:0; left:0; width: 100%; height: 100%; object-fit: contain; image-rendering: pixelated; }
 #sharedImg:not([src]), #sharedImg[src=""] { opacity: 0; }
@@ -140,7 +144,11 @@ canvas, #viewer img { position: absolute; top:0; left:0; width: 100%; height: 10
 #scoreArea { flex: 1; text-align: right; padding-right: 10px; }
 #myScoreDisplay { color: #ff8a3d; font-weight: 700; }
 #limitTimer { background: #ef5f6b; color: white; font-size: 22px; font-weight: 700; padding: 2px 15px; border-radius: 10px; min-width: 50px; text-align: center; }
-#odaiGhost { position: absolute; top: 10%; width: 100%; text-align: center; font-size: 32px; color: rgba(120, 30, 100, 0.55); pointer-events: none; z-index: 5; font-weight: 700; text-shadow: 2px 2px 2px white; }
+/* お題はキャンバスの上に大きく重ねると、うしろから覗いた人にも見えてしまうため、
+   キャンバスの外（下）に、小さいラベルとして表示する。それでも「ここにお題が
+   書いてある」とすぐわかるよう、枠つきのバッジ風にしておく。 */
+#odaiGhost { text-align: center; font-size: 13px; font-weight: 700; color: rgba(120, 30, 100, 0.8); background: rgba(255,255,255,0.9); border: 1px solid rgba(120, 30, 100, 0.25); padding: 3px 14px; border-radius: 14px; pointer-events: none; z-index: 5; }
+#odaiGhost:empty { display: none; padding: 0; border: none; }
 #hintDisplay { position: fixed; top: 55px; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 8px; z-index: 3000; background: rgba(255,255,255,0.92); padding: 5px 15px; border-radius: 20px; min-height: 30px; box-shadow: 0 4px 16px rgba(60,50,120,0.15); }
 #changeOdaiBtn { position: fixed; top: 55px; right: 12px; z-index: 3200; padding: 8px 16px; border-radius: 20px; background: #7c6bff; color: #fff; font-weight: 700; font-size: 13px; border: 2px solid #fff; box-shadow: 0 4px 14px rgba(60,50,120,0.25); }
 #hintLabel { font-weight: 700; font-size: 18px; color: #ff8a3d; margin-right: 5px; }
@@ -332,10 +340,10 @@ canvas, #viewer img { position: absolute; top:0; left:0; width: 100%; height: 10
     <div class="player-sidebar right" id="sidebarRight"></div>
     <div id="stage">
         <div id="canvasBox">
-            <div id="odaiGhost"></div>
             <canvas id="canvas"></canvas>
             <div id="viewer" style="display:none;"><img id="sharedImg" src=""></div>
         </div>
+        <div id="odaiGhost"></div>
     </div>
     <div id="drawTools">
         <div class="tool-panel">
@@ -519,15 +527,18 @@ function updateStageLayout() {
     const box = document.getElementById('canvasBox');
     const infoBar = document.getElementById('infoBar');
     const drawTools = document.getElementById('drawTools');
+    const odaiGhost = document.getElementById('odaiGhost');
 
     // ヒント・答え入力キーボード・「答えを入力」ボタンは、すべてイラストの上に重ねて表示する
     // （別スペースを確保しない）。ここでスペースを確保してしまうと、キーボードの
     // 開閉のたびにキャンバスの大きさが変わって見た目がガタつくため、
-    // 常時表示される#drawTools（描いている人のパレット）以外は計算に入れない。
+    // 常時表示される#drawTools（描いている人のパレット）・お題ラベル以外は計算に入れない。
     const topReserve = infoBar.offsetHeight + 12;
 
     let bottomReserve = 12;
     if (getComputedStyle(drawTools).display !== 'none') bottomReserve += drawTools.offsetHeight;
+    // お題ラベルはキャンバスの外（下）に出したので、そのぶんの高さも確保しておく
+    if (getComputedStyle(odaiGhost).display !== 'none') bottomReserve += odaiGhost.offsetHeight + 6;
 
     const sidePadding = 16; // #stageの左右のpadding(8px×2)ぶん
     const availW = Math.max(0, stage.clientWidth - sidePadding);
@@ -957,7 +968,7 @@ authReady.then(() => {
 
         if (state.phase !== lastStatePhase) {
             if (state.phase !== "playing") {
-                document.getElementById('kbdWrapper').style.display = 'none';
+                closeKeyboard();
                 document.getElementById('answerInput').value = "";
             }
             if (state.phase === "countdown") { ctx.clearRect(0, 0, canvas.width, canvas.height); }
@@ -1060,7 +1071,7 @@ async function checkAnswer() {
                 db.ref(`casual_rooms/${myRoom}/users/${state.currentDrawer}/score`).transaction(s => (s || 0) + 10);
             }
         });
-        document.getElementById('kbdWrapper').style.display = 'none';
+        closeKeyboard();
     } else {
         showJudge("×", "red");
         db.ref(`casual_rooms/${myRoom}/state/wrongGuess`).set({ text: val, name: myName, uid: myUid, ts: Date.now() });
@@ -1166,7 +1177,20 @@ function toggleKbdType() {
     initKbd();
 }
 function bs() { const el = document.getElementById('answerInput'); el.value = el.value.slice(0, -1); }
-function toggleKeyboard(){ const k=document.getElementById('kbdWrapper'); k.style.display=(k.style.display==='flex')?'none':'flex'; scheduleStageLayout(); }
+function closeKeyboard() {
+    document.getElementById('kbdWrapper').style.display = 'none';
+    document.getElementById('stage').classList.remove('kbd-open');
+    scheduleStageLayout();
+}
+function toggleKeyboard(){
+    const k = document.getElementById('kbdWrapper');
+    if (k.style.display === 'flex') { closeKeyboard(); return; }
+    k.style.display = 'flex';
+    // スマホ版だけ：キーボードを出している間はキャンバスを上へスライドする
+    // （パソコン版は横に余裕があるのでそのまま中央表示にしておく）
+    if (window.innerWidth <= 900) document.getElementById('stage').classList.add('kbd-open');
+    scheduleStageLayout();
+}
 function initColors() { const colors = ['#ff0000', '#ff8c00', '#ffff00', '#adff2f', '#008000', '#00bfff', '#0000ff', '#800080', '#ff69b4', '#8b4513', '#f5deb3', '#000000', '#777777', '#ffffff']; const row = document.getElementById('colorRow'); row.innerHTML = ""; colors.forEach(c => { const b = document.createElement('div'); b.className = 'color-btn'; b.style.background = c; b.dataset.color = c; b.onclick = () => { isEraserMode = false; penColor = c; updateActiveColor(); }; row.appendChild(b); }); updateActiveColor(); }
 function setPenMode() { isEraserMode = false; updateActiveColor(); }
 function updateActiveColor() {
