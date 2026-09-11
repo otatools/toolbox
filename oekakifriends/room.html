@@ -504,6 +504,12 @@ let hostTimerInterval = null;
 let gameStarted = false;
 
 let lastCanvasW = 0, lastCanvasH = 0;
+// サイズが変わるたびに、消えないよう前の絵をいったん画像として退避して描き戻しているが、
+// この描き戻し（img.onload）は非同期のため、新しい番のためにctx.clearRect()で消した
+// 直後に、まだ残っていた古い描き戻しがあとから発火して、自分の描いた絵が消えたはずなのに
+// また出てきてしまう不具合があった。クリアするたびに世代カウンタを進め、描き戻し時に
+// 世代が変わっていたら（＝その間にクリアされていたら）何もしないようにして防ぐ。
+let canvasGen = 0;
 function resize() {
     const box = document.getElementById('canvasBox');
     const targetW = box.clientWidth * 2, targetH = box.clientHeight * 2;
@@ -514,8 +520,9 @@ function resize() {
     lastCanvasW = targetW; lastCanvasH = targetH;
     ctx.scale(2, 2); ctx.lineCap = 'round'; ctx.lineJoin = 'round';
     if (snapshot) {
+        const myGen = canvasGen;
         const img = new Image();
-        img.onload = () => ctx.drawImage(img, 0, 0, box.clientWidth, box.clientHeight);
+        img.onload = () => { if (myGen === canvasGen) ctx.drawImage(img, 0, 0, box.clientWidth, box.clientHeight); };
         img.src = snapshot;
     }
 }
@@ -587,6 +594,7 @@ async function changeOdai() {
     const updates = { usedWords: usedWords, 'state/correctAnswer': nextWord, 'state/correctCount': 0 };
     Object.keys(data.users || {}).forEach(uid => { updates[`users/${uid}/isCorrect`] = false; });
 
+    canvasGen++;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     await db.ref(`casual_rooms/${myRoom}`).update(updates);
     upload();
@@ -971,7 +979,7 @@ authReady.then(() => {
                 closeKeyboard();
                 document.getElementById('answerInput').value = "";
             }
-            if (state.phase === "countdown") { ctx.clearRect(0, 0, canvas.width, canvas.height); }
+            if (state.phase === "countdown") { canvasGen++; ctx.clearRect(0, 0, canvas.width, canvas.height); }
             lastStatePhase = state.phase;
         }
 
@@ -1202,7 +1210,7 @@ function updateActiveColor() {
 }
 function changeSize(s, id) { penSize = s; document.querySelectorAll('.size-dot-wrap').forEach(b => b.classList.remove('active')); document.getElementById(id).classList.add('active'); }
 function setEraser() { isEraserMode = true; penSize = 28; document.querySelectorAll('.size-dot-wrap').forEach(b => b.classList.remove('active')); document.getElementById('wrap3').classList.add('active'); updateActiveColor(); }
-function clearCanvas(){ if(confirm('ぜんぶ消す？')){ ctx.clearRect(0,0,canvas.width,canvas.height); upload(); } }
+function clearCanvas(){ if(confirm('ぜんぶ消す？')){ canvasGen++; ctx.clearRect(0,0,canvas.width,canvas.height); upload(); } }
 </script>
 </body>
 </html>
