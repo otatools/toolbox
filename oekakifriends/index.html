@@ -20,12 +20,26 @@
     <link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@500;700;900&display=swap" rel="stylesheet">
     <style>
         * { box-sizing: border-box; }
+        /* iOSのSafariはアドレスバー表示中、100vhが実際に見えている高さより
+           大きくなる。その大きい高さの中でcenter配置すると、実際に見えている
+           画面の中では中身が下寄りに見えてしまう。100dvh（動的ビューポート高さ）が
+           使える環境ではそちらを優先し、さらに画面より中身が長い場合でも
+           先頭からきちんとスクロールできるよう、centerではなくflex-start＋
+           margin:autoでセンタリングする（入りきる時は中央、入りきらない時は上から）。 */
         body {
-            margin: 0; min-height: 100vh; overflow-x: hidden;
-            display: flex; align-items: center; justify-content: center; flex-direction: column;
+            margin: 0; min-height: 100vh; overflow-x: hidden; overflow-y: auto;
+            display: flex; align-items: center; justify-content: flex-start; flex-direction: column;
             font-family: 'Zen Maru Gothic', sans-serif; color: #2c2a4a;
             background: radial-gradient(circle at 20% 15%, #fffaf0 0%, #eef6ff 55%, #e3f7f2 100%);
             position: relative;
+        }
+        @supports (height: 100dvh) {
+            body { min-height: 100dvh; }
+        }
+
+        .page-content {
+            display: flex; flex-direction: column; align-items: center;
+            width: 100%; margin: auto 0;
         }
 
         .bg-shapes { position: fixed; inset: 0; z-index: 0; pointer-events: none; opacity: 0.7; }
@@ -84,43 +98,45 @@
         <circle cx="30" cy="700" r="55" fill="#ff5d8f" opacity="0.08"/>
     </svg>
 
-    <div class="title-wrap">
-        <h1>お絵かき<span class="accent">クイズ</span><br>フレンズ</h1>
-        <svg class="title-underline" viewBox="0 0 160 10" width="160" height="10">
-            <path d="M2 6 C 40 2, 80 9, 120 4 S 158 2, 158 5" stroke="#ff8a3d" stroke-width="3" fill="none" stroke-linecap="round"/>
-        </svg>
-        <div class="sub">みんなでリレー式・お絵かき当てゲーム</div>
-    </div>
+    <div class="page-content">
+        <div class="title-wrap">
+            <h1>お絵かき<span class="accent">クイズ</span><br>フレンズ</h1>
+            <svg class="title-underline" viewBox="0 0 160 10" width="160" height="10">
+                <path d="M2 6 C 40 2, 80 9, 120 4 S 158 2, 158 5" stroke="#ff8a3d" stroke-width="3" fill="none" stroke-linecap="round"/>
+            </svg>
+            <div class="sub">みんなでリレー式・お絵かき当てゲーム</div>
+        </div>
 
-    <div class="box" id="modeSelect">
-        <h2>なまえを入れてね</h2>
-        <input type="text" id="playerName" placeholder="なまえ" autocomplete="off">
-        <button class="btn btn-orange" onclick="showCreate()">
-            <svg viewBox="0 0 24 24" fill="none"><path d="M4 21v-4.2L16.6 4.2c.5-.5 1.4-.5 2 0l1.2 1.2c.5.5.5 1.4 0 2L7.2 20 4 21z" fill="currentColor"/><path d="M14.5 6.3l3.2 3.2" stroke="#2a1500" stroke-width="1.3"/></svg>
-            部屋を作る（ホスト）
-        </button>
-        <button class="btn btn-cyan" onclick="showJoin()">
-            <svg viewBox="0 0 24 24" fill="none"><path d="M10 4h6a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M13 12H3m0 0l3.5-3.5M3 12l3.5 3.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
-            部屋に入る
-        </button>
-    </div>
+        <div class="box" id="modeSelect">
+            <h2>なまえを入れてね</h2>
+            <input type="text" id="playerName" placeholder="なまえ" autocomplete="off">
+            <button class="btn btn-orange" onclick="showCreate()">
+                <svg viewBox="0 0 24 24" fill="none"><path d="M4 21v-4.2L16.6 4.2c.5-.5 1.4-.5 2 0l1.2 1.2c.5.5.5 1.4 0 2L7.2 20 4 21z" fill="currentColor"/><path d="M14.5 6.3l3.2 3.2" stroke="#2a1500" stroke-width="1.3"/></svg>
+                部屋を作る（ホスト）
+            </button>
+            <button class="btn btn-cyan" onclick="showJoin()">
+                <svg viewBox="0 0 24 24" fill="none"><path d="M10 4h6a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M13 12H3m0 0l3.5-3.5M3 12l3.5 3.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                部屋に入る
+            </button>
+        </div>
 
-    <div class="box" id="createBox" style="display:none;">
-        <h2>部屋を作る</h2>
-        <div class="name-note" id="createNameNote"></div>
-        <button class="btn btn-orange" id="createBtn" onclick="createRoom()">この名前ではじめる</button>
-        <button class="btn btn-sub" onclick="backToSelect()">もどる</button>
-    </div>
+        <div class="box" id="createBox" style="display:none;">
+            <h2>部屋を作る</h2>
+            <div class="name-note" id="createNameNote"></div>
+            <button class="btn btn-orange" id="createBtn" onclick="createRoom()">この名前ではじめる</button>
+            <button class="btn btn-sub" onclick="backToSelect()">もどる</button>
+        </div>
 
-    <div class="box" id="joinBox" style="display:none;">
-        <h2>部屋に入る</h2>
-        <div class="name-note" id="joinNameNote"></div>
-        <input type="text" id="roomID" placeholder="部屋番号" inputmode="numeric" autocomplete="off">
-        <button class="btn btn-cyan" id="joinBtn" onclick="joinRoom()">入室する</button>
-        <button class="btn btn-sub" onclick="backToSelect()">もどる</button>
-    </div>
+        <div class="box" id="joinBox" style="display:none;">
+            <h2>部屋に入る</h2>
+            <div class="name-note" id="joinNameNote"></div>
+            <input type="text" id="roomID" placeholder="部屋番号" inputmode="numeric" autocomplete="off">
+            <button class="btn btn-cyan" id="joinBtn" onclick="joinRoom()">入室する</button>
+            <button class="btn btn-sub" onclick="backToSelect()">もどる</button>
+        </div>
 
-    <div class="footer">お絵かきクイズ フレンズ | Ver 1.0 | ota tools</div>
+        <div class="footer">お絵かきクイズ フレンズ | Ver 1.0 | ota tools</div>
+    </div>
 
     <script>
         // 「もどる」ボタンやスワイプ戻るで、ブラウザがこのページをbfcache（そのままの状態）から
