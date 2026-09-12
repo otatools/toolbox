@@ -10,8 +10,14 @@
   gtag('config', 'G-YTH979WTKL');
 </script>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>お絵かきクイズ フレンズ - 部屋</title>
+<!-- 部屋の画面はその場かぎりの内容（人によって中身が変わる）なので、検索結果には出さない -->
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#ff8a3d">
+<link rel="icon" type="image/png" sizes="64x64" href="favicon.png">
+<link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
 <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-database-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-auth-compat.js"></script>
@@ -20,9 +26,13 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@500;700;900&display=swap" rel="stylesheet">
 <style>
-* { box-sizing: border-box; }
+/* スマホでダブルタップ拡大・長押しメニューが出て遊びづらくなるのを防ぐ。
+   CSSのtouch-actionだけではiOS Safariのピンチ拡大を止めきれないので、
+   JS側でもgesturestart等を止める（下のscriptを参照）。 */
+* { box-sizing: border-box; touch-action: manipulation; -webkit-touch-callout: none; }
+html { overscroll-behavior-y: none; }
 body {
-    margin: 0; color: #2c2a4a; font-family: 'Zen Maru Gothic', sans-serif; overflow: hidden; height: 100vh; touch-action: none;
+    margin: 0; color: #2c2a4a; font-family: 'Zen Maru Gothic', sans-serif; overflow: hidden; height: 100vh; touch-action: none; overscroll-behavior-y: none;
     background: radial-gradient(circle at 20% 15%, #fffaf0 0%, #eef6ff 55%, #e3f7f2 100%);
 }
 
@@ -45,18 +55,19 @@ body {
 .color-picker { margin: clamp(2px, 0.5vh, 6px) 0 clamp(4px, 1vh, 8px) 0; }
 .color-picker .field-label { text-align: center; margin-bottom: 4px; }
 .color-swatch-row { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; }
-.color-swatch { position: relative; width: clamp(22px, 3.6vh, 32px); height: clamp(22px, 3.6vh, 32px); border-radius: 50%; border: 3px solid transparent; cursor: pointer; transition: transform 0.15s ease, box-shadow 0.15s ease; padding: 0; }
+/* 黒などの暗い色は、まわりが白いぶん同じ大きさでも大きく見える錯視（放射錯視）が起きるので、
+   暗い色だけ --sizeAdj を掛けてわずかに小さく描画し、見た目の大きさをそろえる。 */
+.color-swatch { position: relative; --sizeAdj: 1; width: calc(clamp(22px, 3.6vh, 32px) * var(--sizeAdj)); height: calc(clamp(22px, 3.6vh, 32px) * var(--sizeAdj)); border-radius: 50%; border: 3px solid transparent; cursor: pointer; transition: transform 0.15s ease, box-shadow 0.15s ease; padding: 0; }
 .color-swatch:hover { transform: scale(1.1); }
 .color-swatch.selected { border-color: #2c2a4a; box-shadow: 0 0 0 3px #fff, 0 0 0 5px #2c2a4a; }
 .color-swatch.selected:hover { transform: scale(1.1); }
+/* チェックマークは自分（丸のボタン）を基準にflexで中央そろえする。
+   .taken の「×」と同じ組み方にすることで、枠との中心ずれが出ないようにしている。 */
 .color-swatch.selected::after {
-    content: '';
-    position: absolute; left: 50%; top: 50%;
-    width: 12px; height: 7px;
-    margin-left: -6px; margin-top: -5px;
-    border-left: 3px solid #fff; border-bottom: 3px solid #fff;
-    transform: rotate(-45deg);
-    filter: drop-shadow(0 1px 1px rgba(0,0,0,0.5));
+    content: '✓';
+    position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+    color: #fff; font-weight: 900; font-size: 14px; line-height: 1;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.5);
 }
 .color-swatch.taken { opacity: 0.3; cursor: not-allowed; filter: grayscale(60%); }
 .color-swatch.taken::after {
@@ -74,24 +85,25 @@ body {
    サイズはvhのclampで画面の高さに応じてなめらかに拡大縮小し、
    余裕がある画面ではより大きく、低い画面では自動で小さくなって必ず収まる。 */
 .choice-group { display: flex; flex-wrap: wrap; gap: 6px; margin: clamp(2px, 0.6vh, 6px) 0; }
+/* 「終わりかた」の選択ボタンと「ひとり何回描く？」のステッパーの高さがそろって見えるよう、
+   同じ --ctrl-h を両方の高さの基準にする（片方だけ数値を変えても揃わなくなるので注意）。 */
+:root { --ctrl-h: clamp(34px, 5.4vh, 46px); }
 .choice-btn {
-    flex: 1 1 0; min-width: 90px; padding: clamp(5px, 1.1vh, 12px) clamp(8px, 1.2vw, 14px); border-radius: 10px; border: 2px solid #e4e6f5;
+    flex: 1 1 0; min-width: 90px; min-height: var(--ctrl-h); box-sizing: border-box;
+    padding: clamp(5px, 1.1vh, 12px) clamp(8px, 1.2vw, 14px); border-radius: 10px; border: 2px solid #e4e6f5;
     background: #f7f8fd; color: #2c2a4a; font-size: clamp(12px, 2vh, 17px); font-weight: 700; line-height: 1.3;
-    font-family: 'Zen Maru Gothic', sans-serif; text-align: center; box-sizing: border-box;
+    font-family: 'Zen Maru Gothic', sans-serif; text-align: center;
     box-shadow: 0 2px 0 rgba(0,0,0,0.05); transition: transform 0.08s ease;
-    display: flex; align-items: center; justify-content: center; gap: 4px;
+    display: flex; align-items: center; justify-content: center;
 }
-.choice-btn svg { flex-shrink: 0; }
 .choice-btn:active { transform: translateY(2px); }
 .choice-btn.selected {
     border-color: #ff8a3d; background: #fff3e8; color: #a34c00;
     box-shadow: 0 0 0 3px rgba(255,138,61,0.25), 0 2px 0 rgba(0,0,0,0.05);
 }
-.choice-btn .choice-check { display: inline-block; width: 14px; }
-.choice-btn.selected .choice-check::after { content: '✓'; color: #ff8a3d; font-weight: 900; }
-.stepper { display: flex; align-items: center; justify-content: center; gap: clamp(8px, 1.4vh, 14px); margin: clamp(2px, 0.6vh, 6px) 0; background: #f7f8fd; border-radius: 10px; padding: clamp(5px, 1vh, 8px); }
+.stepper { display: flex; align-items: center; justify-content: center; gap: clamp(8px, 1.4vh, 14px); margin: clamp(2px, 0.6vh, 6px) 0; background: #f7f8fd; border-radius: 10px; min-height: var(--ctrl-h); box-sizing: border-box; padding: 0 clamp(8px, 1.2vw, 14px); }
 .stepper-btn {
-    width: clamp(28px, 4.8vh, 50px); height: clamp(28px, 4.8vh, 50px); border-radius: 50%; border: none; background: #ff8a3d; color: #fff;
+    width: var(--ctrl-h); height: var(--ctrl-h); border-radius: 50%; border: none; background: #ff8a3d; color: #fff;
     font-size: clamp(15px, 2.6vh, 26px); font-weight: 900; flex-shrink: 0; box-shadow: 0 2px 0 rgba(0,0,0,0.15);
 }
 .stepper-btn:active { transform: translateY(2px); box-shadow: none; }
@@ -123,6 +135,7 @@ body {
 .btn:active { transform: translateY(3px); box-shadow: 0 2px 0 rgba(0,0,0,0.15); }
 .btn-orange { background: #ff8a3d; color: #2a1500; }
 .btn-danger { background: #ef5f6b; color: #3f0d12; }
+.btn-sub { background: #eef1fb; color: #4d5085; box-shadow: 0 4px 0 rgba(0,0,0,0.06); font-size: 14px; font-weight: 500; }
 .waiting-note { opacity: 0.85; font-size: 14px; margin-top: 10px; color: #6b6f9a; }
 
 /* ゲーム画面 */
@@ -134,20 +147,40 @@ body {
 #stage.kbd-open { justify-content: flex-start; }
 #canvasBox { position: relative; max-width: 100%; max-height: 100%; aspect-ratio: 4 / 3; background: white; box-shadow: 0 4px 24px rgba(60,50,120,0.25); border-radius: 6px; overflow: hidden; }
 canvas, #viewer img { position: absolute; top:0; left:0; width: 100%; height: 100%; object-fit: contain; image-rendering: pixelated; }
+canvas { touch-action: none; -webkit-user-select: none; user-select: none; }
 #sharedImg:not([src]), #sharedImg[src=""] { opacity: 0; }
+/* 問題ごとのカウントダウン（#limitTimer）は、左右の中身の量に関係なく常にバーの
+   ど真ん中に来てほしいので、グリッドの列で真ん中に寄せるのではなく、#infoBar自体を
+   基準にposition:absoluteで左右中央に固定する（左右のテキスト量で中央がずれない）。
+   左（描いている人）と右（ゲーム終了までのカウント・点数）は、ふつうに横に並べるだけ。 */
 #infoBar {
     position: fixed; top: 0; left: 0; width: 100%; background: rgba(255,255,255,0.92); backdrop-filter: blur(4px);
-    padding: 8px; display: flex; justify-content: space-around; align-items: center; font-size: 14px; z-index: 3000;
+    padding: 8px; display: flex; justify-content: space-between; align-items: center; font-size: 14px; z-index: 3000;
     font-weight: 500; border-bottom: 1px solid rgba(60,50,120,0.1); color: #2c2a4a;
 }
-#drawerDisplay { color: #1a9e8f; font-weight: 700; flex: 1; text-align: left; padding-left: 10px; }
-#scoreArea { flex: 1; text-align: right; padding-right: 10px; }
+/* 「描いている人：〇〇さん」はもともと折り返し表示（狭い画面では2行になる）でよいので、
+   幅が足りないときはこちら側が縮む・折り返す側になるようにする。 */
+/* 中央のカウントダウン（position:absoluteで常にどまん中）に長い名前がぶつからないよう、
+   「描いている人」側だけ最大42%までしか広がれないようにする（折り返して縦に伸びる分には
+   問題ないので、ここは幅だけ制限する）。右側（終了までのカウント・点数）は文字量が
+   もともと少なく中央にぶつかる心配がないので、幅は制限せず自然な大きさのままにする。 */
+#drawerDisplay { color: #1a9e8f; font-weight: 700; text-align: left; padding-left: 10px; min-width: 0; max-width: 42%; box-sizing: border-box; }
+#infoBarRight { display: flex; align-items: center; justify-content: flex-end; gap: 8px; padding-right: 10px; }
+#scoreArea { text-align: right; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 #myScoreDisplay { color: #ff8a3d; font-weight: 700; }
-#limitTimer { background: #ef5f6b; color: white; font-size: 22px; font-weight: 700; padding: 2px 15px; border-radius: 10px; min-width: 50px; text-align: center; }
-/* お題はキャンバスの上に大きく重ねると、うしろから覗いた人にも見えてしまうため、
-   キャンバスの外（下）に、小さいラベルとして表示する。それでも「ここにお題が
-   書いてある」とすぐわかるよう、枠つきのバッジ風にしておく。 */
-#odaiGhost { text-align: center; font-size: 13px; font-weight: 700; color: rgba(120, 30, 100, 0.8); background: rgba(255,255,255,0.9); border: 1px solid rgba(120, 30, 100, 0.25); padding: 3px 14px; border-radius: 14px; pointer-events: none; z-index: 5; }
+#limitTimer {
+    position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+    background: #ef5f6b; color: white; font-size: 22px; font-weight: 700; padding: 2px 15px; border-radius: 10px; min-width: 50px; text-align: center;
+}
+/* 「時間で終了」のときだけ出す、ゲーム全体があと何分何秒で終わるかの表示。
+   問題ごとの残り時間（#limitTimer・赤）とは別物とわかるよう、色を変えている。
+   狭い画面では点数などと幅を取り合って縮むことがあるが、overflow:hiddenを
+   付けておくことで、はみ出した文字が枠の外の白地に重なって読めなくなる
+   （白文字が白背景で見えなくなる）のを防ぎ、枠の中で「…」に省略させる。 */
+#gameEndTimer { background: #7c6bff; color: white; font-size: 14px; font-weight: 700; padding: 2px 10px; border-radius: 10px; min-width: 50px; max-width: 40vw; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* お題はキャンバス自体の下部中央に小さく重ねて表示し、キャンバスをできるだけ
+   大きく取れるようにする（別スペースを確保しない）。 */
+#odaiGhost { position: absolute; left: 50%; bottom: 8px; transform: translateX(-50%); max-width: 90%; box-sizing: border-box; text-align: center; font-size: 13px; font-weight: 700; color: rgba(120, 30, 100, 0.8); background: rgba(255,255,255,0.9); border: 1px solid rgba(120, 30, 100, 0.25); padding: 3px 14px; border-radius: 14px; pointer-events: none; z-index: 5; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 #odaiGhost:empty { display: none; padding: 0; border: none; }
 #hintDisplay { position: fixed; top: 55px; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 8px; z-index: 3000; background: rgba(255,255,255,0.92); padding: 5px 15px; border-radius: 20px; min-height: 30px; box-shadow: 0 4px 16px rgba(60,50,120,0.15); }
 #changeOdaiBtn { position: fixed; top: 55px; right: 12px; z-index: 3200; padding: 8px 16px; border-radius: 20px; background: #7c6bff; color: #fff; font-weight: 700; font-size: 13px; border: 2px solid #fff; box-shadow: 0 4px 14px rgba(60,50,120,0.25); }
@@ -234,7 +267,7 @@ canvas, #viewer img { position: absolute; top:0; left:0; width: 100%; height: 10
 .size-dot-wrap.active { background: #fff; border-color: #2c2a4a; box-shadow: 0 0 0 3px rgba(44,42,74,0.18); }
 .overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 10000; display: none; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
 #countdownOverlay { z-index: 15000; background: rgba(255,255,255,0.97); color: #2c2a4a; }
-#answerOverlay { background: rgba(255,138,61,0.92); color: #2a1500; }
+#answerOverlay { background: rgba(255,138,61,0.92); color: #2a1500; transition: background 0.2s ease, color 0.2s ease; }
 #finalOverlay { background: rgba(255,255,255,0.97); overflow-y: auto; padding-top: 50px; justify-content: flex-start; z-index: 20000; color: #2c2a4a; }
 #finalOverlay h1 { font-weight: 900; letter-spacing: 1px; color: #ff8a3d; }
 .final-row { background: #f7f8fd; border-radius: 16px; padding: 20px 30px; margin: 10px; width: 85%; max-width: 500px; display: flex; align-items: center; border: 2px solid rgba(60,50,120,0.08); box-sizing: border-box; color: #2c2a4a; }
@@ -244,6 +277,36 @@ canvas, #viewer img { position: absolute; top:0; left:0; width: 100%; height: 10
 .f-rank { font-size: 32px; font-weight: 900; color: #ff8a3d; margin-right: 25px; }
 .f-name { flex: 1; font-size: 24px; font-weight: 700; text-align: left; }
 .f-score { font-size: 22px; font-weight: 700; opacity: 0.85; }
+.final-row-enter { opacity: 0; transform: translateY(28px) scale(0.9); }
+.final-row-enter.final-row-visible { opacity: 1; transform: translateY(0) scale(1); transition: opacity 0.45s ease, transform 0.45s cubic-bezier(.34,1.56,.64,1); }
+@keyframes totalScorePop { 0% { transform: scale(1); } 45% { transform: scale(1.2); } 100% { transform: scale(1); } }
+.total-pop { animation: totalScorePop 0.5s ease; }
+/* 「けっか発表！」の合図：結果がスッと出るのではなく、いったんこの大きな
+   合図を出してから最終結果の中身を出すことで、終わった感を出す */
+#finalIntro {
+    position: fixed; left: 50%; top: 42%; transform: translate(-50%, -50%) scale(0.4);
+    font-size: clamp(34px, 9vw, 62px); font-weight: 900; color: #ff8a3d;
+    text-shadow: 0 4px 14px rgba(0,0,0,0.18); opacity: 0; z-index: 21000;
+    text-align: center; pointer-events: none; white-space: nowrap;
+}
+#finalIntro.final-intro-show { animation: finalIntroPop 0.9s cubic-bezier(.34,1.56,.64,1) forwards; }
+#finalIntro.final-intro-hide { animation: finalIntroFadeOut 0.4s ease forwards; }
+@keyframes finalIntroPop {
+    0% { opacity: 0; transform: translate(-50%, -50%) scale(0.3); }
+    60% { opacity: 1; transform: translate(-50%, -50%) scale(1.15); }
+    100% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+}
+@keyframes finalIntroFadeOut { to { opacity: 0; transform: translate(-50%, -50%) scale(0.85); } }
+/* 協力モードの合計得点：中央にどんと目立たせる */
+.coop-total-wrap { display: flex; flex-direction: column; align-items: center; margin: 4px 0 22px; }
+.coop-total-label { font-size: 16px; font-weight: 700; color: #7c6bff; letter-spacing: 3px; margin-bottom: 6px; }
+.coop-total-number { font-size: clamp(52px, 15vw, 92px); font-weight: 900; color: #3ed6c6; line-height: 1; text-shadow: 0 4px 12px rgba(62,214,198,0.3); }
+/* 協力モードの個人得点：人数が多くてもスクロールしなくて済むように、小さめの
+   チップを横になみだかたちに折り返して表示する（1人ずつ縦積みの大きな行にはしない）。 */
+.coop-score-wrap { width: 100%; max-width: 640px; display: flex; flex-wrap: wrap; justify-content: center; gap: 8px 10px; padding: 0 14px; box-sizing: border-box; transition: opacity 0.6s ease; }
+.coop-score-chip { display: flex; align-items: center; gap: 6px; background: #f7f8fd; border: 2px solid rgba(60,50,120,0.08); border-radius: 20px; padding: 6px 14px; white-space: nowrap; }
+.coop-score-chip .chip-name { font-size: 14px; font-weight: 700; color: #2c2a4a; }
+.coop-score-chip .chip-score { font-size: 14px; font-weight: 800; color: #ff8a3d; }
 </style>
 </head>
 <body>
@@ -272,8 +335,8 @@ canvas, #viewer img { position: absolute; top:0; left:0; width: 100%; height: 10
                 <div class="field" id="endTypeField">
                     <div class="field-label">終わりかた</div>
                     <div class="choice-group" id="endTypeGroup">
-                        <button type="button" class="choice-btn" data-value="rounds"><span class="choice-check"></span><svg viewBox="0 0 24 24" width="15" height="15"><path d="M20 12a8 8 0 1 1-2.34-5.66" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round"/><path d="M20 4v5h-5" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg> 回数で終了</button>
-                        <button type="button" class="choice-btn" data-value="time"><span class="choice-check"></span><svg viewBox="0 0 24 24" width="15" height="15"><circle cx="12" cy="12" r="8" stroke="currentColor" stroke-width="1.8" fill="none"/><path d="M12 8v4l3 2" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg> 時間で終了</button>
+                        <button type="button" class="choice-btn" data-value="rounds">回数で終了</button>
+                        <button type="button" class="choice-btn" data-value="time">時間で終了</button>
                     </div>
                     <input type="hidden" id="endTypeSel" value="rounds">
                 </div>
@@ -281,8 +344,8 @@ canvas, #viewer img { position: absolute; top:0; left:0; width: 100%; height: 10
                 <div class="field" id="modeField">
                     <div class="field-label">あそびかた</div>
                     <div class="choice-group" id="modeGroup">
-                        <button type="button" class="choice-btn" data-value="competitive"><span class="choice-check"></span><svg viewBox="0 0 24 24" width="15" height="15"><path d="M8 4h8v2a4 4 0 0 1-8 0V4z" stroke="currentColor" stroke-width="1.8" fill="none"/><path d="M8 5H5a2 2 0 0 0 2 4M16 5h3a2 2 0 0 1-2 4" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round"/><path d="M12 10v4M9 20h6M10 16h4v2a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-2z" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg> 対戦</button>
-                        <button type="button" class="choice-btn" data-value="coop"><span class="choice-check"></span><svg viewBox="0 0 24 24" width="15" height="15"><circle cx="9" cy="12" r="6" stroke="currentColor" stroke-width="1.8" fill="none"/><circle cx="15" cy="12" r="6" stroke="currentColor" stroke-width="1.8" fill="none"/></svg> 協力</button>
+                        <button type="button" class="choice-btn" data-value="competitive">対戦</button>
+                        <button type="button" class="choice-btn" data-value="coop">協力</button>
                     </div>
                     <input type="hidden" id="modeSel" value="competitive">
                 </div>
@@ -290,8 +353,8 @@ canvas, #viewer img { position: absolute; top:0; left:0; width: 100%; height: 10
                 <div class="field" id="allowChangeField">
                     <div class="field-label">お題をチェンジできる？</div>
                     <div class="choice-group" id="allowChangeGroup">
-                        <button type="button" class="choice-btn" data-value="1"><span class="choice-check"></span><svg viewBox="0 0 24 24" width="15" height="15"><circle cx="12" cy="12" r="8" stroke="currentColor" stroke-width="1.8" fill="none"/><path d="M8.5 12.5l2.3 2.3L16 9.5" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg> できる</button>
-                        <button type="button" class="choice-btn" data-value="0"><span class="choice-check"></span><svg viewBox="0 0 24 24" width="15" height="15"><circle cx="12" cy="12" r="8" stroke="currentColor" stroke-width="1.8" fill="none"/><path d="M9 9l6 6M15 9l-6 6" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round"/></svg> できない</button>
+                        <button type="button" class="choice-btn" data-value="1">できる</button>
+                        <button type="button" class="choice-btn" data-value="0">できない</button>
                     </div>
                     <input type="hidden" id="allowChangeSel" value="1">
                 </div>
@@ -322,6 +385,7 @@ canvas, #viewer img { position: absolute; top:0; left:0; width: 100%; height: 10
             ホストが準備するまで待っててね…
             <div id="guestSettingsPreview" style="margin-top:10px; font-size:14px; color:#4d5085; line-height:1.8; white-space:pre-line;"></div>
         </div>
+        <button type="button" class="btn btn-sub" style="margin-top:10px;" onclick="leaveRoomToMenu()">メインメニューへもどる</button>
     </div>
 </div>
 
@@ -330,7 +394,10 @@ canvas, #viewer img { position: absolute; top:0; left:0; width: 100%; height: 10
     <div id="infoBar">
         <div id="drawerDisplay">描いている人: ---</div>
         <div id="limitTimer" style="display:none;"></div>
-        <div id="scoreArea"><span id="myScoreDisplay"></span></div>
+        <div id="infoBarRight">
+            <div id="gameEndTimer" style="display:none;"></div>
+            <div id="scoreArea"><span id="myScoreDisplay"></span></div>
+        </div>
     </div>
     <div id="hintDisplay" style="display:none;"></div>
     <button id="changeOdaiBtn" onclick="changeOdai()" style="display:none;" aria-label="お題をチェンジ"><svg viewBox="0 0 24 24" width="15" height="15" style="vertical-align:-2px; margin-right:3px;"><path d="M20 12a8 8 0 1 1-2.34-5.66" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/><path d="M20 4v5h-5" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>お題をチェンジ</button>
@@ -342,8 +409,8 @@ canvas, #viewer img { position: absolute; top:0; left:0; width: 100%; height: 10
         <div id="canvasBox">
             <canvas id="canvas"></canvas>
             <div id="viewer" style="display:none;"><img id="sharedImg" src=""></div>
+            <div id="odaiGhost"></div>
         </div>
-        <div id="odaiGhost"></div>
     </div>
     <div id="drawTools">
         <div class="tool-panel">
@@ -383,15 +450,17 @@ canvas, #viewer img { position: absolute; top:0; left:0; width: 100%; height: 10
         <div id="cdNumber" style="font-size:150px; font-weight:bold;"></div>
     </div>
     <div id="answerOverlay" class="overlay">
-        <div style="font-size:30px; font-weight:bold; color:red;">せいかいは...</div>
+        <div style="font-size:30px; font-weight:bold;">せいかいは...</div>
         <div id="finalAnswer" style="font-size:70px; font-weight:bold; margin:20px 0;"></div>
         <div id="winnerList" style="font-size:22px;"></div>
+        <img id="resultImg" style="display:none; max-width:280px; max-height:220px; width:auto; height:auto; border-radius:8px; border:4px solid #fff; box-shadow:0 4px 16px rgba(0,0,0,0.2); margin-top:14px; background:#fff; object-fit:contain;">
     </div>
 </div>
 
 <!-- 最終ランキング画面 -->
 <div id="finalOverlay" class="overlay">
-    <h1>さいしゅう結果</h1>
+    <div id="finalIntro" class="final-intro">ゲームしゅうりょう！</div>
+    <h1 id="finalTitle" style="opacity:0; transition: opacity 0.5s ease;">最終結果</h1>
     <div id="finalRankContainer" style="width:100%; display:flex; flex-direction:column; align-items:center;"></div>
     <button id="closeRoomBtn" class="btn btn-danger" style="max-width:300px; margin-top:20px; display:none;" onclick="hostCloseRoom()">部屋を閉じる</button>
 </div>
@@ -471,6 +540,27 @@ const authReady = new Promise(resolve => {
 });
 
 const ROUND_SECONDS = 45;
+// 「時間で終了」のときのゲーム全体の終了予定時刻（Date.now()と比較する絶対時刻）。
+// ラウンドの残り時間と同じく、実時刻からの逆算にしておくことで、最小化などで
+// 表示の更新が多少間引かれても正しい残り時間に復帰できるようにする。
+let currentGameEndAt = 0;
+// ゲーム全体の残り時間の文字は、Firebaseの更新を待たず1秒ごとに自前で計算しなおす
+// （ラウンド間の「result」フェーズなど、他の値が変化しない数秒間も表示が止まらないように）。
+// 表示する／しないの切りかえ自体は、フェーズが変わった瞬間にすぐ反映されるよう
+// リアルタイムリスナー側（updateGameEndTimerVisibility）で行う。
+function updateGameEndTimerText() {
+    const el = document.getElementById('gameEndTimer');
+    if (!el || !currentGameEndAt) return;
+    const remaining = Math.max(0, Math.ceil((currentGameEndAt - Date.now()) / 1000));
+    const mm = Math.floor(remaining / 60), ss = remaining % 60;
+    // 「終了まで」の文字をつけると狭い画面で点数表示と幅を取り合って省略されやすいので、
+    // 短く「残り」だけにしておく（色と砂時計のアイコンで、問題ごとの赤いタイマーとは区別できる）。
+    el.textContent = `⏳残り ${mm}:${String(ss).padStart(2, '0')}`;
+}
+setInterval(() => {
+    const el = document.getElementById('gameEndTimer');
+    if (el && el.style.display !== 'none') updateGameEndTimerText();
+}, 1000);
 
 const myRoom = sessionStorage.getItem('friends_room');
 const myUid = sessionStorage.getItem('friends_uid');
@@ -502,6 +592,7 @@ let drawing = false, penColor = "#000000", penSize = 12, isDrawer = false, isEra
 let lastX = 0, lastY = 0, kbdType = 'hira', lastStatePhase = "", currentIsPlaying = false;
 let hostTimerInterval = null;
 let gameStarted = false;
+let finalAnimPlayed = false;
 
 let lastCanvasW = 0, lastCanvasH = 0;
 // サイズが変わるたびに、消えないよう前の絵をいったん画像として退避して描き戻しているが、
@@ -534,18 +625,15 @@ function updateStageLayout() {
     const box = document.getElementById('canvasBox');
     const infoBar = document.getElementById('infoBar');
     const drawTools = document.getElementById('drawTools');
-    const odaiGhost = document.getElementById('odaiGhost');
 
-    // ヒント・答え入力キーボード・「答えを入力」ボタンは、すべてイラストの上に重ねて表示する
-    // （別スペースを確保しない）。ここでスペースを確保してしまうと、キーボードの
-    // 開閉のたびにキャンバスの大きさが変わって見た目がガタつくため、
-    // 常時表示される#drawTools（描いている人のパレット）・お題ラベル以外は計算に入れない。
+    // ヒント・答え入力キーボード・「答えを入力」ボタン・お題ラベルは、すべてイラストの上に
+    // 重ねて表示する（別スペースを確保しない）。ここでスペースを確保してしまうと、
+    // キーボードの開閉のたびにキャンバスの大きさが変わって見た目がガタつくため、
+    // 常時表示される#drawTools（描いている人のパレット）以外は計算に入れない。
     const topReserve = infoBar.offsetHeight + 12;
 
     let bottomReserve = 12;
     if (getComputedStyle(drawTools).display !== 'none') bottomReserve += drawTools.offsetHeight;
-    // お題ラベルはキャンバスの外（下）に出したので、そのぶんの高さも確保しておく
-    if (getComputedStyle(odaiGhost).display !== 'none') bottomReserve += odaiGhost.offsetHeight + 6;
 
     const sidePadding = 16; // #stageの左右のpadding(8px×2)ぶん
     const availW = Math.max(0, stage.clientWidth - sidePadding);
@@ -569,9 +657,33 @@ function scheduleStageLayout() {
     requestAnimationFrame(updateStageLayout);
 }
 window.onresize = updateStageLayout;
-canvas.onpointerdown = e => { if(!isDrawer || !currentIsPlaying) return; drawing=true; const r=canvas.getBoundingClientRect(); lastX=e.clientX-r.left; lastY=e.clientY-r.top; ctx.beginPath(); ctx.globalCompositeOperation = isEraserMode ? 'destination-out' : 'source-over'; ctx.fillStyle = isEraserMode ? 'white' : penColor; ctx.arc(lastX, lastY, penSize/2, 0, Math.PI * 2); ctx.fill(); throttleUpload(); };
+canvas.onpointerdown = e => { if(!isDrawer || !currentIsPlaying) return; e.preventDefault(); drawing=true; const r=canvas.getBoundingClientRect(); lastX=e.clientX-r.left; lastY=e.clientY-r.top; ctx.beginPath(); ctx.globalCompositeOperation = isEraserMode ? 'destination-out' : 'source-over'; ctx.fillStyle = isEraserMode ? 'white' : penColor; ctx.arc(lastX, lastY, penSize/2, 0, Math.PI * 2); ctx.fill(); throttleUpload(); };
 canvas.onpointermove = e => { if(!drawing || !currentIsPlaying) return; e.preventDefault(); const r=canvas.getBoundingClientRect(), x=e.clientX-r.left, y=e.clientY-r.top; ctx.beginPath(); ctx.globalCompositeOperation = isEraserMode ? 'destination-out' : 'source-over'; ctx.strokeStyle = isEraserMode ? 'rgba(0,0,0,1)' : penColor; ctx.lineWidth=penSize; ctx.moveTo(lastX, lastY); ctx.lineTo(x, y); ctx.stroke(); lastX=x; lastY=y; throttleUpload(); };
 window.onpointerup = () => { if(drawing){ drawing=false; upload(); } };
+// Pointer Eventだけだと、iPadなどでゆっくりタッチしたときにタッチの既定動作
+// （選択ルーペ表示など）が生き残ることがあるので、touchイベント側でも止めておく。
+canvas.ontouchstart = e => { if (isDrawer && currentIsPlaying) e.preventDefault(); };
+canvas.ontouchmove = e => { if (isDrawer && currentIsPlaying) e.preventDefault(); };
+// iOS Safariはmaximum-scale/user-scalable=noを無視してピンチ拡大してしまうことがあり、
+// 拡大されると描画中に画面がズレて遊びづらくなる。gestureイベント自体を止める。
+['gesturestart', 'gesturechange', 'gestureend'].forEach(type => {
+    document.addEventListener(type, (e) => e.preventDefault(), { passive: false });
+});
+// 上の対策をすり抜けて拡大されてしまった場合の保険：拡大を検知したら一瞬だけ
+// maximum-scaleを上書きして等倍に戻す。
+function resetZoomIfNeeded() {
+    if (!window.visualViewport || window.visualViewport.scale <= 1.02) return;
+    const meta = document.querySelector('meta[name="viewport"]');
+    if (!meta) return;
+    const original = meta.getAttribute('content');
+    meta.setAttribute('content', original + ', maximum-scale=1.0');
+    requestAnimationFrame(() => meta.setAttribute('content', original));
+}
+if (window.visualViewport) {
+    visualViewport.addEventListener('resize', resetZoomIfNeeded);
+    visualViewport.addEventListener('scroll', resetZoomIfNeeded);
+}
+document.addEventListener('gestureend', () => setTimeout(resetZoomIfNeeded, 50), { passive: true });
 let uploadTimeout = null;
 function throttleUpload() { if (!uploadTimeout) { uploadTimeout = setTimeout(() => { upload(); uploadTimeout = null; }, 120); } }
 function upload() { const temp = document.createElement('canvas'); temp.width = 800; temp.height = 600; temp.getContext('2d').drawImage(canvas, 0, 0, 800, 600); db.ref(`casual_rooms/${myRoom}/users/${myUid}/image`).set(temp.toDataURL('image/webp', 0.8)); }
@@ -658,19 +770,27 @@ async function hostStartGame() {
     hostRunCountdown();
 }
 
+// カウントダウン・残り時間は「あと何回タイマーが鳴ったか」ではなく、終わる
+// 予定時刻（ここではcountdownEndAt/roundEndAt）からの実時間の差で計算する。
+// ブラウザのタブを最小化・バックグラウンド化するとsetIntervalが間引かれて
+// 1秒ごとに正しく呼ばれなくなることがあるが、実時間から逆算していれば、
+// 間引かれてしばらくしてからまとめて発火した時でも正しく「もう終わっている」と
+// 気づけて、ラウンドが止まったままにならない。
 function hostRunCountdown() {
     const stateRef = db.ref(`casual_rooms/${myRoom}/state`);
-    let cd = 3;
-    stateRef.update({ phase: "countdown", countdown: cd, active: false });
+    const countdownEndAt = Date.now() + 3000;
+    stateRef.update({ phase: "countdown", countdown: 3, countdownEndAt, active: false });
     if (hostTimerInterval) clearInterval(hostTimerInterval);
     hostTimerInterval = setInterval(() => {
-        cd--;
-        if (cd <= 0) {
+        const remaining = Math.max(0, Math.ceil((countdownEndAt - Date.now()) / 1000));
+        if (remaining <= 0) {
             clearInterval(hostTimerInterval);
-            stateRef.update({ phase: "playing", countdown: 0, active: true });
+            hostTimerInterval = null;
+            const roundEndAt = Date.now() + ROUND_SECONDS * 1000;
+            stateRef.update({ phase: "playing", countdown: 0, active: true, roundEndAt, timeLeft: ROUND_SECONDS });
             hostRunRoundTimer();
         } else {
-            stateRef.update({ countdown: cd });
+            stateRef.update({ countdown: remaining });
         }
     }, 1000);
 }
@@ -680,13 +800,19 @@ function hostRunRoundTimer() {
     hostTimerInterval = setInterval(async () => {
         const snap = await db.ref(`casual_rooms/${myRoom}/state`).once('value');
         const st = snap.val();
-        if (!st || st.phase !== "playing") { clearInterval(hostTimerInterval); return; }
-        if (st.timeLeft <= 0 || (st.correctCount || 0) >= 1) {
+        if (!st || st.phase !== "playing") { clearInterval(hostTimerInterval); hostTimerInterval = null; return; }
+        // 「時間で終了」のゲーム全体の制限時間がきたら、そのお題のカウントダウンが
+        // まだ残っていても、そこで区切って終わらせる（roomSettings/currentGameEndAtは
+        // 全クライアント共通のリスナーで常に最新に保たれているグローバル変数）。
+        const gameTimeUp = roomSettings.endType === 'time' && currentGameEndAt && Date.now() >= currentGameEndAt;
+        const remaining = st.roundEndAt ? Math.max(0, Math.ceil((st.roundEndAt - Date.now()) / 1000)) : Math.max(0, (st.timeLeft || 0) - 1);
+        if (gameTimeUp || remaining <= 0 || (st.correctCount || 0) >= 1) {
             clearInterval(hostTimerInterval);
+            hostTimerInterval = null;
             hostFinishRound();
             return;
         }
-        db.ref(`casual_rooms/${myRoom}/state/timeLeft`).set(st.timeLeft - 1);
+        if (remaining !== st.timeLeft) db.ref(`casual_rooms/${myRoom}/state/timeLeft`).set(remaining);
     }, 1000);
 }
 
@@ -747,6 +873,20 @@ async function hostCloseRoom() {
     location.href = 'index.html';
 }
 
+// ロビー画面の「メインメニューへもどる」。ホストが抜けると部屋自体が続けられなく
+// なるので、ホストのときは部屋ごと閉じる（hostCloseRoomと同じ動作）。
+// 参加者のときは自分だけ一覧から消して、部屋には残った人たちで続けられるようにする。
+async function leaveRoomToMenu() {
+    if (isHost) { await hostCloseRoom(); return; }
+    if (!confirm('部屋を出てメインメニューにもどりますか？')) return;
+    try {
+        await db.ref(`casual_rooms/${myRoom}/users/${myUid}`).onDisconnect().cancel();
+        await db.ref(`casual_rooms/${myRoom}/users/${myUid}`).remove();
+    } catch (e) {}
+    sessionStorage.removeItem('friends_room');
+    location.href = 'index.html';
+}
+
 /* ===== 画面の更新 ===== */
 let usersData = {};
 let roomSettings = {};
@@ -788,6 +928,23 @@ function ensureMyColor(users) {
     db.ref(`casual_rooms/${myRoom}/users/${myUid}/color`).set(color);
 }
 
+// 黒に近いとても暗い色は、白い背景の上では同じ大きさでも大きく見える（放射錯視）ので、
+// その色だけ少し小さく描画して他の丸と見た目の大きさをそろえる。
+function isVeryDarkColor(hex) {
+    const r = parseInt(hex.slice(1, 3), 16), g = parseInt(hex.slice(3, 5), 16), b = parseInt(hex.slice(5, 7), 16);
+    const luminance = 0.299 * r + 0.587 * g + 0.114 * b;
+    return luminance < 90;
+}
+// 正解画面の背景色（正解した人の色）に対して、白文字・こい色文字のどちらが読みやすいかを決める
+function hexToRgba(hex, alpha) {
+    const r = parseInt(hex.slice(1, 3), 16), g = parseInt(hex.slice(3, 5), 16), b = parseInt(hex.slice(5, 7), 16);
+    return `rgba(${r},${g},${b},${alpha})`;
+}
+function pickReadableTextColor(hex) {
+    const r = parseInt(hex.slice(1, 3), 16), g = parseInt(hex.slice(3, 5), 16), b = parseInt(hex.slice(5, 7), 16);
+    const luminance = 0.299 * r + 0.587 * g + 0.114 * b;
+    return luminance < 140 ? '#ffffff' : '#2a1500';
+}
 function renderColorPicker(users) {
     const row = document.getElementById('colorSwatchRow');
     row.innerHTML = '';
@@ -802,6 +959,7 @@ function renderColorPicker(users) {
         const isTaken = takenByOthers.includes(c) && !isSelected;
         sw.className = 'color-swatch' + (isSelected ? ' selected' : '') + (isTaken ? ' taken' : '');
         sw.style.background = c;
+        if (isVeryDarkColor(c)) sw.style.setProperty('--sizeAdj', '0.88');
         sw.title = isSelected ? 'いまの色' : (isTaken ? 'ほかの人がつかっています' : 'この色にする');
         if (!isTaken) {
             sw.onclick = () => db.ref(`casual_rooms/${myRoom}/users/${myUid}/color`).set(c);
@@ -900,7 +1058,7 @@ window.onload = () => {
         DIFFICULTY_LEVELS.forEach(level => {
             const b = document.createElement('button');
             b.type = 'button'; b.className = 'choice-btn'; b.dataset.value = level;
-            b.innerHTML = `<span class="choice-check"></span> ${level}`;
+            b.textContent = level;
             diffGroup.appendChild(b);
         });
     }
@@ -930,6 +1088,7 @@ authReady.then(() => {
         const state = data.state || {};
         usersData = data.users || {};
         roomSettings = data.settings || {};
+        currentGameEndAt = (data.progress && data.progress.gameEndAt) || 0;
         if (!usersData[myUid] && state.phase !== "lobby") {
             // 自分がユーザー一覧から消えている（データ不整合）場合は入口に戻す
         }
@@ -937,19 +1096,47 @@ authReady.then(() => {
         isDrawer = (state.currentDrawer === myUid);
         currentIsPlaying = (state.phase === "playing" && state.active);
 
+        // ホストがゲーム中にページを再読み込みすると、正解チェックや残り時間を進めている
+        // hostTimerInterval（メモリ上のタイマー）が消えてしまい、だれかが正解しても
+        // いつまでもラウンドが終わらなくなってしまう。ホストなのにタイマーが動いていない
+        // ときは、いまのcountdown/playingの状態からタイマーを立てなおす。
+        if (isHost) {
+            if (!hostTimerInterval) {
+                if (state.phase === "playing") { hostRunRoundTimer(); }
+                else if (state.phase === "countdown") { hostRunCountdown(); }
+            } else if (state.phase === "playing" && (state.correctCount || 0) >= 1) {
+                // 1秒ごとの見回り（hostRunRoundTimer）を待たず、正解が入った瞬間に
+                // すぐ次へ進める（見回り自体が端末の最小化などで間引かれても、
+                // ここでなるべく早く反応できるようにする保険）。
+                clearInterval(hostTimerInterval);
+                hostTimerInterval = null;
+                hostFinishRound();
+            }
+        }
+
         document.getElementById('lobbyScreen').style.display = (state.phase === "lobby") ? "flex" : "none";
         const gameStageEl = document.getElementById('gameStage');
-        gameStageEl.style.display = (state.phase === "lobby" || state.phase === "final") ? "none" : "block";
+        const gameVisible = !(state.phase === "lobby" || state.phase === "final");
+        gameStageEl.style.display = gameVisible ? "block" : "none";
         // ロビー画面の裏では display:none で幅0のままだったキャンバスのサイズ調整は、
         // このあとのupdateStageLayout()（このハンドラの最後）でまとめて行う
         document.getElementById('finalOverlay').style.display = (state.phase === "final") ? "flex" : "none";
+
+        // 「時間で終了」のときだけ、ゲーム画面の間だけゲーム全体の残り時間バッジを出す
+        const gameEndTimerEl = document.getElementById('gameEndTimer');
+        if (gameVisible && roomSettings.endType === 'time' && currentGameEndAt) {
+            gameEndTimerEl.style.display = 'block';
+            updateGameEndTimerText();
+        } else {
+            gameEndTimerEl.style.display = 'none';
+        }
 
         if (state.phase === "lobby") {
             renderLobby(data);
             return;
         }
         if (state.phase === "final") {
-            renderFinal();
+            if (!finalAnimPlayed) { finalAnimPlayed = true; renderFinal(); }
             return;
         }
 
@@ -980,6 +1167,8 @@ authReady.then(() => {
                 document.getElementById('answerInput').value = "";
             }
             if (state.phase === "countdown") { canvasGen++; ctx.clearRect(0, 0, canvas.width, canvas.height); }
+            if (state.phase === "result") { document.getElementById('judgeEffect').style.display = "none"; }
+            if (state.phase === "final") { finalAnimPlayed = false; }
             lastStatePhase = state.phase;
         }
 
@@ -987,15 +1176,36 @@ authReady.then(() => {
 
         document.getElementById('countdownOverlay').style.display = (state.phase === "countdown") ? 'flex' : 'none';
         if (state.phase === "countdown") {
-            document.getElementById('cdName').innerText = `次は ${state.drawerName ? state.drawerName + 'さん' : '...'}`;
+            const cdNameEl = document.getElementById('cdName');
+            cdNameEl.innerText = `次は ${state.drawerName ? state.drawerName + 'さん' : '...'}`;
+            // 次に描く人の色で文字色をそめて、だれの番か直感的にわかるようにする
+            cdNameEl.style.color = (usersData[state.currentDrawer] && usersData[state.currentDrawer].color) || '#d98a00';
             document.getElementById('cdNumber').innerText = state.countdown ?? "";
         }
 
         document.getElementById('answerOverlay').style.display = (state.phase === "result") ? 'flex' : 'none';
         if (state.phase === "result") {
             document.getElementById('finalAnswer').innerText = state.correctAnswer || "？";
-            const winners = Object.values(usersData).filter(u => u.isCorrect).map(u => u.name + "さん");
+            const winnerUsers = Object.values(usersData).filter(u => u.isCorrect);
+            const winners = winnerUsers.map(u => u.name + "さん");
             document.getElementById('winnerList').innerText = "正解者：" + (winners.length > 0 ? winners.join('、 ') : "なし");
+
+            // 正解した人がいなければ、だれかの色とまぎらわしくならないよう白にする
+            // （プレイヤーがオレンジを選んでいることもあるため、オレンジ固定にはしない）
+            const themeHex = (winnerUsers[0] && winnerUsers[0].color) || '#ffffff';
+            const answerOverlayEl = document.getElementById('answerOverlay');
+            answerOverlayEl.style.background = hexToRgba(themeHex, 0.92);
+            answerOverlayEl.style.color = pickReadableTextColor(themeHex);
+
+            const resultImg = document.getElementById('resultImg');
+            const drawnSrc = (usersData[state.currentDrawer] && usersData[state.currentDrawer].image) || "";
+            if (drawnSrc) {
+                if (resultImg.src !== drawnSrc) resultImg.src = drawnSrc;
+                resultImg.style.display = 'block';
+            } else {
+                resultImg.removeAttribute('src');
+                resultImg.style.display = 'none';
+            }
         }
 
         document.getElementById('drawTools').style.display = (isDrawer && currentIsPlaying) ? 'flex' : 'none';
@@ -1009,7 +1219,9 @@ authReady.then(() => {
             if (sImg.src !== newSrc) { if (!newSrc) sImg.removeAttribute('src'); else sImg.src = newSrc; }
         } else { viewer.style.display = 'none'; }
 
-        document.getElementById('myScoreDisplay').innerText = `点数: ${(usersData[myUid] && usersData[myUid].score) || 0}`;
+        // 「点数: 」ラベルはさいしゅう結果画面の「20点」表記に揃えつつ短くして、
+        // 狭い画面で右側のバッジ（終了までのカウント）と幅を取り合わないようにする。
+        document.getElementById('myScoreDisplay').innerText = `${(usersData[myUid] && usersData[myUid].score) || 0}点`;
         document.getElementById('odaiGhost').innerText = (isDrawer && currentIsPlaying) ? `お題： 「 ${state.correctAnswer} 」` : "";
 
         const hintBox = document.getElementById('hintDisplay'); hintBox.innerHTML = "";
@@ -1030,33 +1242,133 @@ authReady.then(() => {
 function renderFinal() {
     const container = document.getElementById('finalRankContainer');
     container.innerHTML = "";
-    const isCoop = roomSettings.gameMode === "coop";
-    const values = Object.values(usersData);
+    document.getElementById('closeRoomBtn').style.display = 'none'; // えんしゅつが終わってから出す
 
-    if (isCoop) {
-        const total = values.reduce((sum, u) => sum + (u.score || 0), 0);
-        const totalBox = document.createElement('div');
-        totalBox.style.cssText = "font-size:26px; font-weight:900; color:#3ed6c6; margin: 0 0 15px;";
-        totalBox.innerText = `部屋の合計得点：${total}点`;
-        container.appendChild(totalBox);
+    // 「スッと」結果画面が出るのではなく、まず「ゲームしゅうりょう！」の合図を
+    // どーんと出してから、そのあとに最終結果のタイトルと中身を出す。
+    const titleEl = document.getElementById('finalTitle');
+    titleEl.style.opacity = '0';
+    const intro = document.getElementById('finalIntro');
+    intro.style.display = 'block';
+    intro.className = 'final-intro final-intro-show';
+    setTimeout(() => {
+        intro.className = 'final-intro final-intro-hide';
+        titleEl.style.opacity = '1';
+        setTimeout(() => {
+            intro.style.display = 'none';
+            const isCoop = roomSettings.gameMode === "coop";
+            const values = Object.values(usersData);
+            if (isCoop) {
+                renderFinalCoop(container, values);
+            } else {
+                renderFinalCompetitive(container, values);
+            }
+        }, 400);
+    }, 1300);
+}
 
-        values.forEach(u => {
-            const row = document.createElement('div');
-            row.className = "final-row";
-            row.innerHTML = `<div class="f-name" style="flex:1;">${escapeHtml(u.name)}さん</div><div class="f-score">${u.score || 0}点</div>`;
-            container.appendChild(row);
-        });
-    } else {
-        const sorted = values.sort((a, b) => (b.score || 0) - (a.score || 0));
-        sorted.forEach((u, i) => {
-            const row = document.createElement('div');
-            const rank = i + 1;
-            row.className = "final-row" + (rank <= 3 ? ` f-rank-${rank}` : "");
-            row.innerHTML = `<div class="f-rank">${rank}位</div><div class="f-name">${escapeHtml(u.name)}さん</div><div class="f-score">${u.score || 0}点</div>`;
-            container.appendChild(row);
-        });
-    }
+function showCloseRoomBtnIfHost() {
     document.getElementById('closeRoomBtn').style.display = isHost ? 'block' : 'none';
+}
+
+// 対戦モード：スッと全部出すのではなく、いちばん下の順位から順番にひとつずつ
+// あらわす。ただし、あとから出てきた行のせいで先に出した行の場所がずれていくと
+// 不自然なので、先に「1位から最下位まで」の場所をぜんぶ用意しておき（まだ見えない
+// 状態で）、下の順位から順にその決まった場所へフェードインさせるだけにする。
+// 1位はすこしためてから出すことで、最後にもりあがるようにする。
+// 同点の人は同じ順位としてまとめて1段に表示する（例：1位が2人なら次は3位、
+// 1位が3人なら次は4位、という「オリンピック式」の順位のつけかた）。これは
+// 何人いても必ず守る：たとえば1位が2人・3位・4位なら、ぜったいに3段で表示する。
+function renderFinalCompetitive(container, values) {
+    const sorted = values.slice().sort((a, b) => (b.score || 0) - (a.score || 0));
+    const groups = [];
+    let i = 0, rank = 1;
+    while (i < sorted.length) {
+        let j = i;
+        while (j < sorted.length && (sorted[j].score || 0) === (sorted[i].score || 0)) j++;
+        groups.push({ rank, users: sorted.slice(i, j) });
+        rank += (j - i);
+        i = j;
+    }
+
+    // groups[0] が1位。さきに1位→最下位の順で場所を作ってしまう（まだ非表示）。
+    const rowEls = groups.map(g => {
+        const row = document.createElement('div');
+        row.className = "final-row final-row-enter" + (g.rank <= 3 ? ` f-rank-${g.rank}` : "");
+        const names = g.users.map(u => `${escapeHtml(u.name)}さん`).join('、');
+        row.innerHTML = `<div class="f-rank">${g.rank}位</div><div class="f-name">${names}</div><div class="f-score">${g.users[0].score || 0}点</div>`;
+        container.appendChild(row);
+        return row;
+    });
+
+    // 表示（フェードイン）だけは最下位から1位の順でおこなう。場所はもう決まっているので、
+    // どの行が出ても他の行の位置はずれない。
+    const revealSeq = rowEls.slice().reverse();
+    let idx = 0;
+    function revealNext() {
+        if (idx >= revealSeq.length) { showCloseRoomBtnIfHost(); return; }
+        const row = revealSeq[idx++];
+        const isTop = row === rowEls[0]; // 1位の場所
+        void row.offsetHeight; // スタイルを確定させてからクラスを付けて、確実にアニメーションさせる
+        requestAnimationFrame(() => row.classList.add('final-row-visible'));
+        setTimeout(revealNext, isTop ? 1500 : 900);
+    }
+    revealNext();
+}
+
+// 協力モード：まずチーム合計点を画面中央に大きく表示し、カウンターがぐるぐる回る
+// ようにじっくり0から数え上げて、最後にドンと確定させる。そのあとで、それぞれの
+// 得点をフラットに（順位はつけずに）表示するが、そのならび順は得点の高い順ではなく
+// 「回答順」（ゲーム中に正解した順番。いちばん最近正解した人がいちばん後ろになる）にする。
+function renderFinalCoop(container, values) {
+    const total = values.reduce((sum, u) => sum + (u.score || 0), 0);
+    const totalWrap = document.createElement('div');
+    totalWrap.className = 'coop-total-wrap';
+    totalWrap.innerHTML = `<div class="coop-total-label">チームの合計とくてん</div><div class="coop-total-number">0点</div>`;
+    container.appendChild(totalWrap);
+    const numberEl = totalWrap.querySelector('.coop-total-number');
+
+    // 人数が多くてもスクロールしなくて済むように、たてに1人ずつ大きな行で
+    // ならべるのではなく、小さめのチップを横になみだかたちに折り返して表示する。
+    const listBox = document.createElement('div');
+    listBox.className = 'coop-score-wrap';
+    listBox.style.opacity = '0';
+    container.appendChild(listBox);
+
+    animateScoreCountUp(numberEl, total, () => {
+        const byAnswerOrder = values.slice().sort((a, b) => {
+            const oa = a.answerOrder ?? Infinity, ob = b.answerOrder ?? Infinity;
+            return oa - ob;
+        });
+        byAnswerOrder.forEach(u => {
+            const chip = document.createElement('div');
+            chip.className = 'coop-score-chip';
+            chip.innerHTML = `<span class="chip-name">${escapeHtml(u.name)}さん</span><span class="chip-score">${u.score || 0}点</span>`;
+            listBox.appendChild(chip);
+        });
+        requestAnimationFrame(() => { listBox.style.opacity = '1'; });
+        showCloseRoomBtnIfHost();
+    });
+}
+
+function animateScoreCountUp(el, target, onDone) {
+    if (!target) { el.innerText = "0点"; setTimeout(onDone, 500); return; }
+    // 「じっくり」感が出るように、以前よりゆっくり長めの時間をかけて数え上げる。
+    const duration = Math.min(5000, Math.max(2500, target * 45));
+    const startTime = performance.now();
+    function tick(now) {
+        const p = Math.min(1, (now - startTime) / duration);
+        const eased = 1 - Math.pow(1 - p, 3); // ease-out：はじめは早く、さいごはゆっくり
+        el.innerText = `${Math.round(target * eased)}点`;
+        if (p < 1) {
+            requestAnimationFrame(tick);
+        } else {
+            el.innerText = `${target}点`;
+            el.classList.add('total-pop');
+            setTimeout(onDone, 600);
+        }
+    }
+    requestAnimationFrame(tick);
 }
 
 /* ===== 回答チェック ===== */
@@ -1072,6 +1384,14 @@ async function checkAnswer() {
         showJudge("正解！", "#ffcc00");
         db.ref(`casual_rooms/${myRoom}/users/${myUid}`).update({ isCorrect: true });
         db.ref(`casual_rooms/${myRoom}/users/${myUid}/score`).transaction(s => (s || 0) + 10);
+        // このゲームを通じて「正解した順番」を記録しておく（正解するたびに、その時点の
+        // 通し番号で上書きする）。協力モードの最終結果画面で、点数の高い順ではなく、
+        // 実際に答えた順番どおりに名前をならべるために使う。
+        db.ref(`casual_rooms/${myRoom}/progress/answerCounter`).transaction(c => (c || 0) + 1, (error, committed, snapshot) => {
+            if (!error && committed) {
+                db.ref(`casual_rooms/${myRoom}/users/${myUid}/answerOrder`).set(snapshot.val());
+            }
+        });
         // correctCountの更新をトランザクションにし、結果が1になったクライアントだけが
         // 描いた人へのボーナスを渡す（同時正解時の二重加算を防ぐ）
         db.ref(`casual_rooms/${myRoom}/state/correctCount`).transaction(c => (c || 0) + 1, (error, committed, snapshot) => {
@@ -1114,8 +1434,8 @@ function showWrongGuessBubble(uid, name, text) {
 
 /* ===== キーボード（student.htmlと同じ） ===== */
 function initKbd() {
-    const hira = "あいうえお かきくけこ さしすせそ たちつてと なにぬねの はひふへほ まみむめも やゆよ　　 らりるれろ わをん　ー".split(" ");
-    const kana = "アイウエオ カキクケコ サシスセソ タチツテト ナニヌネノ ハヒフヘホ マミムメモ ヤユヨ　　 ラリルレロ ワヲン　ー".split(" ");
+    const hira = "あいうえお かきくけこ さしすせそ たちつてと なにぬねの はひふへほ まみむめも や　ゆ　よ らりるれろ わをん　ー".split(" ");
+    const kana = "アイウエオ カキクケコ サシスセソ タチツテト ナニヌネノ ハヒフヘホ マミムメモ ヤ　ユ　ヨ ラリルレロ ワヲン　ー".split(" ");
     const target = kbdType === 'hira' ? hira : kana;
     const grid = document.getElementById('kanaGrid');
     grid.innerHTML = "";
