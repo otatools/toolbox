@@ -10,7 +10,7 @@
   gtag('config', 'G-YTH979WTKL');
 </script>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>お絵かきクイズ フレンズ｜みんなで遊べる無料お絵かき当てっこゲーム</title>
     <meta name="description" content="お絵かきクイズ フレンズは、お題を絵にして仲間に当ててもらう無料のオンラインお絵かきゲームです。スマホやパソコンから部屋を作ってすぐに遊べます。小学校の先生が作った学習・あそびアプリ「ota tools」のひとつです。">
     <meta name="robots" content="index, follow">
@@ -62,7 +62,14 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@500;700;900&display=swap" rel="stylesheet">
     <style>
-        * { box-sizing: border-box; }
+        /* iOS Safariはビューポートのmaximum-scale/user-scalable=noを無視して
+           ダブルタップ・ピンチで拡大してしまうことがある（CSSのtouch-actionだけでは
+           完全には止めきれないので、JS側でもgestureイベントを止める。下のscriptを参照）。
+           拡大されたまま次のページ（room.html）に移動すると、そちらでも拡大された
+           ままになってしまうことがあるため、この入口の画面にも同じ対策を入れておく。 */
+        * { box-sizing: border-box; touch-action: manipulation; -webkit-touch-callout: none; }
+        body { -webkit-user-select: none; user-select: none; }
+        input, textarea { -webkit-user-select: text; user-select: text; }
         /* iOSのSafariはアドレスバー表示中、100vhが実際に見えている高さより
            大きくなる。その大きい高さの中でcenter配置すると、実際に見えている
            画面の中では中身が下寄りに見えてしまう。100dvh（動的ビューポート高さ）が
@@ -171,7 +178,7 @@
             <button class="btn btn-sub" onclick="backToSelect()">もどる</button>
         </div>
 
-        <div class="footer">お絵かきクイズ フレンズ | Ver 1.0 | ota tools</div>
+        <div class="footer">お絵かきクイズ フレンズ | Ver 1.1 | ota tools</div>
     </div>
 
     <script>
@@ -182,6 +189,28 @@
             if (event.persisted) { location.reload(); }
         });
 
+        // iOS Safariはmaximum-scale/user-scalable=noを無視してピンチ拡大してしまうことが
+        // あり、ここで拡大されたまま次のroom.htmlに進むと、そちらでも拡大されたままの
+        // 見た目で始まってしまう。gestureイベント自体を止め、それでもすり抜けて拡大
+        // されてしまった場合の保険として、拡大を検知したら一瞬だけmaximum-scaleを
+        // 上書きして等倍に戻す（room.htmlと同じ対策）。
+        ['gesturestart', 'gesturechange', 'gestureend'].forEach(type => {
+            document.addEventListener(type, (e) => e.preventDefault(), { passive: false });
+        });
+        function resetZoomIfNeeded() {
+            if (!window.visualViewport || window.visualViewport.scale <= 1.02) return;
+            const meta = document.querySelector('meta[name="viewport"]');
+            if (!meta) return;
+            const original = meta.getAttribute('content');
+            meta.setAttribute('content', original + ', maximum-scale=1.0');
+            requestAnimationFrame(() => meta.setAttribute('content', original));
+        }
+        if (window.visualViewport) {
+            visualViewport.addEventListener('resize', resetZoomIfNeeded);
+            visualViewport.addEventListener('scroll', resetZoomIfNeeded);
+        }
+        document.addEventListener('gestureend', () => setTimeout(resetZoomIfNeeded, 50), { passive: true });
+
         const config = {
             apiKey: "AIzaSyCo4uq1uJBRcgU-c7mWemukU25MrX635m0",
             authDomain: "oekaki-quiz-23ab5.firebaseapp.com",
@@ -191,6 +220,15 @@
         };
         firebase.initializeApp(config);
         const db = firebase.database();
+        // Firebase Authはデフォルトでログイン状態をindexedDBに保存しようとするが、
+        // Safari（特にプライベートブラウズモードや、ストレージを制限する設定のとき）は
+        // このindexedDBへのアクセスがエラーにも成功にもならず、ずっと固まったままに
+        // なることがある（Firebase側の既知の問題）。このアプリでは合言葉がわりの
+        // 部屋番号・名前をこちらで管理しており、Firebase Authのログイン状態を
+        // ページをまたいで覚えておく必要はないため、保存先を「そのページを見ている間だけ
+        // メモリ上に置く」方式（NONE）にして、indexedDBそのものを使わないようにする。
+        // これでSafariでのフリーズを避けられる（失敗してもゲームの動作には影響しない）。
+        try { firebase.auth().setPersistence(firebase.auth.Auth.Persistence.NONE).catch(() => {}); } catch (e) {}
         // スマホの一部のブラウザ（アプリ内ブラウザや、プライベートブラウズモードなど）では
         // 匿名サインイン（signInAnonymously）がエラーになったり、応答が返ってこないまま
         // 止まってしまうことがある。以前はエラーを拾っていなかったため、その場合

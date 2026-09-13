@@ -34,7 +34,12 @@ html { overscroll-behavior-y: none; }
 body {
     margin: 0; color: #2c2a4a; font-family: 'Zen Maru Gothic', sans-serif; overflow: hidden; height: 100vh; touch-action: none; overscroll-behavior-y: none;
     background: radial-gradient(circle at 20% 15%, #fffaf0 0%, #eef6ff 55%, #e3f7f2 100%);
+    /* user-selectを入れておかないと、パソコンでボタンなどを素早くクリックしたときに
+       まわりの文字が選択されてしまい、Iビームの文字カーソルが出て見た目が崩れる。
+       入力用の要素だけは選択できるままにしておく。 */
+    -webkit-user-select: none; user-select: none;
 }
+input, textarea { -webkit-user-select: text; user-select: text; }
 
 /* ロビー画面 */
 /* align-items:center のままだと、画面より縦に長いときに上側がスクロールでも
@@ -174,6 +179,10 @@ canvas { touch-action: none; -webkit-user-select: none; user-select: none; }
    問題ないので、ここは幅だけ制限する）。右側（終了までのカウント・点数）は文字量が
    もともと少なく中央にぶつかる心配がないので、幅は制限せず自然な大きさのままにする。 */
 #drawerDisplay { color: #1a9e8f; font-weight: 700; text-align: left; padding-left: 10px; min-width: 0; max-width: 42%; box-sizing: border-box; }
+/* スマホ幅では「描いている人：」と名前が同じ行にあると窮屈なので、名前だけ次の行に
+   落として2行にする（自然な折り返しまかせだと途中の変な位置で改行されることがあるため、
+   ここではっきり名前の直前で改行させる）。パソコンなど横に余裕がある画面では1行のまま。 */
+@media (max-width: 900px) { #drawerNameSpan { display: block; } }
 #infoBarRight { display: flex; align-items: center; justify-content: flex-end; gap: 8px; padding-right: 10px; }
 #scoreArea { text-align: right; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 #myScoreDisplay { color: #ff8a3d; font-weight: 700; }
@@ -420,7 +429,7 @@ canvas { touch-action: none; -webkit-user-select: none; user-select: none; }
 <!-- ゲーム画面 -->
 <div id="gameStage">
     <div id="infoBar">
-        <div id="drawerDisplay">描いている人: ---</div>
+        <div id="drawerDisplay">描いている人: <span id="drawerNameSpan">---</span></div>
         <div id="limitTimer" style="display:none;"></div>
         <div id="infoBarRight">
             <div id="gameEndTimer" style="display:none;"></div>
@@ -511,6 +520,10 @@ const config = {
 };
 firebase.initializeApp(config);
 const db = firebase.database();
+// Safariのプライベートブラウズ等でindexedDBが使えないと、Firebase Authのログイン状態の
+// 保存処理がフリーズすることがある（index.htmlと同じ理由）。ログイン状態をページを
+// またいで覚えておく必要はないので、メモリ上だけに置く方式にしてindexedDBを使わないようにする。
+try { firebase.auth().setPersistence(firebase.auth.Auth.Persistence.NONE).catch(() => {}); } catch (e) {}
 
 // 通信が切れているあいだは、正解の判定や部屋を閉じる操作などがサーバーに
 // 届かず、画面が止まって見えることがある。".info/connected" はFirebaseが
@@ -574,10 +587,36 @@ function pickRandomColor(existingColors) {
     const pool = avail.length ? avail : palette;
     return pool[Math.floor(Math.random() * pool.length)];
 }
-const authReady = new Promise(resolve => {
+// index.htmlの部屋作成・参加と同じく、サインインがエラーになったり応答が返って
+// こなかったりする場合に備えて、タイムアウトとエラー処理を必ず入れる。これが無いと、
+// 部屋の画面がずっと真っ白のまま止まって見えてしまう。
+const authReady = new Promise((resolve, reject) => {
+    let settled = false;
+    const timeoutId = setTimeout(() => {
+        if (settled) return;
+        settled = true;
+        reject(new Error('サインインの応答がありませんでした（通信状態をご確認ください）'));
+    }, 10000);
     firebase.auth().onAuthStateChanged(user => {
-        if (user) resolve(user); else firebase.auth().signInAnonymously();
+        if (settled) return;
+        if (user) {
+            settled = true;
+            clearTimeout(timeoutId);
+            resolve(user);
+        } else {
+            firebase.auth().signInAnonymously().catch(err => {
+                if (settled) return;
+                settled = true;
+                clearTimeout(timeoutId);
+                reject(err);
+            });
+        }
     });
+});
+authReady.catch(err => {
+    console.error(err);
+    alert('通信状態がよくないため、部屋に接続できませんでした。もう一度お試しください。\n(エラー: ' + (err && err.message ? err.message : err) + ')');
+    location.href = 'index.html';
 });
 
 const ROUND_SECONDS = 60;
@@ -1258,14 +1297,15 @@ authReady.then(() => {
             showWrongGuessBubble(wg.uid, wg.name, wg.text || "");
         }
 
-        // だれかが「おしい！」ボタンを押したら、その人の名前タグから応援のふきだしを出す
+        // だれかが「おしい！」ボタンを押したら、答えを伝えたい相手＝描いている人の
+        // 名前タグからふきだしを出す（送った人ではなく、描いている人のところに出す）
         const og = state.oshii;
         if (!oshiiInitialized) {
             oshiiInitialized = true;
             lastOshiiTs = og ? og.ts : 0;
         } else if (currentIsPlaying && og && og.ts > lastOshiiTs) {
             lastOshiiTs = og.ts;
-            showOshiiBubble(og.uid, og.name);
+            showOshiiBubble(state.currentDrawer, og.name);
         }
 
         if (state.phase !== lastStatePhase) {
@@ -1279,7 +1319,7 @@ authReady.then(() => {
             lastStatePhase = state.phase;
         }
 
-        document.getElementById('drawerDisplay').innerText = `描いている人: ${state.drawerName ? state.drawerName + "さん" : "---"}`;
+        document.getElementById('drawerNameSpan').innerText = state.drawerName ? state.drawerName + "さん" : "---";
 
         document.getElementById('countdownOverlay').style.display = (state.phase === "countdown") ? 'flex' : 'none';
         if (state.phase === "countdown") {
@@ -1561,8 +1601,10 @@ function sendOshii() {
 let lastOshiiTs = 0;
 let oshiiInitialized = false;
 let oshiiHideTimer = null;
-function showOshiiBubble(uid, name) {
-    const tagBubble = document.getElementById(`tagBubble-${uid}`);
+// drawerUid: ふきだしを出す場所（＝いま描いている人の名前タグ）
+// senderName: 実際に「おしい！」を送った人の名前（フォールバック表示の文言に使う）
+function showOshiiBubble(drawerUid, senderName) {
+    const tagBubble = document.getElementById(`tagBubble-${drawerUid}`);
     if (wideScreenQuery.matches && tagBubble) {
         tagBubble.classList.add('oshii');
         tagBubble.innerText = 'おしい！';
@@ -1572,7 +1614,7 @@ function showOshiiBubble(uid, name) {
         return;
     }
     const el = document.getElementById('oshiiBubble');
-    el.innerText = `${name ? name + 'さん' : 'だれか'}： おしい！`;
+    el.innerText = `${senderName ? senderName + 'さん' : 'だれか'}から： おしい！`;
     el.classList.add('show');
     clearTimeout(oshiiHideTimer);
     oshiiHideTimer = setTimeout(() => { el.classList.remove('show'); }, 2500);
