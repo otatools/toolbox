@@ -471,7 +471,7 @@ canvas { touch-action: none; -webkit-user-select: none; user-select: none; }
         </div>
     </div>
     <button id="toggleKbd" onclick="toggleKeyboard()" style="display:none; position: fixed; bottom: 15px; right: 15px; z-index: 4500; padding: 12px 24px; border-radius: 30px; background: #ffcc00; font-weight: bold; border: 2px solid #fff;">答えを入力</button>
-    <button id="oshiiBtn" onclick="sendOshii()" style="display:none; position: fixed; bottom: 15px; left: 15px; z-index: 4500; padding: 12px 24px; border-radius: 30px; background: #29b36b; color: #fff; font-size: 15px; font-weight: bold; border: 2px solid #fff;">おしい！</button>
+    <button id="oshiiBtn" onclick="sendOshii()" style="display:none; position: fixed; top: 55px; left: 12px; z-index: 3200; padding: 8px 16px; border-radius: 20px; background: #29b36b; color: #fff; font-size: 13px; font-weight: 700; border: 2px solid #fff; box-shadow: 0 4px 14px rgba(60,50,120,0.25);">おしい！</button>
     <div id="kbdWrapper">
         <div class="input-display">
             <button class="k-close-x" onclick="toggleKeyboard()">×</button>
@@ -1297,8 +1297,8 @@ authReady.then(() => {
             showWrongGuessBubble(wg.uid, wg.name, wg.text || "");
         }
 
-        // だれかが「おしい！」ボタンを押したら、答えを伝えたい相手＝描いている人の
-        // 名前タグからふきだしを出す（送った人ではなく、描いている人のところに出す）
+        // 描いている人が「おしい！」ボタンを押したら、その名前タグからふきだしを出す。
+        // これは答えていない人たちへの手がかり（ヒント）として機能する。
         const og = state.oshii;
         if (!oshiiInitialized) {
             oshiiInitialized = true;
@@ -1358,7 +1358,10 @@ authReady.then(() => {
 
         document.getElementById('drawTools').style.display = (isDrawer && currentIsPlaying) ? 'flex' : 'none';
         document.getElementById('toggleKbd').style.display = (currentIsPlaying && !isDrawer && !(usersData[myUid] && usersData[myUid].isCorrect)) ? 'block' : 'none';
-        document.getElementById('oshiiBtn').style.display = (currentIsPlaying && !isDrawer && !(usersData[myUid] && usersData[myUid].isCorrect)) ? 'block' : 'none';
+        // 「おしい！」ボタンは、答えを入力する人ではなく、絵を描いている人だけに表示する。
+        // だれかの間違った答えが「おしい」と思ったときに、描きながら押せるようにするため
+        // （押すと、ほかの答えていない人たちへのヒントとして伝わる）。
+        document.getElementById('oshiiBtn').style.display = (isDrawer && currentIsPlaying) ? 'block' : 'none';
         document.getElementById('changeOdaiBtn').style.display = (isDrawer && currentIsPlaying && roomSettings.allowChangeOdai) ? 'block' : 'none';
 
         const viewer = document.getElementById('viewer');
@@ -1594,15 +1597,17 @@ function showWrongGuessBubble(uid, name, text) {
     wrongGuessHideTimer = setTimeout(() => { el.classList.remove('show'); }, 2500);
 }
 
-// 「おしい！」ボタン：答えを入力している人が、描いている人を応援できるようにする
+// 「おしい！」ボタン：描いている人が、だれかの間違った答えを見て「おしい」と
+// 思ったときに押すと、まだ答えていない人たちへのヒントとして伝わる
+// （ボタン自体は描いている人にしか表示されない）
 function sendOshii() {
     db.ref(`casual_rooms/${myRoom}/state/oshii`).set({ uid: myUid, name: myName, ts: Date.now() });
 }
 let lastOshiiTs = 0;
 let oshiiInitialized = false;
 let oshiiHideTimer = null;
-// drawerUid: ふきだしを出す場所（＝いま描いている人の名前タグ）
-// senderName: 実際に「おしい！」を送った人の名前（フォールバック表示の文言に使う）
+// drawerUid: ふきだしを出す場所（＝いま描いている人の名前タグ。送信者は常にこの人自身）
+// senderName: 描いている人の名前（フォールバック表示の文言に使う）
 function showOshiiBubble(drawerUid, senderName) {
     const tagBubble = document.getElementById(`tagBubble-${drawerUid}`);
     if (wideScreenQuery.matches && tagBubble) {
@@ -1614,7 +1619,7 @@ function showOshiiBubble(drawerUid, senderName) {
         return;
     }
     const el = document.getElementById('oshiiBubble');
-    el.innerText = `${senderName ? senderName + 'さん' : 'だれか'}から： おしい！`;
+    el.innerText = `描いている${senderName ? senderName + 'さん' : '人'}： おしい！`;
     el.classList.add('show');
     clearTimeout(oshiiHideTimer);
     oshiiHideTimer = setTimeout(() => { el.classList.remove('show'); }, 2500);
