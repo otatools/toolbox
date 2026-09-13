@@ -60,7 +60,12 @@
     <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-auth-compat.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@500;700;900&display=swap" rel="stylesheet">
+    <!-- display=swapだと、Webフォントが読み込まれた瞬間に別のフォントへガクッと
+         入れ替わって見える（がたつく）。display=optionalにすると、読み込みが
+         少しでも遅ければ最初のフォントのまま据え置かれる（＝表示中の入れ替えが
+         起きない）ので、初回表示のがたつきを防げる（読み込みが速い次回以降の
+         表示ではこのWebフォントがそのまま使われる）。 -->
+    <link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@500;700;900&display=optional" rel="stylesheet">
     <style>
         /* iOS Safariはビューポートのmaximum-scale/user-scalable=noを無視して
            ダブルタップ・ピンチで拡大してしまうことがある（CSSのtouch-actionだけでは
@@ -98,7 +103,7 @@
         .title-wrap h1 {
             font-family: 'Zen Maru Gothic', sans-serif;
             font-weight: 900;
-            font-size: 34px; margin: 0; line-height: 1.25;
+            font-size: clamp(38px, 8vw, 48px); margin: 0; line-height: 1.25;
             color: #2c2a4a;
             letter-spacing: 1px;
         }
@@ -236,13 +241,14 @@
         // 問題なく作れるのにスマホだけ作れない、という不具合になっていた。
         // タイムアウトとエラー処理を必ず入れて、失敗したときはボタンを元にもどし、
         // 理由をアラートで知らせるようにする。
+        // スマホの再接続には数秒〜十数秒かかることがあるため、余裕をもたせて長めにする。
         const authReady = new Promise((resolve, reject) => {
             let settled = false;
             const timeoutId = setTimeout(() => {
                 if (settled) return;
                 settled = true;
                 reject(new Error('サインインの応答がありませんでした（通信状態をご確認ください）'));
-            }, 10000);
+            }, 30000);
             firebase.auth().onAuthStateChanged(user => {
                 if (settled) return;
                 if (user) {

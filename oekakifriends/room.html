@@ -24,7 +24,9 @@
 <script src="odailist.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@500;700;900&display=swap" rel="stylesheet">
+<!-- display=optional：Webフォントの読み込みが遅いときに表示中のフォントが
+     ガクッと入れ替わる「がたつき」を防ぐ（index.htmlと同じ対策） -->
+<link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@500;700;900&display=optional" rel="stylesheet">
 <style>
 /* スマホでダブルタップ拡大・長押しメニューが出て遊びづらくなるのを防ぐ。
    CSSのtouch-actionだけではiOS Safariのピンチ拡大を止めきれないので、
@@ -529,11 +531,23 @@ try { firebase.auth().setPersistence(firebase.auth.Auth.Persistence.NONE).catch(
 // 届かず、画面が止まって見えることがある。".info/connected" はFirebaseが
 // 用意している特別なパスで、サーバーとの接続が本当につながっているかどうかを
 // 教えてくれるので、それを見て切れているときだけお知らせバーを出す。
+// スマホの一部の回線・ブラウザでは、実際にはデータの読み書きがちゃんとできて
+// いるのに、この".info/connected"だけ一瞬false→trueを細かく繰り返す（本当は
+// 困っていないのにバーだけ赤いままに見える）ことがあるらしいので、少しの
+// 切断ならバーを出さないようにする（切れた瞬間ではなく、しばらく切れたままの
+// ときだけ知らせる）。もどったときはすぐにバーを消す。
 let isFirebaseOnline = true;
+let connBannerShowTimer = null;
 db.ref('.info/connected').on('value', snap => {
     isFirebaseOnline = snap.val() === true;
     const banner = document.getElementById('connBanner');
-    if (banner) banner.style.display = isFirebaseOnline ? 'none' : 'block';
+    if (!banner) return;
+    clearTimeout(connBannerShowTimer);
+    if (isFirebaseOnline) {
+        banner.style.display = 'none';
+    } else {
+        connBannerShowTimer = setTimeout(() => { banner.style.display = 'block'; }, 4000);
+    }
 });
 // あか・だいだい・うすだいだい・きいろ・きみどり・みどり・みずいろ・あお・むらさき・ももいろ・ちゃいろ・くろ の12色
 const BASE_PLAYER_COLORS = ["#e53935","#fb8c00","#ffb74d","#fdd835","#9ccc65","#43a047","#29b6f6","#1e88e5","#9575cd","#f06292","#8d6e63","#333333"];
@@ -590,13 +604,18 @@ function pickRandomColor(existingColors) {
 // index.htmlの部屋作成・参加と同じく、サインインがエラーになったり応答が返って
 // こなかったりする場合に備えて、タイムアウトとエラー処理を必ず入れる。これが無いと、
 // 部屋の画面がずっと真っ白のまま止まって見えてしまう。
+// タイムアウトが短すぎると、スマホでほかのアプリ（LINEなど）に切り替えて部屋番号を
+// 伝えてからこの画面に戻ってきたときに、ちょうど再接続中で間に合わずタイムアウトして
+// しまうことがある。しかもホストの場合、この失敗できいちど画面を離れる（location.href）
+// ことで実際に接続が切れ、部屋の自動削除（onDisconnect）まで働いてしまっていた。
+// スマホの再接続には数秒〜十数秒かかることもあるため、余裕をもたせて長めにする。
 const authReady = new Promise((resolve, reject) => {
     let settled = false;
     const timeoutId = setTimeout(() => {
         if (settled) return;
         settled = true;
         reject(new Error('サインインの応答がありませんでした（通信状態をご確認ください）'));
-    }, 10000);
+    }, 30000);
     firebase.auth().onAuthStateChanged(user => {
         if (settled) return;
         if (user) {
@@ -1519,7 +1538,22 @@ function animateScoreCountUp(el, target, onDone) {
     if (!target) { el.innerText = "0点"; setTimeout(onDone, 500); return; }
     // 「じっくり」感が出るように、以前よりゆっくり長めの時間をかけて数え上げる。
     const duration = Math.min(5000, Math.max(2500, target * 45));
-    const startTime = performance.now();
+    let startTime = performance.now();
+    // スマホでこの表示中に他のアプリに切り替えるなどして画面を見ていない間は、
+    // ブラウザがrequestAnimationFrameを止めてしまう。そのまま経過時間だけで
+    // 計算すると、戻ってきた瞬間に時間がたちすぎていて「パッと」最後の点数まで
+    // 一気に進んで見えてしまう（くるくる数え上がる演出が飛ばされる）。
+    // 見ていなかった時間ぶんだけ基準時刻を先送りして、進み具合を巻き戻す。
+    let hiddenAt = document.hidden ? performance.now() : null;
+    function onVisibilityChange() {
+        if (document.hidden) {
+            hiddenAt = performance.now();
+        } else if (hiddenAt !== null) {
+            startTime += performance.now() - hiddenAt;
+            hiddenAt = null;
+        }
+    }
+    document.addEventListener('visibilitychange', onVisibilityChange);
     function tick(now) {
         const p = Math.min(1, (now - startTime) / duration);
         const eased = 1 - Math.pow(1 - p, 3); // ease-out：はじめは早く、さいごはゆっくり
@@ -1527,6 +1561,7 @@ function animateScoreCountUp(el, target, onDone) {
         if (p < 1) {
             requestAnimationFrame(tick);
         } else {
+            document.removeEventListener('visibilitychange', onVisibilityChange);
             el.innerText = `${target}点`;
             el.classList.add('total-pop');
             setTimeout(onDone, 600);
