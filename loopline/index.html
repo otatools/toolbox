@@ -111,20 +111,20 @@
         }
 
         /* スマホなど物理キーボードが無い端末用のオンスクリーンキーボード。
-           タッチ端末（hover:none かつ pointer:coarse）でのみ表示する */
+           タッチ端末（hover:none かつ pointer:coarse）でのみ表示する。
+           実物のキーボードと同じく、段ごとに少しずつ右にずれた配置（スタッガード配列）にする。
+           幅（--kb-key）はJS側で画面幅に合わせて計算しセットする */
         .onscreen-keyboard {
             display: none;
             flex-direction: column;
+            align-items: flex-start;
             gap: 6px;
-            align-items: center;
-            justify-content: center;
             flex-shrink: 0;
-            width: 100%;
-            max-width: 720px;
-            margin: 0 auto;
             padding: 8px 6px calc(8px + env(safe-area-inset-bottom, 0px));
             background: #1f2937;
             box-sizing: border-box;
+            --kb-key: 40px;
+            --kb-gap: 5px;
         }
         body.touch-mode .onscreen-keyboard {
             display: flex;
@@ -135,15 +135,19 @@
 
         .kb-row {
             display: flex;
-            gap: 5px;
-            justify-content: center;
-            width: 100%;
+            gap: var(--kb-gap);
+        }
+        /* Aの段はQの段より0.25キー分、Zの段は0.75キー分右にずれる（実物のキー配列と同じ比率） */
+        .kb-row-2 {
+            margin-left: calc((var(--kb-key) + var(--kb-gap)) * 0.25);
+        }
+        .kb-row-3 {
+            margin-left: calc((var(--kb-key) + var(--kb-gap)) * 0.75);
         }
 
         .kb-key {
-            flex: 1 1 0;
-            max-width: 62px;
-            min-width: 22px;
+            flex: 0 0 var(--kb-key);
+            width: var(--kb-key);
             height: 42px;
             border: none;
             border-radius: 8px;
@@ -905,6 +909,7 @@
 
         function onViewportChange() {
             setAppHeight();
+            layoutOnscreenKeyboard();
             handleResize();
         }
 
@@ -943,9 +948,9 @@
         function buildOnscreenKeyboard() {
             const kb = document.getElementById('onscreen-keyboard');
             if (!kb || kb.childElementCount > 0) return;
-            ONSCREEN_KEYBOARD_ROWS.forEach(row => {
+            ONSCREEN_KEYBOARD_ROWS.forEach((row, rowIndex) => {
                 const rowEl = document.createElement('div');
-                rowEl.className = 'kb-row';
+                rowEl.className = `kb-row kb-row-${rowIndex + 1}`;
                 row.forEach(k => {
                     const btn = document.createElement('button');
                     btn.type = 'button';
@@ -969,6 +974,23 @@
                 });
                 kb.appendChild(rowEl);
             });
+            layoutOnscreenKeyboard();
+        }
+
+        // 実物のキーボードの段ずれ（QWERTY配列）を再現するため、画面幅に合わせて
+        // キー1個分の幅（--kb-key）を計算する。一番長い最上段（10キー）が収まるサイズにする
+        function layoutOnscreenKeyboard() {
+            const kb = document.getElementById('onscreen-keyboard');
+            if (!kb) return;
+            const gap = 5;
+            const topRowCount = ONSCREEN_KEYBOARD_ROWS[0].length;
+            const viewportW = window.visualViewport ? window.visualViewport.width : window.innerWidth;
+            const available = Math.max(200, viewportW - 12 - 8); // 左右パディング分を引く
+            let keyW = Math.floor((available - gap * (topRowCount - 1)) / topRowCount);
+            keyW = Math.max(24, Math.min(48, keyW));
+            kb.style.setProperty('--kb-key', keyW + 'px');
+            kb.style.setProperty('--kb-gap', gap + 'px');
+            kb.style.width = (topRowCount * keyW + (topRowCount - 1) * gap) + 'px';
         }
 
         function splitKana(text) {
