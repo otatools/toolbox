@@ -11,7 +11,7 @@
   gtag('config', 'G-YTH979WTKL');
 </script>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no">
     <meta name="theme-color" content="#9acd32">
     <title>タイピングアプリ｜山手線タイピング - 駅名を入力して電車を加速させよう！</title>
     <meta name="description" content="タイピングや山手線への興味関心に役立つ、大阪市の現役小学校教員が制作したタイピングアプリです。ota toolsのアプリの１つです。">
@@ -78,6 +78,10 @@
 
         :root {
             --loop-green: #9acd32;
+            --app-h: 100vh;
+        }
+        @supports (height: 100dvh) {
+            :root { --app-h: 100dvh; }
         }
 
         body {
@@ -87,11 +91,12 @@
             overflow: hidden;
             margin: 0;
             padding: 0;
-            height: 100vh;
+            height: var(--app-h);
             width: 100vw;
             display: flex;
+            flex-direction: column;
             align-items: center;
-            justify-content: center;
+            justify-content: flex-start;
             opacity: 0; /* サイズ調整前のチラつきを防ぐために最初は透明にする */
             transition: opacity 0.2s ease; /* ふわっと表示させる */
         }
@@ -101,7 +106,67 @@
             align-items: center;
             justify-content: center;
             width: 100%;
-            height: 100%;
+            flex: 1 1 auto;
+            min-height: 0;
+        }
+
+        /* スマホなど物理キーボードが無い端末用のオンスクリーンキーボード。
+           タッチ端末（hover:none かつ pointer:coarse）でのみ表示する。
+           実物のキーボードと同じく、段ごとに少しずつ右にずれた配置（スタッガード配列）にする。
+           幅（--kb-key）はJS側で画面幅に合わせて計算しセットする */
+        .onscreen-keyboard {
+            display: none;
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 6px;
+            flex-shrink: 0;
+            width: 100%;
+            padding: 8px 4px calc(8px + env(safe-area-inset-bottom, 0px));
+            background: #1f2937;
+            box-sizing: border-box;
+            --kb-key: 40px;
+            --kb-gap: 5px;
+        }
+        body.touch-mode .onscreen-keyboard {
+            display: flex;
+        }
+        body.touch-mode .ready-tap-hint {
+            display: block !important;
+        }
+
+        .kb-row {
+            display: flex;
+            gap: var(--kb-gap);
+        }
+        /* Aの段はQの段より0.25キー分、Zの段は0.75キー分右にずれる（実物のキー配列と同じ比率） */
+        .kb-row-2 {
+            margin-left: calc((var(--kb-key) + var(--kb-gap)) * 0.25);
+        }
+        .kb-row-3 {
+            margin-left: calc((var(--kb-key) + var(--kb-gap)) * 0.75);
+        }
+
+        .kb-key {
+            flex: 0 0 var(--kb-key);
+            width: var(--kb-key);
+            height: 42px;
+            border: none;
+            border-radius: 8px;
+            background: #4b5563;
+            color: #fff;
+            font-size: 16px;
+            font-weight: 700;
+            text-transform: uppercase;
+            -webkit-appearance: none;
+            appearance: none;
+            padding: 0;
+            line-height: 42px;
+            -webkit-user-select: none;
+            user-select: none;
+        }
+        .kb-key.pressed {
+            background: var(--loop-green);
+            color: #1f2937;
         }
 
         .game-panel {
@@ -579,7 +644,7 @@
                     </div>
 
                     <div class="footer-credit">
-                        山手線タイピング　|　ver1.0　|　ota tools
+                        山手線タイピング　|　ver1.1　|　ota tools
                     </div>
 
                 </div>
@@ -624,9 +689,10 @@
             <div id="ready-overlay" class="absolute inset-0 hidden flex items-center justify-center overlay z-[60] bg-black/80">
                 <div class="text-center text-white">
                     <div class="text-3xl font-bold mb-8 animate-pulse">発車準備が完了しました</div>
-                    <div class="bg-white text-black px-8 py-6 rounded-2xl shadow-2xl">
+                    <div class="bg-white text-black px-8 py-6 rounded-2xl shadow-2xl cursor-pointer" onclick="handleReadyTap()">
                         <div class="text-lg font-bold mb-2">スペースキーを押してね</div>
                         <div class="text-4xl font-black border-4 border-black py-2 rounded-lg">SPACE</div>
+                        <div class="ready-tap-hint text-sm font-bold mt-3 text-lime-700" style="display:none;">（タップでもスタートできます）</div>
                     </div>
                     <div class="mt-8 text-lime-600 font-bold tracking-widest" id="ready-info"></div>
                 </div>
@@ -676,6 +742,9 @@
             </div>
         </div>
     </div>
+
+    <!-- スマホなど物理キーボードが無い端末向けのオンスクリーンキーボード。中身はJSで組み立てる -->
+    <div id="onscreen-keyboard" class="onscreen-keyboard"></div>
 
     <script>
         // ---- デバッグ用リセット: URLに ?reset を付けてアクセスすると、
@@ -844,12 +913,113 @@
 
         function handleResize() {
             const container = document.getElementById('game-container');
-            const w = window.innerWidth;
-            const h = window.innerHeight;
+            const wrapper = document.getElementById('viewport-wrapper');
+            // オンスクリーンキーボードが表示されている分は #viewport-wrapper の実測サイズに
+            // 自動的に反映される（flexで高さを分け合っているため）ので、それをそのまま使う
+            const w = wrapper ? wrapper.clientWidth : window.innerWidth;
+            const h = wrapper ? wrapper.clientHeight : window.innerHeight;
             const baseW = 900, baseH = 850;
             const scale = Math.min(w / baseW, h / baseH, 1);
             container.style.transform = `scale(${scale})`;
             initMap();
+        }
+
+        // iOSのツールバー表示/非表示で高さが変わっても崩れないよう、実測値でCSS変数を更新する
+        function setAppHeight() {
+            const el = document.activeElement;
+            if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA')) return;
+            const h = window.visualViewport ? window.visualViewport.height : window.innerHeight;
+            if (h > 0) document.documentElement.style.setProperty('--app-h', `${Math.round(h)}px`);
+        }
+
+        function onViewportChange() {
+            setAppHeight();
+            layoutOnscreenKeyboard();
+            handleResize();
+        }
+
+        // タッチ操作のみ（物理キーボードが無い想定）の端末かどうかを判定し、
+        // 該当すればオンスクリーンキーボードを表示する
+        function detectTouchMode() {
+            try {
+                const isTouch = window.matchMedia && window.matchMedia('(hover: none) and (pointer: coarse)').matches;
+                document.body.classList.toggle('touch-mode', !!isTouch);
+            } catch (e) {
+                console.log('touch mode detection error', e);
+            }
+        }
+
+        function handleReadyTap() {
+            if (isReady) {
+                isReady = false;
+                startCountdown(startGame);
+            }
+        }
+
+        function handleTypedKey(key) {
+            if (!isPlaying || isWaitingForNext || isTimerPaused) return;
+            const result = typeKeyAtCurrentTarget(key);
+            if (result !== null) {
+                applyTypingResult(key, result);
+            }
+        }
+
+        const ONSCREEN_KEYBOARD_ROWS = [
+            ['q', 'w', 'e', 'r', 't', 'y', 'u', 'i', 'o', 'p'],
+            ['a', 's', 'd', 'f', 'g', 'h', 'j', 'k', 'l'],
+            ['z', 'x', 'c', 'v', 'b', 'n', 'm', '-']
+        ];
+
+        function buildOnscreenKeyboard() {
+            const kb = document.getElementById('onscreen-keyboard');
+            if (!kb || kb.childElementCount > 0) return;
+            ONSCREEN_KEYBOARD_ROWS.forEach((row, rowIndex) => {
+                const rowEl = document.createElement('div');
+                rowEl.className = `kb-row kb-row-${rowIndex + 1}`;
+                row.forEach(k => {
+                    const btn = document.createElement('button');
+                    btn.type = 'button';
+                    btn.className = 'kb-key';
+                    btn.textContent = k;
+                    const press = (e) => {
+                        e.preventDefault();
+                        btn.classList.add('pressed');
+                        if (isReady) {
+                            handleReadyTap();
+                        } else {
+                            handleTypedKey(k);
+                        }
+                    };
+                    const release = () => btn.classList.remove('pressed');
+                    btn.addEventListener('pointerdown', press);
+                    btn.addEventListener('pointerup', release);
+                    btn.addEventListener('pointerleave', release);
+                    btn.addEventListener('pointercancel', release);
+                    rowEl.appendChild(btn);
+                });
+                kb.appendChild(rowEl);
+            });
+            layoutOnscreenKeyboard();
+        }
+
+        // 実物のキーボードの段ずれ（QWERTY配列）を再現するため、画面幅に合わせて
+        // キー1個分の幅（--kb-key）を計算する。一番長い最上段（10キー）が収まるサイズにする
+        function layoutOnscreenKeyboard() {
+            const kb = document.getElementById('onscreen-keyboard');
+            if (!kb) return;
+            const gap = 5;
+            const topRowCount = ONSCREEN_KEYBOARD_ROWS[0].length;
+            // コンテナの実際の描画幅から計算することで、画面幅の見積もりズレによる
+            // はみ出しを防ぎ、常に端末の横幅いっぱいにキーを広げる
+            const cs = window.getComputedStyle(kb);
+            const padL = parseFloat(cs.paddingLeft) || 0;
+            const padR = parseFloat(cs.paddingRight) || 0;
+            const measuredW = kb.clientWidth - padL - padR;
+            const available = measuredW > 0 ? measuredW : 200;
+            let keyW = Math.floor((available - gap * (topRowCount - 1)) / topRowCount);
+            keyW = Math.max(24, Math.min(72, keyW));
+            kb.style.setProperty('--kb-key', keyW + 'px');
+            kb.style.setProperty('--kb-gap', gap + 'px');
         }
 
         function splitKana(text) {
@@ -1702,14 +1872,8 @@
                 startCountdown(startGame);
                 return;
             }
-            if (!isPlaying || isWaitingForNext || isTimerPaused) return;
             if (e.key === 'Shift' || e.key === 'Alt' || e.key === 'Control') return;
-
-            const key = e.key.toLowerCase();
-            const result = typeKeyAtCurrentTarget(key);
-            if (result !== null) {
-                applyTypingResult(key, result);
-            }
+            handleTypedKey(e.key.toLowerCase());
         });
 
         function handleMiss(key, patterns) {
@@ -1807,19 +1971,40 @@
             }, 2500);
         }
 
+        // ピンチズーム防止（iOS Safari用）
         ['gesturestart', 'gesturechange', 'gestureend'].forEach(type => {
             document.addEventListener(type, (e) => e.preventDefault(), { passive: false });
         });
+        // ピンチズーム防止（Android Chromeなど、2本指以上でのtouchmoveを止める）
+        document.addEventListener('touchmove', (e) => {
+            if (e.touches.length > 1) e.preventDefault();
+        }, { passive: false });
+        // ダブルタップズーム防止
+        let lastTouchEndTime = 0;
+        document.addEventListener('touchend', (e) => {
+            const now = Date.now();
+            if (now - lastTouchEndTime <= 350) e.preventDefault();
+            lastTouchEndTime = now;
+        }, { passive: false });
 
-        window.addEventListener('resize', handleResize);
-        
-        handleResize();
+        detectTouchMode();
+        buildOnscreenKeyboard();
+
+        ['resize', 'pageshow'].forEach(t => window.addEventListener(t, onViewportChange));
+        window.addEventListener('orientationchange', () => setTimeout(onViewportChange, 250));
+        if (window.visualViewport) {
+            window.visualViewport.addEventListener('resize', onViewportChange);
+            window.visualViewport.addEventListener('scroll', onViewportChange);
+        }
+
+        onViewportChange();
 
         window.onload = () => {
             updateStatsDisplay();
-            document.body.style.opacity = '1'; 
+            document.body.style.opacity = '1';
         };
     </script>
+
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
     import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
@@ -1835,15 +2020,14 @@
     };
 
     // アプリ固有のID
-    const THIS_APP_ID = "32"; 
+    const THIS_APP_ID = "14-yamanote"; 
     
     const PORTAL_APP_ID = "otatoolssite-v1";
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
     const auth = getAuth(app);
     signInAnonymously(auth).then(async () => {
-        const _d = new Date();
-        const todayStr = `${_d.getFullYear()}-${String(_d.getMonth()+1).padStart(2,'0')}-${String(_d.getDate()).padStart(2,'0')}`;
+        const todayStr = new Date().toISOString().split('T')[0];
         const storageKey = `ota_visited_${THIS_APP_ID}`;
         
         if (localStorage.getItem(storageKey) === todayStr) {
