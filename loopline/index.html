@@ -71,8 +71,17 @@
     
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
+        * {
+            touch-action: manipulation;
+            -webkit-touch-callout: none;
+        }
+
         :root {
             --loop-orange: #f39700;
+            --app-h: 100vh;
+        }
+        @supports (height: 100dvh) {
+            :root { --app-h: 100dvh; }
         }
 
         body {
@@ -82,11 +91,12 @@
             overflow: hidden;
             margin: 0;
             padding: 0;
-            height: 100vh;
+            height: var(--app-h);
             width: 100vw;
             display: flex;
+            flex-direction: column;
             align-items: center;
-            justify-content: center;
+            justify-content: flex-start;
             opacity: 0; /* サイズ調整前のチラつきを防ぐために最初は透明にする */
             transition: opacity 0.2s ease; /* ふわっと表示させる */
         }
@@ -96,7 +106,62 @@
             align-items: center;
             justify-content: center;
             width: 100%;
-            height: 100%;
+            flex: 1 1 auto;
+            min-height: 0;
+        }
+
+        /* スマホなど物理キーボードが無い端末用のオンスクリーンキーボード。
+           タッチ端末（hover:none かつ pointer:coarse）でのみ表示する */
+        .onscreen-keyboard {
+            display: none;
+            flex-direction: column;
+            gap: 6px;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            width: 100%;
+            max-width: 720px;
+            margin: 0 auto;
+            padding: 8px 6px calc(8px + env(safe-area-inset-bottom, 0px));
+            background: #1f2937;
+            box-sizing: border-box;
+        }
+        body.touch-mode .onscreen-keyboard {
+            display: flex;
+        }
+        body.touch-mode .ready-tap-hint {
+            display: block !important;
+        }
+
+        .kb-row {
+            display: flex;
+            gap: 5px;
+            justify-content: center;
+            width: 100%;
+        }
+
+        .kb-key {
+            flex: 1 1 0;
+            max-width: 62px;
+            min-width: 22px;
+            height: 42px;
+            border: none;
+            border-radius: 8px;
+            background: #4b5563;
+            color: #fff;
+            font-size: 16px;
+            font-weight: 700;
+            text-transform: uppercase;
+            -webkit-appearance: none;
+            appearance: none;
+            padding: 0;
+            line-height: 42px;
+            -webkit-user-select: none;
+            user-select: none;
+        }
+        .kb-key.pressed {
+            background: var(--loop-orange);
+            color: #1f2937;
         }
 
         .game-panel {
@@ -561,7 +626,7 @@
                     </div>
 
                     <div class="footer-credit">
-                        大阪環状線タイピング　|　ver10.0　|　ota tools
+                        大阪環状線タイピング　|　ver9.0　|　ota tools
                     </div>
 
                 </div>
@@ -606,9 +671,10 @@
             <div id="ready-overlay" class="absolute inset-0 hidden flex items-center justify-center overlay z-[60] bg-black/80">
                 <div class="text-center text-white">
                     <div class="text-3xl font-bold mb-8 animate-pulse">発車準備が完了しました</div>
-                    <div class="bg-white text-black px-8 py-6 rounded-2xl shadow-2xl">
+                    <div class="bg-white text-black px-8 py-6 rounded-2xl shadow-2xl cursor-pointer" onclick="handleReadyTap()">
                         <div class="text-lg font-bold mb-2">スペースキーを押してね</div>
                         <div class="text-4xl font-black border-4 border-black py-2 rounded-lg">SPACE</div>
+                        <div class="ready-tap-hint text-sm font-bold mt-3 text-orange-600" style="display:none;">（タップでもスタートできます）</div>
                     </div>
                     <div class="mt-8 text-orange-400 font-bold tracking-widest" id="ready-info"></div>
                 </div>
@@ -658,6 +724,9 @@
             </div>
         </div>
     </div>
+
+    <!-- スマホなど物理キーボードが無い端末向けのオンスクリーンキーボード。中身はJSで組み立てる -->
+    <div id="onscreen-keyboard" class="onscreen-keyboard"></div>
 
     <script>
         // ---- デバッグ用リセット: URLに ?reset を付けてアクセスすると、
@@ -815,12 +884,91 @@
 
         function handleResize() {
             const container = document.getElementById('game-container');
-            const w = window.innerWidth;
-            const h = window.innerHeight;
+            const wrapper = document.getElementById('viewport-wrapper');
+            // オンスクリーンキーボードが表示されている分は #viewport-wrapper の実測サイズに
+            // 自動的に反映される（flexで高さを分け合っているため）ので、それをそのまま使う
+            const w = wrapper ? wrapper.clientWidth : window.innerWidth;
+            const h = wrapper ? wrapper.clientHeight : window.innerHeight;
             const baseW = 900, baseH = 850;
             const scale = Math.min(w / baseW, h / baseH, 1);
             container.style.transform = `scale(${scale})`;
             initMap();
+        }
+
+        // iOSのツールバー表示/非表示で高さが変わっても崩れないよう、実測値でCSS変数を更新する
+        function setAppHeight() {
+            const el = document.activeElement;
+            if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA')) return;
+            const h = window.visualViewport ? window.visualViewport.height : window.innerHeight;
+            if (h > 0) document.documentElement.style.setProperty('--app-h', `${Math.round(h)}px`);
+        }
+
+        function onViewportChange() {
+            setAppHeight();
+            handleResize();
+        }
+
+        // タッチ操作のみ（物理キーボードが無い想定）の端末かどうかを判定し、
+        // 該当すればオンスクリーンキーボードを表示する
+        function detectTouchMode() {
+            try {
+                const isTouch = window.matchMedia && window.matchMedia('(hover: none) and (pointer: coarse)').matches;
+                document.body.classList.toggle('touch-mode', !!isTouch);
+            } catch (e) {
+                console.log('touch mode detection error', e);
+            }
+        }
+
+        function handleReadyTap() {
+            if (isReady) {
+                isReady = false;
+                startCountdown(startGame);
+            }
+        }
+
+        function handleTypedKey(key) {
+            if (!isPlaying || isWaitingForNext || isTimerPaused) return;
+            const result = typeKeyAtCurrentTarget(key);
+            if (result !== null) {
+                applyTypingResult(key, result);
+            }
+        }
+
+        const ONSCREEN_KEYBOARD_ROWS = [
+            ['q', 'w', 'e', 'r', 't', 'y', 'u', 'i', 'o', 'p'],
+            ['a', 's', 'd', 'f', 'g', 'h', 'j', 'k', 'l'],
+            ['z', 'x', 'c', 'v', 'b', 'n', 'm', '-']
+        ];
+
+        function buildOnscreenKeyboard() {
+            const kb = document.getElementById('onscreen-keyboard');
+            if (!kb || kb.childElementCount > 0) return;
+            ONSCREEN_KEYBOARD_ROWS.forEach(row => {
+                const rowEl = document.createElement('div');
+                rowEl.className = 'kb-row';
+                row.forEach(k => {
+                    const btn = document.createElement('button');
+                    btn.type = 'button';
+                    btn.className = 'kb-key';
+                    btn.textContent = k;
+                    const press = (e) => {
+                        e.preventDefault();
+                        btn.classList.add('pressed');
+                        if (isReady) {
+                            handleReadyTap();
+                        } else {
+                            handleTypedKey(k);
+                        }
+                    };
+                    const release = () => btn.classList.remove('pressed');
+                    btn.addEventListener('pointerdown', press);
+                    btn.addEventListener('pointerup', release);
+                    btn.addEventListener('pointerleave', release);
+                    btn.addEventListener('pointercancel', release);
+                    rowEl.appendChild(btn);
+                });
+                kb.appendChild(rowEl);
+            });
         }
 
         function splitKana(text) {
@@ -1606,14 +1754,8 @@
                 startCountdown(startGame);
                 return;
             }
-            if (!isPlaying || isWaitingForNext || isTimerPaused) return;
             if (e.key === 'Shift' || e.key === 'Alt' || e.key === 'Control') return;
-
-            const key = e.key.toLowerCase();
-            const result = typeKeyAtCurrentTarget(key);
-            if (result !== null) {
-                applyTypingResult(key, result);
-            }
+            handleTypedKey(e.key.toLowerCase());
         });
 
         function handleMiss(key, patterns) {
@@ -1711,15 +1853,24 @@
             }, 2500);
         }
 
-        window.addEventListener('resize', handleResize);
-        
-        handleResize();
+        detectTouchMode();
+        buildOnscreenKeyboard();
+
+        ['resize', 'pageshow'].forEach(t => window.addEventListener(t, onViewportChange));
+        window.addEventListener('orientationchange', () => setTimeout(onViewportChange, 250));
+        if (window.visualViewport) {
+            window.visualViewport.addEventListener('resize', onViewportChange);
+            window.visualViewport.addEventListener('scroll', onViewportChange);
+        }
+
+        onViewportChange();
 
         window.onload = () => {
             updateStatsDisplay();
-            document.body.style.opacity = '1'; 
+            document.body.style.opacity = '1';
         };
     </script>
+
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
     import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
@@ -1742,8 +1893,7 @@
     const db = getFirestore(app);
     const auth = getAuth(app);
     signInAnonymously(auth).then(async () => {
-        const _d = new Date();
-        const todayStr = `${_d.getFullYear()}-${String(_d.getMonth()+1).padStart(2,'0')}-${String(_d.getDate()).padStart(2,'0')}`;
+        const todayStr = new Date().toISOString().split('T')[0];
         const storageKey = `ota_visited_${THIS_APP_ID}`;
         
         if (localStorage.getItem(storageKey) === todayStr) {
