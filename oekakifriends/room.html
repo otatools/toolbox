@@ -201,6 +201,9 @@ canvas { touch-action: none; -webkit-user-select: none; user-select: none; }
 #wrongGuessBubble { position: fixed; top: 100px; left: 50%; transform: translateX(-50%) translateY(-6px) scale(0.85); z-index: 3600; background: #ffffff; border: 3px solid #ff5c5c; border-radius: 20px; padding: 8px 20px; font-weight: 800; font-size: 17px; color: #d40000; box-shadow: 0 6px 18px rgba(60,50,120,0.22); opacity: 0; pointer-events: none; transition: opacity 0.2s ease, transform 0.2s ease; white-space: nowrap; }
 #wrongGuessBubble::after { content: ''; position: absolute; top: -12px; left: 50%; transform: translateX(-50%); border-width: 0 10px 12px 10px; border-style: solid; border-color: transparent transparent #ff5c5c transparent; }
 #wrongGuessBubble.show { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); }
+#oshiiBubble { position: fixed; top: 100px; left: 50%; transform: translateX(-50%) translateY(-6px) scale(0.85); z-index: 3600; background: #ffffff; border: 3px solid #29b36b; border-radius: 20px; padding: 8px 20px; font-weight: 800; font-size: 17px; color: #128a4d; box-shadow: 0 6px 18px rgba(60,50,120,0.22); opacity: 0; pointer-events: none; transition: opacity 0.2s ease, transform 0.2s ease; white-space: nowrap; }
+#oshiiBubble::after { content: ''; position: absolute; top: -12px; left: 50%; transform: translateX(-50%); border-width: 0 10px 12px 10px; border-style: solid; border-color: transparent transparent #29b36b transparent; }
+#oshiiBubble.show { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); }
 /* パソコンなど横に余裕がある画面では、まちがえた答えをその人の名前タグから吹き出しで出す */
 .player-sidebar { position: fixed; top: 50%; transform: translateY(-50%); display: flex; flex-direction: column; gap: 14px; z-index: 5200; max-width: 30vw; }
 .player-sidebar.left { left: 10px; align-items: flex-start; }
@@ -215,6 +218,9 @@ canvas { touch-action: none; -webkit-user-select: none; user-select: none; }
 .tag-bubble::after { content: ''; position: absolute; top: 50%; transform: translateY(-50%); border-width: 8px; border-style: solid; }
 .player-sidebar.left .tag-bubble::after { left: -16px; border-color: transparent #ff5c5c transparent transparent; }
 .player-sidebar.right .tag-bubble::after { right: -16px; border-color: transparent transparent transparent #ff5c5c; }
+.tag-bubble.oshii { border-color: #29b36b; color: #128a4d; }
+.player-sidebar.left .tag-bubble.oshii::after { border-color: transparent #29b36b transparent transparent; }
+.player-sidebar.right .tag-bubble.oshii::after { border-color: transparent transparent transparent #29b36b; }
 @media (max-width: 900px) { .player-sidebar { display: none; } }
 #kbdWrapper { position: fixed; bottom: 0; left: 0; width: 100%; background: rgba(255,255,255,0.72); backdrop-filter: blur(3px); z-index: 5000; display: none; flex-direction: column; padding: 5px 0 env(safe-area-inset-bottom) 0; border-top: 3px solid #3ed6c6; box-shadow: 0 -4px 20px rgba(60,50,120,0.12); }
 .input-display { display: flex; width: 95%; margin: 5px auto; gap: 8px; align-items: center; position: relative; }
@@ -425,6 +431,7 @@ canvas { touch-action: none; -webkit-user-select: none; user-select: none; }
     <button id="changeOdaiBtn" onclick="changeOdai()" style="display:none;" aria-label="お題をチェンジ"><svg viewBox="0 0 24 24" width="15" height="15" style="vertical-align:-2px; margin-right:3px;"><path d="M20 12a8 8 0 1 1-2.34-5.66" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/><path d="M20 4v5h-5" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>お題をチェンジ</button>
     <div id="judgeEffect"></div>
     <div id="wrongGuessBubble"></div>
+    <div id="oshiiBubble"></div>
     <div class="player-sidebar left" id="sidebarLeft"></div>
     <div class="player-sidebar right" id="sidebarRight"></div>
     <div id="stage">
@@ -455,6 +462,7 @@ canvas { touch-action: none; -webkit-user-select: none; user-select: none; }
         </div>
     </div>
     <button id="toggleKbd" onclick="toggleKeyboard()" style="display:none; position: fixed; bottom: 15px; right: 15px; z-index: 4500; padding: 12px 24px; border-radius: 30px; background: #ffcc00; font-weight: bold; border: 2px solid #fff;">答えを入力</button>
+    <button id="oshiiBtn" onclick="sendOshii()" style="display:none; position: fixed; bottom: 15px; left: 15px; z-index: 4500; padding: 12px 24px; border-radius: 30px; background: #29b36b; color: #fff; font-size: 15px; font-weight: bold; border: 2px solid #fff;">おしい！</button>
     <div id="kbdWrapper">
         <div class="input-display">
             <button class="k-close-x" onclick="toggleKeyboard()">×</button>
@@ -470,11 +478,11 @@ canvas { touch-action: none; -webkit-user-select: none; user-select: none; }
     <div id="countdownOverlay" class="overlay">
         <div id="cdName" style="font-size:34px; color:#d98a00; font-weight:700;"></div>
     </div>
-    <div id="answerOverlay" class="overlay">
+    <div id="answerOverlay" class="overlay" style="overflow-y:auto; padding:16px 0; box-sizing:border-box;">
         <div style="font-size:30px; font-weight:bold;">せいかいは...</div>
         <div id="finalAnswer" style="font-size:70px; font-weight:bold; margin:20px 0;"></div>
         <div id="winnerList" style="font-size:22px;"></div>
-        <img id="resultImg" style="display:none; max-width:280px; max-height:220px; width:auto; height:auto; border-radius:8px; border:4px solid #fff; box-shadow:0 4px 16px rgba(0,0,0,0.2); margin-top:14px; background:#fff; object-fit:contain;">
+        <img id="resultImg" style="display:none; max-width:min(92vw, 640px); max-height:min(58vh, 520px); width:auto; height:auto; border-radius:8px; border:4px solid #fff; box-shadow:0 4px 16px rgba(0,0,0,0.2); margin-top:14px; background:#fff; object-fit:contain;">
     </div>
 </div>
 
@@ -483,7 +491,8 @@ canvas { touch-action: none; -webkit-user-select: none; user-select: none; }
     <div id="finalIntro" class="final-intro">ゲームしゅうりょう！</div>
     <h1 id="finalTitle" style="opacity:0; transition: opacity 0.5s ease;">最終結果</h1>
     <div id="finalRankContainer" style="width:100%; display:flex; flex-direction:column; align-items:center;"></div>
-    <button id="closeRoomBtn" class="btn btn-danger" style="max-width:300px; margin-top:20px; display:none;" onclick="hostCloseRoom()">部屋を閉じる</button>
+    <button id="playAgainBtn" class="btn btn-orange" style="max-width:300px; margin-top:20px; display:none;" onclick="hostPlayAgain()">同じ部屋でもう一度あそぶ</button>
+    <button id="closeRoomBtn" class="btn btn-danger" style="max-width:300px; margin-top:10px; display:none;" onclick="hostCloseRoom()">部屋を閉じる</button>
 </div>
 
 <script>
@@ -637,17 +646,21 @@ function resize() {
     const box = document.getElementById('canvasBox');
     const targetW = box.clientWidth * 2, targetH = box.clientHeight * 2;
     if (targetW === lastCanvasW && targetH === lastCanvasH) return; // サイズが変わっていないなら描いた内容を消さない
-    let snapshot = null;
-    if (canvas.width > 0 && canvas.height > 0) { try { snapshot = canvas.toDataURL('image/png'); } catch (e) {} }
+    // 退避はcanvas同士のdrawImageで同期的に行う（toDataURL→Imageのonloadを待つ方式だと、
+    // 読み込みが終わるまでの一瞬キャンバスが空っぽになり、その間にupload()が走ると
+    // 「絵が真っ白のまま送信される」不具合になる。infoBarの表示が1文字減るなどの
+    // わずかなレイアウト変化でもこのresize()は毎秒呼ばれうるため、同期化して確実に防ぐ）。
+    let tempCanvas = null;
+    if (canvas.width > 0 && canvas.height > 0) {
+        tempCanvas = document.createElement('canvas');
+        tempCanvas.width = canvas.width;
+        tempCanvas.height = canvas.height;
+        tempCanvas.getContext('2d').drawImage(canvas, 0, 0);
+    }
     canvas.width = targetW; canvas.height = targetH;
     lastCanvasW = targetW; lastCanvasH = targetH;
     ctx.scale(2, 2); ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-    if (snapshot) {
-        const myGen = canvasGen;
-        const img = new Image();
-        img.onload = () => { if (myGen === canvasGen) ctx.drawImage(img, 0, 0, box.clientWidth, box.clientHeight); };
-        img.src = snapshot;
-    }
+    if (tempCanvas) { ctx.drawImage(tempCanvas, 0, 0, box.clientWidth, box.clientHeight); }
 }
 // 上下のバー（点数表示・色パレット・キーボードなど）の高さぶんキャンバスの表示エリアをへこませて、
 // 四角の絵が隠れてしまわないようにする。CSSのaspect-ratioだけに頼ると、はじめの幅が
@@ -895,6 +908,44 @@ async function hostAdvanceRound() {
     };
     await db.ref(`casual_rooms/${myRoom}`).update(resetUpdates);
     hostRunCountdown();
+}
+
+// 最終結果画面の「同じ部屋でもう一度あそぶ」。部屋番号・参加者はそのままに、
+// 得点や正解状況だけリセットしてロビー（設定画面）に戻す。ロビーに戻れば、
+// index.html側のjoinRoom()が「phaseがlobbyの部屋にしか参加できない」という
+// 条件を満たすので、新しいメンバーもこのタイミングで参加できるようになる。
+async function hostPlayAgain() {
+    if (!confirm('同じ部屋でもう一度あそびますか？')) return;
+    const snap = await db.ref(`casual_rooms/${myRoom}`).once('value');
+    const data = snap.val();
+    if (!data) return; // 部屋がすでに消えている
+    const updates = {};
+    Object.keys(data.users || {}).forEach(uid => {
+        updates[`users/${uid}/score`] = 0;
+        updates[`users/${uid}/isCorrect`] = false;
+        updates[`users/${uid}/image`] = "";
+        updates[`users/${uid}/answerOrder`] = null;
+    });
+    updates['turnOrder'] = [];
+    updates['usedWords'] = {};
+    updates['progress'] = { roundNumber: 0, totalRounds: 0 };
+    updates['state'] = {
+        phase: "lobby",
+        currentDrawer: "",
+        drawerName: "",
+        correctAnswer: "",
+        countdown: 3,
+        timeLeft: ROUND_SECONDS,
+        correctCount: 0,
+        active: false,
+        wrongGuess: null,
+        oshii: null
+    };
+    try {
+        await db.ref(`casual_rooms/${myRoom}`).update(updates);
+    } catch (e) {
+        alert('通信状態がよくないため、もう一度あそぶ準備ができませんでした。もう一度お試しください。');
+    }
 }
 
 async function hostCloseRoom() {
@@ -1207,6 +1258,16 @@ authReady.then(() => {
             showWrongGuessBubble(wg.uid, wg.name, wg.text || "");
         }
 
+        // だれかが「おしい！」ボタンを押したら、その人の名前タグから応援のふきだしを出す
+        const og = state.oshii;
+        if (!oshiiInitialized) {
+            oshiiInitialized = true;
+            lastOshiiTs = og ? og.ts : 0;
+        } else if (currentIsPlaying && og && og.ts > lastOshiiTs) {
+            lastOshiiTs = og.ts;
+            showOshiiBubble(og.uid, og.name);
+        }
+
         if (state.phase !== lastStatePhase) {
             if (state.phase !== "playing") {
                 closeKeyboard();
@@ -1257,6 +1318,7 @@ authReady.then(() => {
 
         document.getElementById('drawTools').style.display = (isDrawer && currentIsPlaying) ? 'flex' : 'none';
         document.getElementById('toggleKbd').style.display = (currentIsPlaying && !isDrawer && !(usersData[myUid] && usersData[myUid].isCorrect)) ? 'block' : 'none';
+        document.getElementById('oshiiBtn').style.display = (currentIsPlaying && !isDrawer && !(usersData[myUid] && usersData[myUid].isCorrect)) ? 'block' : 'none';
         document.getElementById('changeOdaiBtn').style.display = (isDrawer && currentIsPlaying && roomSettings.allowChangeOdai) ? 'block' : 'none';
 
         const viewer = document.getElementById('viewer');
@@ -1300,6 +1362,7 @@ function renderFinal() {
     const container = document.getElementById('finalRankContainer');
     container.innerHTML = "";
     document.getElementById('closeRoomBtn').style.display = 'none'; // えんしゅつが終わってから出す
+    document.getElementById('playAgainBtn').style.display = 'none';
 
     // 「スッと」結果画面が出るのではなく、まず「ゲームしゅうりょう！」の合図を
     // どーんと出してから、そのあとに最終結果のタイトルと中身を出す。
@@ -1326,6 +1389,7 @@ function renderFinal() {
 
 function showCloseRoomBtnIfHost() {
     document.getElementById('closeRoomBtn').style.display = isHost ? 'block' : 'none';
+    document.getElementById('playAgainBtn').style.display = isHost ? 'block' : 'none';
 }
 
 // 対戦モード：スッと全部出すのではなく、いちばん下の順位から順番にひとつずつ
@@ -1476,6 +1540,7 @@ function showWrongGuessBubble(uid, name, text) {
     // 名前タグが見つからない・スマホ表示のときは、これまでどおり画面上部に出す。
     const tagBubble = document.getElementById(`tagBubble-${uid}`);
     if (wideScreenQuery.matches && tagBubble) {
+        tagBubble.classList.remove('oshii');
         tagBubble.innerText = `× ${text}`;
         tagBubble.classList.add('show');
         clearTimeout(tagBubble._hideTimer);
@@ -1487,6 +1552,30 @@ function showWrongGuessBubble(uid, name, text) {
     el.classList.add('show');
     clearTimeout(wrongGuessHideTimer);
     wrongGuessHideTimer = setTimeout(() => { el.classList.remove('show'); }, 2500);
+}
+
+// 「おしい！」ボタン：答えを入力している人が、描いている人を応援できるようにする
+function sendOshii() {
+    db.ref(`casual_rooms/${myRoom}/state/oshii`).set({ uid: myUid, name: myName, ts: Date.now() });
+}
+let lastOshiiTs = 0;
+let oshiiInitialized = false;
+let oshiiHideTimer = null;
+function showOshiiBubble(uid, name) {
+    const tagBubble = document.getElementById(`tagBubble-${uid}`);
+    if (wideScreenQuery.matches && tagBubble) {
+        tagBubble.classList.add('oshii');
+        tagBubble.innerText = 'おしい！';
+        tagBubble.classList.add('show');
+        clearTimeout(tagBubble._hideTimer);
+        tagBubble._hideTimer = setTimeout(() => { tagBubble.classList.remove('show'); }, 2500);
+        return;
+    }
+    const el = document.getElementById('oshiiBubble');
+    el.innerText = `${name ? name + 'さん' : 'だれか'}： おしい！`;
+    el.classList.add('show');
+    clearTimeout(oshiiHideTimer);
+    oshiiHideTimer = setTimeout(() => { el.classList.remove('show'); }, 2500);
 }
 
 /* ===== キーボード（student.htmlと同じ） ===== */

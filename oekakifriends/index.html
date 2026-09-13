@@ -191,9 +191,34 @@
         };
         firebase.initializeApp(config);
         const db = firebase.database();
-        const authReady = new Promise(resolve => {
+        // スマホの一部のブラウザ（アプリ内ブラウザや、プライベートブラウズモードなど）では
+        // 匿名サインイン（signInAnonymously）がエラーになったり、応答が返ってこないまま
+        // 止まってしまうことがある。以前はエラーを拾っていなかったため、その場合
+        // 「部屋を作る」ボタンが押せなくなったまま何も起きず、パソコンでは
+        // 問題なく作れるのにスマホだけ作れない、という不具合になっていた。
+        // タイムアウトとエラー処理を必ず入れて、失敗したときはボタンを元にもどし、
+        // 理由をアラートで知らせるようにする。
+        const authReady = new Promise((resolve, reject) => {
+            let settled = false;
+            const timeoutId = setTimeout(() => {
+                if (settled) return;
+                settled = true;
+                reject(new Error('サインインの応答がありませんでした（通信状態をご確認ください）'));
+            }, 10000);
             firebase.auth().onAuthStateChanged(user => {
-                if (user) resolve(user); else firebase.auth().signInAnonymously();
+                if (settled) return;
+                if (user) {
+                    settled = true;
+                    clearTimeout(timeoutId);
+                    resolve(user);
+                } else {
+                    firebase.auth().signInAnonymously().catch(err => {
+                        if (settled) return;
+                        settled = true;
+                        clearTimeout(timeoutId);
+                        reject(err);
+                    });
+                }
             });
         });
 
