@@ -196,6 +196,7 @@ canvas { touch-action: none; -webkit-user-select: none; user-select: none; }
 #hintLabel { font-weight: 700; font-size: 18px; color: #ff8a3d; margin-right: 5px; }
 .hint-dot { width: 18px; height: 18px; border: 2px solid #a9adda; border-radius: 50%; background: rgba(60,50,120,0.06); }
 .hint-dot.small { width: 12px; height: 12px; }
+.hint-char { min-width: 18px; height: 18px; padding: 0 3px; border: 2px solid #ff8a3d; border-radius: 8px; background: #fff3e6; color: #ff8a3d; font-weight: 800; font-size: 14px; line-height: 14px; display: flex; align-items: center; justify-content: center; box-sizing: content-box; }
 #judgeEffect { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 100px; font-weight: 900; z-index: 10000; pointer-events: none; display: none; text-shadow: 0 0 20px rgba(0,0,0,0.25); font-family: 'Zen Maru Gothic', sans-serif; }
 #wrongGuessBubble { position: fixed; top: 100px; left: 50%; transform: translateX(-50%) translateY(-6px) scale(0.85); z-index: 3600; background: #ffffff; border: 3px solid #ff5c5c; border-radius: 20px; padding: 8px 20px; font-weight: 800; font-size: 17px; color: #d40000; box-shadow: 0 6px 18px rgba(60,50,120,0.22); opacity: 0; pointer-events: none; transition: opacity 0.2s ease, transform 0.2s ease; white-space: nowrap; }
 #wrongGuessBubble::after { content: ''; position: absolute; top: -12px; left: 50%; transform: translateX(-50%); border-width: 0 10px 12px 10px; border-style: solid; border-color: transparent transparent #ff5c5c transparent; }
@@ -467,8 +468,7 @@ canvas { touch-action: none; -webkit-user-select: none; user-select: none; }
     </div>
 
     <div id="countdownOverlay" class="overlay">
-        <div id="cdName" style="font-size:30px; color:#d98a00; font-weight:700;"></div>
-        <div id="cdNumber" style="font-size:150px; font-weight:bold;"></div>
+        <div id="cdName" style="font-size:34px; color:#d98a00; font-weight:700;"></div>
     </div>
     <div id="answerOverlay" class="overlay">
         <div style="font-size:30px; font-weight:bold;">せいかいは...</div>
@@ -571,7 +571,7 @@ const authReady = new Promise(resolve => {
     });
 });
 
-const ROUND_SECONDS = 45;
+const ROUND_SECONDS = 60;
 // 「時間で終了」のときのゲーム全体の終了予定時刻（Date.now()と比較する絶対時刻）。
 // ラウンドの残り時間と同じく、実時刻からの逆算にしておくことで、最小化などで
 // 表示の更新が多少間引かれても正しい残り時間に復帰できるようにする。
@@ -1223,10 +1223,11 @@ authReady.then(() => {
         document.getElementById('countdownOverlay').style.display = (state.phase === "countdown") ? 'flex' : 'none';
         if (state.phase === "countdown") {
             const cdNameEl = document.getElementById('cdName');
-            cdNameEl.innerText = `次は ${state.drawerName ? state.drawerName + 'さん' : '...'}`;
+            // ゲームの最初の1回目だけは「次は」ではなく「最初は」にする（まだ前の順番がないため）
+            const isFirstRound = ((data.progress && data.progress.roundNumber) || 0) === 0;
+            cdNameEl.innerText = `${isFirstRound ? '最初は' : '次は'} ${state.drawerName ? state.drawerName + 'さん' : '...'}`;
             // 次に描く人の色で文字色をそめて、だれの番か直感的にわかるようにする
             cdNameEl.style.color = (usersData[state.currentDrawer] && usersData[state.currentDrawer].color) || '#d98a00';
-            document.getElementById('cdNumber').innerText = state.countdown ?? "";
         }
 
         document.getElementById('answerOverlay').style.display = (state.phase === "result") ? 'flex' : 'none';
@@ -1271,14 +1272,24 @@ authReady.then(() => {
         document.getElementById('odaiGhost').innerText = (isDrawer && currentIsPlaying) ? `お題： 「 ${state.correctAnswer} 」` : "";
 
         const hintBox = document.getElementById('hintDisplay'); hintBox.innerHTML = "";
-        const showHint = !isDrawer && currentIsPlaying && state.timeLeft <= 20 && state.correctAnswer;
+        const showHint = currentIsPlaying && state.timeLeft <= 40 && state.correctAnswer;
+        // 残り20秒からは最初の1文字だけ実際の文字を見せる（それ以外は引き続き点のまま）
+        const showFirstChar = state.timeLeft <= 20;
         hintBox.style.display = showHint ? 'flex' : 'none'; // 中身が空でも枠(丸っぽい形)だけ表示されてしまうのを防ぐ
         if (showHint) {
             const label = document.createElement('div'); label.id = "hintLabel"; label.innerText = "ヒント："; hintBox.appendChild(label);
-            [...state.correctAnswer].forEach(char => {
-                const dot = document.createElement('div');
-                dot.className = "hint-dot" + ("ぁぃぅぇぉゃゅょっァィゥェォャュョッ".includes(char) ? " small" : "");
-                hintBox.appendChild(dot);
+            [...state.correctAnswer].forEach((char, i) => {
+                const isSmall = "ぁぃぅぇぉゃゅょっァィゥェォャュョッ".includes(char);
+                if (i === 0 && showFirstChar) {
+                    const chip = document.createElement('div');
+                    chip.className = "hint-char" + (isSmall ? " small" : "");
+                    chip.innerText = char;
+                    hintBox.appendChild(chip);
+                } else {
+                    const dot = document.createElement('div');
+                    dot.className = "hint-dot" + (isSmall ? " small" : "");
+                    hintBox.appendChild(dot);
+                }
             });
         }
         scheduleStageLayout();
