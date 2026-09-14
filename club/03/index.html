@@ -1,0 +1,1033 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>木製タングラムパズル (Wooden Tangram)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@400;700;800&display=swap" rel="stylesheet">
+    <style>
+        :root { --app-h: 100vh; }
+        @supports (height: 100dvh) { :root { --app-h: 100dvh; } }
+
+        html, body {
+            height: var(--app-h);
+            overscroll-behavior: none;
+        }
+
+        body {
+            font-family: 'M PLUS Rounded 1c', sans-serif;
+            user-select: none;
+            -webkit-user-select: none;
+            -webkit-touch-callout: none;
+            touch-action: none;
+            background-color: #24160c;
+            background-image: radial-gradient(#362213 15%, transparent 16%), radial-gradient(#362213 15%, transparent 16%);
+            background-size: 60px 60px;
+            background-position: 0 0, 30px 30px;
+        }
+
+        /* 木目調ボードの質感 */
+        .wood-board {
+            background: linear-gradient(135deg, #d4a373 0%, #faedcd 50%, #ccd5ae 100%);
+            background-image: repeating-linear-gradient(45deg, rgba(160, 100, 45, 0.12) 0px, rgba(160, 100, 45, 0.12) 2px, transparent 2px, transparent 12px),
+                              linear-gradient(to bottom, #ca9359, #b07842);
+            box-shadow: inset 0 0 25px rgba(0,0,0,0.6), 0 12px 30px rgba(0,0,0,0.7);
+            border: 12px solid #5a351d;
+            border-radius: 28px;
+        }
+
+        /* パズルピースの質感 */
+        .puzzle-piece {
+            filter: drop-shadow(4px 6px 5px rgba(0,0,0,0.45));
+            transition: filter 0.15s;
+            cursor: grab;
+        }
+
+        .puzzle-piece:active {
+            cursor: grabbing;
+        }
+
+        .puzzle-piece.selected {
+            filter: drop-shadow(0 0 8px #f59e0b) drop-shadow(4px 7px 7px rgba(0,0,0,0.5));
+        }
+
+        /* 「カチッ」演出は内側グループにだけ掛ける。
+           外側の<g>には位置・回転のtransform属性が乗っているため、
+           そこにCSSのtransformアニメーションを重ねると位置がリセットされてしまう。 */
+        .piece-inner {
+            transform-box: fill-box;
+            transform-origin: center;
+        }
+        .piece-inner.snapped {
+            animation: snapPulse 0.32s cubic-bezier(0.2, 0, 0.2, 1);
+        }
+
+        @keyframes snapPulse {
+            0%   { transform: scale(1.12) rotate(-2deg); }
+            45%  { transform: scale(0.95) rotate(1.5deg); }
+            75%  { transform: scale(1.04) rotate(-0.5deg); }
+            100% { transform: scale(1) rotate(0deg); }
+        }
+
+        /* 単一の凹みシルエット（1つの黒い彫り込み） */
+        .silhouette-target {
+            fill: #150b05;
+            stroke: #150b05;
+            stroke-width: 8;
+            stroke-linejoin: round;
+            transition: filter 0.2s;
+        }
+
+        /* 近づいているターゲットをやさしく光らせて「もうすぐ！」を伝える */
+        .silhouette-target.target-glow {
+            animation: targetPulse 0.7s ease-in-out infinite;
+        }
+        @keyframes targetPulse {
+            0%, 100% { filter: drop-shadow(0 0 0px rgba(251,191,36,0)); }
+            50% { filter: drop-shadow(0 0 16px rgba(251,191,36,0.85)); }
+        }
+
+        /* 回転・操作ハンドル */
+        .handle-btn {
+            cursor: pointer;
+            touch-action: none;
+            transition: transform 0.1s;
+        }
+        .handle-btn:hover {
+            transform: scale(1.12);
+        }
+
+        /* スナップ時の木くずパーティクル */
+        .snap-particle {
+            pointer-events: none;
+        }
+
+        /* 木製風ボタン */
+        .btn-wood {
+            background: linear-gradient(to bottom, #d97706, #b45309);
+            box-shadow: 0 4px 0 #78350f, 0 6px 10px rgba(0,0,0,0.4);
+            text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+            transition: all 0.1s;
+        }
+        .btn-wood:active {
+            transform: translateY(3px);
+            box-shadow: 0 1px 0 #78350f, 0 2px 5px rgba(0,0,0,0.4);
+        }
+
+        .btn-secondary {
+            background: linear-gradient(to bottom, #78716c, #57534e);
+            box-shadow: 0 4px 0 #292524, 0 6px 10px rgba(0,0,0,0.4);
+            text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+        }
+        .btn-secondary:active {
+            transform: translateY(3px);
+            box-shadow: 0 1px 0 #292524;
+        }
+    </style>
+</head>
+<body class="w-screen overflow-hidden flex flex-col items-center justify-between p-2 md:p-4 text-amber-100 select-none">
+
+    <header class="w-full max-w-4xl flex items-center justify-between bg-amber-950/85 backdrop-blur border border-amber-800/60 rounded-2xl p-3 px-5 shadow-xl z-10">
+        <div class="flex items-center space-x-3">
+            <span class="text-2xl md:text-3xl">🧩</span>
+            <div>
+                <h1 class="text-lg md:text-xl font-extrabold text-amber-200 leading-none tracking-wide">木製タングラム</h1>
+                <p id="level-title" class="text-xs md:text-sm text-amber-400 font-bold mt-1">ステージ 1 / 4</p>
+            </div>
+        </div>
+
+        <div class="flex items-center space-x-2">
+            <button id="btn-hint" class="btn-secondary text-xs md:text-sm font-bold px-3 py-2 rounded-xl text-white flex items-center gap-1">
+                💡 <span>ヒント</span>
+            </button>
+            <button id="btn-reset" class="btn-secondary text-xs md:text-sm font-bold px-3 py-2 rounded-xl text-white flex items-center gap-1">
+                🔄 <span>やり直し</span>
+            </button>
+            <button id="btn-stages" class="btn-wood text-xs md:text-sm font-bold px-3 py-2 rounded-xl text-white flex items-center gap-1">
+                🗺️ <span>ステージ</span>
+            </button>
+        </div>
+    </header>
+
+    <main class="relative w-full max-w-4xl flex-1 my-2 flex flex-col items-center justify-center overflow-hidden min-h-0">
+        <div id="board-container" class="wood-board relative w-full h-full flex items-center justify-center p-4 overflow-hidden rounded-3xl">
+            <svg id="game-svg" class="w-full h-full max-w-2xl max-h-[72vh]" viewBox="0 0 800 600" preserveAspectRatio="xMidYMid meet">
+                <defs>
+                    <!-- 全ピース共通の木目カラー・木目パターン（すべて同じ色で統一） -->
+                    <linearGradient id="woodPiece" x1="15%" y1="10%" x2="85%" y2="90%">
+                        <stop offset="0%" stop-color="#e9b378" />
+                        <stop offset="45%" stop-color="#cd8a45" />
+                        <stop offset="100%" stop-color="#9a5d24" />
+                    </linearGradient>
+                    <pattern id="woodGrain" width="16" height="16" patternUnits="userSpaceOnUse" patternTransform="rotate(52)">
+                        <rect y="1" width="16" height="2" fill="rgba(58,30,6,0.16)" />
+                        <rect y="8" width="16" height="1.3" fill="rgba(58,30,6,0.11)" />
+                        <rect y="12.5" width="16" height="1.6" fill="rgba(255,222,175,0.12)" />
+                    </pattern>
+
+                    <filter id="handle-shadow" x="-30%" y="-30%" width="160%" height="160%">
+                        <feDropShadow dx="2" dy="3" stdDeviation="3" flood-opacity="0.6"/>
+                    </filter>
+                </defs>
+
+                <!-- 単一の影シルエット -->
+                <g id="target-silhouette-group"></g>
+
+                <!-- ヒント用ガイド線 -->
+                <g id="hint-group" opacity="0" class="transition-opacity duration-300 pointer-events-none"></g>
+
+                <!-- タングラムピース -->
+                <g id="pieces-group"></g>
+
+                <!-- 選択ピースの回転・裏返しUI -->
+                <g id="controls-group"></g>
+
+                <!-- スナップ時の木くずパーティクル（renderではクリアしない） -->
+                <g id="particle-group" class="pointer-events-none"></g>
+            </svg>
+        </div>
+    </main>
+
+    <footer class="w-full max-w-4xl flex items-center justify-between bg-amber-950/85 backdrop-blur border border-amber-800/60 p-2.5 px-4 rounded-2xl shadow-xl z-10 text-xs text-amber-200">
+        <div class="flex items-center gap-2">
+            <span class="text-base">👆</span>
+            <span>ピース移動: <b>ドラッグ</b></span>
+        </div>
+        <div class="flex items-center gap-2">
+            <span class="text-base">🔄</span>
+            <span>回転: <b>上の丸いハンドルを掴んで回す</b></span>
+        </div>
+        <div class="flex items-center gap-2">
+            <span class="text-base">↔️</span>
+            <span>反転: <b>青いボタン</b></span>
+        </div>
+    </footer>
+
+    <!-- モーダル各種 -->
+    <div id="modal-stages" class="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50 hidden">
+        <div class="bg-amber-950 border-4 border-amber-700 rounded-3xl p-6 max-w-lg w-full text-center shadow-2xl">
+            <h2 class="text-2xl font-black text-amber-200 mb-4">ステージを選択</h2>
+            <div id="stage-grid" class="grid grid-cols-3 sm:grid-cols-4 gap-3 max-h-[60vh] overflow-y-auto p-2"></div>
+            <button id="btn-close-stages" class="mt-6 btn-secondary font-bold px-6 py-2.5 rounded-xl text-white">
+                閉じる
+            </button>
+        </div>
+    </div>
+
+    <div id="modal-clear" class="fixed inset-0 bg-black/85 backdrop-blur-md flex items-center justify-center p-4 z-50 hidden">
+        <div class="bg-amber-900 border-4 border-amber-500 rounded-3xl p-8 max-w-md w-full text-center shadow-2xl">
+            <div class="text-6xl mb-3 animate-bounce">🎉</div>
+            <h2 class="text-3xl font-black text-amber-200 mb-2">STAGE CLEAR!</h2>
+            <p class="text-amber-300 mb-6 font-semibold">素晴らしい！ぴったり形を作れました！</p>
+            <button id="btn-next-stage" class="btn-wood text-lg font-bold px-8 py-3 rounded-2xl text-white shadow-lg animate-pulse">
+                次のステージへ ➔
+            </button>
+        </div>
+    </div>
+
+    <script>
+        /* iOS Safari のピンチ拡大（独自gestureイベント）を明示的に無効化 */
+        ['gesturestart', 'gesturechange', 'gestureend'].forEach((type) => {
+            document.addEventListener(type, (e) => e.preventDefault(), { passive: false });
+        });
+
+        /* ツールバーの出し引きでレイアウトが崩れないよう、実測値で高さを更新する */
+        function setAppHeight() {
+            const h = window.visualViewport ? window.visualViewport.height : window.innerHeight;
+            if (h > 0) document.documentElement.style.setProperty('--app-h', `${Math.round(h)}px`);
+        }
+        setAppHeight();
+        window.addEventListener('resize', setAppHeight);
+        window.addEventListener('orientationchange', () => setTimeout(setAppHeight, 250));
+        window.addEventListener('pageshow', setAppHeight);
+        if (window.visualViewport) {
+            window.visualViewport.addEventListener('resize', setAppHeight);
+        }
+
+        /* Web Audio API - カチッとハマるリアルな質感音響 */
+        class SoundEffects {
+            constructor() { this.ctx = null; }
+            init() {
+                if (!this.ctx) {
+                    try {
+                        this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+                    } catch (e) { this.ctx = null; }
+                }
+                if (this.ctx && this.ctx.state === 'suspended') {
+                    this.ctx.resume().catch(() => {});
+                }
+            }
+            playWoodClick() {
+                this.init();
+                if (!this.ctx) return;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(260, this.ctx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(70, this.ctx.currentTime + 0.06);
+                gain.gain.setValueAtTime(0.5, this.ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.06);
+                osc.connect(gain); gain.connect(this.ctx.destination);
+                osc.start(); osc.stop(this.ctx.currentTime + 0.06);
+            }
+            // カチッと響く心地よい吸着音（高音+低音の「コトン」を重ねて木の手応えを出す）
+            playSnap() {
+                this.init();
+                if (!this.ctx) return;
+                const t = this.ctx.currentTime;
+
+                const osc1 = this.ctx.createOscillator();
+                const gain1 = this.ctx.createGain();
+                osc1.type = 'sine';
+                osc1.frequency.setValueAtTime(560, t);
+                osc1.frequency.exponentialRampToValueAtTime(150, t + 0.09);
+                gain1.gain.setValueAtTime(0.85, t);
+                gain1.gain.exponentialRampToValueAtTime(0.01, t + 0.09);
+                osc1.connect(gain1); gain1.connect(this.ctx.destination);
+
+                const osc2 = this.ctx.createOscillator();
+                const gain2 = this.ctx.createGain();
+                osc2.type = 'triangle';
+                osc2.frequency.setValueAtTime(920, t);
+                osc2.frequency.exponentialRampToValueAtTime(320, t + 0.05);
+                gain2.gain.setValueAtTime(0.4, t);
+                gain2.gain.exponentialRampToValueAtTime(0.01, t + 0.05);
+                osc2.connect(gain2); gain2.connect(this.ctx.destination);
+
+                // 低音の「コトッ」で木の重み・手応えを追加
+                const osc3 = this.ctx.createOscillator();
+                const gain3 = this.ctx.createGain();
+                osc3.type = 'sine';
+                osc3.frequency.setValueAtTime(95, t);
+                osc3.frequency.exponentialRampToValueAtTime(55, t + 0.12);
+                gain3.gain.setValueAtTime(0.55, t + 0.005);
+                gain3.gain.exponentialRampToValueAtTime(0.01, t + 0.14);
+                osc3.connect(gain3); gain3.connect(this.ctx.destination);
+
+                osc1.start(t); osc1.stop(t + 0.09);
+                osc2.start(t); osc2.stop(t + 0.05);
+                osc3.start(t); osc3.stop(t + 0.14);
+            }
+            playRotateTick() {
+                this.init();
+                if (!this.ctx) return;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(600, this.ctx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(300, this.ctx.currentTime + 0.03);
+                gain.gain.setValueAtTime(0.25, this.ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.03);
+                osc.connect(gain); gain.connect(this.ctx.destination);
+                osc.start(); osc.stop(this.ctx.currentTime + 0.03);
+            }
+            playFanfare() {
+                this.init();
+                if (!this.ctx) return;
+                const notes = [261.63, 329.63, 392.00, 523.25];
+                notes.forEach((freq, idx) => {
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+                    osc.type = 'triangle';
+                    osc.frequency.setValueAtTime(freq, this.ctx.currentTime + idx * 0.1);
+                    gain.gain.setValueAtTime(0, this.ctx.currentTime + idx * 0.1);
+                    gain.gain.linearRampToValueAtTime(0.35, this.ctx.currentTime + idx * 0.1 + 0.02);
+                    gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + idx * 0.1 + 0.35);
+                    osc.connect(gain); gain.connect(this.ctx.destination);
+                    osc.start(this.ctx.currentTime + idx * 0.1);
+                    osc.stop(this.ctx.currentTime + idx * 0.1 + 0.35);
+                });
+            }
+        }
+        const audio = new SoundEffects();
+
+        const PIECE_FILL = "url(#woodPiece)";
+
+        const TANGRAM_SHAPES = {
+            TRIANGLE_LARGE_1: {
+                type: 'LARGE_TRIANGLE',
+                points: [[-66.67, -66.67], [133.33, -66.67], [-66.67, 133.33]],
+                grad: PIECE_FILL,
+                handleDist: 177
+            },
+            TRIANGLE_LARGE_2: {
+                type: 'LARGE_TRIANGLE',
+                points: [[-66.67, -66.67], [133.33, -66.67], [-66.67, 133.33]],
+                grad: PIECE_FILL,
+                handleDist: 177
+            },
+            TRIANGLE_MEDIUM: {
+                type: 'MEDIUM_TRIANGLE',
+                points: [[-47.14, -47.14], [94.28, -47.14], [-47.14, 94.28]],
+                grad: PIECE_FILL,
+                handleDist: 133
+            },
+            TRIANGLE_SMALL_1: {
+                type: 'SMALL_TRIANGLE',
+                points: [[-33.33, -33.33], [66.67, -33.33], [-33.33, 66.67]],
+                grad: PIECE_FILL,
+                handleDist: 103
+            },
+            TRIANGLE_SMALL_2: {
+                type: 'SMALL_TRIANGLE',
+                points: [[-33.33, -33.33], [66.67, -33.33], [-33.33, 66.67]],
+                grad: PIECE_FILL,
+                handleDist: 103
+            },
+            SQUARE: {
+                type: 'SQUARE',
+                points: [[-50, -50], [50, -50], [50, 50], [-50, 50]],
+                grad: PIECE_FILL,
+                handleDist: 99
+            },
+            PARALLELOGRAM: {
+                type: 'PARALLELOGRAM',
+                points: [[-75, -25], [25, -25], [75, 25], [-25, 25]],
+                grad: PIECE_FILL,
+                handleDist: 107,
+                canFlip: true
+            }
+        };
+
+        // ステージ構造：複数の解法パターン (targetSolutions) を持つことができるため、見た目が正しければ必ずクリアになります。
+        // 各ステージにタイトルは不要 — 画面には「ステージ N」という番号だけを表示します。
+        // make.html で作った問題は、ここに { targetSolutions, spawnPieces } の形でそのまま追加できます。
+        const STAGES = [
+            {
+                targetSolutions: [
+                    [
+                        { type: 'LARGE_TRIANGLE', x: 366.67, y: 216.67, rotation: 0, flip: false },
+                        { type: 'LARGE_TRIANGLE', x: 433.33, y: 283.33, rotation: 180, flip: false }
+                    ],
+                    [
+                        { type: 'LARGE_TRIANGLE', x: 433.33, y: 216.67, rotation: 90, flip: false },
+                        { type: 'LARGE_TRIANGLE', x: 366.67, y: 283.33, rotation: 270, flip: false }
+                    ]
+                ],
+                spawnPieces: [
+                    { shape: 'TRIANGLE_LARGE_1', x: 220, y: 480, rotation: 90, flip: false },
+                    { shape: 'TRIANGLE_LARGE_2', x: 580, y: 480, rotation: 270, flip: false }
+                ]
+            },
+            {
+                targetSolutions: [
+                    [
+                        { type: 'LARGE_TRIANGLE', x: 366.67, y: 166.67, rotation: 0, flip: false },
+                        { type: 'SQUARE', x: 350, y: 350, rotation: 0, flip: false }
+                    ],
+                    [
+                        { type: 'LARGE_TRIANGLE', x: 333.33, y: 166.67, rotation: 90, flip: false },
+                        { type: 'SQUARE', x: 350, y: 350, rotation: 0, flip: false }
+                    ]
+                ],
+                spawnPieces: [
+                    { shape: 'SQUARE', x: 250, y: 480, rotation: 45, flip: false },
+                    { shape: 'TRIANGLE_LARGE_1', x: 550, y: 480, rotation: 180, flip: false }
+                ]
+            },
+            {
+                targetSolutions: [
+                    [
+                        { type: 'LARGE_TRIANGLE', x: 366.67, y: 216.67, rotation: 0, flip: false },
+                        { type: 'LARGE_TRIANGLE', x: 433.33, y: 283.33, rotation: 180, flip: false },
+                        { type: 'MEDIUM_TRIANGLE', x: 480.47, y: 197.14, rotation: 270, flip: false }
+                    ],
+                    [
+                        { type: 'LARGE_TRIANGLE', x: 433.33, y: 216.67, rotation: 90, flip: false },
+                        { type: 'LARGE_TRIANGLE', x: 366.67, y: 283.33, rotation: 270, flip: false },
+                        { type: 'MEDIUM_TRIANGLE', x: 480.47, y: 197.14, rotation: 270, flip: false }
+                    ]
+                ],
+                spawnPieces: [
+                    { shape: 'TRIANGLE_LARGE_1', x: 180, y: 480, rotation: 45, flip: false },
+                    { shape: 'TRIANGLE_LARGE_2', x: 400, y: 480, rotation: 135, flip: false },
+                    { shape: 'TRIANGLE_MEDIUM', x: 620, y: 480, rotation: 0, flip: false }
+                ]
+            },
+            {
+                targetSolutions: [
+                    [
+                        { type: 'LARGE_TRIANGLE', x: 333.33, y: 183.33, rotation: 0, flip: false },
+                        { type: 'LARGE_TRIANGLE', x: 466.67, y: 316.67, rotation: 180, flip: false },
+                        { type: 'MEDIUM_TRIANGLE', x: 329.29, y: 329.29, rotation: 45, flip: false },
+                        { type: 'SQUARE', x: 435.35, y: 185.35, rotation: 45, flip: false },
+                        { type: 'PARALLELOGRAM', x: 487.50, y: 125.00, rotation: 0, flip: true },
+                        { type: 'SMALL_TRIANGLE', x: 383.33, y: 233.33, rotation: 180, flip: false },
+                        { type: 'SMALL_TRIANGLE', x: 433.33, y: 283.33, rotation: 270, flip: false }
+                    ]
+                ],
+                spawnPieces: [
+                    { shape: 'TRIANGLE_LARGE_1', x: 100, y: 480, rotation: 90, flip: false },
+                    { shape: 'TRIANGLE_LARGE_2', x: 210, y: 480, rotation: 270, flip: false },
+                    { shape: 'TRIANGLE_MEDIUM', x: 320, y: 480, rotation: 0, flip: false },
+                    { shape: 'SQUARE', x: 420, y: 480, rotation: 0, flip: false },
+                    { shape: 'PARALLELOGRAM', x: 520, y: 480, rotation: 0, flip: false },
+                    { shape: 'TRIANGLE_SMALL_1', x: 630, y: 480, rotation: 45, flip: false },
+                    { shape: 'TRIANGLE_SMALL_2', x: 720, y: 480, rotation: 135, flip: false }
+                ]
+            }
+        ];
+
+        const SVG_NS = 'http://www.w3.org/2000/svg';
+
+        class TangramGame {
+            constructor() {
+                this.currentStageIndex = 0;
+                this.pieces = [];
+                this.activeTargets = [];
+                this.selectedPieceId = null;
+
+                this.interactionMode = null; // 'move' | 'rotate'
+                this.dragState = null;
+                this.lastTickAngle = 0;
+
+                this.isCleared = false;
+                this.showHint = false;
+
+                this.svg = document.getElementById('game-svg');
+                this.targetGroup = document.getElementById('target-silhouette-group');
+                this.hintGroup = document.getElementById('hint-group');
+                this.piecesGroup = document.getElementById('pieces-group');
+                this.controlsGroup = document.getElementById('controls-group');
+                this.particleGroup = document.getElementById('particle-group');
+
+                this.initEvents();
+                this.loadStage(0);
+                this.renderStageGrid();
+            }
+
+            loadStage(index) {
+                this.currentStageIndex = index;
+                const stage = STAGES[index];
+
+                document.getElementById('level-title').innerText = `ステージ ${index + 1} / ${STAGES.length}`;
+                this.isCleared = false;
+                this.selectedPieceId = null;
+                this.showHint = false;
+                this.hintGroup.setAttribute('opacity', '0');
+
+                // 第1の解法ターゲットをデフォルト影として使用
+                this.activeTargets = stage.targetSolutions[0];
+
+                this.pieces = stage.spawnPieces.map((p, i) => ({
+                    id: `piece-${i}`,
+                    shapeKey: p.shape,
+                    type: TANGRAM_SHAPES[p.shape].type,
+                    x: p.x,
+                    y: p.y,
+                    rotation: p.rotation,
+                    flip: p.flip || false,
+                    isJustSnapped: false
+                }));
+
+                this.render();
+            }
+
+            getPolygonPoints(shapeKey) {
+                return TANGRAM_SHAPES[shapeKey].points.map(pt => pt.join(',')).join(' ');
+            }
+
+            getTransformString(x, y, rotation, flip = false) {
+                const flipStr = flip ? 'scale(-1, 1)' : '';
+                return `translate(${x}, ${y}) rotate(${rotation}) ${flipStr}`;
+            }
+
+            render() {
+                // 1. 合体シルエット（彫り込み影）の描画
+                this.targetGroup.innerHTML = '';
+                this.hintGroup.innerHTML = '';
+
+                this.activeTargets.forEach(t => {
+                    const sampleKey = Object.keys(TANGRAM_SHAPES).find(k => TANGRAM_SHAPES[k].type === t.type);
+
+                    const poly = document.createElementNS(SVG_NS, 'polygon');
+                    poly.setAttribute('points', this.getPolygonPoints(sampleKey));
+                    poly.setAttribute('class', 'silhouette-target' + (this.isNearTarget(t) ? ' target-glow' : ''));
+                    poly.setAttribute('transform', this.getTransformString(t.x, t.y, t.rotation, t.flip));
+                    this.targetGroup.appendChild(poly);
+
+                    // ヒント（内側破線ガイド）
+                    const hintPoly = document.createElementNS(SVG_NS, 'polygon');
+                    hintPoly.setAttribute('points', this.getPolygonPoints(sampleKey));
+                    hintPoly.setAttribute('fill', 'rgba(245, 158, 11, 0.18)');
+                    hintPoly.setAttribute('stroke', '#f59e0b');
+                    hintPoly.setAttribute('stroke-width', '2.5');
+                    hintPoly.setAttribute('stroke-dasharray', '5 4');
+                    hintPoly.setAttribute('transform', this.getTransformString(t.x, t.y, t.rotation, t.flip));
+                    this.hintGroup.appendChild(hintPoly);
+                });
+
+                // 2. ピースの描画
+                this.piecesGroup.innerHTML = '';
+                this.controlsGroup.innerHTML = '';
+
+                this.pieces.forEach(p => {
+                    const shape = TANGRAM_SHAPES[p.shapeKey];
+                    const isSelected = (p.id === this.selectedPieceId);
+
+                    // 外側の<g>は位置・回転・反転だけを担当（transform属性）
+                    const g = document.createElementNS(SVG_NS, 'g');
+                    g.setAttribute('id', p.id);
+                    g.setAttribute('class', `puzzle-piece ${isSelected ? 'selected' : ''}`);
+                    g.setAttribute('transform', this.getTransformString(p.x, p.y, p.rotation, p.flip));
+
+                    // 内側の<g>は「カチッ」の拡大縮小演出（CSS transform）だけを担当。
+                    // 分けないとCSSアニメーションが外側のtransform属性を上書きしてしまう。
+                    const inner = document.createElementNS(SVG_NS, 'g');
+                    inner.setAttribute('class', 'piece-inner' + (p.isJustSnapped ? ' snapped' : ''));
+                    p.isJustSnapped = false; // エフェクト消費
+
+                    const poly = document.createElementNS(SVG_NS, 'polygon');
+                    poly.setAttribute('points', this.getPolygonPoints(p.shapeKey));
+                    poly.setAttribute('fill', shape.grad);
+                    poly.setAttribute('stroke', '#3e1f06');
+                    poly.setAttribute('stroke-width', '3');
+                    poly.setAttribute('stroke-linejoin', 'round');
+
+                    // 木目パターンを重ねて質感を出す（同じ輪郭の上に重ねるだけなので形は増えない）
+                    const grain = document.createElementNS(SVG_NS, 'polygon');
+                    grain.setAttribute('points', this.getPolygonPoints(p.shapeKey));
+                    grain.setAttribute('fill', 'url(#woodGrain)');
+                    grain.setAttribute('class', 'pointer-events-none');
+
+                    inner.appendChild(poly);
+                    inner.appendChild(grain);
+                    g.appendChild(inner);
+
+                    g.addEventListener('pointerdown', (e) => this.onPiecePointerDown(e, p));
+                    this.piecesGroup.appendChild(g);
+
+                    // 3. 回転ハンドルのUI
+                    if (isSelected && !this.isCleared) {
+                        this.renderPieceControls(p);
+                    }
+                });
+            }
+
+            // ピースがどれかのターゲットに惜しいところまで近づいているか（マグネット演出のハイライト用）
+            isNearTarget(target) {
+                const NEAR_DIST = 60;
+                return this.pieces.some(p => {
+                    if (p.type !== target.type) return false;
+                    if (p.flip !== (target.flip || false)) return false;
+                    let rotDiff = Math.abs((p.rotation % 360) - (target.rotation % 360));
+                    if (rotDiff > 180) rotDiff = 360 - rotDiff;
+                    if (rotDiff > 25) return false;
+                    const dist = Math.hypot(p.x - target.x, p.y - target.y);
+                    return dist > 8 && dist < NEAR_DIST;
+                });
+            }
+
+            // ドラッグ中に近くの正解位置を探す（マグネットで吸い寄せる用）
+            findMagnetTarget(piece) {
+                const MAGNET_DIST = 55;
+                const stage = STAGES[this.currentStageIndex];
+                let best = null;
+                let bestDist = Infinity;
+
+                for (const solution of stage.targetSolutions) {
+                    for (const target of solution) {
+                        if (target.type !== piece.type) continue;
+                        if (piece.flip !== (target.flip || false)) continue;
+                        let rotDiff = Math.abs((piece.rotation % 360) - (target.rotation % 360));
+                        if (rotDiff > 180) rotDiff = 360 - rotDiff;
+                        if (rotDiff > 25) continue;
+
+                        const dist = Math.hypot(piece.x - target.x, piece.y - target.y);
+                        if (dist < MAGNET_DIST && dist < bestDist) {
+                            best = target;
+                            bestDist = dist;
+                        }
+                    }
+                }
+                return best;
+            }
+
+            renderPieceControls(piece) {
+                const shape = TANGRAM_SHAPES[piece.shapeKey];
+                const handleDist = shape.handleDist || 70;
+
+                // ハンドル一式はピースと同じtransform（位置・回転・反転）を継承させる。
+                // こうすることで回転や反転をしてもハンドルの位置が絶対にズレない。
+                const wrap = document.createElementNS(SVG_NS, 'g');
+                wrap.setAttribute('transform', this.getTransformString(piece.x, piece.y, piece.rotation, piece.flip));
+
+                // --- 回転ハンドル ---
+                const rotGroup = document.createElementNS(SVG_NS, 'g');
+                rotGroup.setAttribute('transform', `translate(0, ${-handleDist})`);
+                rotGroup.setAttribute('class', 'handle-btn');
+
+                const rotBg = document.createElementNS(SVG_NS, 'circle');
+                rotBg.setAttribute('r', '23');
+                rotBg.setAttribute('fill', '#d97706');
+                rotBg.setAttribute('stroke', '#ffffff');
+                rotBg.setAttribute('stroke-width', '3');
+                rotBg.setAttribute('filter', 'url(#handle-shadow)');
+                rotGroup.appendChild(rotBg);
+
+                // 絵文字ではなくベクター図形で「回転」を表す（円弧＋矢じり）。
+                // 端末によって絵文字の見た目が崩れる問題を避けるため。
+                // 円弧は3時の方向（角度0°）から時計回りに270°分だけ描き、
+                // 矢じりはその終端（12時の位置）に、進行方向（右向き）へ正確に接線を合わせて置く
+                const rotArc = document.createElementNS(SVG_NS, 'circle');
+                rotArc.setAttribute('r', '11');
+                rotArc.setAttribute('fill', 'none');
+                rotArc.setAttribute('stroke', '#ffffff');
+                rotArc.setAttribute('stroke-width', '2.8');
+                rotArc.setAttribute('stroke-linecap', 'round');
+                const circumference = 2 * Math.PI * 11;
+                rotArc.setAttribute('stroke-dasharray', `${circumference * 0.75} ${circumference * 0.25}`);
+                rotArc.setAttribute('class', 'pointer-events-none');
+                rotGroup.appendChild(rotArc);
+
+                const arrowHead = document.createElementNS(SVG_NS, 'polygon');
+                arrowHead.setAttribute('points', '7,-11 -1,-15 -1,-7');
+                arrowHead.setAttribute('fill', '#ffffff');
+                arrowHead.setAttribute('class', 'pointer-events-none');
+                rotGroup.appendChild(arrowHead);
+
+                rotGroup.addEventListener('pointerdown', (e) => this.onRotatePointerDown(e, piece));
+                wrap.appendChild(rotGroup);
+
+                // --- 反転ボタン（対応する形のみ） ---
+                if (shape.canFlip) {
+                    const flipGroup = document.createElementNS(SVG_NS, 'g');
+                    flipGroup.setAttribute('transform', `translate(0, ${handleDist * 0.85})`);
+                    flipGroup.setAttribute('class', 'handle-btn');
+
+                    const flipBg = document.createElementNS(SVG_NS, 'circle');
+                    flipBg.setAttribute('r', '20');
+                    flipBg.setAttribute('fill', '#0284c7');
+                    flipBg.setAttribute('stroke', '#ffffff');
+                    flipBg.setAttribute('stroke-width', '2.5');
+                    flipBg.setAttribute('filter', 'url(#handle-shadow)');
+                    flipGroup.appendChild(flipBg);
+
+                    const leftArrow = document.createElementNS(SVG_NS, 'polygon');
+                    leftArrow.setAttribute('points', '-2,-6 -10,0 -2,6');
+                    leftArrow.setAttribute('fill', '#ffffff');
+                    leftArrow.setAttribute('class', 'pointer-events-none');
+                    flipGroup.appendChild(leftArrow);
+
+                    const rightArrow = document.createElementNS(SVG_NS, 'polygon');
+                    rightArrow.setAttribute('points', '2,-6 10,0 2,6');
+                    rightArrow.setAttribute('fill', '#ffffff');
+                    rightArrow.setAttribute('class', 'pointer-events-none');
+                    flipGroup.appendChild(rightArrow);
+
+                    const midBar = document.createElementNS(SVG_NS, 'line');
+                    midBar.setAttribute('x1', 0); midBar.setAttribute('y1', -6);
+                    midBar.setAttribute('x2', 0); midBar.setAttribute('y2', 6);
+                    midBar.setAttribute('stroke', '#ffffff');
+                    midBar.setAttribute('stroke-width', '2');
+                    midBar.setAttribute('class', 'pointer-events-none');
+                    flipGroup.appendChild(midBar);
+
+                    flipGroup.addEventListener('pointerdown', (e) => {
+                        e.stopPropagation();
+                        piece.flip = !piece.flip;
+                        audio.playWoodClick();
+                        this.checkSnap(piece);
+                        this.render();
+                        this.checkLevelComplete();
+                    });
+
+                    wrap.appendChild(flipGroup);
+                }
+
+                this.controlsGroup.appendChild(wrap);
+            }
+
+            initEvents() {
+                document.getElementById('btn-reset').addEventListener('click', () => {
+                    audio.playWoodClick();
+                    this.loadStage(this.currentStageIndex);
+                });
+
+                document.getElementById('btn-hint').addEventListener('click', () => {
+                    audio.playWoodClick();
+                    this.showHint = !this.showHint;
+                    this.hintGroup.setAttribute('opacity', this.showHint ? '1' : '0');
+                });
+
+                document.getElementById('btn-stages').addEventListener('click', () => {
+                    audio.playWoodClick();
+                    document.getElementById('modal-stages').classList.remove('hidden');
+                });
+
+                document.getElementById('btn-close-stages').addEventListener('click', () => {
+                    audio.playWoodClick();
+                    document.getElementById('modal-stages').classList.add('hidden');
+                });
+
+                document.getElementById('btn-next-stage').addEventListener('click', () => {
+                    audio.playWoodClick();
+                    document.getElementById('modal-clear').classList.add('hidden');
+                    if (this.currentStageIndex + 1 < STAGES.length) {
+                        this.loadStage(this.currentStageIndex + 1);
+                    } else {
+                        this.loadStage(0);
+                    }
+                });
+
+                this.svg.addEventListener('pointerdown', (e) => {
+                    if (e.target === this.svg || e.target.classList.contains('wood-board') || e.target.classList.contains('silhouette-target')) {
+                        this.selectedPieceId = null;
+                        this.render();
+                    }
+                });
+
+                window.addEventListener('pointermove', (e) => this.onPointerMove(e));
+                window.addEventListener('pointerup', () => this.onPointerUp());
+                window.addEventListener('pointercancel', () => this.onPointerUp());
+            }
+
+            getSVGCoordinates(e) {
+                const pt = this.svg.createSVGPoint();
+                pt.x = e.clientX;
+                pt.y = e.clientY;
+                return pt.matrixTransform(this.svg.getScreenCTM().inverse());
+            }
+
+            onPiecePointerDown(e, piece) {
+                if (this.isCleared) return;
+                e.stopPropagation();
+                audio.playWoodClick();
+
+                this.selectedPieceId = piece.id;
+                this.interactionMode = 'move';
+
+                const coords = this.getSVGCoordinates(e);
+                this.dragState = {
+                    pieceId: piece.id,
+                    startX: coords.x,
+                    startY: coords.y,
+                    initialX: piece.x,
+                    initialY: piece.y
+                };
+
+                const idx = this.pieces.findIndex(p => p.id === piece.id);
+                const [moved] = this.pieces.splice(idx, 1);
+                this.pieces.push(moved);
+
+                this.render();
+            }
+
+            onRotatePointerDown(e, piece) {
+                if (this.isCleared) return;
+                e.stopPropagation();
+                audio.playWoodClick();
+
+                this.interactionMode = 'rotate';
+                const coords = this.getSVGCoordinates(e);
+
+                const angleDeg = Math.atan2(coords.y - piece.y, coords.x - piece.x) * (180 / Math.PI);
+                this.lastTickAngle = piece.rotation;
+
+                // 角度は「前回からの差分」を積み上げて追跡する（絶対角度の引き算だと
+                // -180°/180°をまたいだ瞬間に360°近く跳ぶ不具合があったため）
+                this.dragState = {
+                    pieceId: piece.id,
+                    lastAngleDeg: angleDeg,
+                    accumRotation: piece.rotation,
+                    moved: false
+                };
+            }
+
+            onPointerMove(e) {
+                if (!this.dragState || !this.interactionMode) return;
+
+                const coords = this.getSVGCoordinates(e);
+                const piece = this.pieces.find(p => p.id === this.dragState.pieceId);
+                if (!piece) return;
+
+                if (this.interactionMode === 'move') {
+                    const dx = coords.x - this.dragState.startX;
+                    const dy = coords.y - this.dragState.startY;
+                    let nx = this.dragState.initialX + dx;
+                    let ny = this.dragState.initialY + dy;
+
+                    // マグネット：正解の位置・角度に近づくとやさしく吸い寄せられる
+                    piece.x = nx;
+                    piece.y = ny;
+                    const magnet = this.findMagnetTarget(piece);
+                    if (magnet) {
+                        const pull = 0.4;
+                        piece.x = nx + (magnet.x - nx) * pull;
+                        piece.y = ny + (magnet.y - ny) * pull;
+                    }
+                    this.render();
+                }
+                else if (this.interactionMode === 'rotate') {
+                    const currentAngleDeg = Math.atan2(coords.y - piece.y, coords.x - piece.x) * (180 / Math.PI);
+
+                    // 前回の角度からの差分だけを加算する（-180°/180°の境界をまたいでも跳ばない）
+                    let delta = currentAngleDeg - this.dragState.lastAngleDeg;
+                    if (delta > 180) delta -= 360;
+                    if (delta < -180) delta += 360;
+                    if (Math.abs(delta) > 0.5) this.dragState.moved = true;
+
+                    this.dragState.accumRotation += delta;
+                    this.dragState.lastAngleDeg = currentAngleDeg;
+
+                    let newRotation = this.dragState.accumRotation % 360;
+                    if (newRotation < 0) newRotation += 360;
+
+                    // 回転中に45度ごとに小気味よいクリック音
+                    const nearestSnap = Math.round(newRotation / 45) * 45;
+                    if (Math.abs(newRotation - nearestSnap) < 6 && Math.abs(this.lastTickAngle - nearestSnap) >= 6) {
+                        audio.playRotateTick();
+                        this.lastTickAngle = nearestSnap;
+                    }
+
+                    piece.rotation = newRotation;
+                    this.render();
+                }
+            }
+
+            onPointerUp() {
+                if (!this.dragState) return;
+
+                const piece = this.pieces.find(p => p.id === this.dragState.pieceId);
+
+                if (piece) {
+                    if (this.interactionMode === 'rotate') {
+                        if (!this.dragState.moved) {
+                            // ほとんど動かさず「タップ」しただけなら45度ずつ回す
+                            // （細かいドラッグが難しい子でも確実に回転できるように）
+                            piece.rotation = (Math.round(piece.rotation / 45) * 45 + 45) % 360;
+                        } else {
+                            piece.rotation = Math.round(piece.rotation / 45) * 45 % 360;
+                        }
+                    }
+                    // ドラッグ離し時に強力スナップを判定
+                    this.checkSnap(piece);
+                }
+
+                this.dragState = null;
+                this.interactionMode = null;
+                this.render();
+                this.checkLevelComplete();
+            }
+
+            // 磁石のようにカチッとはまる吸着処理（タイプの同じターゲットならどれでもスナップ）
+            checkSnap(piece) {
+                const SNAP_DIST = 45; // スナップ判定範囲を拡大し快適化
+                let snapped = false;
+
+                const stage = STAGES[this.currentStageIndex];
+
+                for (const solution of stage.targetSolutions) {
+                    for (const target of solution) {
+                        if (target.type === piece.type) {
+                            const dist = Math.hypot(piece.x - target.x, piece.y - target.y);
+
+                            let rotDiff = Math.abs((piece.rotation % 360) - (target.rotation % 360));
+                            if (rotDiff > 180) rotDiff = 360 - rotDiff;
+
+                            const flipMatches = (piece.flip === (target.flip || false));
+
+                            if (dist < SNAP_DIST && rotDiff < 25 && flipMatches) {
+                                piece.x = target.x;
+                                piece.y = target.y;
+                                piece.rotation = target.rotation;
+                                piece.isJustSnapped = true;
+
+                                audio.playSnap();
+                                this.spawnSnapParticles(target.x, target.y);
+                                if (navigator.vibrate) {
+                                    try { navigator.vibrate(18); } catch (e) {}
+                                }
+                                snapped = true;
+                                break;
+                            }
+                        }
+                    }
+                    if (snapped) break;
+                }
+            }
+
+            // スナップの瞬間に散る木くず風パーティクル
+            spawnSnapParticles(cx, cy) {
+                const count = 9;
+                for (let i = 0; i < count; i++) {
+                    const angle = (Math.PI * 2 * i) / count + (Math.random() * 0.5 - 0.25);
+                    const dist = 24 + Math.random() * 18;
+                    const dot = document.createElementNS(SVG_NS, 'circle');
+                    dot.setAttribute('cx', cx);
+                    dot.setAttribute('cy', cy);
+                    dot.setAttribute('r', (2 + Math.random() * 2).toFixed(1));
+                    dot.setAttribute('fill', Math.random() > 0.5 ? '#fbbf24' : '#d97706');
+                    dot.setAttribute('class', 'snap-particle');
+                    dot.style.opacity = '1';
+                    dot.style.transition = 'transform 0.5s ease-out, opacity 0.5s ease-out';
+                    this.particleGroup.appendChild(dot);
+
+                    requestAnimationFrame(() => {
+                        dot.style.transform = `translate(${(Math.cos(angle) * dist).toFixed(1)}px, ${(Math.sin(angle) * dist).toFixed(1)}px)`;
+                        dot.style.opacity = '0';
+                    });
+                    setTimeout(() => dot.remove(), 550);
+                }
+            }
+
+            // 見た目が合っていればどの解法パターンでもクリア判定
+            checkLevelComplete() {
+                const stage = STAGES[this.currentStageIndex];
+
+                const isClearedAny = stage.targetSolutions.some(solution => {
+                    return solution.every(target => {
+                        return this.pieces.some(piece =>
+                            piece.type === target.type &&
+                            Math.abs(piece.x - target.x) < 10 &&
+                            Math.abs(piece.y - target.y) < 10 &&
+                            (Math.abs((piece.rotation % 360) - (target.rotation % 360)) < 10 ||
+                             Math.abs((piece.rotation % 360) - (target.rotation % 360)) > 350) &&
+                            (piece.flip === (target.flip || false))
+                        );
+                    });
+                });
+
+                if (isClearedAny && !this.isCleared) {
+                    this.isCleared = true;
+                    this.selectedPieceId = null;
+                    this.render();
+                    audio.playFanfare();
+
+                    setTimeout(() => {
+                        document.getElementById('modal-clear').classList.remove('hidden');
+                    }, 400);
+                }
+            }
+
+            renderStageGrid() {
+                const grid = document.getElementById('stage-grid');
+                grid.innerHTML = '';
+
+                STAGES.forEach((s, idx) => {
+                    const btn = document.createElement('button');
+                    btn.className = `p-3 rounded-2xl font-black text-sm border-2 transition ${
+                        idx === this.currentStageIndex
+                            ? 'bg-amber-600 border-amber-300 text-white shadow-lg'
+                            : 'bg-amber-900 border-amber-800 text-amber-200 hover:bg-amber-800'
+                    }`;
+                    btn.innerHTML = `<div class="text-[10px] font-bold text-amber-400">STAGE</div>${idx + 1}`;
+
+                    btn.addEventListener('click', () => {
+                        audio.playWoodClick();
+                        document.getElementById('modal-stages').classList.add('hidden');
+                        this.loadStage(idx);
+                    });
+
+                    grid.appendChild(btn);
+                });
+            }
+        }
+
+        window.addEventListener('load', () => {
+            window.game = new TangramGame();
+        });
+    </script>
+</body>
+</html>

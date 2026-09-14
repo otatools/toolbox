@@ -1,0 +1,642 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>タングラム もんだい作成ツール</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@400;700;800&display=swap" rel="stylesheet">
+    <style>
+        :root { --app-h: 100vh; }
+        @supports (height: 100dvh) { :root { --app-h: 100dvh; } }
+        html, body { height: var(--app-h); overscroll-behavior: none; }
+
+        body {
+            font-family: 'M PLUS Rounded 1c', sans-serif;
+            -webkit-user-select: none;
+            -webkit-touch-callout: none;
+            background-color: #1c2b24;
+            background-image: radial-gradient(#28392f 15%, transparent 16%), radial-gradient(#28392f 15%, transparent 16%);
+            background-size: 60px 60px;
+            background-position: 0 0, 30px 30px;
+        }
+
+        .wood-board {
+            background: linear-gradient(135deg, #d4a373 0%, #faedcd 50%, #ccd5ae 100%);
+            background-image: repeating-linear-gradient(45deg, rgba(160, 100, 45, 0.12) 0px, rgba(160, 100, 45, 0.12) 2px, transparent 2px, transparent 12px),
+                              linear-gradient(to bottom, #ca9359, #b07842);
+            box-shadow: inset 0 0 25px rgba(0,0,0,0.6), 0 12px 30px rgba(0,0,0,0.7);
+            border: 10px solid #5a351d;
+            border-radius: 24px;
+            touch-action: none;
+        }
+
+        .puzzle-piece { filter: drop-shadow(3px 5px 4px rgba(0,0,0,0.45)); cursor: grab; }
+        .puzzle-piece:active { cursor: grabbing; }
+        .puzzle-piece.selected { filter: drop-shadow(0 0 12px #f59e0b) drop-shadow(4px 8px 8px rgba(0,0,0,0.5)); }
+
+        .silhouette-preview { fill: #150b05; stroke: #150b05; stroke-width: 8; stroke-linejoin: round; }
+
+        .handle-btn { cursor: pointer; touch-action: none; }
+
+        .palette-btn { transition: all 0.12s; }
+        .palette-btn:active { transform: translateY(2px); }
+        .palette-btn[data-used="1"] { opacity: 0.35; }
+
+        .btn-wood {
+            background: linear-gradient(to bottom, #d97706, #b45309);
+            box-shadow: 0 3px 0 #78350f, 0 5px 8px rgba(0,0,0,0.4);
+            transition: all 0.1s;
+        }
+        .btn-wood:active { transform: translateY(3px); box-shadow: 0 1px 0 #78350f; }
+
+        .btn-secondary {
+            background: linear-gradient(to bottom, #78716c, #57534e);
+            box-shadow: 0 3px 0 #292524, 0 5px 8px rgba(0,0,0,0.4);
+        }
+        .btn-secondary:active { transform: translateY(3px); box-shadow: 0 1px 0 #292524; }
+
+        .btn-blue {
+            background: linear-gradient(to bottom, #0284c7, #075985);
+            box-shadow: 0 3px 0 #0c4a6e, 0 5px 8px rgba(0,0,0,0.4);
+        }
+        .btn-blue:active { transform: translateY(3px); box-shadow: 0 1px 0 #0c4a6e; }
+
+        textarea#output-code {
+            font-family: 'SFMono-Regular', Consolas, monospace;
+            white-space: pre;
+        }
+
+        .tab-btn.active { background: #14532d; color: #fff; }
+    </style>
+</head>
+<body class="w-screen overflow-hidden flex flex-col items-center p-2 md:p-4 text-emerald-100 select-none">
+
+    <header class="w-full max-w-6xl flex items-center justify-between bg-emerald-950/85 backdrop-blur border border-emerald-800/60 rounded-2xl p-3 px-5 shadow-xl z-10 mb-2">
+        <div class="flex items-center space-x-3">
+            <span class="text-2xl md:text-3xl">🛠️</span>
+            <div>
+                <h1 class="text-lg md:text-xl font-extrabold text-emerald-200 leading-none tracking-wide">タングラム もんだい作成ツール</h1>
+                <p class="text-xs text-emerald-400 font-bold mt-1">ピースを並べて、index.html に貼るコードを作ります</p>
+            </div>
+        </div>
+        <div class="flex items-center gap-2">
+            <button id="btn-help" class="btn-secondary text-xs md:text-sm font-bold px-3 py-2 rounded-xl text-white">❓ つかいかた</button>
+            <button id="btn-clear" class="btn-secondary text-xs md:text-sm font-bold px-3 py-2 rounded-xl text-white">🗑️ クリア</button>
+        </div>
+    </header>
+
+    <div class="w-full max-w-6xl flex-1 min-h-0 flex flex-col lg:flex-row gap-3">
+
+        <!-- 左：パレット -->
+        <div class="lg:w-52 flex-shrink-0 bg-emerald-950/85 border border-emerald-800/60 rounded-2xl p-3 overflow-y-auto">
+            <h2 class="text-sm font-bold text-emerald-300 mb-2">① ピースを置く</h2>
+            <div id="palette" class="grid grid-cols-4 lg:grid-cols-2 gap-2"></div>
+            <p class="text-[11px] text-emerald-400 mt-3 leading-relaxed">タップでボードに追加。もう一度タップでボードから外せます。</p>
+        </div>
+
+        <!-- 中央：ボード -->
+        <div class="flex-1 min-h-0 flex flex-col items-center justify-center relative">
+            <div class="flex items-center gap-2 mb-2">
+                <span class="text-xs text-emerald-300 font-bold">② 完成させたい形にドラッグ・回転・反転で並べる</span>
+            </div>
+            <div id="board-container" class="wood-board relative w-full flex-1 flex items-center justify-center p-4 overflow-hidden">
+                <svg id="edit-svg" class="w-full h-full max-w-2xl max-h-[62vh]" viewBox="0 0 800 600" preserveAspectRatio="xMidYMid meet">
+                    <defs>
+                        <linearGradient id="woodPiece" x1="15%" y1="10%" x2="85%" y2="90%"><stop offset="0%" stop-color="#e9b378"/><stop offset="45%" stop-color="#cd8a45"/><stop offset="100%" stop-color="#9a5d24"/></linearGradient>
+                        <pattern id="woodGrain" width="16" height="16" patternUnits="userSpaceOnUse" patternTransform="rotate(52)">
+                            <rect y="1" width="16" height="2" fill="rgba(58,30,6,0.16)" />
+                            <rect y="8" width="16" height="1.3" fill="rgba(58,30,6,0.11)" />
+                            <rect y="12.5" width="16" height="1.6" fill="rgba(255,222,175,0.12)" />
+                        </pattern>
+                        <filter id="handle-shadow" x="-30%" y="-30%" width="160%" height="160%"><feDropShadow dx="2" dy="3" stdDeviation="3" flood-opacity="0.6"/></filter>
+                    </defs>
+                    <g id="silhouette-group"></g>
+                    <g id="pieces-group"></g>
+                    <g id="controls-group"></g>
+                </svg>
+            </div>
+        </div>
+
+        <!-- 右：書き出し -->
+        <div class="lg:w-80 flex-shrink-0 bg-emerald-950/85 border border-emerald-800/60 rounded-2xl p-3 flex flex-col">
+            <h2 class="text-sm font-bold text-emerald-300 mb-2">③ 見た目を確認してコードを作る</h2>
+            <div class="flex gap-2 mb-2">
+                <button id="btn-preview" class="flex-1 btn-blue text-xs font-bold px-2 py-2 rounded-xl text-white">🖤 シルエット確認</button>
+                <button id="btn-generate" class="flex-1 btn-wood text-xs font-bold px-2 py-2 rounded-xl text-white">✅ コード作成</button>
+            </div>
+            <div id="warning-box" class="hidden text-xs bg-amber-900/60 border border-amber-600 text-amber-200 rounded-xl p-2 mb-2"></div>
+            <textarea id="output-code" readonly class="flex-1 min-h-[180px] w-full bg-emerald-900/70 border border-emerald-700 rounded-xl p-2 text-[11px] text-emerald-100 resize-none"></textarea>
+            <button id="btn-copy" class="mt-2 btn-blue text-xs font-bold px-3 py-2 rounded-xl text-white">📋 コードをコピー</button>
+            <p class="text-[11px] text-emerald-400 mt-2 leading-relaxed">コピーしたら index.html を開き、<code class="bg-black/30 px-1 rounded">const STAGES = [</code> の中の一番最後（<code class="bg-black/30 px-1 rounded">];</code> の直前）に貼り付けてください。</p>
+        </div>
+    </div>
+
+    <!-- ヘルプモーダル -->
+    <div id="modal-help" class="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50 hidden">
+        <div class="bg-emerald-950 border-4 border-emerald-700 rounded-3xl p-6 max-w-lg w-full shadow-2xl text-sm leading-relaxed">
+            <h2 class="text-xl font-black text-emerald-200 mb-3">つかいかた</h2>
+            <ol class="list-decimal list-inside space-y-2 text-emerald-100">
+                <li>左のパレットから使う形をタップしてボードに置く（同じ形をもう一回タップすると外せる）</li>
+                <li>ボード上でドラッグして動かす。回転は丸いハンドルをドラッグするか、<b>ハンドルを軽くタップするだけで45度ずつ回転</b>する（細かい操作が苦手でもこちらが簡単）。反転は青いボタン</li>
+                <li>ピースを選んだ状態なら、キーボードの<b>矢印キーで少しずつ移動</b>（Shiftを押しながらだと大きく移動）、<b>[ と ] キーで45度ずつ回転</b>もできる。Deleteキーでそのピースをボードから外せる</li>
+                <li>「シルエット確認」で実際のゲームと同じ黒いシルエットになるか見てみる</li>
+                <li>「コード作成」を押すと右側にコードが出てくるので「コードをコピー」でコピーする</li>
+                <li>index.html を開いて、STAGES配列の最後に貼り付けて保存すれば新しいステージの完成！</li>
+            </ol>
+            <button id="btn-close-help" class="mt-5 btn-secondary font-bold px-6 py-2.5 rounded-xl text-white w-full">閉じた</button>
+        </div>
+    </div>
+
+    <script>
+        ['gesturestart', 'gesturechange', 'gestureend'].forEach((type) => {
+            document.addEventListener(type, (e) => e.preventDefault(), { passive: false });
+        });
+        function setAppHeight() {
+            const h = window.visualViewport ? window.visualViewport.height : window.innerHeight;
+            if (h > 0) document.documentElement.style.setProperty('--app-h', `${Math.round(h)}px`);
+        }
+        setAppHeight();
+        window.addEventListener('resize', setAppHeight);
+        window.addEventListener('orientationchange', () => setTimeout(setAppHeight, 250));
+        if (window.visualViewport) window.visualViewport.addEventListener('resize', setAppHeight);
+
+        // index.html と全く同じ形の定義（座標がズレないように共通化）
+        const TANGRAM_SHAPES = {
+            TRIANGLE_LARGE_1: { type: 'LARGE_TRIANGLE', points: [[-66.67,-66.67],[133.33,-66.67],[-66.67,133.33]], grad: "url(#woodPiece)", handleDist: 177, label: '大三角 A' },
+            TRIANGLE_LARGE_2: { type: 'LARGE_TRIANGLE', points: [[-66.67,-66.67],[133.33,-66.67],[-66.67,133.33]], grad: "url(#woodPiece)", handleDist: 177, label: '大三角 B' },
+            TRIANGLE_MEDIUM:  { type: 'MEDIUM_TRIANGLE', points: [[-47.14,-47.14],[94.28,-47.14],[-47.14,94.28]], grad: "url(#woodPiece)", handleDist: 133, label: '中三角' },
+            TRIANGLE_SMALL_1: { type: 'SMALL_TRIANGLE', points: [[-33.33,-33.33],[66.67,-33.33],[-33.33,66.67]], grad: "url(#woodPiece)", handleDist: 103, label: '小三角 A' },
+            TRIANGLE_SMALL_2: { type: 'SMALL_TRIANGLE', points: [[-33.33,-33.33],[66.67,-33.33],[-33.33,66.67]], grad: "url(#woodPiece)", handleDist: 103, label: '小三角 B' },
+            SQUARE:           { type: 'SQUARE', points: [[-50,-50],[50,-50],[50,50],[-50,50]], grad: "url(#woodPiece)", handleDist: 99, label: '正方形' },
+            PARALLELOGRAM:    { type: 'PARALLELOGRAM', points: [[-75,-25],[25,-25],[75,25],[-25,25]], grad: "url(#woodPiece)", handleDist: 107, canFlip: true, label: '平行四辺形' }
+        };
+        const SHAPE_ORDER = ['TRIANGLE_LARGE_1','TRIANGLE_LARGE_2','TRIANGLE_MEDIUM','TRIANGLE_SMALL_1','TRIANGLE_SMALL_2','SQUARE','PARALLELOGRAM'];
+        const SVG_NS = 'http://www.w3.org/2000/svg';
+
+        class SoundEffects {
+            constructor() { this.ctx = null; }
+            init() {
+                if (!this.ctx) { try { this.ctx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) {} }
+                if (this.ctx && this.ctx.state === 'suspended') this.ctx.resume().catch(() => {});
+            }
+            click() {
+                this.init();
+                if (!this.ctx) return;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(260, this.ctx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(70, this.ctx.currentTime + 0.06);
+                gain.gain.setValueAtTime(0.4, this.ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.06);
+                osc.connect(gain); gain.connect(this.ctx.destination);
+                osc.start(); osc.stop(this.ctx.currentTime + 0.06);
+            }
+        }
+        const audio = new SoundEffects();
+
+        class MakeTool {
+            constructor() {
+                this.pieces = []; // { id, shapeKey, type, x, y, rotation, flip }
+                this.selectedPieceId = null;
+                this.interactionMode = null;
+                this.dragState = null;
+                this.lastTickAngle = 0;
+                this.previewMode = false;
+
+                this.svg = document.getElementById('edit-svg');
+                this.piecesGroup = document.getElementById('pieces-group');
+                this.controlsGroup = document.getElementById('controls-group');
+                this.silhouetteGroup = document.getElementById('silhouette-group');
+
+                this.renderPalette();
+                this.initEvents();
+                this.render();
+            }
+
+            getPolygonPoints(shapeKey) {
+                return TANGRAM_SHAPES[shapeKey].points.map(pt => pt.join(',')).join(' ');
+            }
+            getTransformString(x, y, rotation, flip = false) {
+                return `translate(${x}, ${y}) rotate(${rotation}) ${flip ? 'scale(-1,1)' : ''}`;
+            }
+
+            renderPalette() {
+                const wrap = document.getElementById('palette');
+                wrap.innerHTML = '';
+                SHAPE_ORDER.forEach(key => {
+                    const shape = TANGRAM_SHAPES[key];
+                    const btn = document.createElement('button');
+                    btn.className = 'palette-btn bg-emerald-900 border-2 border-emerald-700 rounded-xl p-2 flex flex-col items-center gap-1';
+                    btn.dataset.shape = key;
+                    btn.dataset.used = '0';
+
+                    const mini = document.createElementNS(SVG_NS, 'svg');
+                    mini.setAttribute('viewBox', '-70 -70 140 140');
+                    mini.setAttribute('class', 'w-9 h-9');
+                    const poly = document.createElementNS(SVG_NS, 'polygon');
+                    poly.setAttribute('points', this.getPolygonPoints(key));
+                    poly.setAttribute('fill', shape.grad);
+                    poly.setAttribute('stroke', '#3e1f06');
+                    poly.setAttribute('stroke-width', '4');
+                    mini.appendChild(poly);
+
+                    const label = document.createElement('span');
+                    label.className = 'text-[10px] font-bold text-emerald-200';
+                    label.textContent = shape.label;
+
+                    btn.appendChild(mini);
+                    btn.appendChild(label);
+                    btn.addEventListener('click', () => this.togglePiece(key));
+                    wrap.appendChild(btn);
+                });
+            }
+
+            togglePiece(shapeKey) {
+                const existing = this.pieces.find(p => p.shapeKey === shapeKey);
+                audio.click();
+                if (existing) {
+                    this.pieces = this.pieces.filter(p => p.id !== existing.id);
+                    if (this.selectedPieceId === existing.id) this.selectedPieceId = null;
+                } else {
+                    const idx = SHAPE_ORDER.indexOf(shapeKey);
+                    this.pieces.push({
+                        id: `p-${shapeKey}-${Date.now()}`,
+                        shapeKey,
+                        type: TANGRAM_SHAPES[shapeKey].type,
+                        x: 150 + (idx % 4) * 130,
+                        y: 480 + Math.floor(idx / 4) * 90,
+                        rotation: 0,
+                        flip: false
+                    });
+                    this.selectedPieceId = this.pieces[this.pieces.length - 1].id;
+                }
+                this.updatePaletteState();
+                this.render();
+            }
+
+            updatePaletteState() {
+                document.querySelectorAll('.palette-btn').forEach(btn => {
+                    const used = this.pieces.some(p => p.shapeKey === btn.dataset.shape);
+                    btn.dataset.used = used ? '1' : '0';
+                });
+            }
+
+            render() {
+                this.piecesGroup.innerHTML = '';
+                this.controlsGroup.innerHTML = '';
+                this.silhouetteGroup.innerHTML = '';
+
+                if (this.previewMode) {
+                    this.pieces.forEach(p => {
+                        const poly = document.createElementNS(SVG_NS, 'polygon');
+                        poly.setAttribute('points', this.getPolygonPoints(p.shapeKey));
+                        poly.setAttribute('class', 'silhouette-preview');
+                        poly.setAttribute('transform', this.getTransformString(p.x, p.y, p.rotation, p.flip));
+                        this.silhouetteGroup.appendChild(poly);
+                    });
+                    return;
+                }
+
+                this.pieces.forEach(p => {
+                    const shape = TANGRAM_SHAPES[p.shapeKey];
+                    const isSelected = p.id === this.selectedPieceId;
+
+                    const g = document.createElementNS(SVG_NS, 'g');
+                    g.setAttribute('class', `puzzle-piece ${isSelected ? 'selected' : ''}`);
+                    g.setAttribute('transform', this.getTransformString(p.x, p.y, p.rotation, p.flip));
+
+                    const poly = document.createElementNS(SVG_NS, 'polygon');
+                    poly.setAttribute('points', this.getPolygonPoints(p.shapeKey));
+                    poly.setAttribute('fill', shape.grad);
+                    poly.setAttribute('stroke', '#3e1f06');
+                    poly.setAttribute('stroke-width', '3');
+                    poly.setAttribute('stroke-linejoin', 'round');
+                    g.appendChild(poly);
+
+                    const grain = document.createElementNS(SVG_NS, 'polygon');
+                    grain.setAttribute('points', this.getPolygonPoints(p.shapeKey));
+                    grain.setAttribute('fill', 'url(#woodGrain)');
+                    grain.setAttribute('class', 'pointer-events-none');
+                    g.appendChild(grain);
+
+                    g.addEventListener('pointerdown', (e) => this.onPiecePointerDown(e, p));
+                    this.piecesGroup.appendChild(g);
+
+                    if (isSelected) this.renderControls(p);
+                });
+            }
+
+            renderControls(piece) {
+                const shape = TANGRAM_SHAPES[piece.shapeKey];
+                const handleDist = shape.handleDist || 70;
+
+                const wrap = document.createElementNS(SVG_NS, 'g');
+                wrap.setAttribute('transform', this.getTransformString(piece.x, piece.y, piece.rotation, piece.flip));
+
+                const rotGroup = document.createElementNS(SVG_NS, 'g');
+                rotGroup.setAttribute('transform', `translate(0, ${-handleDist})`);
+                rotGroup.setAttribute('class', 'handle-btn');
+                const rotBg = document.createElementNS(SVG_NS, 'circle');
+                rotBg.setAttribute('r', '23'); rotBg.setAttribute('fill', '#d97706');
+                rotBg.setAttribute('stroke', '#fff'); rotBg.setAttribute('stroke-width', '3');
+                rotBg.setAttribute('filter', 'url(#handle-shadow)');
+                rotGroup.appendChild(rotBg);
+                const rotArc = document.createElementNS(SVG_NS, 'circle');
+                rotArc.setAttribute('r', '11'); rotArc.setAttribute('fill', 'none');
+                rotArc.setAttribute('stroke', '#fff'); rotArc.setAttribute('stroke-width', '2.8');
+                rotArc.setAttribute('stroke-linecap', 'round');
+                const circ = 2 * Math.PI * 11;
+                rotArc.setAttribute('stroke-dasharray', `${circ * 0.75} ${circ * 0.25}`);
+                rotArc.setAttribute('class', 'pointer-events-none');
+                rotGroup.appendChild(rotArc);
+                const arrowHead = document.createElementNS(SVG_NS, 'polygon');
+                arrowHead.setAttribute('points', '7,-11 -1,-15 -1,-7');
+                arrowHead.setAttribute('fill', '#fff');
+                arrowHead.setAttribute('class', 'pointer-events-none');
+                rotGroup.appendChild(arrowHead);
+                rotGroup.addEventListener('pointerdown', (e) => this.onRotatePointerDown(e, piece));
+                wrap.appendChild(rotGroup);
+
+                if (shape.canFlip) {
+                    const flipGroup = document.createElementNS(SVG_NS, 'g');
+                    flipGroup.setAttribute('transform', `translate(0, ${handleDist * 0.85})`);
+                    flipGroup.setAttribute('class', 'handle-btn');
+                    const flipBg = document.createElementNS(SVG_NS, 'circle');
+                    flipBg.setAttribute('r', '20'); flipBg.setAttribute('fill', '#0284c7');
+                    flipBg.setAttribute('stroke', '#fff'); flipBg.setAttribute('stroke-width', '2.5');
+                    flipBg.setAttribute('filter', 'url(#handle-shadow)');
+                    flipGroup.appendChild(flipBg);
+                    const leftArrow = document.createElementNS(SVG_NS, 'polygon');
+                    leftArrow.setAttribute('points', '-2,-6 -10,0 -2,6');
+                    leftArrow.setAttribute('fill', '#fff');
+                    leftArrow.setAttribute('class', 'pointer-events-none');
+                    flipGroup.appendChild(leftArrow);
+                    const rightArrow = document.createElementNS(SVG_NS, 'polygon');
+                    rightArrow.setAttribute('points', '2,-6 10,0 2,6');
+                    rightArrow.setAttribute('fill', '#fff');
+                    rightArrow.setAttribute('class', 'pointer-events-none');
+                    flipGroup.appendChild(rightArrow);
+                    const midBar = document.createElementNS(SVG_NS, 'line');
+                    midBar.setAttribute('x1', 0); midBar.setAttribute('y1', -6);
+                    midBar.setAttribute('x2', 0); midBar.setAttribute('y2', 6);
+                    midBar.setAttribute('stroke', '#fff'); midBar.setAttribute('stroke-width', '2');
+                    midBar.setAttribute('class', 'pointer-events-none');
+                    flipGroup.appendChild(midBar);
+                    flipGroup.addEventListener('pointerdown', (e) => {
+                        e.stopPropagation();
+                        piece.flip = !piece.flip;
+                        audio.click();
+                        this.render();
+                    });
+                    wrap.appendChild(flipGroup);
+                }
+
+                this.controlsGroup.appendChild(wrap);
+            }
+
+            initEvents() {
+                document.getElementById('btn-clear').addEventListener('click', () => {
+                    audio.click();
+                    this.pieces = [];
+                    this.selectedPieceId = null;
+                    this.previewMode = false;
+                    this.updatePaletteState();
+                    this.render();
+                    document.getElementById('output-code').value = '';
+                });
+
+                document.getElementById('btn-help').addEventListener('click', () => {
+                    document.getElementById('modal-help').classList.remove('hidden');
+                });
+                document.getElementById('btn-close-help').addEventListener('click', () => {
+                    document.getElementById('modal-help').classList.add('hidden');
+                });
+
+                document.getElementById('btn-preview').addEventListener('click', () => {
+                    audio.click();
+                    this.previewMode = !this.previewMode;
+                    document.getElementById('btn-preview').textContent = this.previewMode ? '🎨 編集にもどる' : '🖤 シルエット確認';
+                    this.render();
+                });
+
+                document.getElementById('btn-generate').addEventListener('click', () => this.generateCode());
+                document.getElementById('btn-copy').addEventListener('click', () => this.copyCode());
+
+                this.svg.addEventListener('pointerdown', (e) => {
+                    if (this.previewMode) return;
+                    if (e.target === this.svg) {
+                        this.selectedPieceId = null;
+                        this.render();
+                    }
+                });
+
+                window.addEventListener('pointermove', (e) => this.onPointerMove(e));
+                window.addEventListener('pointerup', () => this.onPointerUp());
+                window.addEventListener('pointercancel', () => this.onPointerUp());
+
+                // キーボードでも細かく調整できるようにする（矢印キー：移動、[ ]：回転、Delete：取り除く）
+                window.addEventListener('keydown', (e) => this.onKeyDown(e));
+            }
+
+            onKeyDown(e) {
+                if (this.previewMode) return;
+                const piece = this.pieces.find(p => p.id === this.selectedPieceId);
+                if (!piece) return;
+
+                const step = e.shiftKey ? 10 : 2;
+                let handled = true;
+
+                switch (e.key) {
+                    case 'ArrowLeft': piece.x -= step; break;
+                    case 'ArrowRight': piece.x += step; break;
+                    case 'ArrowUp': piece.y -= step; break;
+                    case 'ArrowDown': piece.y += step; break;
+                    case '[': piece.rotation = (piece.rotation + 315) % 360; break;
+                    case ']': piece.rotation = (piece.rotation + 45) % 360; break;
+                    case 'Delete':
+                    case 'Backspace':
+                        this.togglePiece(piece.shapeKey);
+                        handled = true;
+                        return;
+                    default: handled = false;
+                }
+
+                if (handled) {
+                    e.preventDefault();
+                    audio.click();
+                    this.render();
+                }
+            }
+
+            getSVGCoordinates(e) {
+                const pt = this.svg.createSVGPoint();
+                pt.x = e.clientX; pt.y = e.clientY;
+                return pt.matrixTransform(this.svg.getScreenCTM().inverse());
+            }
+
+            onPiecePointerDown(e, piece) {
+                if (this.previewMode) return;
+                e.stopPropagation();
+                audio.click();
+                this.selectedPieceId = piece.id;
+                this.interactionMode = 'move';
+                const coords = this.getSVGCoordinates(e);
+                this.dragState = { pieceId: piece.id, startX: coords.x, startY: coords.y, initialX: piece.x, initialY: piece.y };
+                const idx = this.pieces.findIndex(p => p.id === piece.id);
+                const [moved] = this.pieces.splice(idx, 1);
+                this.pieces.push(moved);
+                this.render();
+            }
+
+            onRotatePointerDown(e, piece) {
+                e.stopPropagation();
+                audio.click();
+                this.interactionMode = 'rotate';
+                const coords = this.getSVGCoordinates(e);
+                const angleDeg = Math.atan2(coords.y - piece.y, coords.x - piece.x) * (180 / Math.PI);
+                this.lastTickAngle = piece.rotation;
+                // 前回からの差分角度を積み上げる方式（-180/180の境界をまたいでも跳ばない）
+                this.dragState = { pieceId: piece.id, lastAngleDeg: angleDeg, accumRotation: piece.rotation, moved: false };
+            }
+
+            onPointerMove(e) {
+                if (!this.dragState || !this.interactionMode) return;
+                const coords = this.getSVGCoordinates(e);
+                const piece = this.pieces.find(p => p.id === this.dragState.pieceId);
+                if (!piece) return;
+
+                if (this.interactionMode === 'move') {
+                    const dx = coords.x - this.dragState.startX;
+                    const dy = coords.y - this.dragState.startY;
+                    // ドラッグ中も10px格子にスナップして、狙った位置に揃えやすくする
+                    piece.x = Math.round((this.dragState.initialX + dx) / 10) * 10;
+                    piece.y = Math.round((this.dragState.initialY + dy) / 10) * 10;
+                    this.render();
+                } else if (this.interactionMode === 'rotate') {
+                    const currentAngleDeg = Math.atan2(coords.y - piece.y, coords.x - piece.x) * (180 / Math.PI);
+                    let delta = currentAngleDeg - this.dragState.lastAngleDeg;
+                    if (delta > 180) delta -= 360;
+                    if (delta < -180) delta += 360;
+                    if (Math.abs(delta) > 0.5) this.dragState.moved = true;
+
+                    this.dragState.accumRotation += delta;
+                    this.dragState.lastAngleDeg = currentAngleDeg;
+
+                    let newRotation = this.dragState.accumRotation % 360;
+                    if (newRotation < 0) newRotation += 360;
+                    piece.rotation = newRotation;
+                    this.render();
+                }
+            }
+
+            onPointerUp() {
+                if (!this.dragState) return;
+                const piece = this.pieces.find(p => p.id === this.dragState.pieceId);
+                if (piece && this.interactionMode === 'rotate') {
+                    if (!this.dragState.moved) {
+                        // タップだけなら45度ずつ回す（細かいドラッグをしなくても正確に回せる）
+                        piece.rotation = (Math.round(piece.rotation / 45) * 45 + 45) % 360;
+                    } else {
+                        piece.rotation = Math.round(piece.rotation / 45) * 45 % 360;
+                    }
+                }
+                if (piece && this.interactionMode === 'move') {
+                    // 位置は5px単位にスナップしてキレイな数値にする
+                    piece.x = Math.round(piece.x / 5) * 5;
+                    piece.y = Math.round(piece.y / 5) * 5;
+                }
+                this.dragState = null;
+                this.interactionMode = null;
+                this.render();
+            }
+
+            generateCode() {
+                const warn = document.getElementById('warning-box');
+                warn.classList.add('hidden');
+
+                if (this.pieces.length === 0) {
+                    warn.textContent = 'ピースが置かれていません。パレットから形を選んでボードに配置してください。';
+                    warn.classList.remove('hidden');
+                    document.getElementById('output-code').value = '';
+                    return;
+                }
+
+                const target = this.pieces.map(p => ({
+                    type: p.shapeKey,
+                    x: Math.round(p.x * 100) / 100,
+                    y: Math.round(p.y * 100) / 100,
+                    rotation: Math.round(p.rotation),
+                    flip: p.flip
+                }));
+
+                // ゲーム開始時の配置（下段に横並びで自動生成、角度はランダムにばらけさせる）
+                const usedShapeKeys = this.pieces.map(p => p.shapeKey);
+                const n = usedShapeKeys.length;
+                const startX = n === 1 ? 400 : 120;
+                const endX = n === 1 ? 400 : 680;
+                const spawnAngles = [0, 45, 90, 135, 180, 225, 270, 315];
+
+                const spawn = usedShapeKeys.map((shapeKey, i) => {
+                    const x = n === 1 ? startX : Math.round(startX + ((endX - startX) * i) / (n - 1));
+                    const angle = spawnAngles[Math.floor(Math.random() * spawnAngles.length)];
+                    return { shape: shapeKey, x, y: 480, rotation: angle, flip: false };
+                });
+
+                const solutionLines = target.map(t =>
+                    `                        { type: '${TANGRAM_SHAPES[t.type].type}', x: ${t.x}, y: ${t.y}, rotation: ${t.rotation}, flip: ${t.flip} }`
+                ).join(',\n');
+
+                const spawnLines = spawn.map(s =>
+                    `                    { shape: '${s.shape}', x: ${s.x}, y: ${s.y}, rotation: ${s.rotation}, flip: ${s.flip} }`
+                ).join(',\n');
+
+                const code =
+`            {
+                targetSolutions: [
+                    [
+${solutionLines}
+                    ]
+                ],
+                spawnPieces: [
+${spawnLines}
+                ]
+            },`;
+
+                document.getElementById('output-code').value = code;
+
+                if (this.pieces.length < 2) {
+                    warn.textContent = 'ピースが1つだけだと、ただ置くだけの問題になってしまいます。2つ以上でおもしろい形にするのがおすすめです。';
+                    warn.classList.remove('hidden');
+                }
+            }
+
+            async copyCode() {
+                const textarea = document.getElementById('output-code');
+                if (!textarea.value) {
+                    audio.click();
+                    return;
+                }
+                try {
+                    await navigator.clipboard.writeText(textarea.value);
+                } catch (e) {
+                    // クリップボードAPIが使えない環境向けのフォールバック
+                    textarea.focus();
+                    textarea.select();
+                    try { document.execCommand('copy'); } catch (e2) {}
+                }
+                audio.click();
+                const btn = document.getElementById('btn-copy');
+                const original = btn.textContent;
+                btn.textContent = '✅ コピーしました！';
+                setTimeout(() => { btn.textContent = original; }, 1200);
+            }
+        }
+
+        window.addEventListener('load', () => {
+            window.maker = new MakeTool();
+        });
+    </script>
+</body>
+</html>
