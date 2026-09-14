@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>木製タングラムパズル (Wooden Tangram)</title>
+    <title>合成図形パズル</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@400;700;800&display=swap" rel="stylesheet">
     <style>
@@ -70,13 +70,17 @@
             100% { transform: scale(1) rotate(0deg); }
         }
 
-        /* 単一の凹みシルエット（1つの黒い彫り込み） */
+        /* 木を彫り込んだような「へこみ」のシルエット（色・ふちの装飾はJS側で辺ごとに描画） */
         .silhouette-target {
-            fill: #150b05;
-            stroke: #150b05;
-            stroke-width: 8;
-            stroke-linejoin: round;
             transition: filter 0.2s;
+        }
+
+        /* 正解位置にはまったピースは「浮いている影」をやめて、溝に収まった控えめな影にする */
+        .puzzle-piece.seated {
+            filter: drop-shadow(1px 2px 2px rgba(0,0,0,0.35));
+        }
+        .puzzle-piece.seated.selected {
+            filter: drop-shadow(0 0 8px #f59e0b) drop-shadow(1px 2px 2px rgba(0,0,0,0.35));
         }
 
         /* 近づいているターゲットをやさしく光らせて「もうすぐ！」を伝える */
@@ -88,13 +92,20 @@
             50% { filter: drop-shadow(0 0 16px rgba(251,191,36,0.85)); }
         }
 
-        /* 回転・操作ハンドル */
+        /* 回転・操作ハンドル
+           注意：この要素自体には位置決め用のtransform属性(translate)が乗っているので、
+           ここにCSSのtransform(:hoverなど)を使うと位置が上書きされて中心にワープしてしまう。
+           拡大演出は中の子要素(.handle-btn-inner)にだけ掛けること。 */
         .handle-btn {
             cursor: pointer;
             touch-action: none;
-            transition: transform 0.1s;
         }
-        .handle-btn:hover {
+        .handle-btn-inner {
+            transition: transform 0.1s;
+            transform-box: fill-box;
+            transform-origin: center;
+        }
+        .handle-btn:hover .handle-btn-inner {
             transform: scale(1.12);
         }
 
@@ -132,7 +143,7 @@
         <div class="flex items-center space-x-3">
             <span class="text-2xl md:text-3xl">🧩</span>
             <div>
-                <h1 class="text-lg md:text-xl font-extrabold text-amber-200 leading-none tracking-wide">木製タングラム</h1>
+                <h1 class="text-lg md:text-xl font-extrabold text-amber-200 leading-none tracking-wide">合成図形パズル</h1>
                 <p id="level-title" class="text-xs md:text-sm text-amber-400 font-bold mt-1">ステージ 1 / 4</p>
             </div>
         </div>
@@ -169,6 +180,14 @@
                     <filter id="handle-shadow" x="-30%" y="-30%" width="160%" height="160%">
                         <feDropShadow dx="2" dy="3" stdDeviation="3" flood-opacity="0.6"/>
                     </filter>
+
+                    <!-- 彫り込み穴の「底」のグラデーション。盤面全体で座標を共有する(userSpaceOnUse)ことで、
+                         隣り合うピース分のシルエット同士でも色が連続し、継ぎ目が見えなくなる -->
+                    <radialGradient id="holeRecess" gradientUnits="userSpaceOnUse" cx="400" cy="290" r="280">
+                        <stop offset="0%" stop-color="#2b1a0f" />
+                        <stop offset="55%" stop-color="#170d06" />
+                        <stop offset="100%" stop-color="#0a0502" />
+                    </radialGradient>
                 </defs>
 
                 <!-- 単一の影シルエット -->
@@ -349,43 +368,43 @@
                 type: 'LARGE_TRIANGLE',
                 points: [[-66.67, -66.67], [133.33, -66.67], [-66.67, 133.33]],
                 grad: PIECE_FILL,
-                handleDist: 177
+                handleDist: 100
             },
             TRIANGLE_LARGE_2: {
                 type: 'LARGE_TRIANGLE',
                 points: [[-66.67, -66.67], [133.33, -66.67], [-66.67, 133.33]],
                 grad: PIECE_FILL,
-                handleDist: 177
+                handleDist: 100
             },
             TRIANGLE_MEDIUM: {
                 type: 'MEDIUM_TRIANGLE',
                 points: [[-47.14, -47.14], [94.28, -47.14], [-47.14, 94.28]],
                 grad: PIECE_FILL,
-                handleDist: 133
+                handleDist: 80
             },
             TRIANGLE_SMALL_1: {
                 type: 'SMALL_TRIANGLE',
                 points: [[-33.33, -33.33], [66.67, -33.33], [-33.33, 66.67]],
                 grad: PIECE_FILL,
-                handleDist: 103
+                handleDist: 66
             },
             TRIANGLE_SMALL_2: {
                 type: 'SMALL_TRIANGLE',
                 points: [[-33.33, -33.33], [66.67, -33.33], [-33.33, 66.67]],
                 grad: PIECE_FILL,
-                handleDist: 103
+                handleDist: 66
             },
             SQUARE: {
                 type: 'SQUARE',
                 points: [[-50, -50], [50, -50], [50, 50], [-50, 50]],
                 grad: PIECE_FILL,
-                handleDist: 99
+                handleDist: 83
             },
             PARALLELOGRAM: {
                 type: 'PARALLELOGRAM',
                 points: [[-75, -25], [25, -25], [75, 25], [-25, 25]],
                 grad: PIECE_FILL,
-                handleDist: 107,
+                handleDist: 58,
                 canFlip: true
             }
         };
@@ -427,16 +446,13 @@
                 ]
             },
             {
+                // 大三角2枚で正方形を作り、その右側に中三角をぴったり付けた「旗」の形
+                // (辺と辺がすべてぴったり接していて、重なりはありません)
                 targetSolutions: [
                     [
-                        { type: 'LARGE_TRIANGLE', x: 366.67, y: 216.67, rotation: 0, flip: false },
-                        { type: 'LARGE_TRIANGLE', x: 433.33, y: 283.33, rotation: 180, flip: false },
-                        { type: 'MEDIUM_TRIANGLE', x: 480.47, y: 197.14, rotation: 270, flip: false }
-                    ],
-                    [
-                        { type: 'LARGE_TRIANGLE', x: 433.33, y: 216.67, rotation: 90, flip: false },
-                        { type: 'LARGE_TRIANGLE', x: 366.67, y: 283.33, rotation: 270, flip: false },
-                        { type: 'MEDIUM_TRIANGLE', x: 480.47, y: 197.14, rotation: 270, flip: false }
+                        { type: 'LARGE_TRIANGLE', x: 316.67, y: 216.67, rotation: 0, flip: false },
+                        { type: 'LARGE_TRIANGLE', x: 383.33, y: 283.33, rotation: 180, flip: false },
+                        { type: 'MEDIUM_TRIANGLE', x: 483.33, y: 250, rotation: 135, flip: false }
                     ]
                 ],
                 spawnPieces: [
@@ -446,15 +462,17 @@
                 ]
             },
             {
+                // 全7ピースを使う形。すべての辺がぴったり接するように1枚ずつ組み上げてあり、
+                // 重なりがないことをプログラムで検証済みです。
                 targetSolutions: [
                     [
-                        { type: 'LARGE_TRIANGLE', x: 333.33, y: 183.33, rotation: 0, flip: false },
-                        { type: 'LARGE_TRIANGLE', x: 466.67, y: 316.67, rotation: 180, flip: false },
-                        { type: 'MEDIUM_TRIANGLE', x: 329.29, y: 329.29, rotation: 45, flip: false },
-                        { type: 'SQUARE', x: 435.35, y: 185.35, rotation: 45, flip: false },
-                        { type: 'PARALLELOGRAM', x: 487.50, y: 125.00, rotation: 0, flip: true },
-                        { type: 'SMALL_TRIANGLE', x: 383.33, y: 233.33, rotation: 180, flip: false },
-                        { type: 'SMALL_TRIANGLE', x: 433.33, y: 283.33, rotation: 270, flip: false }
+                        { type: 'LARGE_TRIANGLE', x: 291.67, y: 256.67, rotation: 0, flip: false },
+                        { type: 'LARGE_TRIANGLE', x: 358.33, y: 323.33, rotation: 180, flip: false },
+                        { type: 'MEDIUM_TRIANGLE', x: 458.33, y: 290, rotation: 135, flip: false },
+                        { type: 'SMALL_TRIANGLE', x: 491.67, y: 356.67, rotation: 180, flip: false },
+                        { type: 'SMALL_TRIANGLE', x: 491.67, y: 223.33, rotation: 90, flip: false },
+                        { type: 'SQUARE', x: 475, y: 140, rotation: 0, flip: false },
+                        { type: 'PARALLELOGRAM', x: 500, y: 415, rotation: 0, flip: false }
                     ]
                 ],
                 spawnPieces: [
@@ -468,6 +486,10 @@
                 ]
             }
         ];
+
+        // 回転対称のある形は、見た目が同じになる角度なら回転が違っても正解とみなす
+        // （正方形は90度ごと、平行四辺形は180度ごとに同じ見た目に戻る）
+        const TYPE_SYMMETRY = { SQUARE: 90, PARALLELOGRAM: 180 };
 
         const SVG_NS = 'http://www.w3.org/2000/svg';
 
@@ -518,6 +540,7 @@
                     y: p.y,
                     rotation: p.rotation,
                     flip: p.flip || false,
+                    scale: p.scale || 1,
                     isJustSnapped: false
                 }));
 
@@ -528,9 +551,29 @@
                 return TANGRAM_SHAPES[shapeKey].points.map(pt => pt.join(',')).join(' ');
             }
 
-            getTransformString(x, y, rotation, flip = false) {
-                const flipStr = flip ? 'scale(-1, 1)' : '';
-                return `translate(${x}, ${y}) rotate(${rotation}) ${flipStr}`;
+            // 形のローカル座標に、拡大縮小・反転・回転・移動を適用したワールド座標の頂点配列を返す
+            // （彫り込みシルエットの輪郭線を、隣のピースと接している辺かどうか調べるために使う）
+            getShapeWorldPoints(shapeKey, x, y, rotation, flip = false, scale = 1) {
+                const sx = flip ? -scale : scale;
+                const rad = (rotation || 0) * Math.PI / 180;
+                const cos = Math.cos(rad), sin = Math.sin(rad);
+                return TANGRAM_SHAPES[shapeKey].points.map(([lx, ly]) => {
+                    const sxp = lx * sx, syp = ly * scale;
+                    const rx = sxp * cos - syp * sin;
+                    const ry = sxp * sin + syp * cos;
+                    return [x + rx, y + ry];
+                });
+            }
+
+            // 2つの辺が同じ位置にあるか（隣のピースとくっついている内側の辺かどうかの判定用）
+            edgesMatch(e1, e2, tol = 2) {
+                const close = (p, q) => Math.hypot(p[0] - q[0], p[1] - q[1]) < tol;
+                return (close(e1.p1, e2.p1) && close(e1.p2, e2.p2)) || (close(e1.p1, e2.p2) && close(e1.p2, e2.p1));
+            }
+
+            getTransformString(x, y, rotation, flip = false, scale = 1) {
+                const sx = flip ? -scale : scale;
+                return `translate(${x}, ${y}) rotate(${rotation}) scale(${sx}, ${scale})`;
             }
 
             render() {
@@ -538,14 +581,61 @@
                 this.targetGroup.innerHTML = '';
                 this.hintGroup.innerHTML = '';
 
-                this.activeTargets.forEach(t => {
+                // 各ターゲットの実際の輪郭（ワールド座標）と辺を先に計算しておく。
+                // 複数のピース分のシルエットが隣り合っている「内側の辺」を見分けて、
+                // 木を彫り込んだような縁取りが内側の継ぎ目に出てしまわないようにするため。
+                const targetGeoms = this.activeTargets.map(t => {
                     const sampleKey = Object.keys(TANGRAM_SHAPES).find(k => TANGRAM_SHAPES[k].type === t.type);
+                    const pts = this.getShapeWorldPoints(sampleKey, t.x, t.y, t.rotation, t.flip, t.scale || 1);
+                    const edges = pts.map((p1, i) => ({ p1, p2: pts[(i + 1) % pts.length] }));
+                    return { sampleKey, pts, edges };
+                });
 
+                this.activeTargets.forEach((t, ti) => {
+                    const { sampleKey, pts, edges } = targetGeoms[ti];
+
+                    const g = document.createElementNS(SVG_NS, 'g');
+                    g.setAttribute('class', 'silhouette-target' + (this.isNearTarget(t) ? ' target-glow' : ''));
+
+                    // 彫り込みの「底」。他のターゲット片と重なる内側の辺も同じ色で塗るので、
+                    // 継ぎ目が見えずひとつながりの凹みに見える
                     const poly = document.createElementNS(SVG_NS, 'polygon');
-                    poly.setAttribute('points', this.getPolygonPoints(sampleKey));
-                    poly.setAttribute('class', 'silhouette-target' + (this.isNearTarget(t) ? ' target-glow' : ''));
-                    poly.setAttribute('transform', this.getTransformString(t.x, t.y, t.rotation, t.flip));
-                    this.targetGroup.appendChild(poly);
+                    poly.setAttribute('points', pts.map(p => p.join(',')).join(' '));
+                    poly.setAttribute('fill', 'url(#holeRecess)');
+                    // ふちは付けない（内側の辺にも同じ線が乗ると継ぎ目が見えてしまうため）。
+                    // 立体感は下のグラデーションと、外側の辺だけに描くハイライト/影の線で出す。
+                    g.appendChild(poly);
+
+                    // 外側の輪郭（他のピースと接していない辺）だけに、彫り込みのふちの
+                    // 明るいハイライトを描いて「へこみ」の立体感を出す
+                    edges.forEach(e => {
+                        const isInternal = targetGeoms.some((other, oi) =>
+                            oi !== ti && other.edges.some(oe => this.edgesMatch(e, oe))
+                        );
+                        if (isInternal) return;
+
+                        // 壁の影（少し外側に太めの暗い線）
+                        const wall = document.createElementNS(SVG_NS, 'line');
+                        wall.setAttribute('x1', e.p1[0]); wall.setAttribute('y1', e.p1[1]);
+                        wall.setAttribute('x2', e.p2[0]); wall.setAttribute('y2', e.p2[1]);
+                        wall.setAttribute('stroke', 'rgba(5, 2, 1, 0.55)');
+                        wall.setAttribute('stroke-width', '6');
+                        wall.setAttribute('stroke-linecap', 'round');
+                        wall.setAttribute('class', 'pointer-events-none');
+                        g.appendChild(wall);
+
+                        // ふちのハイライト（彫り込みの縁が光を受けている表現）
+                        const rim = document.createElementNS(SVG_NS, 'line');
+                        rim.setAttribute('x1', e.p1[0]); rim.setAttribute('y1', e.p1[1]);
+                        rim.setAttribute('x2', e.p2[0]); rim.setAttribute('y2', e.p2[1]);
+                        rim.setAttribute('stroke', 'rgba(255, 214, 160, 0.32)');
+                        rim.setAttribute('stroke-width', '2.5');
+                        rim.setAttribute('stroke-linecap', 'round');
+                        rim.setAttribute('class', 'pointer-events-none');
+                        g.appendChild(rim);
+                    });
+
+                    this.targetGroup.appendChild(g);
 
                     // ヒント（内側破線ガイド）
                     const hintPoly = document.createElementNS(SVG_NS, 'polygon');
@@ -554,7 +644,7 @@
                     hintPoly.setAttribute('stroke', '#f59e0b');
                     hintPoly.setAttribute('stroke-width', '2.5');
                     hintPoly.setAttribute('stroke-dasharray', '5 4');
-                    hintPoly.setAttribute('transform', this.getTransformString(t.x, t.y, t.rotation, t.flip));
+                    hintPoly.setAttribute('transform', this.getTransformString(t.x, t.y, t.rotation, t.flip, t.scale || 1));
                     this.hintGroup.appendChild(hintPoly);
                 });
 
@@ -565,12 +655,14 @@
                 this.pieces.forEach(p => {
                     const shape = TANGRAM_SHAPES[p.shapeKey];
                     const isSelected = (p.id === this.selectedPieceId);
+                    // 正解位置にはまっている時は「浮いている影」ではなく「溝にはまった影」に切り替える
+                    const isSeated = this.isPieceSeated(p);
 
                     // 外側の<g>は位置・回転・反転だけを担当（transform属性）
                     const g = document.createElementNS(SVG_NS, 'g');
                     g.setAttribute('id', p.id);
-                    g.setAttribute('class', `puzzle-piece ${isSelected ? 'selected' : ''}`);
-                    g.setAttribute('transform', this.getTransformString(p.x, p.y, p.rotation, p.flip));
+                    g.setAttribute('class', `puzzle-piece ${isSelected ? 'selected' : ''} ${isSeated ? 'seated' : ''}`);
+                    g.setAttribute('transform', this.getTransformString(p.x, p.y, p.rotation, p.flip, p.scale || 1));
 
                     // 内側の<g>は「カチッ」の拡大縮小演出（CSS transform）だけを担当。
                     // 分けないとCSSアニメーションが外側のtransform属性を上書きしてしまう。
@@ -606,23 +698,60 @@
             }
 
             // ピースがどれかのターゲットに惜しいところまで近づいているか（マグネット演出のハイライト用）
+            // 大きさ調整に対応したピースかどうかの一致判定（誤差5%まで許容）
+            scalesMatch(a, b) {
+                return Math.abs((a || 1) - (b || 1)) < 0.05;
+            }
+
+            // 形の種類ごとの回転対称の周期（度）。対称のない形は360（＝実質チェックなし）
+            getSymmetryDeg(type) {
+                return TYPE_SYMMETRY[type] || 360;
+            }
+
+            // 回転対称を考慮した「回転のずれ」を計算する（例：正方形は90度ごとに同じ見た目なので、
+            // 90度・180度・270度回転していても、対称の周期で割った余りで比べれば「ずれ0」になる）
+            rotationDiff(rotA, rotB, symmetryDeg) {
+                let diff = ((rotA - rotB) % symmetryDeg + symmetryDeg) % symmetryDeg;
+                if (diff > symmetryDeg / 2) diff = symmetryDeg - diff;
+                return diff;
+            }
+
             isNearTarget(target) {
                 const NEAR_DIST = 60;
+                const symmetryDeg = this.getSymmetryDeg(target.type);
                 return this.pieces.some(p => {
                     if (p.type !== target.type) return false;
                     if (p.flip !== (target.flip || false)) return false;
-                    let rotDiff = Math.abs((p.rotation % 360) - (target.rotation % 360));
-                    if (rotDiff > 180) rotDiff = 360 - rotDiff;
+                    if (!this.scalesMatch(p.scale, target.scale)) return false;
+                    const rotDiff = this.rotationDiff(p.rotation, target.rotation, symmetryDeg);
                     if (rotDiff > 25) return false;
                     const dist = Math.hypot(p.x - target.x, p.y - target.y);
                     return dist > 8 && dist < NEAR_DIST;
                 });
             }
 
+            // ピースが今どれかの正解位置にちゃんとはまっているか（影の付け方を「浮いている」→「はまっている」に
+            // 切り替えるための判定。どのtargetSolutionの一部でも良い）
+            isPieceSeated(piece) {
+                const stage = STAGES[this.currentStageIndex];
+                const symmetryDeg = this.getSymmetryDeg(piece.type);
+                return stage.targetSolutions.some(solution =>
+                    solution.some(target =>
+                        target.type === piece.type &&
+                        Math.abs(piece.x - target.x) < 10 &&
+                        Math.abs(piece.y - target.y) < 10 &&
+                        this.rotationDiff(piece.rotation, target.rotation, symmetryDeg) < 10 &&
+                        (piece.flip === (target.flip || false)) &&
+                        this.scalesMatch(piece.scale, target.scale)
+                    )
+                );
+            }
+
             // ドラッグ中に近くの正解位置を探す（マグネットで吸い寄せる用）
             findMagnetTarget(piece) {
                 const MAGNET_DIST = 55;
                 const stage = STAGES[this.currentStageIndex];
+                const symmetryDeg = this.getSymmetryDeg(piece.type);
                 let best = null;
                 let bestDist = Infinity;
 
@@ -630,8 +759,8 @@
                     for (const target of solution) {
                         if (target.type !== piece.type) continue;
                         if (piece.flip !== (target.flip || false)) continue;
-                        let rotDiff = Math.abs((piece.rotation % 360) - (target.rotation % 360));
-                        if (rotDiff > 180) rotDiff = 360 - rotDiff;
+                        if (!this.scalesMatch(piece.scale, target.scale)) continue;
+                        const rotDiff = this.rotationDiff(piece.rotation, target.rotation, symmetryDeg);
                         if (rotDiff > 25) continue;
 
                         const dist = Math.hypot(piece.x - target.x, piece.y - target.y);
@@ -646,7 +775,9 @@
 
             renderPieceControls(piece) {
                 const shape = TANGRAM_SHAPES[piece.shapeKey];
-                const handleDist = shape.handleDist || 70;
+                // ハンドルの「距離」はピースの大きさに合わせて伸縮させるが、
+                // アイコン自体の大きさは常に一定に保つ（wrap自体にはscaleを掛けない）
+                const handleDist = (shape.handleDist || 70) * (piece.scale || 1);
 
                 // ハンドル一式はピースと同じtransform（位置・回転・反転）を継承させる。
                 // こうすることで回転や反転をしてもハンドルの位置が絶対にズレない。
@@ -654,17 +785,23 @@
                 wrap.setAttribute('transform', this.getTransformString(piece.x, piece.y, piece.rotation, piece.flip));
 
                 // --- 回転ハンドル ---
+                // rotGroupは位置決め(translate)専用。中身はすべて内側のinnerに入れ、
+                // ホバー時の拡大演出はinner側にだけ掛ける（外側にCSS transformを重ねると位置がリセットされるため）。
                 const rotGroup = document.createElementNS(SVG_NS, 'g');
                 rotGroup.setAttribute('transform', `translate(0, ${-handleDist})`);
                 rotGroup.setAttribute('class', 'handle-btn');
 
+                const rotInner = document.createElementNS(SVG_NS, 'g');
+                rotInner.setAttribute('class', 'handle-btn-inner');
+                rotGroup.appendChild(rotInner);
+
                 const rotBg = document.createElementNS(SVG_NS, 'circle');
-                rotBg.setAttribute('r', '23');
+                rotBg.setAttribute('r', '24');
                 rotBg.setAttribute('fill', '#d97706');
                 rotBg.setAttribute('stroke', '#ffffff');
                 rotBg.setAttribute('stroke-width', '3');
                 rotBg.setAttribute('filter', 'url(#handle-shadow)');
-                rotGroup.appendChild(rotBg);
+                rotInner.appendChild(rotBg);
 
                 // 絵文字ではなくベクター図形で「回転」を表す（円弧＋矢じり）。
                 // 端末によって絵文字の見た目が崩れる問題を避けるため。
@@ -679,13 +816,13 @@
                 const circumference = 2 * Math.PI * 11;
                 rotArc.setAttribute('stroke-dasharray', `${circumference * 0.75} ${circumference * 0.25}`);
                 rotArc.setAttribute('class', 'pointer-events-none');
-                rotGroup.appendChild(rotArc);
+                rotInner.appendChild(rotArc);
 
                 const arrowHead = document.createElementNS(SVG_NS, 'polygon');
                 arrowHead.setAttribute('points', '7,-11 -1,-15 -1,-7');
                 arrowHead.setAttribute('fill', '#ffffff');
                 arrowHead.setAttribute('class', 'pointer-events-none');
-                rotGroup.appendChild(arrowHead);
+                rotInner.appendChild(arrowHead);
 
                 rotGroup.addEventListener('pointerdown', (e) => this.onRotatePointerDown(e, piece));
                 wrap.appendChild(rotGroup);
@@ -696,25 +833,29 @@
                     flipGroup.setAttribute('transform', `translate(0, ${handleDist * 0.85})`);
                     flipGroup.setAttribute('class', 'handle-btn');
 
+                    const flipInner = document.createElementNS(SVG_NS, 'g');
+                    flipInner.setAttribute('class', 'handle-btn-inner');
+                    flipGroup.appendChild(flipInner);
+
                     const flipBg = document.createElementNS(SVG_NS, 'circle');
-                    flipBg.setAttribute('r', '20');
+                    flipBg.setAttribute('r', '21');
                     flipBg.setAttribute('fill', '#0284c7');
                     flipBg.setAttribute('stroke', '#ffffff');
                     flipBg.setAttribute('stroke-width', '2.5');
                     flipBg.setAttribute('filter', 'url(#handle-shadow)');
-                    flipGroup.appendChild(flipBg);
+                    flipInner.appendChild(flipBg);
 
                     const leftArrow = document.createElementNS(SVG_NS, 'polygon');
                     leftArrow.setAttribute('points', '-2,-6 -10,0 -2,6');
                     leftArrow.setAttribute('fill', '#ffffff');
                     leftArrow.setAttribute('class', 'pointer-events-none');
-                    flipGroup.appendChild(leftArrow);
+                    flipInner.appendChild(leftArrow);
 
                     const rightArrow = document.createElementNS(SVG_NS, 'polygon');
                     rightArrow.setAttribute('points', '2,-6 10,0 2,6');
                     rightArrow.setAttribute('fill', '#ffffff');
                     rightArrow.setAttribute('class', 'pointer-events-none');
-                    flipGroup.appendChild(rightArrow);
+                    flipInner.appendChild(rightArrow);
 
                     const midBar = document.createElementNS(SVG_NS, 'line');
                     midBar.setAttribute('x1', 0); midBar.setAttribute('y1', -6);
@@ -722,7 +863,7 @@
                     midBar.setAttribute('stroke', '#ffffff');
                     midBar.setAttribute('stroke-width', '2');
                     midBar.setAttribute('class', 'pointer-events-none');
-                    flipGroup.appendChild(midBar);
+                    flipInner.appendChild(midBar);
 
                     flipGroup.addEventListener('pointerdown', (e) => {
                         e.stopPropagation();
@@ -772,7 +913,8 @@
                 });
 
                 this.svg.addEventListener('pointerdown', (e) => {
-                    if (e.target === this.svg || e.target.classList.contains('wood-board') || e.target.classList.contains('silhouette-target')) {
+                    if (e.target === this.svg || e.target.classList.contains('wood-board') ||
+                        e.target.closest('.silhouette-target')) {
                         this.selectedPieceId = null;
                         this.render();
                     }
@@ -823,7 +965,10 @@
                 const coords = this.getSVGCoordinates(e);
 
                 const angleDeg = Math.atan2(coords.y - piece.y, coords.x - piece.x) * (180 / Math.PI);
-                this.lastTickAngle = piece.rotation;
+
+                // 開始時点ですでに45度刻みに乗っていれば、そこを「吸着中」として覚えておく
+                const startSnap = Math.round(piece.rotation / 45) * 45 % 360;
+                const startDiff = Math.min(Math.abs(piece.rotation - startSnap), 360 - Math.abs(piece.rotation - startSnap));
 
                 // 角度は「前回からの差分」を積み上げて追跡する（絶対角度の引き算だと
                 // -180°/180°をまたいだ瞬間に360°近く跳ぶ不具合があったため）
@@ -831,6 +976,7 @@
                     pieceId: piece.id,
                     lastAngleDeg: angleDeg,
                     accumRotation: piece.rotation,
+                    lockedSnap: startDiff < 1 ? startSnap : null,
                     moved: false
                 };
             }
@@ -874,14 +1020,25 @@
                     let newRotation = this.dragState.accumRotation % 360;
                     if (newRotation < 0) newRotation += 360;
 
-                    // 回転中に45度ごとに小気味よいクリック音
-                    const nearestSnap = Math.round(newRotation / 45) * 45;
-                    if (Math.abs(newRotation - nearestSnap) < 6 && Math.abs(this.lastTickAngle - nearestSnap) >= 6) {
-                        audio.playRotateTick();
-                        this.lastTickAngle = nearestSnap;
-                    }
+                    // 45度刻みの位置に近づいたら「カチッ」と吸着させる（タングラムは45度単位でしか使わないため）。
+                    // 一定角度(SNAP_WINDOW)離れるまでは吸着が外れないようヒステリシスを持たせ、
+                    // 指の微妙なブレでカクカクしないようにする。
+                    const SNAP_WINDOW = 14;
+                    const nearestSnap = Math.round(newRotation / 45) * 45 % 360;
+                    let diffToSnap = newRotation - nearestSnap;
+                    if (diffToSnap > 180) diffToSnap -= 360;
+                    if (diffToSnap < -180) diffToSnap += 360;
 
-                    piece.rotation = newRotation;
+                    if (Math.abs(diffToSnap) < SNAP_WINDOW) {
+                        if (this.dragState.lockedSnap !== nearestSnap) {
+                            audio.playRotateTick();
+                            this.dragState.lockedSnap = nearestSnap;
+                        }
+                        piece.rotation = nearestSnap;
+                    } else {
+                        this.dragState.lockedSnap = null;
+                        piece.rotation = newRotation;
+                    }
                     this.render();
                 }
             }
@@ -918,17 +1075,19 @@
 
                 const stage = STAGES[this.currentStageIndex];
 
+                const symmetryDeg = this.getSymmetryDeg(piece.type);
+
                 for (const solution of stage.targetSolutions) {
                     for (const target of solution) {
                         if (target.type === piece.type) {
                             const dist = Math.hypot(piece.x - target.x, piece.y - target.y);
 
-                            let rotDiff = Math.abs((piece.rotation % 360) - (target.rotation % 360));
-                            if (rotDiff > 180) rotDiff = 360 - rotDiff;
+                            const rotDiff = this.rotationDiff(piece.rotation, target.rotation, symmetryDeg);
 
                             const flipMatches = (piece.flip === (target.flip || false));
+                            const scaleMatches = this.scalesMatch(piece.scale, target.scale);
 
-                            if (dist < SNAP_DIST && rotDiff < 25 && flipMatches) {
+                            if (dist < SNAP_DIST && rotDiff < 25 && flipMatches && scaleMatches) {
                                 piece.x = target.x;
                                 piece.y = target.y;
                                 piece.rotation = target.rotation;
@@ -978,13 +1137,14 @@
 
                 const isClearedAny = stage.targetSolutions.some(solution => {
                     return solution.every(target => {
+                        const symmetryDeg = this.getSymmetryDeg(target.type);
                         return this.pieces.some(piece =>
                             piece.type === target.type &&
                             Math.abs(piece.x - target.x) < 10 &&
                             Math.abs(piece.y - target.y) < 10 &&
-                            (Math.abs((piece.rotation % 360) - (target.rotation % 360)) < 10 ||
-                             Math.abs((piece.rotation % 360) - (target.rotation % 360)) > 350) &&
-                            (piece.flip === (target.flip || false))
+                            this.rotationDiff(piece.rotation, target.rotation, symmetryDeg) < 10 &&
+                            (piece.flip === (target.flip || false)) &&
+                            this.scalesMatch(piece.scale, target.scale)
                         );
                     });
                 });

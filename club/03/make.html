@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>タングラム もんだい作成ツール</title>
+    <title>合成図形パズル もんだい作成ツール</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@400;700;800&display=swap" rel="stylesheet">
     <style>
@@ -34,6 +34,19 @@
         .puzzle-piece { filter: drop-shadow(3px 5px 4px rgba(0,0,0,0.45)); cursor: grab; }
         .puzzle-piece:active { cursor: grabbing; }
         .puzzle-piece.selected { filter: drop-shadow(0 0 12px #f59e0b) drop-shadow(4px 8px 8px rgba(0,0,0,0.5)); }
+        .puzzle-piece.magnet-lock { filter: drop-shadow(0 0 12px #22c55e) drop-shadow(4px 8px 8px rgba(0,0,0,0.5)); }
+        .puzzle-piece.overlap-warn polygon:first-of-type { stroke: #ef4444; stroke-width: 5; }
+        .puzzle-piece.overlap-warn { filter: drop-shadow(0 0 12px #ef4444) drop-shadow(4px 8px 8px rgba(0,0,0,0.5)); }
+
+        #toast {
+            position: absolute; top: 10px; left: 50%; transform: translateX(-50%);
+            background: rgba(127, 29, 29, 0.95); color: #fff; font-weight: 700;
+            font-size: 12px; padding: 8px 16px; border-radius: 999px; z-index: 20;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.4); pointer-events: none;
+            opacity: 0; transition: opacity 0.2s; white-space: nowrap; max-width: 92%;
+            overflow: hidden; text-overflow: ellipsis;
+        }
+        #toast.show { opacity: 1; }
 
         .silhouette-preview { fill: #150b05; stroke: #150b05; stroke-width: 8; stroke-linejoin: round; }
 
@@ -76,7 +89,7 @@
         <div class="flex items-center space-x-3">
             <span class="text-2xl md:text-3xl">🛠️</span>
             <div>
-                <h1 class="text-lg md:text-xl font-extrabold text-emerald-200 leading-none tracking-wide">タングラム もんだい作成ツール</h1>
+                <h1 class="text-lg md:text-xl font-extrabold text-emerald-200 leading-none tracking-wide">合成図形パズル もんだい作成ツール</h1>
                 <p class="text-xs text-emerald-400 font-bold mt-1">ピースを並べて、index.html に貼るコードを作ります</p>
             </div>
         </div>
@@ -92,7 +105,7 @@
         <div class="lg:w-52 flex-shrink-0 bg-emerald-950/85 border border-emerald-800/60 rounded-2xl p-3 overflow-y-auto">
             <h2 class="text-sm font-bold text-emerald-300 mb-2">① ピースを置く</h2>
             <div id="palette" class="grid grid-cols-4 lg:grid-cols-2 gap-2"></div>
-            <p class="text-[11px] text-emerald-400 mt-3 leading-relaxed">タップでボードに追加。もう一度タップでボードから外せます。</p>
+            <p class="text-[11px] text-emerald-400 mt-3 leading-relaxed">タップするたびにボードへ新しいピースが追加されます（同じ形を何個でも置けます）。ピースを選ぶと下に「縮小・拡大・辺を合わせる・複製・削除」ボタンが出ます。辺同士が近づくと磁石のようにぴたっとくっつき、重なる位置には置けません。</p>
         </div>
 
         <!-- 中央：ボード -->
@@ -101,6 +114,7 @@
                 <span class="text-xs text-emerald-300 font-bold">② 完成させたい形にドラッグ・回転・反転で並べる</span>
             </div>
             <div id="board-container" class="wood-board relative w-full flex-1 flex items-center justify-center p-4 overflow-hidden">
+                <div id="toast"></div>
                 <svg id="edit-svg" class="w-full h-full max-w-2xl max-h-[62vh]" viewBox="0 0 800 600" preserveAspectRatio="xMidYMid meet">
                     <defs>
                         <linearGradient id="woodPiece" x1="15%" y1="10%" x2="85%" y2="90%"><stop offset="0%" stop-color="#e9b378"/><stop offset="45%" stop-color="#cd8a45"/><stop offset="100%" stop-color="#9a5d24"/></linearGradient>
@@ -137,11 +151,13 @@
         <div class="bg-emerald-950 border-4 border-emerald-700 rounded-3xl p-6 max-w-lg w-full shadow-2xl text-sm leading-relaxed">
             <h2 class="text-xl font-black text-emerald-200 mb-3">つかいかた</h2>
             <ol class="list-decimal list-inside space-y-2 text-emerald-100">
-                <li>左のパレットから使う形をタップしてボードに置く（同じ形をもう一回タップすると外せる）</li>
-                <li>ボード上でドラッグして動かす。回転は丸いハンドルをドラッグするか、<b>ハンドルを軽くタップするだけで45度ずつ回転</b>する（細かい操作が苦手でもこちらが簡単）。反転は青いボタン</li>
+                <li>左のパレットから使う形をタップするとボードに新しいピースが置かれる。<b>同じ形を何回タップしても何個でも置ける</b></li>
+                <li>ボード上でドラッグして動かす。<b>辺と辺が近づくと磁石のようにぴたっとくっつく</b>。回転は丸いハンドルをドラッグするか、<b>ハンドルを軽くタップするだけで45度ずつ回転</b>する（細かい操作が苦手でもこちらが簡単）。反転は青いボタン</li>
+                <li><b>図形同士は重ねられない</b>。重なる位置に動かそうとすると赤く光って元の位置に戻る</li>
+                <li>ピースを選ぶと下に<b>5つの丸いボタン</b>が出る：<b>－で縮小・＋で拡大・（↔マーク）で近くの辺に長さを合わせてぴたっとくっつける・四角が2つ重なったマークで複製・×で削除</b>。大きさを変えたピースを複製すれば、同じ大きさのコピーを何個でも作れる</li>
                 <li>ピースを選んだ状態なら、キーボードの<b>矢印キーで少しずつ移動</b>（Shiftを押しながらだと大きく移動）、<b>[ と ] キーで45度ずつ回転</b>もできる。Deleteキーでそのピースをボードから外せる</li>
                 <li>「シルエット確認」で実際のゲームと同じ黒いシルエットになるか見てみる</li>
-                <li>「コード作成」を押すと右側にコードが出てくるので「コードをコピー」でコピーする</li>
+                <li>「コード作成」を押すと右側にコードが出てくるので「コードをコピー」でコピーする（ピースが重なっていると作成できないので、赤く光っているピースがあれば先に動かす）</li>
                 <li>index.html を開いて、STAGES配列の最後に貼り付けて保存すれば新しいステージの完成！</li>
             </ol>
             <button id="btn-close-help" class="mt-5 btn-secondary font-bold px-6 py-2.5 rounded-xl text-white w-full">閉じた</button>
@@ -163,14 +179,20 @@
 
         // index.html と全く同じ形の定義（座標がズレないように共通化）
         const TANGRAM_SHAPES = {
-            TRIANGLE_LARGE_1: { type: 'LARGE_TRIANGLE', points: [[-66.67,-66.67],[133.33,-66.67],[-66.67,133.33]], grad: "url(#woodPiece)", handleDist: 177, label: '大三角 A' },
-            TRIANGLE_LARGE_2: { type: 'LARGE_TRIANGLE', points: [[-66.67,-66.67],[133.33,-66.67],[-66.67,133.33]], grad: "url(#woodPiece)", handleDist: 177, label: '大三角 B' },
-            TRIANGLE_MEDIUM:  { type: 'MEDIUM_TRIANGLE', points: [[-47.14,-47.14],[94.28,-47.14],[-47.14,94.28]], grad: "url(#woodPiece)", handleDist: 133, label: '中三角' },
-            TRIANGLE_SMALL_1: { type: 'SMALL_TRIANGLE', points: [[-33.33,-33.33],[66.67,-33.33],[-33.33,66.67]], grad: "url(#woodPiece)", handleDist: 103, label: '小三角 A' },
-            TRIANGLE_SMALL_2: { type: 'SMALL_TRIANGLE', points: [[-33.33,-33.33],[66.67,-33.33],[-33.33,66.67]], grad: "url(#woodPiece)", handleDist: 103, label: '小三角 B' },
-            SQUARE:           { type: 'SQUARE', points: [[-50,-50],[50,-50],[50,50],[-50,50]], grad: "url(#woodPiece)", handleDist: 99, label: '正方形' },
-            PARALLELOGRAM:    { type: 'PARALLELOGRAM', points: [[-75,-25],[25,-25],[75,25],[-25,25]], grad: "url(#woodPiece)", handleDist: 107, canFlip: true, label: '平行四辺形' }
+            TRIANGLE_LARGE_1: { type: 'LARGE_TRIANGLE', points: [[-66.67,-66.67],[133.33,-66.67],[-66.67,133.33]], grad: "url(#woodPiece)", handleDist: 100, toolbarDist: 184, label: '大三角 A' },
+            TRIANGLE_LARGE_2: { type: 'LARGE_TRIANGLE', points: [[-66.67,-66.67],[133.33,-66.67],[-66.67,133.33]], grad: "url(#woodPiece)", handleDist: 100, toolbarDist: 184, label: '大三角 B' },
+            TRIANGLE_MEDIUM:  { type: 'MEDIUM_TRIANGLE', points: [[-47.14,-47.14],[94.28,-47.14],[-47.14,94.28]], grad: "url(#woodPiece)", handleDist: 80, toolbarDist: 140, label: '中三角' },
+            TRIANGLE_SMALL_1: { type: 'SMALL_TRIANGLE', points: [[-33.33,-33.33],[66.67,-33.33],[-33.33,66.67]], grad: "url(#woodPiece)", handleDist: 66, toolbarDist: 110, label: '小三角 A' },
+            TRIANGLE_SMALL_2: { type: 'SMALL_TRIANGLE', points: [[-33.33,-33.33],[66.67,-33.33],[-33.33,66.67]], grad: "url(#woodPiece)", handleDist: 66, toolbarDist: 110, label: '小三角 B' },
+            SQUARE:           { type: 'SQUARE', points: [[-50,-50],[50,-50],[50,50],[-50,50]], grad: "url(#woodPiece)", handleDist: 83, toolbarDist: 106, label: '正方形' },
+            PARALLELOGRAM:    { type: 'PARALLELOGRAM', points: [[-75,-25],[25,-25],[75,25],[-25,25]], grad: "url(#woodPiece)", handleDist: 58, toolbarDist: 114, canFlip: true, label: '平行四辺形' }
         };
+        const SCALE_MIN = 0.5;
+        const SCALE_MAX = 2.2;
+        const SCALE_STEP = 1.15;
+        const MAGNET_RANGE = 42;      // ドラッグ中に辺が磁石のようにくっつく範囲(px)
+        const FIT_EDGE_RANGE = 160;   // 「辺の長さを合わせる」ボタンで探す範囲(px)
+        const OVERLAP_EPS = 0.6;      // これより深くめり込んだら「重なっている」とみなす(px)
         const SHAPE_ORDER = ['TRIANGLE_LARGE_1','TRIANGLE_LARGE_2','TRIANGLE_MEDIUM','TRIANGLE_SMALL_1','TRIANGLE_SMALL_2','SQUARE','PARALLELOGRAM'];
         const SVG_NS = 'http://www.w3.org/2000/svg';
 
@@ -218,8 +240,128 @@
             getPolygonPoints(shapeKey) {
                 return TANGRAM_SHAPES[shapeKey].points.map(pt => pt.join(',')).join(' ');
             }
-            getTransformString(x, y, rotation, flip = false) {
-                return `translate(${x}, ${y}) rotate(${rotation}) ${flip ? 'scale(-1,1)' : ''}`;
+            getTransformString(x, y, rotation, flip = false, scale = 1) {
+                const sx = flip ? -scale : scale;
+                return `translate(${x}, ${y}) rotate(${rotation}) scale(${sx}, ${scale})`;
+            }
+
+            // ピースのローカル座標（拡大縮小・反転・回転・移動を適用した）ワールド座標の頂点配列を返す
+            getPieceWorldPoints(piece) {
+                const shape = TANGRAM_SHAPES[piece.shapeKey];
+                const scale = piece.scale || 1;
+                const sx = piece.flip ? -scale : scale;
+                const rad = (piece.rotation || 0) * Math.PI / 180;
+                const cos = Math.cos(rad), sin = Math.sin(rad);
+                return shape.points.map(([lx, ly]) => {
+                    const sxp = lx * sx, syp = ly * scale;
+                    const rx = sxp * cos - syp * sin;
+                    const ry = sxp * sin + syp * cos;
+                    return [piece.x + rx, piece.y + ry];
+                });
+            }
+
+            // ワールド座標での各辺（頂点2点と長さ、元のインデックス）の配列を返す
+            getPieceEdges(piece) {
+                const pts = this.getPieceWorldPoints(piece);
+                const edges = [];
+                for (let i = 0; i < pts.length; i++) {
+                    const p1 = pts[i], p2 = pts[(i + 1) % pts.length];
+                    edges.push({ p1, p2, len: Math.hypot(p2[0] - p1[0], p2[1] - p1[1]), idx: i });
+                }
+                return edges;
+            }
+
+            // 凸多角形同士の重なり判定（分離軸定理）。触れているだけ(境界が一致)はOVERLAP_EPSの分だけ許容する
+            polygonsOverlap(ptsA, ptsB) {
+                const polys = [ptsA, ptsB];
+                for (const poly of polys) {
+                    for (let i = 0; i < poly.length; i++) {
+                        const p1 = poly[i], p2 = poly[(i + 1) % poly.length];
+                        const ex = p2[0] - p1[0], ey = p2[1] - p1[1];
+                        const nx = -ey, ny = ex;
+                        const len = Math.hypot(nx, ny) || 1;
+                        const ax = nx / len, ay = ny / len;
+                        let minA = Infinity, maxA = -Infinity;
+                        for (const [x, y] of ptsA) { const d = x * ax + y * ay; if (d < minA) minA = d; if (d > maxA) maxA = d; }
+                        let minB = Infinity, maxB = -Infinity;
+                        for (const [x, y] of ptsB) { const d = x * ax + y * ay; if (d < minB) minB = d; if (d > maxB) maxB = d; }
+                        if (maxA < minB + OVERLAP_EPS || maxB < minA + OVERLAP_EPS) return false;
+                    }
+                }
+                return true;
+            }
+
+            // 指定したピースが他のどれかと重なっているか
+            pieceOverlapsAny(piece, others) {
+                const ptsA = this.getPieceWorldPoints(piece);
+                for (const other of others) {
+                    if (other.id === piece.id) continue;
+                    const ptsB = this.getPieceWorldPoints(other);
+                    if (this.polygonsOverlap(ptsA, ptsB)) return true;
+                }
+                return false;
+            }
+
+            // 全ピースについて重なりフラグ(hasOverlap)を更新する
+            updateOverlapFlags() {
+                for (const p of this.pieces) {
+                    const others = this.pieces.filter(o => o.id !== p.id);
+                    p.hasOverlap = this.pieceOverlapsAny(p, others);
+                }
+            }
+
+            // pieceの辺と、others内のピースの辺のうち「向かい合っていて」「近い」ものを探す
+            // allowLengthMismatch=false: 長さがほぼ同じ辺だけを対象にする（ドラッグ中の磁石スナップ用）
+            // allowLengthMismatch=true : 長さが違っても向きと近さだけで探す（辺の長さ合わせボタン用）
+            findEdgeSnap(piece, others, opts = {}) {
+                const {
+                    maxGap = MAGNET_RANGE, angleTol = 12,
+                    lengthTolRatio = 0.16, lengthTolAbs = 9,
+                    allowLengthMismatch = false, minLengthRatio = 0.4, maxLengthRatio = 2.5
+                } = opts;
+
+                const edgesA = this.getPieceEdges(piece);
+                let best = null;
+
+                for (const other of others) {
+                    if (other.id === piece.id) continue;
+                    const edgesB = this.getPieceEdges(other);
+                    for (const eA of edgesA) {
+                        const dirA = [eA.p2[0] - eA.p1[0], eA.p2[1] - eA.p1[1]];
+                        const angA = Math.atan2(dirA[1], dirA[0]);
+                        for (const eB of edgesB) {
+                            const dirB = [eB.p2[0] - eB.p1[0], eB.p2[1] - eB.p1[1]];
+                            const angB = Math.atan2(dirB[1], dirB[0]);
+                            // 向かい合っている（180度反対向き）かどうか
+                            let diff = ((angA - angB - Math.PI) * 180 / Math.PI);
+                            diff = ((diff % 360) + 540) % 360 - 180;
+                            if (Math.abs(diff) > angleTol) continue;
+
+                            const lengthOk = allowLengthMismatch
+                                ? (eA.len / eB.len >= minLengthRatio && eA.len / eB.len <= maxLengthRatio)
+                                : (Math.abs(eA.len - eB.len) <= Math.max(lengthTolAbs, eB.len * lengthTolRatio));
+                            if (!lengthOk) continue;
+
+                            const midA = [(eA.p1[0] + eA.p2[0]) / 2, (eA.p1[1] + eA.p2[1]) / 2];
+                            const midB = [(eB.p1[0] + eB.p2[0]) / 2, (eB.p1[1] + eB.p2[1]) / 2];
+                            const gap = Math.hypot(midA[0] - midB[0], midA[1] - midB[1]);
+                            if (gap > maxGap) continue;
+
+                            if (!best || gap < best.gap) {
+                                best = { gap, otherPiece: other, edgeA: eA, edgeB: eB, midA, midB };
+                            }
+                        }
+                    }
+                }
+                return best;
+            }
+
+            showToast(message) {
+                const toast = document.getElementById('toast');
+                toast.textContent = message;
+                toast.classList.add('show');
+                clearTimeout(this._toastTimer);
+                this._toastTimer = setTimeout(() => toast.classList.remove('show'), 1400);
             }
 
             renderPalette() {
@@ -230,7 +372,6 @@
                     const btn = document.createElement('button');
                     btn.className = 'palette-btn bg-emerald-900 border-2 border-emerald-700 rounded-xl p-2 flex flex-col items-center gap-1';
                     btn.dataset.shape = key;
-                    btn.dataset.used = '0';
 
                     const mini = document.createElementNS(SVG_NS, 'svg');
                     mini.setAttribute('viewBox', '-70 -70 140 140');
@@ -248,39 +389,117 @@
 
                     btn.appendChild(mini);
                     btn.appendChild(label);
-                    btn.addEventListener('click', () => this.togglePiece(key));
+                    btn.addEventListener('click', () => this.addPiece(key));
                     wrap.appendChild(btn);
                 });
             }
 
-            togglePiece(shapeKey) {
-                const existing = this.pieces.find(p => p.shapeKey === shapeKey);
+            // パレットをタップするたびに新しいピースを1つ追加する（同じ形を何個でも置ける）
+            addPiece(shapeKey, opts = {}) {
                 audio.click();
-                if (existing) {
-                    this.pieces = this.pieces.filter(p => p.id !== existing.id);
-                    if (this.selectedPieceId === existing.id) this.selectedPieceId = null;
-                } else {
-                    const idx = SHAPE_ORDER.indexOf(shapeKey);
-                    this.pieces.push({
-                        id: `p-${shapeKey}-${Date.now()}`,
-                        shapeKey,
-                        type: TANGRAM_SHAPES[shapeKey].type,
-                        x: 150 + (idx % 4) * 130,
-                        y: 480 + Math.floor(idx / 4) * 90,
-                        rotation: 0,
-                        flip: false
-                    });
-                    this.selectedPieceId = this.pieces[this.pieces.length - 1].id;
+                const idx = SHAPE_ORDER.indexOf(shapeKey);
+                const n = this.pieces.length;
+                const piece = {
+                    id: `p-${shapeKey}-${Date.now()}-${Math.floor(Math.random() * 10000)}`,
+                    shapeKey,
+                    type: TANGRAM_SHAPES[shapeKey].type,
+                    x: opts.x !== undefined ? opts.x : 150 + ((idx + n) % 4) * 130,
+                    y: opts.y !== undefined ? opts.y : 480 + Math.floor((idx + n) / 4) * 90,
+                    rotation: opts.rotation !== undefined ? opts.rotation : 0,
+                    flip: opts.flip !== undefined ? opts.flip : false,
+                    scale: opts.scale !== undefined ? opts.scale : 1
+                };
+                // 既に置かれているピースと重ならないよう、必要なら下にずらす
+                let guard = 0;
+                while (this.pieceOverlapsAny(piece, this.pieces) && guard < 20) {
+                    piece.y += 90;
+                    guard++;
                 }
-                this.updatePaletteState();
+                this.pieces.push(piece);
+                this.selectedPieceId = piece.id;
                 this.render();
             }
 
-            updatePaletteState() {
-                document.querySelectorAll('.palette-btn').forEach(btn => {
-                    const used = this.pieces.some(p => p.shapeKey === btn.dataset.shape);
-                    btn.dataset.used = used ? '1' : '0';
+            removePiece(id) {
+                audio.click();
+                this.pieces = this.pieces.filter(p => p.id !== id);
+                if (this.selectedPieceId === id) this.selectedPieceId = null;
+                this.render();
+            }
+
+            duplicatePiece(piece) {
+                audio.click();
+                const clone = {
+                    id: `p-${piece.shapeKey}-${Date.now()}-${Math.floor(Math.random() * 10000)}`,
+                    shapeKey: piece.shapeKey,
+                    type: piece.type,
+                    x: piece.x,
+                    y: piece.y,
+                    rotation: piece.rotation,
+                    flip: piece.flip,
+                    scale: piece.scale
+                };
+                // 元のピースと重ならない位置が見つかるまで、斜めにずらしながら探す
+                const others = this.pieces;
+                let offset = 26;
+                let placed = false;
+                for (let i = 0; i < 14; i++) {
+                    clone.x = piece.x + offset;
+                    clone.y = piece.y + offset;
+                    if (!this.pieceOverlapsAny(clone, others)) { placed = true; break; }
+                    offset += 26;
+                }
+                if (!placed) {
+                    // それでも重なる場合はボードの空いていそうな下段に置く
+                    clone.x = 400; clone.y = 560;
+                }
+                this.pieces.push(clone);
+                this.selectedPieceId = clone.id;
+                this.render();
+            }
+
+            scalePiece(piece, factor) {
+                audio.click();
+                const prevScale = piece.scale;
+                const next = Math.round(piece.scale * factor * 1000) / 1000;
+                piece.scale = Math.min(SCALE_MAX, Math.max(SCALE_MIN, next));
+                const others = this.pieces.filter(p => p.id !== piece.id);
+                if (this.pieceOverlapsAny(piece, others)) {
+                    piece.scale = prevScale;
+                    this.showToast('⚠️ これ以上大きくすると他のピースと重なります');
+                }
+                this.render();
+            }
+
+            // 近くにあるピースの辺に、向きが合う辺を探して長さを合わせつつぴたっと寄せる
+            fitEdgeToNearby(piece) {
+                const others = this.pieces.filter(p => p.id !== piece.id);
+                const match = this.findEdgeSnap(piece, others, {
+                    maxGap: FIT_EDGE_RANGE, allowLengthMismatch: true, angleTol: 14
                 });
+                if (!match) {
+                    this.showToast('近くに合わせられそうな辺が見つかりませんでした');
+                    return;
+                }
+                audio.click();
+                const prevScale = piece.scale, prevX = piece.x, prevY = piece.y;
+                const ratio = match.edgeB.len / match.edgeA.len;
+                let newScale = Math.round((piece.scale || 1) * ratio * 1000) / 1000;
+                newScale = Math.min(SCALE_MAX, Math.max(SCALE_MIN, newScale));
+                piece.scale = newScale;
+
+                // 新しい大きさで辺の位置を再計算し、対象の辺にぴったり合わせる
+                const edgesA2 = this.getPieceEdges(piece);
+                const eA2 = edgesA2[match.edgeA.idx];
+                const midA2 = [(eA2.p1[0] + eA2.p2[0]) / 2, (eA2.p1[1] + eA2.p2[1]) / 2];
+                piece.x += match.midB[0] - midA2[0];
+                piece.y += match.midB[1] - midA2[1];
+
+                if (this.pieceOverlapsAny(piece, others)) {
+                    piece.scale = prevScale; piece.x = prevX; piece.y = prevY;
+                    this.showToast('⚠️ 重なってしまうため辺を合わせられませんでした');
+                }
+                this.render();
             }
 
             render() {
@@ -293,19 +512,26 @@
                         const poly = document.createElementNS(SVG_NS, 'polygon');
                         poly.setAttribute('points', this.getPolygonPoints(p.shapeKey));
                         poly.setAttribute('class', 'silhouette-preview');
-                        poly.setAttribute('transform', this.getTransformString(p.x, p.y, p.rotation, p.flip));
+                        poly.setAttribute('transform', this.getTransformString(p.x, p.y, p.rotation, p.flip, p.scale || 1));
                         this.silhouetteGroup.appendChild(poly);
                     });
                     return;
                 }
 
+                this.updateOverlapFlags();
+
                 this.pieces.forEach(p => {
                     const shape = TANGRAM_SHAPES[p.shapeKey];
                     const isSelected = p.id === this.selectedPieceId;
+                    const isMagnetLocked = isSelected && this.dragState && this.dragState.magnetLock && this.interactionMode === 'move';
 
                     const g = document.createElementNS(SVG_NS, 'g');
-                    g.setAttribute('class', `puzzle-piece ${isSelected ? 'selected' : ''}`);
-                    g.setAttribute('transform', this.getTransformString(p.x, p.y, p.rotation, p.flip));
+                    const classes = ['puzzle-piece'];
+                    if (isSelected) classes.push('selected');
+                    if (p.hasOverlap) classes.push('overlap-warn');
+                    if (isMagnetLocked && !p.hasOverlap) classes.push('magnet-lock');
+                    g.setAttribute('class', classes.join(' '));
+                    g.setAttribute('transform', this.getTransformString(p.x, p.y, p.rotation, p.flip, p.scale || 1));
 
                     const poly = document.createElementNS(SVG_NS, 'polygon');
                     poly.setAttribute('points', this.getPolygonPoints(p.shapeKey));
@@ -330,7 +556,8 @@
 
             renderControls(piece) {
                 const shape = TANGRAM_SHAPES[piece.shapeKey];
-                const handleDist = shape.handleDist || 70;
+                const pieceScale = piece.scale || 1;
+                const handleDist = (shape.handleDist || 70) * pieceScale;
 
                 const wrap = document.createElementNS(SVG_NS, 'g');
                 wrap.setAttribute('transform', this.getTransformString(piece.x, piece.y, piece.rotation, piece.flip));
@@ -362,6 +589,7 @@
                 if (shape.canFlip) {
                     const flipGroup = document.createElementNS(SVG_NS, 'g');
                     flipGroup.setAttribute('transform', `translate(0, ${handleDist * 0.85})`);
+                    // (注) このフリップハンドルの位置は handleDist スケール済みなのでピースの拡大縮小に追従する
                     flipGroup.setAttribute('class', 'handle-btn');
                     const flipBg = document.createElementNS(SVG_NS, 'circle');
                     flipBg.setAttribute('r', '20'); flipBg.setAttribute('fill', '#0284c7');
@@ -387,13 +615,110 @@
                     flipGroup.addEventListener('pointerdown', (e) => {
                         e.stopPropagation();
                         piece.flip = !piece.flip;
-                        audio.click();
+                        const others = this.pieces.filter(p => p.id !== piece.id);
+                        if (this.pieceOverlapsAny(piece, others)) {
+                            piece.flip = !piece.flip;
+                            this.showToast('⚠️ 重なってしまうので反転できません');
+                        } else {
+                            audio.click();
+                        }
                         this.render();
                     });
                     wrap.appendChild(flipGroup);
                 }
 
                 this.controlsGroup.appendChild(wrap);
+
+                // 複製・拡大・縮小・削除のツールバー（回転に追従しない固定向きで、ピースの下に常に表示）
+                const toolbarDist = (shape.toolbarDist || 110) * pieceScale;
+                const toolbar = document.createElementNS(SVG_NS, 'g');
+                toolbar.setAttribute('transform', `translate(${piece.x}, ${piece.y + toolbarDist})`);
+
+                const makeToolBtn = (offsetX, fill, glyphDrawer, onClick, title) => {
+                    const btn = document.createElementNS(SVG_NS, 'g');
+                    btn.setAttribute('transform', `translate(${offsetX}, 0)`);
+                    btn.setAttribute('class', 'handle-btn');
+                    const bg = document.createElementNS(SVG_NS, 'circle');
+                    bg.setAttribute('r', '19'); bg.setAttribute('fill', fill);
+                    bg.setAttribute('stroke', '#fff'); bg.setAttribute('stroke-width', '2.5');
+                    bg.setAttribute('filter', 'url(#handle-shadow)');
+                    btn.appendChild(bg);
+                    glyphDrawer(btn);
+                    const titleEl = document.createElementNS(SVG_NS, 'title');
+                    titleEl.textContent = title;
+                    btn.appendChild(titleEl);
+                    btn.addEventListener('pointerdown', (e) => {
+                        e.stopPropagation();
+                        onClick();
+                    });
+                    return btn;
+                };
+
+                const drawPlus = (btn) => {
+                    const l1 = document.createElementNS(SVG_NS, 'line');
+                    l1.setAttribute('x1', -8); l1.setAttribute('y1', 0); l1.setAttribute('x2', 8); l1.setAttribute('y2', 0);
+                    l1.setAttribute('stroke', '#fff'); l1.setAttribute('stroke-width', '3'); l1.setAttribute('stroke-linecap', 'round');
+                    l1.setAttribute('class', 'pointer-events-none');
+                    const l2 = document.createElementNS(SVG_NS, 'line');
+                    l2.setAttribute('x1', 0); l2.setAttribute('y1', -8); l2.setAttribute('x2', 0); l2.setAttribute('y2', 8);
+                    l2.setAttribute('stroke', '#fff'); l2.setAttribute('stroke-width', '3'); l2.setAttribute('stroke-linecap', 'round');
+                    l2.setAttribute('class', 'pointer-events-none');
+                    btn.appendChild(l1); btn.appendChild(l2);
+                };
+                const drawMinus = (btn) => {
+                    const l1 = document.createElementNS(SVG_NS, 'line');
+                    l1.setAttribute('x1', -8); l1.setAttribute('y1', 0); l1.setAttribute('x2', 8); l1.setAttribute('y2', 0);
+                    l1.setAttribute('stroke', '#fff'); l1.setAttribute('stroke-width', '3'); l1.setAttribute('stroke-linecap', 'round');
+                    l1.setAttribute('class', 'pointer-events-none');
+                    btn.appendChild(l1);
+                };
+                const drawDup = (btn) => {
+                    const r1 = document.createElementNS(SVG_NS, 'rect');
+                    r1.setAttribute('x', -7); r1.setAttribute('y', -7); r1.setAttribute('width', 10); r1.setAttribute('height', 10);
+                    r1.setAttribute('rx', 2); r1.setAttribute('fill', 'none'); r1.setAttribute('stroke', '#fff'); r1.setAttribute('stroke-width', '2');
+                    r1.setAttribute('class', 'pointer-events-none');
+                    const r2 = document.createElementNS(SVG_NS, 'rect');
+                    r2.setAttribute('x', -3); r2.setAttribute('y', -3); r2.setAttribute('width', 10); r2.setAttribute('height', 10);
+                    r2.setAttribute('rx', 2); r2.setAttribute('fill', fill_bg2()); r2.setAttribute('stroke', '#fff'); r2.setAttribute('stroke-width', '2');
+                    r2.setAttribute('class', 'pointer-events-none');
+                    btn.appendChild(r1); btn.appendChild(r2);
+                    function fill_bg2() { return '#0284c7'; }
+                };
+                const drawX = (btn) => {
+                    const l1 = document.createElementNS(SVG_NS, 'line');
+                    l1.setAttribute('x1', -6); l1.setAttribute('y1', -6); l1.setAttribute('x2', 6); l1.setAttribute('y2', 6);
+                    l1.setAttribute('stroke', '#fff'); l1.setAttribute('stroke-width', '3'); l1.setAttribute('stroke-linecap', 'round');
+                    l1.setAttribute('class', 'pointer-events-none');
+                    const l2 = document.createElementNS(SVG_NS, 'line');
+                    l2.setAttribute('x1', 6); l2.setAttribute('y1', -6); l2.setAttribute('x2', -6); l2.setAttribute('y2', 6);
+                    l2.setAttribute('stroke', '#fff'); l2.setAttribute('stroke-width', '3'); l2.setAttribute('stroke-linecap', 'round');
+                    l2.setAttribute('class', 'pointer-events-none');
+                    btn.appendChild(l1); btn.appendChild(l2);
+                };
+                const drawFit = (btn) => {
+                    // 両端に矢印のある横線（近くの辺に「長さを合わせる」アイコン）
+                    const line = document.createElementNS(SVG_NS, 'line');
+                    line.setAttribute('x1', -7); line.setAttribute('y1', 0); line.setAttribute('x2', 7); line.setAttribute('y2', 0);
+                    line.setAttribute('stroke', '#fff'); line.setAttribute('stroke-width', '2.5'); line.setAttribute('stroke-linecap', 'round');
+                    line.setAttribute('class', 'pointer-events-none');
+                    btn.appendChild(line);
+                    const arrowL = document.createElementNS(SVG_NS, 'polygon');
+                    arrowL.setAttribute('points', '-7,0 -2,-4 -2,4');
+                    arrowL.setAttribute('fill', '#fff'); arrowL.setAttribute('class', 'pointer-events-none');
+                    btn.appendChild(arrowL);
+                    const arrowR = document.createElementNS(SVG_NS, 'polygon');
+                    arrowR.setAttribute('points', '7,0 2,-4 2,4');
+                    arrowR.setAttribute('fill', '#fff'); arrowR.setAttribute('class', 'pointer-events-none');
+                    btn.appendChild(arrowR);
+                };
+
+                toolbar.appendChild(makeToolBtn(-112, '#57534e', drawMinus, () => this.scalePiece(piece, 1 / SCALE_STEP), '小さくする'));
+                toolbar.appendChild(makeToolBtn(-56, '#57534e', drawPlus, () => this.scalePiece(piece, SCALE_STEP), '大きくする'));
+                toolbar.appendChild(makeToolBtn(0, '#15803d', drawFit, () => this.fitEdgeToNearby(piece), '近くの辺に長さを合わせてぴたっと付ける'));
+                toolbar.appendChild(makeToolBtn(56, '#0284c7', drawDup, () => this.duplicatePiece(piece), 'このピースを複製する'));
+                toolbar.appendChild(makeToolBtn(112, '#b91c1c', drawX, () => this.removePiece(piece.id), 'このピースを外す'));
+
+                this.controlsGroup.appendChild(toolbar);
             }
 
             initEvents() {
@@ -402,7 +727,6 @@
                     this.pieces = [];
                     this.selectedPieceId = null;
                     this.previewMode = false;
-                    this.updatePaletteState();
                     this.render();
                     document.getElementById('output-code').value = '';
                 });
@@ -447,6 +771,7 @@
 
                 const step = e.shiftKey ? 10 : 2;
                 let handled = true;
+                const prevX = piece.x, prevY = piece.y, prevRotation = piece.rotation;
 
                 switch (e.key) {
                     case 'ArrowLeft': piece.x -= step; break;
@@ -457,7 +782,7 @@
                     case ']': piece.rotation = (piece.rotation + 45) % 360; break;
                     case 'Delete':
                     case 'Backspace':
-                        this.togglePiece(piece.shapeKey);
+                        this.removePiece(piece.id);
                         handled = true;
                         return;
                     default: handled = false;
@@ -465,7 +790,13 @@
 
                 if (handled) {
                     e.preventDefault();
-                    audio.click();
+                    const others = this.pieces.filter(p => p.id !== piece.id);
+                    if (this.pieceOverlapsAny(piece, others)) {
+                        piece.x = prevX; piece.y = prevY; piece.rotation = prevRotation;
+                        this.showToast('⚠️ 重なってしまうのでこれ以上は動かせません');
+                    } else {
+                        audio.click();
+                    }
                     this.render();
                 }
             }
@@ -483,7 +814,12 @@
                 this.selectedPieceId = piece.id;
                 this.interactionMode = 'move';
                 const coords = this.getSVGCoordinates(e);
-                this.dragState = { pieceId: piece.id, startX: coords.x, startY: coords.y, initialX: piece.x, initialY: piece.y };
+                this.dragState = {
+                    pieceId: piece.id, startX: coords.x, startY: coords.y,
+                    initialX: piece.x, initialY: piece.y,
+                    lastValidX: piece.x, lastValidY: piece.y,
+                    magnetLock: null
+                };
                 const idx = this.pieces.findIndex(p => p.id === piece.id);
                 const [moved] = this.pieces.splice(idx, 1);
                 this.pieces.push(moved);
@@ -496,9 +832,14 @@
                 this.interactionMode = 'rotate';
                 const coords = this.getSVGCoordinates(e);
                 const angleDeg = Math.atan2(coords.y - piece.y, coords.x - piece.x) * (180 / Math.PI);
-                this.lastTickAngle = piece.rotation;
+                const startSnap = Math.round(piece.rotation / 45) * 45 % 360;
+                const startDiff = Math.min(Math.abs(piece.rotation - startSnap), 360 - Math.abs(piece.rotation - startSnap));
                 // 前回からの差分角度を積み上げる方式（-180/180の境界をまたいでも跳ばない）
-                this.dragState = { pieceId: piece.id, lastAngleDeg: angleDeg, accumRotation: piece.rotation, moved: false };
+                this.dragState = {
+                    pieceId: piece.id, lastAngleDeg: angleDeg, accumRotation: piece.rotation,
+                    lockedSnap: startDiff < 1 ? startSnap : null, moved: false,
+                    initialRotation: piece.rotation
+                };
             }
 
             onPointerMove(e) {
@@ -510,9 +851,41 @@
                 if (this.interactionMode === 'move') {
                     const dx = coords.x - this.dragState.startX;
                     const dy = coords.y - this.dragState.startY;
-                    // ドラッグ中も10px格子にスナップして、狙った位置に揃えやすくする
-                    piece.x = Math.round((this.dragState.initialX + dx) / 10) * 10;
-                    piece.y = Math.round((this.dragState.initialY + dy) / 10) * 10;
+                    const rawX = this.dragState.initialX + dx;
+                    const rawY = this.dragState.initialY + dy;
+                    const others = this.pieces.filter(p => p.id !== piece.id);
+
+                    // まず生の位置に置いて、近くに向き合う辺（長さもほぼ同じ）がないか探す
+                    piece.x = rawX;
+                    piece.y = rawY;
+                    const match = this.findEdgeSnap(piece, others, { maxGap: MAGNET_RANGE });
+
+                    if (match) {
+                        const snapX = rawX + (match.midB[0] - match.midA[0]);
+                        const snapY = rawY + (match.midB[1] - match.midA[1]);
+                        piece.x = snapX; piece.y = snapY;
+                        if (this.pieceOverlapsAny(piece, others)) {
+                            // 磁石で寄せた結果重なってしまう場合はやめて普通の格子スナップに戻す
+                            piece.x = Math.round(rawX / 10) * 10;
+                            piece.y = Math.round(rawY / 10) * 10;
+                            this.dragState.magnetLock = null;
+                        } else {
+                            if (this.dragState.magnetLock !== match.otherPiece.id) {
+                                audio.click();
+                                this.dragState.magnetLock = match.otherPiece.id;
+                            }
+                        }
+                    } else {
+                        // ドラッグ中は10px格子にスナップして、狙った位置に揃えやすくする
+                        piece.x = Math.round(rawX / 10) * 10;
+                        piece.y = Math.round(rawY / 10) * 10;
+                        this.dragState.magnetLock = null;
+                    }
+
+                    if (!this.pieceOverlapsAny(piece, others)) {
+                        this.dragState.lastValidX = piece.x;
+                        this.dragState.lastValidY = piece.y;
+                    }
                     this.render();
                 } else if (this.interactionMode === 'rotate') {
                     const currentAngleDeg = Math.atan2(coords.y - piece.y, coords.x - piece.x) * (180 / Math.PI);
@@ -526,7 +899,24 @@
 
                     let newRotation = this.dragState.accumRotation % 360;
                     if (newRotation < 0) newRotation += 360;
-                    piece.rotation = newRotation;
+
+                    // 45度刻みでカチッと吸着させる（ヒステリシス付き）
+                    const SNAP_WINDOW = 14;
+                    const nearestSnap = Math.round(newRotation / 45) * 45 % 360;
+                    let diffToSnap = newRotation - nearestSnap;
+                    if (diffToSnap > 180) diffToSnap -= 360;
+                    if (diffToSnap < -180) diffToSnap += 360;
+
+                    if (Math.abs(diffToSnap) < SNAP_WINDOW) {
+                        if (this.dragState.lockedSnap !== nearestSnap) {
+                            audio.click();
+                            this.dragState.lockedSnap = nearestSnap;
+                        }
+                        piece.rotation = nearestSnap;
+                    } else {
+                        this.dragState.lockedSnap = null;
+                        piece.rotation = newRotation;
+                    }
                     this.render();
                 }
             }
@@ -534,6 +924,8 @@
             onPointerUp() {
                 if (!this.dragState) return;
                 const piece = this.pieces.find(p => p.id === this.dragState.pieceId);
+                const others = piece ? this.pieces.filter(p => p.id !== piece.id) : [];
+
                 if (piece && this.interactionMode === 'rotate') {
                     if (!this.dragState.moved) {
                         // タップだけなら45度ずつ回す（細かいドラッグをしなくても正確に回せる）
@@ -541,11 +933,26 @@
                     } else {
                         piece.rotation = Math.round(piece.rotation / 45) * 45 % 360;
                     }
+                    if (this.pieceOverlapsAny(piece, others)) {
+                        piece.rotation = this.dragState.initialRotation;
+                        this.showToast('⚠️ 重なってしまうので回転を元に戻しました');
+                    }
                 }
                 if (piece && this.interactionMode === 'move') {
-                    // 位置は5px単位にスナップしてキレイな数値にする
-                    piece.x = Math.round(piece.x / 5) * 5;
-                    piece.y = Math.round(piece.y / 5) * 5;
+                    if (this.pieceOverlapsAny(piece, others)) {
+                        // 重なった状態では確定させず、直前の重なっていない位置に戻す
+                        piece.x = this.dragState.lastValidX;
+                        piece.y = this.dragState.lastValidY;
+                        this.showToast('⚠️ 重なってしまうので元の位置に戻しました');
+                    } else if (!this.dragState.magnetLock) {
+                        // 磁石でくっついていない時だけ、位置を5px単位にスナップしてキレイな数値にする
+                        piece.x = Math.round(piece.x / 5) * 5;
+                        piece.y = Math.round(piece.y / 5) * 5;
+                        if (this.pieceOverlapsAny(piece, others)) {
+                            piece.x = this.dragState.lastValidX;
+                            piece.y = this.dragState.lastValidY;
+                        }
+                    }
                 }
                 this.dragState = null;
                 this.interactionMode = null;
@@ -563,33 +970,42 @@
                     return;
                 }
 
+                this.updateOverlapFlags();
+                if (this.pieces.some(p => p.hasOverlap)) {
+                    warn.textContent = '⚠️ ピース同士が重なっています。重なっているピース（赤く光っています）を動かしてから、もう一度「コード作成」を押してください。';
+                    warn.classList.remove('hidden');
+                    document.getElementById('output-code').value = '';
+                    this.render();
+                    return;
+                }
+
                 const target = this.pieces.map(p => ({
                     type: p.shapeKey,
                     x: Math.round(p.x * 100) / 100,
                     y: Math.round(p.y * 100) / 100,
                     rotation: Math.round(p.rotation),
-                    flip: p.flip
+                    flip: p.flip,
+                    scale: Math.round((p.scale || 1) * 1000) / 1000
                 }));
 
-                // ゲーム開始時の配置（下段に横並びで自動生成、角度はランダムにばらけさせる）
-                const usedShapeKeys = this.pieces.map(p => p.shapeKey);
-                const n = usedShapeKeys.length;
+                // ゲーム開始時の配置（下段に横並びで自動生成、角度はランダムにばらけさせる。大きさは完成形と同じにする）
+                const n = this.pieces.length;
                 const startX = n === 1 ? 400 : 120;
                 const endX = n === 1 ? 400 : 680;
                 const spawnAngles = [0, 45, 90, 135, 180, 225, 270, 315];
 
-                const spawn = usedShapeKeys.map((shapeKey, i) => {
+                const spawn = this.pieces.map((p, i) => {
                     const x = n === 1 ? startX : Math.round(startX + ((endX - startX) * i) / (n - 1));
                     const angle = spawnAngles[Math.floor(Math.random() * spawnAngles.length)];
-                    return { shape: shapeKey, x, y: 480, rotation: angle, flip: false };
+                    return { shape: p.shapeKey, x, y: 480, rotation: angle, flip: false, scale: Math.round((p.scale || 1) * 1000) / 1000 };
                 });
 
                 const solutionLines = target.map(t =>
-                    `                        { type: '${TANGRAM_SHAPES[t.type].type}', x: ${t.x}, y: ${t.y}, rotation: ${t.rotation}, flip: ${t.flip} }`
+                    `                        { type: '${TANGRAM_SHAPES[t.type].type}', x: ${t.x}, y: ${t.y}, rotation: ${t.rotation}, flip: ${t.flip}, scale: ${t.scale} }`
                 ).join(',\n');
 
                 const spawnLines = spawn.map(s =>
-                    `                    { shape: '${s.shape}', x: ${s.x}, y: ${s.y}, rotation: ${s.rotation}, flip: ${s.flip} }`
+                    `                    { shape: '${s.shape}', x: ${s.x}, y: ${s.y}, rotation: ${s.rotation}, flip: ${s.flip}, scale: ${s.scale} }`
                 ).join(',\n');
 
                 const code =
