@@ -60,12 +60,13 @@
     <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-auth-compat.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <!-- display=swapだと、Webフォントが読み込まれた瞬間に別のフォントへガクッと
-         入れ替わって見える（がたつく）。display=optionalにすると、読み込みが
-         少しでも遅ければ最初のフォントのまま据え置かれる（＝表示中の入れ替えが
-         起きない）ので、初回表示のがたつきを防げる（読み込みが速い次回以降の
-         表示ではこのWebフォントがそのまま使われる）。 -->
-    <link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@500;700;900&display=optional" rel="stylesheet">
+    <!-- display=optionalは「読み込みが少しでも遅いと、そのページ表示では二度と
+         カワイイ方のフォントに切り替わらない（次に開いたときだけ効く）」という
+         挙動だったため、通信が遅い時に毎回ふつうのゴシック体のまま固定されてしまう
+         不具合になっていた。display=swapに戻し、代わりに下のスクリプトで
+         「フォントの読み込みが確定してから中身を表示する」ようにして、
+         がたつき（表示中の入れ替わり）を防ぐ。 -->
+    <link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@500;700;900&display=swap" rel="stylesheet">
     <style>
         /* iOS Safariはビューポートのmaximum-scale/user-scalable=noを無視して
            ダブルタップ・ピンチで拡大してしまうことがある（CSSのtouch-actionだけでは
@@ -75,6 +76,9 @@
         * { box-sizing: border-box; touch-action: manipulation; -webkit-touch-callout: none; }
         body { -webkit-user-select: none; user-select: none; }
         input, textarea { -webkit-user-select: text; user-select: text; }
+        /* 日本語の短いラベル・見出しが、スマホの狭い画面で意味の区切りと関係ない
+           変なところで折り返されるのを防ぐ（room.htmlと同じ対策）。 */
+        body { word-break: keep-all; overflow-wrap: break-word; }
         /* iOSのSafariはアドレスバー表示中、100vhが実際に見えている高さより
            大きくなる。その大きい高さの中でcenter配置すると、実際に見えている
            画面の中では中身が下寄りに見えてしまう。100dvh（動的ビューポート高さ）が
@@ -95,7 +99,13 @@
         .page-content {
             display: flex; flex-direction: column; align-items: center;
             width: 100%; margin: auto 0;
+            /* フォントの読み込みが確定するまで中身を隠しておき（下のスクリプトでhtmlに
+               fonts-readyクラスが付いたら表示する）、表示中にフォントがガクッと
+               入れ替わって見える「がたつき」を防ぐ。背景の丸模様はフォントに関係ないので
+               隠さず、中身が出るまでの間も画面が真っ白にならないようにする。 */
+            opacity: 0; transition: opacity 0.2s ease;
         }
+        html.fonts-ready .page-content { opacity: 1; }
 
         .bg-shapes { position: fixed; inset: 0; z-index: 0; pointer-events: none; opacity: 0.7; }
 
@@ -187,6 +197,22 @@
     </div>
 
     <script>
+        // フォントの読み込みが確定する（読み込み終わる／またはあきらめる）まで
+        // 中身を隠しておき、確定してから表示することで、表示中にフォントが
+        // 入れ替わって見える「がたつき」を防ぐ（読み込みに時間がかかる場合に
+        // 備えて、0.5秒待っても終わらなければ、いったんそのフォントで表示する）。
+        (function revealWhenFontsReady() {
+            function reveal() { document.documentElement.classList.add('fonts-ready'); }
+            if (document.fonts && document.fonts.ready) {
+                Promise.race([
+                    document.fonts.ready,
+                    new Promise(resolve => setTimeout(resolve, 500))
+                ]).then(reveal);
+            } else {
+                reveal();
+            }
+        })();
+
         // 「もどる」ボタンやスワイプ戻るで、ブラウザがこのページをbfcache（そのままの状態）から
         // 復元すると、Firebaseとのつながりが止まったままになり、部屋を作る/入るが反応しなく
         // なることがある。そのときはページを丸ごと読み込み直して、つながりをやり直す。
@@ -430,11 +456,7 @@
                     return;
                 }
                 const roomData = roomSnap.val();
-                if ((roomData.state || {}).phase !== 'lobby') {
-                    alert('このお部屋はもうゲームが始まっています。次のゲームまで待ってね。');
-                    btn.disabled = false;
-                    return;
-                }
+                const phase = (roomData.state || {}).phase || 'lobby';
 
                 const existingUsers = roomData.users || {};
                 const nameTaken = Object.values(existingUsers).some(u => u && u.name === name);
@@ -454,6 +476,33 @@
                     joinedAt: Date.now(),
                     color: pickRandomColor(takenColors)
                 });
+
+                // 遅れてきた子でも、途中からでも入れるようにする。ゲームがもう始まって
+                // いる（ロビー・最終結果の画面ではない）ときは、いまの順番（turnOrder）の
+                // 最後にこの子を追加しておく（同時に何人か参加してもtransactionで
+                // 安全に追記できる）。
+                const isMidGame = phase !== 'lobby' && phase !== 'final';
+                if (isMidGame) {
+                    await db.ref(`casual_rooms/${room}/turnOrder`).transaction(current => {
+                        current = current || [];
+                        if (!current.includes(uid)) current.push(uid);
+                        return current;
+                    });
+                    // 「回数で終了」のときだけ、自分の描く回数を決める必要がある
+                    // （「時間で終了」のときは、みんなと同じ順番の輪にただ加わるだけでよい）。
+                    // フルの回数をもらえるのではなく、いま一番進んでいる子（＝残り回数が
+                    // いちばん少ない子）に合わせた、残りの回数だけをもらう。
+                    if ((roomData.settings || {}).endType === 'rounds') {
+                        const latestUsersSnap = await db.ref(`casual_rooms/${room}/users`).once('value');
+                        const latestUsers = latestUsersSnap.val() || {};
+                        const remainders = Object.entries(latestUsers)
+                            .filter(([otherUid]) => otherUid !== uid)
+                            .map(([, u]) => (u && typeof u.roundsRemaining === 'number') ? u.roundsRemaining : null)
+                            .filter(v => v !== null);
+                        const roundsForNewcomer = remainders.length ? Math.min(...remainders) : ((roomData.settings || {}).roundsPerPerson || 1);
+                        await db.ref(`casual_rooms/${room}/users/${uid}/roundsRemaining`).set(roundsForNewcomer);
+                    }
+                }
             } catch (err) {
                 console.error(err);
                 alert('入室できませんでした。時間をおいてもう一度お試しください。\n(エラー: ' + (err && err.message ? err.message : err) + ')');

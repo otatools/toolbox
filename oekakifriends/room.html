@@ -24,9 +24,12 @@
 <script src="odailist.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<!-- display=optional：Webフォントの読み込みが遅いときに表示中のフォントが
-     ガクッと入れ替わる「がたつき」を防ぐ（index.htmlと同じ対策） -->
-<link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@500;700;900&display=optional" rel="stylesheet">
+<!-- display=optionalだと、通信が少しでも遅いとそのページ表示ではずっと
+     ふつうのゴシック体のまま（次に開いたときしか切り替わらない）になって
+     しまっていたため、display=swapに戻す。代わりに、フォントの読み込みが
+     確定してから中身を表示する仕組み（下のCSS/スクリプト）で、表示中に
+     フォントが入れ替わって見える「がたつき」を防ぐ（index.htmlと同じ対策）。 -->
+<link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@500;700;900&display=swap" rel="stylesheet">
 <style>
 /* スマホでダブルタップ拡大・長押しメニューが出て遊びづらくなるのを防ぐ。
    CSSのtouch-actionだけではiOS Safariのピンチ拡大を止めきれないので、
@@ -40,8 +43,17 @@ body {
        まわりの文字が選択されてしまい、Iビームの文字カーソルが出て見た目が崩れる。
        入力用の要素だけは選択できるままにしておく。 */
     -webkit-user-select: none; user-select: none;
+    /* フォントの読み込みが確定するまで中身を隠しておき（下のスクリプトでhtmlに
+       fonts-readyクラスが付いたら表示する）、表示中にフォントが入れ替わって
+       見える「がたつき」を防ぐ（index.htmlと同じ対策）。 */
+    opacity: 0; transition: opacity 0.2s ease;
 }
+html.fonts-ready body { opacity: 1; }
 input, textarea { -webkit-user-select: text; user-select: text; }
+/* 日本語の短いラベル（見出しやボタンの文字）が、スマホの狭い画面で意味の
+   区切りと関係ない変なところで折り返されるのを防ぐ。単語の区切り（スペースなど）
+   がない日本語文でも、句読点などの自然な区切り以外では折り返さないようにする。 */
+body { word-break: keep-all; overflow-wrap: break-word; }
 
 /* ロビー画面 */
 /* align-items:center のままだと、画面より縦に長いときに上側がスクロールでも
@@ -57,8 +69,11 @@ input, textarea { -webkit-user-select: text; user-select: text; }
 .lobby-box h2 { font-weight: 700; font-size: clamp(14px, 2vh, 17px); letter-spacing: 1px; margin: clamp(2px, 0.6vh, 4px) 0; }
 .room-code-big { font-size: clamp(28px, 6vh, 54px); font-weight: 900; color: #ff8a3d; letter-spacing: clamp(3px, 0.9vh, 7px); margin: clamp(0px, 0.4vh, 4px) 0; }
 .lobby-list { display: flex; flex-wrap: wrap; align-content: flex-start; gap: 6px; text-align: left; background: #f7f8fd; border-radius: 10px; padding: clamp(5px, 1vh, 10px); margin: clamp(4px, 1vh, 10px) 0; max-height: clamp(46px, 10vh, 130px); overflow-y: auto; }
-.lobby-list .user-chip { padding: 4px 12px; background: #ffffff; border: 2px solid rgba(60,50,120,0.12); border-radius: 20px; font-weight: 600; font-size: 14px; }
+.lobby-list .user-chip { display: flex; align-items: center; gap: 6px; padding: 4px 8px 4px 12px; background: #ffffff; border: 2px solid rgba(60,50,120,0.12); border-radius: 20px; font-weight: 600; font-size: 14px; }
 .lobby-list .user-chip.me { box-shadow: 0 0 0 3px rgba(60,50,120,0.18); }
+/* ホストだけに見える「×」ボタン：入ったつもりで入れていない子などを一覧から消せる */
+.user-chip-kick { width: 20px; height: 20px; padding: 0; border: none; border-radius: 50%; background: rgba(60,50,120,0.12); color: #4d5085; font-weight: 900; font-size: 13px; line-height: 1; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.user-chip-kick:active { background: #ef5f6b; color: #fff; }
 .color-picker { margin: clamp(2px, 0.5vh, 6px) 0 clamp(4px, 1vh, 8px) 0; }
 .color-picker .field-label { text-align: center; margin-bottom: 4px; }
 /* 色は基本12色で、幅にまかせて折り返すと8個+4個のように段ごとの数がバラバラに
@@ -180,7 +195,12 @@ canvas { touch-action: none; -webkit-user-select: none; user-select: none; }
    「描いている人」側だけ最大42%までしか広がれないようにする（折り返して縦に伸びる分には
    問題ないので、ここは幅だけ制限する）。右側（終了までのカウント・点数）は文字量が
    もともと少なく中央にぶつかる心配がないので、幅は制限せず自然な大きさのままにする。 */
-#drawerDisplay { color: #1a9e8f; font-weight: 700; text-align: left; padding-left: 10px; min-width: 0; max-width: 42%; box-sizing: border-box; }
+/* 部屋番号は「描いている人」の横に並べると、まん中に固定表示される問題ごとの
+   カウントダウン（#limitTimer）と重なりやすくなるので、横にではなく上に
+   小さく重ねて表示する（横幅を追加でとらないようにする）。 */
+#infoBarLeft { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; min-width: 0; max-width: 52%; }
+#roomCodeBadge { flex-shrink: 0; background: #eef1fb; color: #4d5085; font-weight: 700; font-size: 10px; padding: 1px 7px; border-radius: 10px; white-space: nowrap; }
+#drawerDisplay { color: #1a9e8f; font-weight: 700; text-align: left; padding-left: 10px; min-width: 0; box-sizing: border-box; }
 /* スマホ幅では「描いている人：」と名前が同じ行にあると窮屈なので、名前だけ次の行に
    落として2行にする（自然な折り返しまかせだと途中の変な位置で改行されることがあるため、
    ここではっきり名前の直前で改行させる）。パソコンなど横に余裕がある画面では1行のまま。 */
@@ -215,8 +235,10 @@ canvas { touch-action: none; -webkit-user-select: none; user-select: none; }
 #oshiiBubble { position: fixed; top: 100px; left: 50%; transform: translateX(-50%) translateY(-6px) scale(0.85); z-index: 3600; background: #ffffff; border: 3px solid #29b36b; border-radius: 20px; padding: 8px 20px; font-weight: 800; font-size: 17px; color: #128a4d; box-shadow: 0 6px 18px rgba(60,50,120,0.22); opacity: 0; pointer-events: none; transition: opacity 0.2s ease, transform 0.2s ease; white-space: nowrap; }
 #oshiiBubble::after { content: ''; position: absolute; top: -12px; left: 50%; transform: translateX(-50%); border-width: 0 10px 12px 10px; border-style: solid; border-color: transparent transparent #29b36b transparent; }
 #oshiiBubble.show { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); }
-/* パソコンなど横に余裕がある画面では、まちがえた答えをその人の名前タグから吹き出しで出す */
-.player-sidebar { position: fixed; top: 50%; transform: translateY(-50%); display: flex; flex-direction: column; gap: 14px; z-index: 5200; max-width: 30vw; }
+/* パソコンなど横に余裕がある画面では、まちがえた答えをその人の名前タグから吹き出しで出す。
+   人数が増えても分かりやすいよう、上下中央ぞろえではなく、左上を起点に上から順に
+   ならべる（左に入りきらない人数のときだけ、右側にも上から続けてならべる）。 */
+.player-sidebar { position: fixed; top: 66px; display: flex; flex-direction: column; gap: 14px; z-index: 5200; max-width: 30vw; }
 .player-sidebar.left { left: 10px; align-items: flex-start; }
 .player-sidebar.right { right: 10px; align-items: flex-end; }
 .player-tag { position: relative; background: #ffffff; border: 3px solid #ccc; border-radius: 20px; padding: 6px 14px; font-weight: 700; font-size: 14px; box-shadow: 0 3px 10px rgba(60,50,120,0.15); white-space: nowrap; max-width: 30vw; }
@@ -286,7 +308,7 @@ canvas { touch-action: none; -webkit-user-select: none; user-select: none; }
 }
 .color-btn { width: 35px; height: 35px; border-radius: 50%; border: 2px solid rgba(60,50,120,0.15); }
 .color-btn.active { transform: scale(1.2); border-color: #ff8a3d; box-shadow: 0 0 10px #ff8a3d; }
-.tool-row-bottom { display: flex; align-items: center; justify-content: center; gap: 14px; min-height: 60px; }
+.tool-row-bottom { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 10px 14px; min-height: 60px; }
 .mode-btn { width: 44px; height: 44px; padding: 0; border-radius: 12px; background: #eef1fb; color: #2c2a4a; border: 2px solid transparent; display: flex; align-items: center; justify-content: center; }
 .mode-btn.active { background: #ff8a3d; color: #2a1500; border-color: #fff; box-shadow: 0 0 0 3px rgba(255,138,61,0.35); }
 .size-dot-wrap { width: 44px; height: 44px; border-radius: 12px; display: flex; align-items: center; justify-content: center; cursor: pointer; background: #eef1fb; border: 2px solid transparent; box-sizing: border-box; }
@@ -294,7 +316,9 @@ canvas { touch-action: none; -webkit-user-select: none; user-select: none; }
 .size-dot-wrap.active { background: #fff; border-color: #2c2a4a; box-shadow: 0 0 0 3px rgba(44,42,74,0.18); }
 .overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 10000; display: none; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
 #countdownOverlay { z-index: 15000; background: rgba(255,255,255,0.97); color: #2c2a4a; }
-#answerOverlay { background: rgba(255,138,61,0.92); color: #2a1500; transition: background 0.2s ease, color 0.2s ease; }
+/* 実際の背景色は#answerBgSplit（JSで正解者の色ぶんに分割してぬる）が
+   常に画面全体をおおうので、ここでは透明にしておく。 */
+#answerOverlay { background: transparent; color: #2a1500; }
 #finalOverlay { background: rgba(255,255,255,0.97); overflow-y: auto; padding-top: 50px; justify-content: flex-start; z-index: 20000; color: #2c2a4a; }
 #finalOverlay h1 { font-weight: 900; letter-spacing: 1px; color: #ff8a3d; }
 .final-row { background: #f7f8fd; border-radius: 16px; padding: 20px 30px; margin: 10px; width: 85%; max-width: 500px; display: flex; align-items: center; border: 2px solid rgba(60,50,120,0.08); box-sizing: border-box; color: #2c2a4a; }
@@ -342,6 +366,10 @@ canvas { touch-action: none; -webkit-user-select: none; user-select: none; }
 .coop-score-chip { display: flex; align-items: center; gap: 6px; background: #f7f8fd; border: 2px solid rgba(60,50,120,0.08); border-radius: 20px; padding: 6px 14px; white-space: nowrap; }
 .coop-score-chip .chip-name { font-size: 14px; font-weight: 700; color: #2c2a4a; }
 .coop-score-chip .chip-score { font-size: 14px; font-weight: 800; color: #ff8a3d; }
+/* 人数が少ないとき（8人まで）は、1人ずつチップがポンと出てきて合計に
+   加算されていく演出にする。出てくる瞬間が分かるよう、ふわっと拡大しながら現れる。 */
+.coop-chip-enter { opacity: 0; transform: scale(0.6) translateY(6px); transition: opacity 0.3s ease, transform 0.35s cubic-bezier(.34,1.56,.64,1); }
+.coop-chip-enter.coop-chip-visible { opacity: 1; transform: scale(1) translateY(0); }
 </style>
 </head>
 <body>
@@ -431,7 +459,12 @@ canvas { touch-action: none; -webkit-user-select: none; user-select: none; }
 <!-- ゲーム画面 -->
 <div id="gameStage">
     <div id="infoBar">
-        <div id="drawerDisplay">描いている人: <span id="drawerNameSpan">---</span></div>
+        <div id="infoBarLeft">
+            <!-- ゲーム中もずっと部屋番号が見えるようにしておく。ロビー画面を離れたあとに
+                 遅れてくる友だちへ部屋番号を伝えたいときに困らないようにするため。 -->
+            <div id="roomCodeBadge" title="部屋番号">部屋<span id="roomCodeBadgeNum"></span></div>
+            <div id="drawerDisplay"><span style="white-space:nowrap;">描いている人:</span> <span id="drawerNameSpan">---</span></div>
+        </div>
         <div id="limitTimer" style="display:none;"></div>
         <div id="infoBarRight">
             <div id="gameEndTimer" style="display:none;"></div>
@@ -469,11 +502,13 @@ canvas { touch-action: none; -webkit-user-select: none; user-select: none; }
                 <button class="mode-btn" onclick="clearCanvas()" aria-label="ぜんぶ消す">
                     <svg viewBox="0 0 1000 1000" width="24" height="24"><path fill="currentColor" d="M840,180c0-22.1-17.9-40-40-40H620v-40c0-22.1-17.9-40-40-40H420c-22.1,0-40,17.9-40,40v40H200c-22.1,0-40,17.9-40,40v100 h41.1l40.1,660h517.6l40.1-660H840V180z M420,97h160v43H420V97z M200,178h600v64H200V178z M721.2,900H278.8l-37.6-620h517.5 L721.2,900z M520,820h-40V380h40V820z M359.1,820l-18.3-440h40l18.3,440H359.1z M640.9,820h-40l18.3-440h40L640.9,820z"/></svg>
                 </button>
+                <!-- 「おしい！」ボタン：描いている人が、だれかの間違った答えを見て「おしい」と
+                     思ったときに押す。ペン・消しゴムなどと同じ、描画ツールの並びに置く。 -->
+                <button class="mode-btn" id="oshiiBtn" onclick="sendOshii()" aria-label="おしい" style="width:auto; padding:0 14px; background:#29b36b; color:#fff; font-size:13px; font-weight:700;">おしい！</button>
             </div>
         </div>
     </div>
     <button id="toggleKbd" onclick="toggleKeyboard()" style="display:none; position: fixed; bottom: 15px; right: 15px; z-index: 4500; padding: 12px 24px; border-radius: 30px; background: #ffcc00; font-weight: bold; border: 2px solid #fff;">答えを入力</button>
-    <button id="oshiiBtn" onclick="sendOshii()" style="display:none; position: fixed; top: 55px; left: 12px; z-index: 3200; padding: 8px 16px; border-radius: 20px; background: #29b36b; color: #fff; font-size: 13px; font-weight: 700; border: 2px solid #fff; box-shadow: 0 4px 14px rgba(60,50,120,0.25);">おしい！</button>
     <div id="kbdWrapper">
         <div class="input-display">
             <button class="k-close-x" onclick="toggleKeyboard()">×</button>
@@ -490,10 +525,16 @@ canvas { touch-action: none; -webkit-user-select: none; user-select: none; }
         <div id="cdName" style="font-size:34px; color:#d98a00; font-weight:700;"></div>
     </div>
     <div id="answerOverlay" class="overlay" style="overflow-y:auto; padding:16px 0; box-sizing:border-box;">
-        <div style="font-size:30px; font-weight:bold;">せいかいは...</div>
-        <div id="finalAnswer" style="font-size:70px; font-weight:bold; margin:20px 0;"></div>
-        <div id="winnerList" style="font-size:22px;"></div>
-        <img id="resultImg" style="display:none; max-width:min(92vw, 640px); max-height:min(58vh, 520px); width:auto; height:auto; border-radius:8px; border:4px solid #fff; box-shadow:0 4px 16px rgba(0,0,0,0.2); margin-top:14px; background:#fff; object-fit:contain;">
+        <!-- 完全に同時のタイミングで複数人が正解した場合、画面の背景をその人数ぶんに
+             分割して、それぞれの色で染める（例：2人なら左右に二等分）。中身の文字は
+             読みやすいよう、常に白っぽいカードの上に置く。 -->
+        <div id="answerBgSplit" style="position:absolute; inset:0; z-index:0; display:flex;"></div>
+        <div id="answerContent" style="position:relative; z-index:1; display:flex; flex-direction:column; align-items:center; max-width:92vw; box-sizing:border-box; background:rgba(255,255,255,0.92); border-radius:24px; padding:22px 30px; box-shadow:0 8px 30px rgba(0,0,0,0.18); color:#2a1500;">
+            <div style="font-size:30px; font-weight:bold;">せいかいは...</div>
+            <div id="finalAnswer" style="font-size:70px; font-weight:bold; margin:20px 0;"></div>
+            <div id="winnerList" style="font-size:22px;"></div>
+            <img id="resultImg" style="display:none; max-width:min(88vw, 640px); max-height:min(54vh, 520px); width:auto; height:auto; border-radius:8px; border:4px solid #fff; box-shadow:0 4px 16px rgba(0,0,0,0.2); margin-top:14px; background:#fff; object-fit:contain;">
+        </div>
     </div>
 </div>
 
@@ -507,6 +548,21 @@ canvas { touch-action: none; -webkit-user-select: none; user-select: none; }
 </div>
 
 <script>
+// フォントの読み込みが確定する（読み込み終わる／またはあきらめる）まで
+// 中身を隠しておき、確定してから表示することで、表示中にフォントが
+// 入れ替わって見える「がたつき」を防ぐ（index.htmlと同じ対策）。
+(function revealWhenFontsReady() {
+    function reveal() { document.documentElement.classList.add('fonts-ready'); }
+    if (document.fonts && document.fonts.ready) {
+        Promise.race([
+            document.fonts.ready,
+            new Promise(resolve => setTimeout(resolve, 500))
+        ]).then(reveal);
+    } else {
+        reveal();
+    }
+})();
+
 // 「もどる」で他の画面からこのページにbfcache（そのままの状態）で戻ってくると、
 // Firebaseとのつながりが止まったままになることがあるため、まるごと読み込み直す。
 window.addEventListener('pageshow', (event) => {
@@ -692,6 +748,10 @@ let lastX = 0, lastY = 0, kbdType = 'hira', lastStatePhase = "", currentIsPlayin
 let hostTimerInterval = null;
 let gameStarted = false;
 let finalAnimPlayed = false;
+// 「一度は自分がusers一覧にいたか」（ホストに出された等の判定に使う）と、
+// 「ロビー中の自動退室（onDisconnect）を今この端末で有効にしてあるか」
+let everConfirmedPresent = false;
+let selfDisconnectArmed = false;
 
 let lastCanvasW = 0, lastCanvasH = 0;
 // サイズが変わるたびに、消えないよう前の絵をいったん画像として退避して描き戻しているが、
@@ -760,13 +820,30 @@ function scheduleStageLayout() {
     requestAnimationFrame(updateStageLayout);
 }
 window.onresize = updateStageLayout;
-canvas.onpointerdown = e => { if(!isDrawer || !currentIsPlaying) return; e.preventDefault(); drawing=true; const r=canvas.getBoundingClientRect(); lastX=e.clientX-r.left; lastY=e.clientY-r.top; ctx.beginPath(); ctx.globalCompositeOperation = isEraserMode ? 'destination-out' : 'source-over'; ctx.fillStyle = isEraserMode ? 'white' : penColor; ctx.arc(lastX, lastY, penSize/2, 0, Math.PI * 2); ctx.fill(); throttleUpload(); };
+// タッチペン（スタイラス）の中には、すこし速く動かすとキャンバスの外まで
+// 一瞬はみ出してしまい、そのままだとpointermoveが届かなくなって線が
+// とぎれることがある。setPointerCaptureで「このpointerIdの間は、
+// 画面のどこに動いてもこのcanvasへイベントを送り続けて」と予約しておく。
+canvas.onpointerdown = e => {
+    if(!isDrawer || !currentIsPlaying) return;
+    e.preventDefault();
+    try { canvas.setPointerCapture(e.pointerId); } catch (err) {}
+    drawing=true; const r=canvas.getBoundingClientRect(); lastX=e.clientX-r.left; lastY=e.clientY-r.top; ctx.beginPath(); ctx.globalCompositeOperation = isEraserMode ? 'destination-out' : 'source-over'; ctx.fillStyle = isEraserMode ? 'white' : penColor; ctx.arc(lastX, lastY, penSize/2, 0, Math.PI * 2); ctx.fill(); throttleUpload();
+};
 canvas.onpointermove = e => { if(!drawing || !currentIsPlaying) return; e.preventDefault(); const r=canvas.getBoundingClientRect(), x=e.clientX-r.left, y=e.clientY-r.top; ctx.beginPath(); ctx.globalCompositeOperation = isEraserMode ? 'destination-out' : 'source-over'; ctx.strokeStyle = isEraserMode ? 'rgba(0,0,0,1)' : penColor; ctx.lineWidth=penSize; ctx.moveTo(lastX, lastY); ctx.lineTo(x, y); ctx.stroke(); lastX=x; lastY=y; throttleUpload(); };
 window.onpointerup = () => { if(drawing){ drawing=false; upload(); } };
+// OSやブラウザ側の判断（パームリジェクションなど）でpointerが急に
+// キャンセルされることがある。そのまま放置するとdrawingがtrueのまま
+// 固まり、次にペンを置いたときに変な位置から線が引かれてしまうので、
+// キャンセルされたら描画中フラグだけ静かに戻しておく。
+canvas.onpointercancel = () => { drawing = false; };
 // Pointer Eventだけだと、iPadなどでゆっくりタッチしたときにタッチの既定動作
 // （選択ルーペ表示など）が生き残ることがあるので、touchイベント側でも止めておく。
 canvas.ontouchstart = e => { if (isDrawer && currentIsPlaying) e.preventDefault(); };
 canvas.ontouchmove = e => { if (isDrawer && currentIsPlaying) e.preventDefault(); };
+// CSSのtouch-action:noneに加えて、念のためJS側でも同じ指定をしておく
+// （ごく一部のタッチペン内蔵ブラウザでCSSだけでは反映が遅れることがある）。
+canvas.style.touchAction = 'none';
 // iOS Safariはmaximum-scale/user-scalable=noを無視してピンチ拡大してしまうことがあり、
 // 拡大されると描画中に画面がズレて遊びづらくなる。gestureイベント自体を止める。
 ['gesturestart', 'gesturechange', 'gestureend'].forEach(type => {
@@ -850,26 +927,37 @@ async function hostStartGame() {
     if (uids.length < 2) { alert('2人以上あつまってからはじめてね'); return; }
 
     const turnOrder = shuffleArray(uids);
-    const totalRounds = (endType === "rounds") ? turnOrder.length * roundsPerPerson : 0;
     const gameEndAt = (endType === "time") ? (Date.now() + timeLimitMinutes * 60000) : 0;
     const firstWord = pickWord(difficulty, {});
+    const firstDrawer = turnOrder[0];
 
-    await db.ref(`casual_rooms/${myRoom}`).update({
+    const updates = {
         settings: { difficulty: difficulty, roundsPerPerson: roundsPerPerson, gameMode: gameMode, endType: endType, timeLimitMinutes: timeLimitMinutes, allowChangeOdai: allowChangeOdai },
         turnOrder: turnOrder,
         usedWords: { [firstWord]: true },
-        progress: { roundNumber: 0, totalRounds: totalRounds, gameEndAt: gameEndAt },
+        // turnIndexは「いまturnOrderの何番目の人が描いているか」を覚えておく場所。
+        // ラウンド数のかけ算(turnOrder.length × roundsPerPerson)で総回数を決める
+        // 方式だと、あとから人が増えたとき（途中参加）にうまく対応できないため、
+        // 代わりに「ひとりずつの残り回数」(users/{uid}/roundsRemaining)を見ながら
+        // 順番にまわす方式にしている（hostAdvanceRoundを参照）。
+        progress: { roundNumber: 0, turnIndex: 0, gameEndAt: gameEndAt },
         state: {
             phase: "countdown",
-            currentDrawer: turnOrder[0],
-            drawerName: (data.users[turnOrder[0]] || {}).name || "???",
+            currentDrawer: firstDrawer,
+            drawerName: (data.users[firstDrawer] || {}).name || "???",
             correctAnswer: firstWord,
             countdown: 3,
             timeLeft: ROUND_SECONDS,
             correctCount: 0,
             active: false
         }
-    });
+    };
+    if (endType === "rounds") {
+        turnOrder.forEach(uid => {
+            updates[`users/${uid}/roundsRemaining`] = (uid === firstDrawer) ? (roundsPerPerson - 1) : roundsPerPerson;
+        });
+    }
+    await db.ref(`casual_rooms/${myRoom}`).update(updates);
     hostRunCountdown();
 }
 
@@ -938,9 +1026,33 @@ async function hostAdvanceRound() {
 
     const endType = (data.settings || {}).endType || "rounds";
     const isTimeUp = endType === "time" && data.progress && data.progress.gameEndAt && Date.now() >= data.progress.gameEndAt;
-    const isRoundsDone = endType !== "time" && nextRoundNumber >= (data.progress ? data.progress.totalRounds : 0);
 
-    if (isTimeUp || isRoundsDone) {
+    const turnOrder = data.turnOrder || [];
+    const users = data.users || {};
+    const prevTurnIndex = (data.progress && typeof data.progress.turnIndex === 'number') ? data.progress.turnIndex : -1;
+    let nextDrawer = null;
+    let nextTurnIndex = prevTurnIndex;
+
+    if (endType === "rounds") {
+        // turnOrderを最大1周ぶんだけたどって、まだ残り回数(roundsRemaining)が
+        // 残っている次の人をさがす（0回になった人は飛ばす）。誰も残っていなければ
+        // 全員描き終わったということなので、そこでゲーム終了にする。
+        // （途中参加した人がいる場合、turnOrderは末尾に追加されているだけなので、
+        //   この探索方法のままふつうに合流できる。）
+        for (let step = 1; step <= turnOrder.length; step++) {
+            const idx = (prevTurnIndex + step) % turnOrder.length;
+            const uid = turnOrder[idx];
+            const remaining = (users[uid] && users[uid].roundsRemaining) || 0;
+            if (remaining > 0) { nextDrawer = uid; nextTurnIndex = idx; break; }
+        }
+    } else if (turnOrder.length) {
+        // 時間で終了：均等に順番がまわるよう、turnOrderをそのまま1つ進める。
+        // 途中参加した人も、参加した時点からこのくり返しに自然に加わる。
+        nextTurnIndex = (prevTurnIndex + 1) % turnOrder.length;
+        nextDrawer = turnOrder[nextTurnIndex];
+    }
+
+    if (isTimeUp || !nextDrawer) {
         resetUpdates['state'] = {
             phase: "final", currentDrawer: "", drawerName: "", correctAnswer: "",
             countdown: 0, timeLeft: 0, correctCount: 0, active: false
@@ -949,11 +1061,13 @@ async function hostAdvanceRound() {
         return;
     }
 
-    const turnOrder = data.turnOrder || [];
-    const nextDrawer = turnOrder[nextRoundNumber % turnOrder.length];
     const nextWord = pickWord(data.settings.difficulty, data.usedWords || {});
     resetUpdates['progress/roundNumber'] = nextRoundNumber;
+    resetUpdates['progress/turnIndex'] = nextTurnIndex;
     resetUpdates['usedWords/' + nextWord] = true;
+    if (endType === "rounds") {
+        resetUpdates[`users/${nextDrawer}/roundsRemaining`] = ((users[nextDrawer] && users[nextDrawer].roundsRemaining) || 0) - 1;
+    }
     resetUpdates['state'] = {
         phase: "countdown",
         currentDrawer: nextDrawer,
@@ -983,10 +1097,11 @@ async function hostPlayAgain() {
         updates[`users/${uid}/isCorrect`] = false;
         updates[`users/${uid}/image`] = "";
         updates[`users/${uid}/answerOrder`] = null;
+        updates[`users/${uid}/roundsRemaining`] = null;
     });
     updates['turnOrder'] = [];
     updates['usedWords'] = {};
-    updates['progress'] = { roundNumber: 0, totalRounds: 0 };
+    updates['progress'] = { roundNumber: 0, turnIndex: -1 };
     updates['state'] = {
         phase: "lobby",
         currentDrawer: "",
@@ -1046,6 +1161,13 @@ async function leaveRoomToMenu() {
 let usersData = {};
 let roomSettings = {};
 
+// 「入ったつもりが入れていない」まま名前だけ残ってしまった子がいたときのために、
+// ホストの端末からその子を一覧から消せるようにしておく（自分自身とホストは消せない）。
+function kickUser(uid, name) {
+    if (!isHost || uid === myUid) return;
+    if (!confirm(`${name}さんを部屋から出しますか？`)) return;
+    db.ref(`casual_rooms/${myRoom}/users/${uid}`).remove();
+}
 function renderLobby(data) {
     document.getElementById('lobbyRoomCode').innerText = myRoom;
     const list = document.getElementById('lobbyUserList');
@@ -1055,7 +1177,18 @@ function renderLobby(data) {
         chip.className = 'user-chip' + (uid === myUid ? ' me' : '');
         chip.style.borderColor = u.color || 'rgba(60,50,120,0.12)';
         chip.style.color = u.color || '#2c2a4a';
-        chip.innerText = u.name;
+        const nameSpan = document.createElement('span');
+        nameSpan.innerText = u.name;
+        chip.appendChild(nameSpan);
+        if (isHost && uid !== myUid) {
+            const kickBtn = document.createElement('button');
+            kickBtn.type = 'button';
+            kickBtn.className = 'user-chip-kick';
+            kickBtn.innerText = '×';
+            kickBtn.setAttribute('aria-label', `${u.name}さんを出す`);
+            kickBtn.onclick = () => kickUser(uid, u.name);
+            chip.appendChild(kickBtn);
+        }
         list.appendChild(chip);
     });
 
@@ -1134,10 +1267,20 @@ function renderGuestSettingsPreview(ps) {
 
 // ゲーム中、パソコンなど横に余裕がある画面では名前タグを左右に出す（スマホでは非表示・CSSで制御）。
 // 人が入れかわった時だけ作り直し、それ以外は名前や色だけ更新して、表示中のふきだしを消さないようにする。
+// 左右で上下ふたつに分けるのではなく、まず左側の上から順にならべ、画面の高さに
+// 入りきらなくなった分だけ右側にも上からならべる（見やすさを優先し、キーボードや
+// 描画ツールと重ならないよう、下側には一定の余白を残しておく）。
 let lastSidebarKey = "";
+function computeSidebarCapacity() {
+    const topOffset = 66;
+    const bottomReserve = 170; // 描画ツール・キーボードとかぶらないための余白
+    const tagStep = 54; // タグ1個ぶんの高さ＋すき間のめやす
+    return Math.max(3, Math.floor((window.innerHeight - topOffset - bottomReserve) / tagStep));
+}
 function renderPlayerSidebar(data) {
     const uids = (data.turnOrder && data.turnOrder.length) ? data.turnOrder : Object.keys(usersData);
-    const key = uids.join(",");
+    const capacity = computeSidebarCapacity();
+    const key = uids.join(",") + "|" + capacity;
     const left = document.getElementById('sidebarLeft');
     const right = document.getElementById('sidebarRight');
     if (key !== lastSidebarKey) {
@@ -1160,7 +1303,7 @@ function renderPlayerSidebar(data) {
             bubble.className = 'tag-bubble';
             bubble.id = `tagBubble-${uid}`;
             tag.appendChild(bubble);
-            (i % 2 === 0 ? left : right).appendChild(tag);
+            (i < capacity ? left : right).appendChild(tag);
         });
     } else {
         uids.forEach(uid => {
@@ -1207,6 +1350,7 @@ function stepSetting(id, delta, min, max) {
 }
 
 window.onload = () => {
+    document.getElementById('roomCodeBadgeNum').innerText = myRoom;
     initKbd(); initColors(); changeSize(12, 'wrap2'); scheduleStageLayout();
     if (typeof DIFFICULTY_LEVELS !== 'undefined') {
         const diffGroup = document.getElementById('difficultyGroup');
@@ -1244,8 +1388,32 @@ authReady.then(() => {
         usersData = data.users || {};
         roomSettings = data.settings || {};
         currentGameEndAt = (data.progress && data.progress.gameEndAt) || 0;
-        if (!usersData[myUid] && state.phase !== "lobby") {
-            // 自分がユーザー一覧から消えている（データ不整合）場合は入口に戻す
+
+        if (usersData[myUid]) {
+            everConfirmedPresent = true;
+        } else if (everConfirmedPresent) {
+            // 一度は一覧にいたはずの自分が消えている（ホストに出された、または
+            // 通信の影響で参加情報が消えてしまった等）。入口の画面にもどす。
+            alert('この部屋から出されたか、参加情報が見つからなくなりました。もう一度お試しください。');
+            location.href = 'index.html';
+            return;
+        }
+
+        // 参加者（ホスト以外）は、ロビーで待っている間だけ「切断されたら自分の
+        // 名前を一覧から消す」しくみ（onDisconnect）を有効にしておく。こうすると、
+        // タブを閉じる・電波が切れるなどでロビーを離れたときに、名前だけが
+        // ずっと残ってしまう（他の子には見えるのに本人は入れない）不具合を防げる。
+        // ゲームが始まったら、切断されても途中参加として復帰できるよう、いったん
+        // このしくみを解除する（また「同じ部屋でもう一度あそぶ」でロビーに
+        // もどったら、あらためて有効にする）。
+        if (!isHost && usersData[myUid]) {
+            if (state.phase === "lobby" && !selfDisconnectArmed) {
+                selfDisconnectArmed = true;
+                db.ref(`casual_rooms/${myRoom}/users/${myUid}`).onDisconnect().remove();
+            } else if (state.phase !== "lobby" && selfDisconnectArmed) {
+                selfDisconnectArmed = false;
+                db.ref(`casual_rooms/${myRoom}/users/${myUid}`).onDisconnect().cancel();
+            }
         }
 
         isDrawer = (state.currentDrawer === myUid);
@@ -1287,6 +1455,11 @@ authReady.then(() => {
         }
 
         if (state.phase === "lobby") {
+            // 「同じ部屋でもう一度あそぶ」でロビーに戻ってきたら、次にまた最終結果
+            // （final）になったときに、けっか発表のアニメーションを最初からやり直せる
+            // ようにしておく（このリセットが無いと、2回目の最終結果ではもう
+            // renderFinal()自体が呼ばれず、くるくる回る演出が出なくなっていた）。
+            finalAnimPlayed = false;
             renderLobby(data);
             return;
         }
@@ -1334,7 +1507,6 @@ authReady.then(() => {
             }
             if (state.phase === "countdown") { canvasGen++; ctx.clearRect(0, 0, canvas.width, canvas.height); }
             if (state.phase === "result") { document.getElementById('judgeEffect').style.display = "none"; }
-            if (state.phase === "final") { finalAnimPlayed = false; }
             lastStatePhase = state.phase;
         }
 
@@ -1357,12 +1529,25 @@ authReady.then(() => {
             const winners = winnerUsers.map(u => u.name + "さん");
             document.getElementById('winnerList').innerText = "正解者：" + (winners.length > 0 ? winners.join('、 ') : "なし");
 
-            // 正解した人がいなければ、だれかの色とまぎらわしくならないよう白にする
-            // （プレイヤーがオレンジを選んでいることもあるため、オレンジ固定にはしない）
-            const themeHex = (winnerUsers[0] && winnerUsers[0].color) || '#ffffff';
-            const answerOverlayEl = document.getElementById('answerOverlay');
-            answerOverlayEl.style.background = hexToRgba(themeHex, 0.92);
-            answerOverlayEl.style.color = pickReadableTextColor(themeHex);
+            // 完全に同時のタイミングで複数人が正解したときは、みんな正解あつかいにして、
+            // 画面の背景をその人数ぶんに等分し、それぞれの色でぬり分ける
+            // （例：黒のAさんと赤のBさんが同時なら、画面を左右半分ずつ黒と赤にする）。
+            // 正解した人がいなければ、だれかの色とまぎらわしくならないよう白のままにする。
+            const bgSplit = document.getElementById('answerBgSplit');
+            bgSplit.innerHTML = '';
+            if (winnerUsers.length === 0) {
+                const band = document.createElement('div');
+                band.style.flex = '1';
+                band.style.background = 'rgba(255,255,255,0.6)';
+                bgSplit.appendChild(band);
+            } else {
+                winnerUsers.forEach(u => {
+                    const band = document.createElement('div');
+                    band.style.flex = '1';
+                    band.style.background = hexToRgba(u.color || '#ffffff', 0.9);
+                    bgSplit.appendChild(band);
+                });
+            }
 
             const resultImg = document.getElementById('resultImg');
             const drawnSrc = (usersData[state.currentDrawer] && usersData[state.currentDrawer].image) || "";
@@ -1377,10 +1562,9 @@ authReady.then(() => {
 
         document.getElementById('drawTools').style.display = (isDrawer && currentIsPlaying) ? 'flex' : 'none';
         document.getElementById('toggleKbd').style.display = (currentIsPlaying && !isDrawer && !(usersData[myUid] && usersData[myUid].isCorrect)) ? 'block' : 'none';
-        // 「おしい！」ボタンは、答えを入力する人ではなく、絵を描いている人だけに表示する。
-        // だれかの間違った答えが「おしい」と思ったときに、描きながら押せるようにするため
-        // （押すと、ほかの答えていない人たちへのヒントとして伝わる）。
-        document.getElementById('oshiiBtn').style.display = (isDrawer && currentIsPlaying) ? 'block' : 'none';
+        // 「おしい！」ボタンは#drawTools（描いている人のツール一式）の中に置いてあるので、
+        // drawTools自体の表示・非表示（isDrawer && currentIsPlayingで切り替え）に
+        // そのままついてくる。答えを入力する人ではなく、絵を描いている人だけに見える。
         document.getElementById('changeOdaiBtn').style.display = (isDrawer && currentIsPlaying && roomSettings.allowChangeOdai) ? 'block' : 'none';
 
         const viewer = document.getElementById('viewer');
@@ -1515,23 +1699,87 @@ function renderFinalCoop(container, values) {
     // ならべるのではなく、小さめのチップを横になみだかたちに折り返して表示する。
     const listBox = document.createElement('div');
     listBox.className = 'coop-score-wrap';
-    listBox.style.opacity = '0';
     container.appendChild(listBox);
 
-    animateScoreCountUp(numberEl, total, () => {
-        const byAnswerOrder = values.slice().sort((a, b) => {
-            const oa = a.answerOrder ?? Infinity, ob = b.answerOrder ?? Infinity;
-            return oa - ob;
-        });
-        byAnswerOrder.forEach(u => {
-            const chip = document.createElement('div');
-            chip.className = 'coop-score-chip';
-            chip.innerHTML = `<span class="chip-name">${escapeHtml(u.name)}さん</span><span class="chip-score">${u.score || 0}点</span>`;
-            listBox.appendChild(chip);
-        });
-        requestAnimationFrame(() => { listBox.style.opacity = '1'; });
-        showCloseRoomBtnIfHost();
+    const byAnswerOrder = values.slice().sort((a, b) => {
+        const oa = a.answerOrder ?? Infinity, ob = b.answerOrder ?? Infinity;
+        return oa - ob;
     });
+
+    // 8人くらいまでは、1人ずつ得点チップがポンと出てきて合計にどんどん
+    // 加算されていく演出にする（そのほうが盛り上がるため）。人数が多いと
+    // 1人ずつやると長くなりすぎるので、その場合は今まで通り合計だけを
+    // 一気に数え上げてから、全員分をまとめて表示する。
+    if (byAnswerOrder.length > 0 && byAnswerOrder.length <= 8) {
+        listBox.style.opacity = '1';
+        animatePerPlayerReveal(numberEl, listBox, byAnswerOrder, () => showCloseRoomBtnIfHost());
+    } else {
+        listBox.style.opacity = '0';
+        animateScoreCountUp(numberEl, total, () => {
+            byAnswerOrder.forEach(u => {
+                const chip = document.createElement('div');
+                chip.className = 'coop-score-chip';
+                chip.innerHTML = `<span class="chip-name">${escapeHtml(u.name)}さん</span><span class="chip-score">${u.score || 0}点</span>`;
+                listBox.appendChild(chip);
+            });
+            requestAnimationFrame(() => { listBox.style.opacity = '1'; });
+            showCloseRoomBtnIfHost();
+        });
+    }
+}
+
+// fromからtoまで、なめらかに数え上げてelに表示する（スマホでこの表示中に
+// 他のアプリへ切り替えても、戻ってきたときにパッと飛ばずに再開できるよう、
+// 見ていなかった時間ぶん基準時刻をずらす。animateScoreCountUpと同じしくみ）。
+function animateNumberDelta(el, from, to, duration) {
+    return new Promise(resolve => {
+        if (from === to) { el.innerText = `${to}点`; resolve(); return; }
+        let startTime = performance.now();
+        let hiddenAt = document.hidden ? performance.now() : null;
+        function onVisibilityChange() {
+            if (document.hidden) {
+                hiddenAt = performance.now();
+            } else if (hiddenAt !== null) {
+                startTime += performance.now() - hiddenAt;
+                hiddenAt = null;
+            }
+        }
+        document.addEventListener('visibilitychange', onVisibilityChange);
+        function tick(now) {
+            const p = Math.min(1, (now - startTime) / duration);
+            const eased = 1 - Math.pow(1 - p, 3);
+            el.innerText = `${Math.round(from + (to - from) * eased)}点`;
+            if (p < 1) {
+                requestAnimationFrame(tick);
+            } else {
+                document.removeEventListener('visibilitychange', onVisibilityChange);
+                el.innerText = `${to}点`;
+                resolve();
+            }
+        }
+        requestAnimationFrame(tick);
+    });
+}
+
+// 1人ずつチップを出しながら、合計をその人の得点ぶんだけ加算していく演出。
+async function animatePerPlayerReveal(numberEl, listBox, players, onDone) {
+    let running = 0;
+    numberEl.innerText = '0点';
+    for (const u of players) {
+        const score = u.score || 0;
+        const chip = document.createElement('div');
+        chip.className = 'coop-score-chip coop-chip-enter';
+        chip.innerHTML = `<span class="chip-name">${escapeHtml(u.name)}さん</span><span class="chip-score">+${score}点</span>`;
+        listBox.appendChild(chip);
+        requestAnimationFrame(() => chip.classList.add('coop-chip-visible'));
+        const next = running + score;
+        const duration = Math.min(1200, Math.max(400, score * 45));
+        await animateNumberDelta(numberEl, running, next, duration);
+        running = next;
+        await new Promise(r => setTimeout(r, 300)); // 次の人が出るまで少し間を置く
+    }
+    numberEl.classList.add('total-pop');
+    setTimeout(onDone, 300);
 }
 
 function animateScoreCountUp(el, target, onDone) {
@@ -1613,6 +1861,9 @@ let lastWrongGuessTs = 0;
 let wrongGuessInitialized = false;
 let wrongGuessHideTimer = null;
 const wideScreenQuery = window.matchMedia('(min-width: 901px)');
+// まちがえた答え・「おしい！」のふきだしは、以前は2.5秒で消えていたが、
+// ヒントとして活用しやすいよう、もう少し長めに表示しておく。
+const GUESS_BUBBLE_DISPLAY_MS = 4000;
 function showWrongGuessBubble(uid, name, text) {
     // パソコンなど横に余裕がある画面では、その人の名前タグから吹き出しを出す。
     // 名前タグが見つからない・スマホ表示のときは、これまでどおり画面上部に出す。
@@ -1622,20 +1873,21 @@ function showWrongGuessBubble(uid, name, text) {
         tagBubble.innerText = `× ${text}`;
         tagBubble.classList.add('show');
         clearTimeout(tagBubble._hideTimer);
-        tagBubble._hideTimer = setTimeout(() => { tagBubble.classList.remove('show'); }, 2500);
+        tagBubble._hideTimer = setTimeout(() => { tagBubble.classList.remove('show'); }, GUESS_BUBBLE_DISPLAY_MS);
         return;
     }
     const el = document.getElementById('wrongGuessBubble');
     el.innerText = `${name ? name + 'さん' : 'だれか'}： × ${text}`;
     el.classList.add('show');
     clearTimeout(wrongGuessHideTimer);
-    wrongGuessHideTimer = setTimeout(() => { el.classList.remove('show'); }, 2500);
+    wrongGuessHideTimer = setTimeout(() => { el.classList.remove('show'); }, GUESS_BUBBLE_DISPLAY_MS);
 }
 
 // 「おしい！」ボタン：描いている人が、だれかの間違った答えを見て「おしい」と
 // 思ったときに押すと、まだ答えていない人たちへのヒントとして伝わる
 // （ボタン自体は描いている人にしか表示されない）
 function sendOshii() {
+    if (!isDrawer || !currentIsPlaying) return;
     db.ref(`casual_rooms/${myRoom}/state/oshii`).set({ uid: myUid, name: myName, ts: Date.now() });
 }
 let lastOshiiTs = 0;
@@ -1650,14 +1902,14 @@ function showOshiiBubble(drawerUid, senderName) {
         tagBubble.innerText = 'おしい！';
         tagBubble.classList.add('show');
         clearTimeout(tagBubble._hideTimer);
-        tagBubble._hideTimer = setTimeout(() => { tagBubble.classList.remove('show'); }, 2500);
+        tagBubble._hideTimer = setTimeout(() => { tagBubble.classList.remove('show'); }, GUESS_BUBBLE_DISPLAY_MS);
         return;
     }
     const el = document.getElementById('oshiiBubble');
     el.innerText = `描いている${senderName ? senderName + 'さん' : '人'}： おしい！`;
     el.classList.add('show');
     clearTimeout(oshiiHideTimer);
-    oshiiHideTimer = setTimeout(() => { el.classList.remove('show'); }, 2500);
+    oshiiHideTimer = setTimeout(() => { el.classList.remove('show'); }, GUESS_BUBBLE_DISPLAY_MS);
 }
 
 /* ===== キーボード（student.htmlと同じ） ===== */
