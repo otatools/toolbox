@@ -1,15 +1,6 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-<!-- Google tag (gtag.js) -->
-<script async src="https://www.googletagmanager.com/gtag/js?id=G-YTH979WTKL"></script>
-<script>
-  window.dataLayer = window.dataLayer || [];
-  function gtag(){dataLayer.push(arguments);}
-  gtag('js', new Date());
-
-  gtag('config', 'G-YTH979WTKL');
-</script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>顔ぼかし＆結合ツール</title>
@@ -226,14 +217,17 @@
   <div class="panel">
     <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:12px;">
       <h2 style="margin:0;"><span class="step-badge">1</span>画像を追加</h2>
-      <button class="btn toggle small active" id="btnBlurToggle" title="OFFにすると、顔にぼかしをかけずにそのまま結合できます">顔ぼかし：ON</button>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <button class="btn toggle small" id="btnThumbListToggle1" title="ONにすると、サムネイルを折り返して一覧表示します">一覧表示：OFF</button>
+        <button class="btn toggle small active" id="btnBlurToggle" title="OFFにすると、顔にぼかしをかけずにそのまま結合できます">顔ぼかし：ON</button>
+      </div>
     </div>
     <div id="dropzone" class="dropzone">
       <div><strong>ここに画像をドラッグ＆ドロップ</strong></div>
       <div>またはクリックしてフォルダから選択（複数選択可）</div>
     </div>
     <input type="file" id="fileInput" accept="image/*" multiple>
-    <div id="thumbGrid" class="thumb-grid"></div>
+    <div id="thumbGrid" class="thumb-grid hscroll"></div>
   </div>
 
   <div class="panel" id="editorPanel" style="display:none;">
@@ -332,7 +326,10 @@
     <h2><span class="step-badge">2</span>ぼかし済みの画像を結合する</h2>
     <div class="hint">①比率・並べ方を選ぶ→②画像をクリックして枠にはめる→③ドラッグ・スライダーで調整</div>
 
-    <div class="hint" style="margin-top:10px;">クリックまたはドラッグで枠にはめ込みます（×で削除）。</div>
+    <div class="hint" style="margin-top:10px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
+      <span>クリックまたはドラッグで枠にはめ込みます（×で削除）。</span>
+      <button class="btn toggle small" id="btnThumbListToggle2" title="ONにすると、サムネイルを折り返して一覧表示します">一覧表示：OFF</button>
+    </div>
     <div class="thumb-grid hscroll" id="thumbGrid2"></div>
 
     <div class="editor-layout" style="margin-top:12px;">
@@ -407,6 +404,7 @@
             <button class="btn toggle" id="btnSizeLarge" data-size="large">大</button>
           </div>
         </div>
+        <button class="btn toggle small" id="btnDeleteUsedToggle" title="ONにすると、ダウンロード時に結合で使った画像をSTEP1・STEP2の一覧から削除します" style="width:100%;margin-bottom:8px;">ダウンロード後に使用画像を削除：OFF</button>
         <button class="btn primary" id="btnDownloadCombined" style="width:100%;" disabled>⬇ 結合した画像をダウンロード</button>
       </div>
     </div>
@@ -613,6 +611,9 @@
   const tabBtn1 = document.getElementById('tabBtn1');
   const btnBlurToggle = document.getElementById('btnBlurToggle');
   const btnPresetSortToggle = document.getElementById('btnPresetSortToggle');
+  const btnThumbListToggle1 = document.getElementById('btnThumbListToggle1');
+  const btnThumbListToggle2 = document.getElementById('btnThumbListToggle2');
+  const btnDeleteUsedToggle = document.getElementById('btnDeleteUsedToggle');
   const tabBtn2 = document.getElementById('tabBtn2');
   const step1View = document.getElementById('step1View');
   const step2View = document.getElementById('step2View');
@@ -852,6 +853,51 @@
   const COLLAGE_LONG = 1600;
   let presetUsage = {};    // {presetId: ダウンロードした回数} … よく使うプリセットを左上に並べるための記録（選んだだけではカウントしない）
   let sortByUsage = true;  // ONのときはよく使う順、OFFのときは元の並び順で表示する
+  let thumbListMode1 = false; // ONのときはSTEP1のサムネイルを折り返して一覧表示する（OFFなら横スクロール）
+  let thumbListMode2 = false; // ONのときはSTEP2のサムネイルを折り返して一覧表示する（OFFなら横スクロール）
+  let deleteUsedOnDownload = false; // ONのときは結合ダウンロード時に使用した画像を一覧から削除する
+  function updateThumbListToggleUI(){
+    btnThumbListToggle1.classList.toggle('active', thumbListMode1);
+    btnThumbListToggle1.textContent = thumbListMode1 ? '一覧表示：ON' : '一覧表示：OFF';
+    thumbGrid.classList.toggle('hscroll', !thumbListMode1);
+    btnThumbListToggle2.classList.toggle('active', thumbListMode2);
+    btnThumbListToggle2.textContent = thumbListMode2 ? '一覧表示：ON' : '一覧表示：OFF';
+    thumbGrid2.classList.toggle('hscroll', !thumbListMode2);
+  }
+  btnThumbListToggle1.addEventListener('click', () => {
+    thumbListMode1 = !thumbListMode1;
+    updateThumbListToggleUI();
+    saveSettings();
+  });
+  btnThumbListToggle2.addEventListener('click', () => {
+    thumbListMode2 = !thumbListMode2;
+    updateThumbListToggleUI();
+    saveSettings();
+  });
+  function updateDeleteUsedToggleUI(){
+    btnDeleteUsedToggle.classList.toggle('active', deleteUsedOnDownload);
+    btnDeleteUsedToggle.textContent = deleteUsedOnDownload ? 'ダウンロード後に使用画像を削除：ON' : 'ダウンロード後に使用画像を削除：OFF';
+  }
+  btnDeleteUsedToggle.addEventListener('click', () => {
+    deleteUsedOnDownload = !deleteUsedOnDownload;
+    updateDeleteUsedToggleUI();
+    saveSettings();
+  });
+  // ダウンロード後、結合で使用した画像をSTEP1・STEP2の一覧から削除する（ONのときのみ）
+  function removeUsedItemsAfterDownload(){
+    const usedIds = new Set(slots.filter(s => s.item).map(s => s.item.id));
+    if(usedIds.size === 0) return;
+    pushUndo();
+    items = items.filter(i => !usedIds.has(i.id));
+    slots.forEach(s => { if(s.item && usedIds.has(s.item.id)) resetSlotAssignment(s); });
+    if(selectedId && usedIds.has(selectedId)){
+      selectedId = items.length ? items[0].id : null;
+    }
+    renderThumbs();
+    if(selectedId){ refreshSliderUI(); drawEditor(); } else { editorPanel.style.display = 'none'; }
+    renderThumbs2();
+    renderCollage();
+  }
   function updatePresetSortToggleUI(){
     btnPresetSortToggle.classList.toggle('active', sortByUsage);
     btnPresetSortToggle.textContent = sortByUsage ? 'よく使う順：ON' : 'よく使う順：OFF';
@@ -895,8 +941,13 @@
     if(s.downloadSizeKey && DOWNLOAD_SIZES[s.downloadSizeKey]) downloadSizeKey = s.downloadSizeKey;
     if(s.blurEnabled != null) blurEnabled = s.blurEnabled;
     if(s.sortByUsage != null) sortByUsage = s.sortByUsage;
+    if(s.thumbListMode1 != null) thumbListMode1 = s.thumbListMode1;
+    if(s.thumbListMode2 != null) thumbListMode2 = s.thumbListMode2;
+    if(s.deleteUsedOnDownload != null) deleteUsedOnDownload = s.deleteUsedOnDownload;
     updateBlurToggleUI();
     updatePresetSortToggleUI();
+    updateThumbListToggleUI();
+    updateDeleteUsedToggleUI();
 
     gapVal.textContent = gapEl.value + 'px';
     if(orientation === 'landscape'){
@@ -910,7 +961,8 @@
       strength: batch.strength, feather: batch.feather, padding: batch.padding,
       sensitivity: batch.sensitivity,
       canvasRatio: canvasRatioEl.value, orientation, gap: gapEl.value, bgColor: bgColorEl.value,
-      presetUsage, downloadSizeKey, blurEnabled, sortByUsage
+      presetUsage, downloadSizeKey, blurEnabled, sortByUsage,
+      thumbListMode1, thumbListMode2, deleteUsedOnDownload
     };
     try{ localStorage.setItem(SETTINGS_KEY, JSON.stringify(s)); }catch(e){ /* 保存できなくても処理は続行 */ }
   }
@@ -2637,6 +2689,7 @@
     const scale = Math.min(1, targetLong / currentLong);
     if(scale >= 0.999){
       downloadCanvas(collageBaseCanvas, 'combined.png');
+      if(deleteUsedOnDownload) removeUsedItemsAfterDownload();
       return;
     }
     const outW = Math.max(1, Math.round(srcW * scale));
@@ -2645,6 +2698,7 @@
     tmp.width = outW; tmp.height = outH;
     tmp.getContext('2d').drawImage(collageBaseCanvas, 0, 0, outW, outH);
     downloadCanvas(tmp, 'combined.png');
+    if(deleteUsedOnDownload) removeUsedItemsAfterDownload();
   });
 
   renderCountTabs();
