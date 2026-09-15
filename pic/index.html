@@ -202,6 +202,7 @@
     <span id="statusBar" class="status-pill">顔検出モデルを読み込み中…</span>
     <button class="btn small" id="btnUndo" title="1つ前の操作に戻します (Ctrl+Z)" disabled>↶ 元に戻す</button>
     <button class="btn small" id="btnRedo" title="元に戻した操作をやり直します (Ctrl+Y)" disabled>↷ やり直す</button>
+    <button class="btn toggle small active" id="btnPersistImagesToggle" title="ONにすると、ブラウザを閉じても画像と編集内容がこのパソコンに残ります（次に開いたときに復元されます）">作業を保存：ON</button>
     <button class="btn small" id="btnResetSettings" title="ぼかしの強さ・比率・間隔などの設定を初期値に戻します">⚙ 設定をリセット</button>
   </div>
 </div>
@@ -614,6 +615,7 @@
   const btnThumbListToggle1 = document.getElementById('btnThumbListToggle1');
   const btnThumbListToggle2 = document.getElementById('btnThumbListToggle2');
   const btnDeleteUsedToggle = document.getElementById('btnDeleteUsedToggle');
+  const btnPersistImagesToggle = document.getElementById('btnPersistImagesToggle');
   const tabBtn2 = document.getElementById('tabBtn2');
   const step1View = document.getElementById('step1View');
   const step2View = document.getElementById('step2View');
@@ -898,6 +900,333 @@
     renderThumbs2();
     renderCollage();
   }
+
+  // ==================== 画像の保存（IndexedDB） ====================
+  // ONのときは、読み込んだ画像とぼかし・調整の内容をこのパソコンのブラウザ内に保存し、
+  // 誤ってタブを閉じてしまっても次に開いたときに復元できるようにする。
+  let persistImages = true;
+  const IMG_DB_NAME = 'facewb_images_db';
+  const IMG_DB_VERSION = 2;
+  const IMG_DB_STORE = 'items';
+  const IMAGECACHE_STORE = 'imageCache'; // 元画像のデータURLを、一度読み込んだ画像はidごとにずっと保持しておく置き場（元に戻す履歴の復元用）
+  const HISTORY_STORE = 'history';       // 「元に戻す／やり直す」の履歴を保存する置き場
+  let imgDbPromise = null;
+  function openImgDB(){
+    if(!('indexedDB' in window)) return Promise.reject(new Error('IndexedDB not available'));
+    if(imgDbPromise) return imgDbPromise;
+    imgDbPromise = new Promise((resolve, reject) => {
+      const req = indexedDB.open(IMG_DB_NAME, IMG_DB_VERSION);
+      req.onupgradeneeded = () => {
+        const db = req.result;
+        if(!db.objectStoreNames.contains(IMG_DB_STORE)){
+          db.createObjectStore(IMG_DB_STORE, {keyPath: 'id'});
+        }
+        if(!db.objectStoreNames.contains(IMAGECACHE_STORE)){
+          db.createObjectStore(IMAGECACHE_STORE, {keyPath: 'id'});
+        }
+        if(!db.objectStoreNames.contains(HISTORY_STORE)){
+          db.createObjectStore(HISTORY_STORE, {keyPath: 'id'});
+        }
+      };
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
+    });
+    return imgDbPromise;
+  }
+  async function clearImgDB(){
+    try{
+      const db = await openImgDB();
+      await new Promise((resolve, reject) => {
+        const tx = db.transaction([IMG_DB_STORE, IMAGECACHE_STORE, HISTORY_STORE], 'readwrite');
+        tx.objectStore(IMG_DB_STORE).clear();
+        tx.objectStore(IMAGECACHE_STORE).clear();
+        tx.objectStore(HISTORY_STORE).clear();
+        tx.oncomplete = resolve;
+        tx.onerror = () => reject(tx.error);
+      });
+    }catch(e){ /* 保存機能が使えなくても処理は続行 */ }
+  }
+  // 画像のデータURLをidごとに保存しておく（元に戻す履歴で、一覧から消えた後の画像を復元するために使う）
+  async function cacheImageSource(id, src){
+    if(!persistImages || !src) return;
+    try{
+      const db = await openImgDB();
+      await new Promise((resolve, reject) => {
+        const tx = db.transaction(IMAGECACHE_STORE, 'readwrite');
+        tx.objectStore(IMAGECACHE_STORE).put({id, src});
+        tx.oncomplete = resolve;
+        tx.onerror = () => reject(tx.error);
+      });
+    }catch(e){ /* 保存できなくても処理は続行 */ }
+  }
+  async function loadImageCacheMap(){
+    const map = new Map();
+    try{
+      const db = await openImgDB();
+      const records = await new Promise((resolve, reject) => {
+        const tx = db.transaction(IMAGECACHE_STORE, 'readonly');
+        const req = tx.objectStore(IMAGECACHE_STORE).getAll();
+        req.onsuccess = () => resolve(req.result || []);
+        req.onerror = () => reject(req.error);
+      });
+      records.forEach(r => map.set(r.id, r.src));
+    }catch(e){ /* 読み込めなくても処理は続行 */ }
+    return map;
+  }
+  const WORKSTATE_KEY = 'workState'; // items（数値id）とは別に、STEP2の枠への割り当てなど作業状態をこのidで保存する
+  async function saveItemsToImgDB(){
+    if(!persistImages) return;
+    try{
+      const db = await openImgDB();
+      await new Promise((resolve, reject) => {
+        const tx = db.transaction(IMG_DB_STORE, 'readwrite');
+        const store = tx.objectStore(IMG_DB_STORE);
+        store.clear();
+        items.forEach(it => {
+          store.put({
+            id: it.id, name: it.name, w: it.w, h: it.h,
+            boxes: cloneBoxes(it.boxes || []),
+            detected: !!it.detected,
+            overrides: {...(it.overrides || {})},
+            autoAdjust: it.autoAdjust || null,
+            manualAdjust: it.manualAdjust ? {...it.manualAdjust} : null,
+            adjustVersion: it.adjustVersion || 0,
+            imgSrc: it.img ? it.img.src : null
+          });
+        });
+        // STEP2で画像を枠にはめた配置（結合の作業状態）も一緒に保存する
+        store.put({
+          id: WORKSTATE_KEY,
+          currentCount, currentPresetId,
+          slots: slots.map(s => ({
+            itemId: s.item ? s.item.id : null,
+            zoom: s.zoom, offX: s.offX, offY: s.offY, baseScale: s.baseScale
+          }))
+        });
+        tx.oncomplete = resolve;
+        tx.onerror = () => reject(tx.error);
+      });
+    }catch(e){ /* 保存できなくても処理は続行 */ }
+  }
+  let persistSaveTimer = null;
+  function schedulePersistImages(){
+    if(!persistImages) return;
+    if(persistSaveTimer) clearTimeout(persistSaveTimer);
+    persistSaveTimer = setTimeout(() => { saveItemsToImgDB(); }, 1000);
+  }
+  async function loadItemsFromImgDB(){
+    try{
+      const db = await openImgDB();
+      const records = await new Promise((resolve, reject) => {
+        const tx = db.transaction(IMG_DB_STORE, 'readonly');
+        const req = tx.objectStore(IMG_DB_STORE).getAll();
+        req.onsuccess = () => resolve(req.result || []);
+        req.onerror = () => reject(req.error);
+      });
+      if(!records.length) return;
+      const workState = records.find(r => r.id === WORKSTATE_KEY) || null;
+      const itemRecords = records.filter(r => r.id !== WORKSTATE_KEY);
+      if(!itemRecords.length) return;
+      showLoading('保存されていた画像を読み込み中…');
+      await nextPaint();
+      for(const rec of itemRecords){
+        if(!rec.imgSrc) continue;
+        let img;
+        try{
+          img = await new Promise((resolve, reject) => {
+            const im = new Image();
+            im.onload = () => resolve(im);
+            im.onerror = reject;
+            im.src = rec.imgSrc;
+          });
+        }catch(e){ continue; }
+        const item = {
+          id: rec.id, name: rec.name, img, w: rec.w, h: rec.h,
+          boxes: cloneBoxes(rec.boxes || []),
+          detected: !!rec.detected,
+          overrides: {...(rec.overrides || {})},
+          autoAdjust: rec.autoAdjust || null,
+          adjustedCanvas: null,
+          manualAdjust: rec.manualAdjust || null,
+          manualCanvas: null,
+          adjustVersion: rec.adjustVersion || 0
+        };
+        if(item.autoAdjust){
+          try{ item.adjustedCanvas = buildAdjustedCanvas(item.img, item.w, item.h, item.autoAdjust); }catch(e){}
+        }
+        if(item.manualAdjust){
+          try{ rebuildManualCanvas(item); }catch(e){}
+        }
+        nextId = Math.max(nextId, rec.id + 1);
+        items.push(item);
+        cacheImageSource(item.id, item.img.src);
+      }
+      if(workState) restoreWorkState(workState);
+    }catch(e){
+      console.error(e);
+    }finally{
+      hideLoading();
+    }
+  }
+  // STEP2で画像を枠にはめた配置（結合の作業状態）を復元する
+  function restoreWorkState(ws){
+    try{
+      if(ws.currentCount && LAYOUTS[ws.currentCount]) currentCount = ws.currentCount;
+      const presetsForCount = LAYOUTS[currentCount] || [];
+      const preset = (ws.currentPresetId && presetsForCount.find(p => p.id === ws.currentPresetId)) || presetsForCount[0];
+      if(!preset) return;
+      currentPresetId = preset.id;
+      slots = preset.rects.map(rect => ({rect, item:null, zoom:1, offX:0, offY:0, baseScale:1}));
+      if(Array.isArray(ws.slots)){
+        ws.slots.forEach((s, i) => {
+          if(!slots[i] || s.itemId == null) return;
+          const it = items.find(x => x.id === s.itemId);
+          if(!it) return;
+          slots[i].item = it;
+          slots[i].zoom = s.zoom != null ? s.zoom : 1;
+          slots[i].offX = s.offX || 0;
+          slots[i].offY = s.offY || 0;
+          slots[i].baseScale = s.baseScale || 1;
+        });
+      }
+      activeSlot = slots.findIndex(s => !s.item);
+      if(activeSlot === -1) activeSlot = 0;
+    }catch(e){ console.error(e); }
+  }
+
+  // ---------- 「元に戻す／やり直す」の履歴も保存・復元する ----------
+  // 画像そのもの（img要素）は保存できないので、imageCacheに保存済みの元画像を
+  // idを手がかりに使い回して、履歴の中身（枠の位置や調整の値）だけを保存する。
+  function snapshotItemToStorable(it){
+    return {
+      id: it.id, name: it.name, w: it.w, h: it.h,
+      boxes: cloneBoxes(it.boxes || []),
+      detected: !!it.detected,
+      overrides: {...(it.overrides || {})},
+      autoAdjust: it.autoAdjust || null,
+      manualAdjust: it.manualAdjust ? {...it.manualAdjust} : null,
+      adjustVersion: it.adjustVersion || 0
+    };
+  }
+  function snapshotToStorable(snap){
+    return {
+      controls: {...snap.controls},
+      batch: {...snap.batch},
+      currentCount: snap.currentCount, currentPresetId: snap.currentPresetId,
+      activeSlot: snap.activeSlot, selectedId: snap.selectedId,
+      items: snap.items.map(snapshotItemToStorable),
+      slots: snap.slots.map(s => ({rect:{...s.rect}, itemId: s.itemId, zoom:s.zoom, offX:s.offX, offY:s.offY, baseScale:s.baseScale}))
+    };
+  }
+  let persistHistoryTimer = null;
+  function schedulePersistHistory(){
+    if(!persistImages) return;
+    if(persistHistoryTimer) clearTimeout(persistHistoryTimer);
+    persistHistoryTimer = setTimeout(() => { saveHistoryToImgDB(); }, 800);
+  }
+  async function saveHistoryToImgDB(){
+    if(!persistImages) return;
+    try{
+      const db = await openImgDB();
+      const data = {
+        id: 'undoRedo',
+        undoStack: undoStack.map(snapshotToStorable),
+        redoStack: redoStack.map(snapshotToStorable)
+      };
+      await new Promise((resolve, reject) => {
+        const tx = db.transaction(HISTORY_STORE, 'readwrite');
+        tx.objectStore(HISTORY_STORE).put(data);
+        tx.oncomplete = resolve;
+        tx.onerror = () => reject(tx.error);
+      });
+    }catch(e){ /* 保存できなくても処理は続行 */ }
+  }
+  async function loadHistoryFromImgDB(){
+    try{
+      const db = await openImgDB();
+      const rec = await new Promise((resolve, reject) => {
+        const tx = db.transaction(HISTORY_STORE, 'readonly');
+        const req = tx.objectStore(HISTORY_STORE).get('undoRedo');
+        req.onsuccess = () => resolve(req.result || null);
+        req.onerror = () => reject(req.error);
+      });
+      if(!rec) return;
+      const imageCacheMap = await loadImageCacheMap();
+      const imgObjCache = new Map(); // 同じ画像を何度も読み込み直さないためのキャッシュ
+      async function getSharedImage(id){
+        if(imgObjCache.has(id)) return imgObjCache.get(id);
+        const cur = items.find(x => x.id === id);
+        if(cur && cur.img){ imgObjCache.set(id, cur.img); return cur.img; }
+        const src = imageCacheMap.get(id);
+        if(!src){ imgObjCache.set(id, null); return null; }
+        const img = await new Promise(resolve => {
+          const im = new Image();
+          im.onload = () => resolve(im);
+          im.onerror = () => resolve(null);
+          im.src = src;
+        });
+        imgObjCache.set(id, img);
+        return img;
+      }
+      async function rebuildSnapshot(storable){
+        const itemsArr = [];
+        for(const it of storable.items){
+          const img = await getSharedImage(it.id);
+          if(!img) continue; // 画像が見つからない場合は、そのアイテムだけ復元をあきらめる
+          const full = {
+            id: it.id, name: it.name, img, w: it.w, h: it.h,
+            boxes: cloneBoxes(it.boxes || []),
+            detected: !!it.detected,
+            overrides: {...(it.overrides || {})},
+            autoAdjust: it.autoAdjust || null,
+            adjustedCanvas: null,
+            manualAdjust: it.manualAdjust || null,
+            manualCanvas: null,
+            adjustVersion: it.adjustVersion || 0
+          };
+          if(full.autoAdjust){
+            try{ full.adjustedCanvas = buildAdjustedCanvas(full.img, full.w, full.h, full.autoAdjust); }catch(e){}
+          }
+          if(full.manualAdjust){
+            try{ rebuildManualCanvas(full); }catch(e){}
+          }
+          itemsArr.push(full);
+        }
+        return {
+          controls: {...storable.controls},
+          batch: {...storable.batch},
+          currentCount: storable.currentCount, currentPresetId: storable.currentPresetId,
+          activeSlot: storable.activeSlot, selectedId: storable.selectedId,
+          items: itemsArr,
+          slots: storable.slots.map(s => ({rect:{...s.rect}, itemId: s.itemId, zoom:s.zoom, offX:s.offX, offY:s.offY, baseScale:s.baseScale}))
+        };
+      }
+      const newUndo = [];
+      for(const s of (rec.undoStack || [])) newUndo.push(await rebuildSnapshot(s));
+      const newRedo = [];
+      for(const s of (rec.redoStack || [])) newRedo.push(await rebuildSnapshot(s));
+      undoStack = newUndo;
+      redoStack = newRedo;
+      updateUndoRedoButtons();
+    }catch(e){ console.error(e); }
+  }
+  function updatePersistImagesToggleUI(){
+    btnPersistImagesToggle.classList.toggle('active', persistImages);
+    btnPersistImagesToggle.textContent = persistImages ? '作業を保存：ON' : '作業を保存：OFF';
+  }
+  btnPersistImagesToggle.addEventListener('click', () => {
+    persistImages = !persistImages;
+    updatePersistImagesToggleUI();
+    saveSettings();
+    if(persistImages){
+      items.forEach(it => { if(it.img) cacheImageSource(it.id, it.img.src); });
+      saveItemsToImgDB();
+      saveHistoryToImgDB();
+    } else {
+      clearImgDB();
+    }
+  });
+
   function updatePresetSortToggleUI(){
     btnPresetSortToggle.classList.toggle('active', sortByUsage);
     btnPresetSortToggle.textContent = sortByUsage ? 'よく使う順：ON' : 'よく使う順：OFF';
@@ -944,10 +1273,12 @@
     if(s.thumbListMode1 != null) thumbListMode1 = s.thumbListMode1;
     if(s.thumbListMode2 != null) thumbListMode2 = s.thumbListMode2;
     if(s.deleteUsedOnDownload != null) deleteUsedOnDownload = s.deleteUsedOnDownload;
+    if(s.persistImages != null) persistImages = s.persistImages;
     updateBlurToggleUI();
     updatePresetSortToggleUI();
     updateThumbListToggleUI();
     updateDeleteUsedToggleUI();
+    updatePersistImagesToggleUI();
 
     gapVal.textContent = gapEl.value + 'px';
     if(orientation === 'landscape'){
@@ -962,7 +1293,7 @@
       sensitivity: batch.sensitivity,
       canvasRatio: canvasRatioEl.value, orientation, gap: gapEl.value, bgColor: bgColorEl.value,
       presetUsage, downloadSizeKey, blurEnabled, sortByUsage,
-      thumbListMode1, thumbListMode2, deleteUsedOnDownload
+      thumbListMode1, thumbListMode2, deleteUsedOnDownload, persistImages
     };
     try{ localStorage.setItem(SETTINGS_KEY, JSON.stringify(s)); }catch(e){ /* 保存できなくても処理は続行 */ }
   }
@@ -1079,6 +1410,7 @@
   function updateUndoRedoButtons(){
     btnUndo.disabled = undoStack.length === 0;
     btnRedo.disabled = redoStack.length === 0;
+    schedulePersistHistory();
   }
   btnUndo.addEventListener('click', doUndo);
   btnRedo.addEventListener('click', doRedo);
@@ -1189,6 +1521,7 @@
         };
         pushUndo();
         items.push(item);
+        cacheImageSource(item.id, img.src);
         renderThumbs();
         if(!selectedId){ selectItem(item.id); }
         if(modelReady){
@@ -1248,6 +1581,7 @@
 
   // ---------- サムネイル ----------
   function renderThumbs(){
+    schedulePersistImages();
     thumbGrid.innerHTML = '';
     items.forEach(item => {
       const div = document.createElement('div');
@@ -1371,6 +1705,7 @@
   function drawEditor(){
     const item = getSelected();
     if(!item) return;
+    schedulePersistImages();
     updateEditCanvasAspect(item);
     editCanvas.width = item.w;
     editCanvas.height = item.h;
@@ -2313,6 +2648,7 @@
   }
 
   function renderCollage(){
+    schedulePersistImages();
     step2View.classList.toggle('orientation-portrait', orientation === 'portrait');
     const size = collageCanvasSize();
     collageBaseCanvas.width = size.w; collageBaseCanvas.height = size.h;
@@ -2704,6 +3040,23 @@
   renderCountTabs();
   renderPresetGrid();
   applyPreset();
+
+  // 「画像を保存」がONなら、前回このブラウザに保存されていた画像・編集内容・
+  // STEP2の枠への割り当て（結合の作業状態）・「元に戻す／やり直す」の履歴を復元する
+  if(persistImages){
+    loadItemsFromImgDB().then(() => {
+      if(items.length){
+        renderThumbs();
+        if(!selectedId) selectItem(items[0].id);
+        renderCountTabs();
+        renderPresetGrid();
+        renderThumbs2();
+        renderCollage();
+        updateSlotSidePanel();
+      }
+      return loadHistoryFromImgDB();
+    });
+  }
 
 })();
 </script>
