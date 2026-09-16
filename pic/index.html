@@ -1262,12 +1262,13 @@
   let downloadDateStr = '';   // 最後にダウンロードした（または表示を更新した）日本時間の日付「YYYYMMDD」
   let downloadCounter = 1;    // 次のダウンロードで使う番号
   function getJSTDateString(){
-    // タイムゾーンに関係なく日本時間の日付を求める
+    // now.getTime()はタイムゾーンに関係なく常にUTC基準のミリ秒なので、
+    // そこに9時間を足してUTCの関数で読み取れば、パソコンの時刻設定に関係なく日本時間の日付になる
     const now = new Date();
-    const jst = new Date(now.getTime() + (9 * 60 - now.getTimezoneOffset()) * 60000);
-    const y = jst.getFullYear();
-    const m = String(jst.getMonth() + 1).padStart(2, '0');
-    const d = String(jst.getDate()).padStart(2, '0');
+    const jst = new Date(now.getTime() + 9 * 60 * 60000);
+    const y = jst.getUTCFullYear();
+    const m = String(jst.getUTCMonth() + 1).padStart(2, '0');
+    const d = String(jst.getUTCDate()).padStart(2, '0');
     return `${y}${m}${d}`;
   }
   // 日本時間で日付が変わっていたら、通し番号を0000にリセットする
