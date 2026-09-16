@@ -398,7 +398,13 @@
           </div>
         </div>
         <div class="field">
-          <label>ダウンロードサイズ</label>
+          <label style="display:flex;align-items:center;justify-content:space-between;gap:6px;">
+            <span>ダウンロードサイズ</span>
+            <span style="display:flex;align-items:center;gap:4px;font-weight:normal;">
+              通し番号
+              <input type="text" id="downloadCounterInput" value="0001" maxlength="6" title="ファイル名の通し番号（例：日付_0001）。数字を書き換えると、次のダウンロードからその番号になります。日本時間で日付が変わると自動で0000に戻ります" style="width:60px;text-align:center;padding:4px;border:1px solid #ccd0dc;border-radius:6px;">
+            </span>
+          </label>
           <div class="btn-row" id="downloadSizeTabs">
             <button class="btn toggle" id="btnSizeSmall" data-size="small">小</button>
             <button class="btn toggle active" id="btnSizeMedium" data-size="medium">中</button>
@@ -676,6 +682,7 @@
   const btnSwapMode = document.getElementById('btnSwapMode');
   const swapModeHint = document.getElementById('swapModeHint');
   const downloadSizeTabs = document.getElementById('downloadSizeTabs');
+  const downloadCounterInput = document.getElementById('downloadCounterInput');
 
   let items = [];       // {id, name, img, w, h, boxes:[{x,y,w,h,src}], detected, overrides:{}}
   let nextId = 1;
@@ -1251,6 +1258,47 @@
     });
   });
 
+  // ---------- ダウンロードファイル名の通し番号（日本時間の日付＋4桁の番号） ----------
+  let downloadDateStr = '';   // 最後にダウンロードした（または表示を更新した）日本時間の日付「YYYYMMDD」
+  let downloadCounter = 1;    // 次のダウンロードで使う番号
+  function getJSTDateString(){
+    // タイムゾーンに関係なく日本時間の日付を求める
+    const now = new Date();
+    const jst = new Date(now.getTime() + (9 * 60 - now.getTimezoneOffset()) * 60000);
+    const y = jst.getFullYear();
+    const m = String(jst.getMonth() + 1).padStart(2, '0');
+    const d = String(jst.getDate()).padStart(2, '0');
+    return `${y}${m}${d}`;
+  }
+  // 日本時間で日付が変わっていたら、通し番号を0000にリセットする
+  function ensureDownloadCounterFresh(){
+    const today = getJSTDateString();
+    if(downloadDateStr !== today){
+      downloadDateStr = today;
+      downloadCounter = 1;
+      updateDownloadCounterUI();
+      saveSettings();
+    }
+  }
+  function updateDownloadCounterUI(){
+    downloadCounterInput.value = String(downloadCounter).padStart(4, '0');
+  }
+  function nextDownloadFilename(ext){
+    ensureDownloadCounterFresh();
+    const name = `${downloadDateStr}_${String(downloadCounter).padStart(4, '0')}.${ext}`;
+    downloadCounter++;
+    updateDownloadCounterUI();
+    saveSettings();
+    return name;
+  }
+  downloadCounterInput.addEventListener('change', () => {
+    ensureDownloadCounterFresh();
+    const n = parseInt(downloadCounterInput.value, 10);
+    downloadCounter = (isNaN(n) || n < 0) ? 1 : n;
+    updateDownloadCounterUI();
+    saveSettings();
+  });
+
   // ---------- 設定の保存／復元（このブラウザに記憶させる） ----------
   const SETTINGS_KEY = 'facewb_settings_v1';
   function loadSettings(){
@@ -1273,6 +1321,8 @@
     if(s.thumbListMode2 != null) thumbListMode2 = s.thumbListMode2;
     if(s.deleteUsedOnDownload != null) deleteUsedOnDownload = s.deleteUsedOnDownload;
     if(s.persistImages != null) persistImages = s.persistImages;
+    if(s.downloadDateStr) downloadDateStr = s.downloadDateStr;
+    if(s.downloadCounter != null) downloadCounter = s.downloadCounter;
     updateBlurToggleUI();
     updatePresetSortToggleUI();
     updateThumbListToggleUI();
@@ -1292,12 +1342,15 @@
       sensitivity: batch.sensitivity,
       canvasRatio: canvasRatioEl.value, orientation, gap: gapEl.value, bgColor: bgColorEl.value,
       presetUsage, downloadSizeKey, blurEnabled, sortByUsage,
-      thumbListMode1, thumbListMode2, deleteUsedOnDownload, persistImages
+      thumbListMode1, thumbListMode2, deleteUsedOnDownload, persistImages,
+      downloadDateStr, downloadCounter
     };
     try{ localStorage.setItem(SETTINGS_KEY, JSON.stringify(s)); }catch(e){ /* 保存できなくても処理は続行 */ }
   }
   loadSettings();
   updateDownloadSizeButtons();
+  ensureDownloadCounterFresh();
+  updateDownloadCounterUI();
   refreshSliderUI();
 
   function resetSettingsToDefaults(){
@@ -3023,7 +3076,7 @@
     const currentLong = Math.max(srcW, srcH);
     const scale = Math.min(1, targetLong / currentLong);
     if(scale >= 0.999){
-      downloadCanvas(collageBaseCanvas, 'combined.png');
+      downloadCanvas(collageBaseCanvas, nextDownloadFilename('png'));
       if(deleteUsedOnDownload) removeUsedItemsAfterDownload();
       return;
     }
@@ -3032,7 +3085,7 @@
     const tmp = document.createElement('canvas');
     tmp.width = outW; tmp.height = outH;
     tmp.getContext('2d').drawImage(collageBaseCanvas, 0, 0, outW, outH);
-    downloadCanvas(tmp, 'combined.png');
+    downloadCanvas(tmp, nextDownloadFilename('png'));
     if(deleteUsedOnDownload) removeUsedItemsAfterDownload();
   });
 
@@ -3052,6 +3105,8 @@
         renderThumbs2();
         renderCollage();
         updateSlotSidePanel();
+        // 画像が残っている状態で復元できたときは、続きの作業がしやすいようSTEP2から表示する
+        showStep(2);
       }
       return loadHistoryFromImgDB();
     });
