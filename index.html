@@ -575,7 +575,7 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, collection, doc, setDoc, updateDoc, increment, onSnapshot, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, collection, doc, setDoc, updateDoc, increment, onSnapshot, getDoc, getDocs, runTransaction } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyB4fpt6ffIuTBDJo_9g37kYr6KOWNgIcEY",
@@ -589,7 +589,7 @@
         const app = initializeApp(firebaseConfig);
         window.db = getFirestore(app);
         window.auth = getAuth(app);
-        window.fb = { collection, doc, setDoc, updateDoc, increment, onSnapshot, getDoc, signInAnonymously, onAuthStateChanged };
+        window.fb = { collection, doc, setDoc, updateDoc, increment, onSnapshot, getDoc, getDocs, runTransaction, signInAnonymously, onAuthStateChanged };
         
         window.APP_ID = "otatoolssite-v1";
     </script>
@@ -635,6 +635,45 @@
         const getImageUrlById = (id) => {
             const formattedId = String(id).padStart(3, '0');
             return `${formattedId}.png`;
+        };
+
+        // 日本時間(JST)の「今日の日付」文字列(YYYY-MM-DD)を取得
+        // ブラウザのタイムゾーンに関係なく、常にJSTの日付を返す
+        const getJstDateString = () => {
+            const now = new Date();
+            const jst = new Date(now.getTime() + 9 * 60 * 60 * 1000);
+            return jst.toISOString().slice(0, 10);
+        };
+
+        // その日最初のアクセス時点の閲覧数を「その日のスナップショット」として
+        // 1つのドキュメントに固定する。既にあれば読むだけ(1回の読み込み)、
+        // 無ければ32個のドキュメントを読んで作成する(トランザクションで二重作成を防止)。
+        const ensureDailyViewSnapshot = async (db, fb, dateStr) => {
+            const snapPath = `artifacts/${window.APP_ID}/public/data/app_views_daily`;
+            const snapRef = fb.doc(db, ...snapPath.split('/'), dateStr);
+
+            const existing = await fb.getDoc(snapRef);
+            if (existing.exists()) {
+                return existing.data().counts || {};
+            }
+
+            // まだ今日のスナップショットが無い → 今の値を取得して作成を試みる
+            const livePath = `artifacts/${window.APP_ID}/public/data/app_views`;
+            const colRef = fb.collection(db, ...livePath.split('/'));
+            const liveSnap = await fb.getDocs(colRef);
+            const counts = {};
+            liveSnap.forEach(d => { counts[d.id] = d.data().count; });
+
+            try {
+                await fb.runTransaction(db, async (tx) => {
+                    const check = await tx.get(snapRef);
+                    if (check.exists()) return; // 他の人が先に作成済み → 上書きしない
+                    tx.set(snapRef, { counts, createdAt: dateStr });
+                });
+            } catch (e) {
+                // 作成に失敗しても(権限エラー等)、表示自体はライブの値で継続する
+            }
+            return counts;
         };
 
         const initialAppList = [
@@ -715,15 +754,16 @@
 
             useEffect(() => {
                 if (!user || !window.db) return;
-                const path = `artifacts/${window.APP_ID}/public/data/app_views`;
-                const colRef = window.fb.collection(window.db, ...path.split('/'));
-                const unsubscribe = window.fb.onSnapshot(colRef, (snap) => {
-                    const counts = {};
-                    snap.forEach(d => { counts[d.id] = d.data().count; });
+                let cancelled = false;
+                // その日(JST)最初のアクセス時点で固定されたスナップショットを使うことで、
+                // 同じ日にアクセスした人には常に同じ閲覧数が表示されるようにする。
+                const dateStr = getJstDateString();
+                ensureDailyViewSnapshot(window.db, window.fb, dateStr).then((counts) => {
+                    if (cancelled) return;
                     setViewCounts(counts);
                     setHasAccessError(false);
-                }, (err) => { setHasAccessError(true); });
-                return () => unsubscribe();
+                }).catch((err) => { if (!cancelled) setHasAccessError(true); });
+                return () => { cancelled = true; };
             }, [user]);
 
             useEffect(() => {
