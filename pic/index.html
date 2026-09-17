@@ -219,6 +219,7 @@
     <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:12px;">
       <h2 style="margin:0;"><span class="step-badge">1</span>画像を追加</h2>
       <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <button class="btn toggle small" id="btnBatchAutoAdjustToggle" title="ONにすると、画像を追加したときに自動で明るさ・色合いを自動調整します">一括自動調整：OFF</button>
         <button class="btn toggle small" id="btnThumbListToggle1" title="ONにすると、サムネイルを折り返して一覧表示します">一覧表示：OFF</button>
         <button class="btn toggle small active" id="btnBlurToggle" title="OFFにすると、顔にぼかしをかけずにそのまま結合できます">顔ぼかし：ON</button>
       </div>
@@ -618,6 +619,7 @@
   const tabBtn1 = document.getElementById('tabBtn1');
   const btnBlurToggle = document.getElementById('btnBlurToggle');
   const btnPresetSortToggle = document.getElementById('btnPresetSortToggle');
+  const btnBatchAutoAdjustToggle = document.getElementById('btnBatchAutoAdjustToggle');
   const btnThumbListToggle1 = document.getElementById('btnThumbListToggle1');
   const btnThumbListToggle2 = document.getElementById('btnThumbListToggle2');
   const btnDeleteUsedToggle = document.getElementById('btnDeleteUsedToggle');
@@ -862,9 +864,36 @@
   const COLLAGE_LONG = 1600;
   let presetUsage = {};    // {presetId: ダウンロードした回数} … よく使うプリセットを左上に並べるための記録（選んだだけではカウントしない）
   let sortByUsage = true;  // ONのときはよく使う順、OFFのときは元の並び順で表示する
+  let batchAutoAdjust = false; // ONのときは画像を追加すると自動で自動調整をかける
   let thumbListMode1 = false; // ONのときはSTEP1のサムネイルを折り返して一覧表示する（OFFなら横スクロール）
   let thumbListMode2 = false; // ONのときはSTEP2のサムネイルを折り返して一覧表示する（OFFなら横スクロール）
   let deleteUsedOnDownload = false; // ONのときは結合ダウンロード時に使用した画像を一覧から削除する
+  function updateBatchAutoAdjustToggleUI(){
+    btnBatchAutoAdjustToggle.classList.toggle('active', batchAutoAdjust);
+    btnBatchAutoAdjustToggle.textContent = batchAutoAdjust ? '一括自動調整：ON' : '一括自動調整：OFF';
+  }
+  btnBatchAutoAdjustToggle.addEventListener('click', async () => {
+    batchAutoAdjust = !batchAutoAdjust;
+    updateBatchAutoAdjustToggleUI();
+    saveSettings();
+    if(items.length){
+      pushUndo();
+      const label = batchAutoAdjust ? '自動調整中…' : '自動調整を解除中…';
+      showLoading(items.length > 1 ? `${label}（0/${items.length}）` : label);
+      await nextPaint();
+      for(let i = 0; i < items.length; i++){
+        if(items.length > 1) loadingLabel.textContent = `${label}（${i+1}/${items.length}）`;
+        await nextPaint();
+        try{
+          if(batchAutoAdjust){ applyAutoAdjustToItem(items[i]); }
+          else{ resetAutoAdjustForItem(items[i]); }
+        }catch(err){ console.error('auto adjust error', err); }
+      }
+      hideLoading();
+      if(getSelected()){ refreshSliderUI(); drawEditor(); }
+      renderThumbs();
+    }
+  });
   function updateThumbListToggleUI(){
     btnThumbListToggle1.classList.toggle('active', thumbListMode1);
     btnThumbListToggle1.textContent = thumbListMode1 ? '一覧表示：ON' : '一覧表示：OFF';
@@ -1318,6 +1347,7 @@
     if(s.downloadSizeKey && DOWNLOAD_SIZES[s.downloadSizeKey]) downloadSizeKey = s.downloadSizeKey;
     if(s.blurEnabled != null) blurEnabled = s.blurEnabled;
     if(s.sortByUsage != null) sortByUsage = s.sortByUsage;
+    if(s.batchAutoAdjust != null) batchAutoAdjust = s.batchAutoAdjust;
     if(s.thumbListMode1 != null) thumbListMode1 = s.thumbListMode1;
     if(s.thumbListMode2 != null) thumbListMode2 = s.thumbListMode2;
     if(s.deleteUsedOnDownload != null) deleteUsedOnDownload = s.deleteUsedOnDownload;
@@ -1326,6 +1356,7 @@
     if(s.downloadCounter != null) downloadCounter = s.downloadCounter;
     updateBlurToggleUI();
     updatePresetSortToggleUI();
+    updateBatchAutoAdjustToggleUI();
     updateThumbListToggleUI();
     updateDeleteUsedToggleUI();
     updatePersistImagesToggleUI();
@@ -1342,7 +1373,7 @@
       strength: batch.strength, feather: batch.feather, padding: batch.padding,
       sensitivity: batch.sensitivity,
       canvasRatio: canvasRatioEl.value, orientation, gap: gapEl.value, bgColor: bgColorEl.value,
-      presetUsage, downloadSizeKey, blurEnabled, sortByUsage,
+      presetUsage, downloadSizeKey, blurEnabled, sortByUsage, batchAutoAdjust,
       thumbListMode1, thumbListMode2, deleteUsedOnDownload, persistImages,
       downloadDateStr, downloadCounter
     };
@@ -1575,6 +1606,9 @@
         pushUndo();
         items.push(item);
         cacheImageSource(item.id, img.src);
+        if(batchAutoAdjust){
+          try{ applyAutoAdjustToItem(item); }catch(err){ console.error('auto adjust error', err); }
+        }
         renderThumbs();
         if(!selectedId){ selectItem(item.id); }
         if(modelReady){
@@ -2154,18 +2188,30 @@
     drawEditor();
   });
 
+  // この画像1枚に自動調整を適用する（呼び出し側でpushUndoや読み込み中表示を担当する）
+  function applyAutoAdjustToItem(item){
+    const adj = computeAutoAdjust(item.img, item.w, item.h);
+    item.autoAdjust = adj;
+    item.adjustedCanvas = buildAdjustedCanvas(item.img, item.w, item.h, adj);
+    rebuildManualCanvas(item); // 手動調整も設定済みなら、自動調整後の画像に重ね直す
+    item.adjustVersion = (item.adjustVersion || 0) + 1;
+    processedCache.delete(item.id);
+  }
+  // この画像1枚の自動調整を解除して元画像に戻す（呼び出し側でpushUndoや読み込み中表示を担当する）
+  function resetAutoAdjustForItem(item){
+    item.autoAdjust = null;
+    item.adjustedCanvas = null;
+    rebuildManualCanvas(item); // 手動調整があれば、元画像に重ね直す
+    item.adjustVersion = (item.adjustVersion || 0) + 1;
+    processedCache.delete(item.id);
+  }
   btnAutoAdjust.addEventListener('click', async () => {
     const item = getSelected(); if(!item) return;
     pushUndo();
     showLoading('この画像の明るさ・色合いを自動調整中…');
     await nextPaint();
     try{
-      const adj = computeAutoAdjust(item.img, item.w, item.h);
-      item.autoAdjust = adj;
-      item.adjustedCanvas = buildAdjustedCanvas(item.img, item.w, item.h, adj);
-      rebuildManualCanvas(item); // 手動調整も設定済みなら、自動調整後の画像に重ね直す
-      item.adjustVersion = (item.adjustVersion || 0) + 1;
-      processedCache.delete(item.id);
+      applyAutoAdjustToItem(item);
     }catch(err){
       console.error('auto adjust error', err);
       alert('自動調整に失敗しました。');
@@ -2178,11 +2224,7 @@
   btnResetAutoAdjust.addEventListener('click', () => {
     const item = getSelected(); if(!item) return;
     pushUndo();
-    item.autoAdjust = null;
-    item.adjustedCanvas = null;
-    rebuildManualCanvas(item); // 手動調整があれば、元画像に重ね直す
-    item.adjustVersion = (item.adjustVersion || 0) + 1;
-    processedCache.delete(item.id);
+    resetAutoAdjustForItem(item);
     refreshSliderUI();
     drawEditor();
     renderThumbs();
