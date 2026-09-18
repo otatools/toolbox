@@ -1,0 +1,1490 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-YTH979WTKL"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+  gtag('config', 'G-YTH979WTKL');
+</script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>歴史ならべ</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Shippori+Mincho:wght@500;700&display=swap">
+<link rel="icon" type="image/png" sizes="1x1" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=">
+<style>
+:root{
+  --app-h:100vh;
+  --bg:#f3f1e9;
+  --ink:#3a2e20;
+  --accent:#c0392b;
+  --accent2:#2d6a4f;
+  --card:#fffaf0;
+  --line:#d8c9a3;
+  --gold:#b8860b;
+  --mincho:"Shippori Mincho","Yu Mincho",YuMincho,"Hiragino Mincho ProN","MS PMincho",serif;
+}
+@supports (height:100dvh){ :root{ --app-h:100dvh; } }
+*{ box-sizing:border-box; touch-action:manipulation; -webkit-touch-callout:none; -webkit-tap-highlight-color:transparent; }
+html,body{ margin:0; padding:0; background:var(--bg); overscroll-behavior-y:none; }
+body{
+  height:var(--app-h);
+  font-family:"Hiragino Maru Gothic ProN","Hiragino Sans","Yu Gothic",sans-serif;
+  color:var(--ink);
+  overflow:hidden;
+  user-select:none;
+}
+input,textarea{ user-select:text; }
+
+#app{ height:100%; width:100%; opacity:0; transition:opacity .25s ease; display:flex; flex-direction:column; }
+#app.ready{ opacity:1; }
+
+.screen{ display:none; flex-direction:column; height:100%; width:100%; padding:16px; }
+.screen.active{ display:flex; }
+
+h1,h2,h3{ margin:0 0 8px; }
+h1{ font-size:1.5rem; text-align:center; letter-spacing:.05em; }
+/* ---- ゲーム画面 ---- */
+#game-screen{ padding:10px 0 0; }
+.hud{ display:flex; justify-content:space-between; align-items:center; padding:0 12px 8px; flex:0 0 auto; }
+.hud .turn-label{ font-weight:700; font-size:.95rem; }
+.hud .deck-count{ font-size:.75rem; color:#6b5c42; }
+
+#timeline-wrap{
+  flex:1 1 0; min-height:0; overflow-x:auto; overflow-y:hidden;
+  display:flex; align-items:center; padding:6px 12px;
+  background:repeating-linear-gradient(90deg,transparent,transparent 40px,rgba(184,134,11,.08) 40px,rgba(184,134,11,.08) 41px);
+}
+.tl-grid{
+  --gapw: 10px; --cardw: 96px;
+  display:grid; grid-template-rows:148px 34px; row-gap:3px; align-items:center; justify-items:center;
+  padding:4px 4px 8px;
+}
+.tl-card{
+  width:100%; height:100%; box-sizing:border-box;
+  background:var(--card); border:2px solid var(--gold); border-radius:10px;
+  display:flex; flex-direction:column; align-items:center; justify-content:space-between;
+  padding:8px 6px; text-align:center; transform:translateX(0);
+}
+.tl-card .img-ph{ width:30px; height:30px; border-radius:50%; background:#eadfc4; flex:0 0 auto; }
+.tl-card .info{ display:flex; flex-direction:column; align-items:center; min-width:0; flex:1 1 auto; justify-content:center; }
+.tl-card .name{ font-weight:700; font-size:.74rem; line-height:1.2; }
+.tl-card .event{
+  font-size:.62rem; color:#6b5c42; line-height:1.2; margin-top:3px;
+  display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;
+}
+.tl-card .year{ font-weight:900; color:var(--accent); font-size:.8rem; flex:0 0 auto; }
+
+.tl-marker-cell{ display:flex; align-items:center; justify-content:center; width:100%; }
+.tl-marker-btn{
+  -webkit-appearance:none; appearance:none; border:none; background:transparent;
+  color:var(--gold); font-size:1.05rem; line-height:1; padding:8px 4px; margin:0;
+  min-width:26px; min-height:30px; border-radius:8px; overflow:visible;
+}
+.tl-marker-btn.pickable{ color:var(--accent); background:#fff3cd; }
+.tl-marker-btn:active{ transform:scale(.85); }
+.tl-marker-btn.drag-over{ background:#ffe08a; transform:scale(1.35); box-shadow:0 0 0 4px rgba(184,134,11,.25); }
+
+#hand-wrap{ flex:0 0 auto; padding:10px 12px 16px; }
+.hand-row{ display:flex; gap:12px; overflow-x:auto; overflow-y:hidden; padding:34px 4px 10px; align-items:flex-end; }
+.hand-card{
+  flex:0 0 auto; width:132px; height:182px; border-radius:16px; border:2px solid var(--line);
+  background:var(--card); display:flex; flex-direction:column; align-items:center; justify-content:center;
+  padding:10px 8px; text-align:center; font-size:.72rem; position:relative;
+  box-shadow:0 2px 4px rgba(0,0,0,.08);
+  transition:transform .18s ease, box-shadow .18s ease, margin .18s ease;
+  touch-action:none;
+}
+.hand-card .img-ph{ width:48px; height:48px; border-radius:50%; background:#eadfc4; margin-bottom:8px; flex:0 0 auto; }
+.hand-card .name{ font-weight:700; font-size:.86rem; line-height:1.25; }
+.hand-card .event{
+  font-size:.68rem; color:#6b5c42; line-height:1.25; margin-top:6px;
+  display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden;
+}
+.hand-card.selected{
+  border-color:var(--accent);
+  transform:translateY(-16px) scale(1.14);
+  box-shadow:0 10px 18px rgba(192,57,43,.35);
+  z-index:5;
+}
+.hand-card.shake-out{ animation:shakeOut .45s ease forwards; }
+@keyframes shakeOut{
+  0%{ transform:translateX(0) scale(1); opacity:1; }
+  20%{ transform:translateX(-6px) scale(1); }
+  40%{ transform:translateX(6px) scale(1); }
+  60%{ transform:translateX(-4px) scale(.96); }
+  80%{ transform:translateX(4px) scale(.9); opacity:.6; }
+  100%{ transform:translateX(0) scale(.75); opacity:0; }
+}
+.hand-empty-msg{ text-align:center; font-size:.8rem; color:#8a7a5c; padding:20px 0; }
+
+.fly-card{
+  position:fixed; z-index:999; pointer-events:none;
+  background:var(--card); border:2px solid var(--gold); border-radius:12px;
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  padding:6px; text-align:center; font-size:.72rem; overflow:hidden;
+  box-shadow:0 10px 22px rgba(0,0,0,.28);
+  transition:left .45s cubic-bezier(.4,0,.2,1), top .45s cubic-bezier(.4,0,.2,1),
+             width .45s cubic-bezier(.4,0,.2,1), height .45s cubic-bezier(.4,0,.2,1),
+             opacity .45s ease, border-radius .45s ease;
+}
+.fly-card .img-ph{ width:32px; height:32px; border-radius:50%; background:#eadfc4; margin-bottom:4px; flex:0 0 auto; }
+.fly-card .name{ font-weight:700; font-size:.7rem; line-height:1.2; }
+.fly-card .event{
+  font-size:.6rem; color:#6b5c42; line-height:1.2; margin-top:4px;
+  display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden;
+}
+.fly-card.drag-ghost{ transition:none; z-index:1000; }
+
+.hint-bar{ text-align:center; font-size:.75rem; color:#6b5c42; min-height:1.1em; padding-bottom:4px; }
+
+/* ---- 結果画面 ---- */
+#result-screen .result-title{
+  font-family:var(--mincho); font-weight:700;
+  font-size:clamp(22px, min(5.2vh, 6.6vw), 44px);
+  letter-spacing:.14em; text-indent:.14em; color:#3f3a2e; line-height:1.35;
+  margin:0 0 clamp(8px, 1.6vh, 16px);
+}
+#result-screen .result-sub{
+  font-family:var(--mincho); font-size:clamp(12px, min(2.2vh, 3.2vw), 20px);
+  letter-spacing:.1em; color:#6b6252; margin:0 0 clamp(20px, 4vh, 40px);
+}
+
+/* トースト（誤答・正解フィードバック） */
+#toast{
+  position:fixed; left:50%; top:14px; transform:translate(-50%,-140%);
+  background:rgba(0,0,0,.82); color:#fff; padding:10px 18px; border-radius:999px;
+  font-size:.85rem; font-weight:700; z-index:50; pointer-events:none;
+  white-space:nowrap;
+  opacity:0; visibility:hidden;                       /* 非表示時に上端からはみ出さないように */
+  transition:transform .25s ease, opacity .25s ease, visibility 0s linear .25s;
+}
+#toast.show{
+  transform:translate(-50%,0);
+  opacity:1; visibility:visible;
+  transition:transform .25s ease, opacity .25s ease, visibility 0s linear 0s;
+}
+#toast.ok{ background:rgba(45,106,79,.92); }
+#toast.ng{ background:rgba(192,57,43,.92); }
+
+.footer-note{ text-align:center; font-size:.68rem; color:#a0916f; padding:6px 0 0; flex:0 0 auto; }
+
+/* ---- トップページ ---- */
+.home-screen{
+  position:relative; overflow:hidden;
+  align-items:center; justify-content:center; text-align:center;
+  background-color:#f3f1e9;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='44' height='44' viewBox='0 0 44 44'%3E%3Cg fill='none' stroke='rgba(168,153,110,0.17)' stroke-width='1'%3E%3Ccircle cx='0' cy='0' r='22'/%3E%3Ccircle cx='44' cy='0' r='22'/%3E%3Ccircle cx='0' cy='44' r='22'/%3E%3Ccircle cx='44' cy='44' r='22'/%3E%3Ccircle cx='22' cy='22' r='22'/%3E%3C/g%3E%3C/svg%3E");
+  background-size:44px 44px;
+}
+/* 背景（地紋の上・円の下に雲の意匠を敷く） */
+.home-bg{ position:absolute; inset:0; overflow:hidden; pointer-events:none; }
+.deco{ position:absolute; display:block; }
+.deco-cloud-tl{ --w:clamp(200px, 30vw, 620px); width:var(--w); height:calc(var(--w) / 2.5); top:0; left:0; }
+.deco-cloud-br{ --w:clamp(210px, 32vw, 640px); width:var(--w); height:calc(var(--w) / 2.133); right:0; bottom:0; }
+.deco-line-tl{ --w:clamp(110px, 18vw, 360px); width:var(--w); height:calc(var(--w) / 1.4); left:1.5vw; top:25vh; }
+.deco-line-br{ --w:clamp(110px, 18vw, 360px); width:var(--w); height:calc(var(--w) / 1.4); right:9vw; bottom:2vh; }
+.home-circle{
+  position:absolute; left:50%; top:47%;
+  width:min(138vw, 92vh); height:min(138vw, 92vh);
+  transform:translate(-50%,-50%); border-radius:50%;
+  background:radial-gradient(circle at 50% 50%, #fcfbf7 0 97%, rgba(252,251,247,0) 100%);
+}
+/* 前面のコンテンツ */
+.home-inner{ position:relative; z-index:2; width:100%; max-width:min(94%, 900px); }
+.brand-title{
+  font-family:var(--mincho);
+  font-size:clamp(30px, min(10vh, 13vw), 104px);
+  font-weight:700; letter-spacing:.14em; text-indent:.14em; white-space:nowrap;
+  color:#3f3a2e; line-height:1.25; margin:0 0 clamp(8px, 1.8vh, 20px);
+}
+.brand-rule{
+  width:min(78%, 640px); height:2px; margin:0 auto clamp(10px, 2.2vh, 24px);
+  background-image:repeating-linear-gradient(90deg, #8d8674 0 2px, transparent 2px 9px);
+}
+.brand-sub{
+  font-family:var(--mincho);
+  font-size:clamp(12px, min(2.8vh, 3.6vw), 30px);
+  letter-spacing:.18em; text-indent:.18em; color:#4a4438;
+  margin:0 0 clamp(20px, min(12vh, 9vw), 140px);
+}
+.home-menu{
+  display:flex; flex-wrap:wrap; justify-content:center; align-items:stretch;
+  gap:clamp(14px, 6vw, 115px);
+  width:100%; max-width:min(96%, 940px); margin:0 auto clamp(14px, min(9vh, 7vw), 105px);
+}
+.home-btn{
+  position:relative; -webkit-appearance:none; appearance:none;
+  background:#fdfcf7; border:2px solid #4a4436; border-radius:0;
+  color:#3f3a2e; font-family:var(--mincho); font-weight:700;
+  font-size:clamp(14px, min(3vh, 4.4vw), 32px);
+  letter-spacing:.3em; text-indent:.3em; line-height:1.25;
+  padding:clamp(10px, 2.2vh, 26px) clamp(6px, 1.6vw, 18px);
+  flex:1 1 40%; max-width:400px; cursor:pointer;
+}
+.home-btn::after{
+  content:""; position:absolute; left:-8px; right:-8px; top:9px; bottom:-12px;
+  border:2px solid #4a4436; z-index:-1;
+}
+.home-btn:active{ background:#efe9da; }
+.home-btn-play{
+  display:block; flex:none; margin:0 auto;
+  width:calc(50% - clamp(7px, 3vw, 58px)); min-width:150px; max-width:400px;
+}
+.home-screen .footer-note{ position:absolute; left:0; right:0; bottom:6px; z-index:2; color:#9a927c; }
+/* ---- 設定・選択画面（トップページと同じ意匠） ---- */
+.wa-screen{
+  position:relative; overflow:hidden;
+  align-items:center; justify-content:center; text-align:center;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='44' height='44' viewBox='0 0 44 44'%3E%3Cg fill='none' stroke='rgba(168,153,110,0.17)' stroke-width='1'%3E%3Ccircle cx='0' cy='0' r='22'/%3E%3Ccircle cx='44' cy='0' r='22'/%3E%3Ccircle cx='0' cy='44' r='22'/%3E%3Ccircle cx='44' cy='44' r='22'/%3E%3Ccircle cx='22' cy='22' r='22'/%3E%3C/g%3E%3C/svg%3E");
+  background-size:44px 44px;
+}
+.wa-screen::before{                       /* トップページと同じ白い円 */
+  content:""; position:absolute; left:50%; top:50%;
+  width:min(138vw, 92vh); height:min(138vw, 92vh);
+  transform:translate(-50%,-50%); border-radius:50%;
+  background:radial-gradient(circle at 50% 50%, #fcfbf7 0 97%, rgba(252,251,247,0) 100%);
+  z-index:0; pointer-events:none;
+}
+.wa-back{
+  position:absolute; left:14px; top:12px; z-index:3;
+  width:44px; height:44px; padding:0; line-height:1;
+  display:flex; align-items:center; justify-content:center;
+  -webkit-appearance:none; appearance:none;
+  background:#fdfcf7; border:2px solid #4a4436; border-radius:0;
+  color:#3f3a2e; font-family:var(--mincho); font-size:22px; cursor:pointer;
+}
+.wa-back:active{ background:#efe9da; }
+.wa-inner{
+  position:relative; z-index:2; width:100%; max-width:min(94%, 760px);
+  min-height:0; max-height:100%; overflow-y:auto; overflow-x:hidden;
+  padding:6px 14px 18px;
+}
+.wa-title{
+  font-family:var(--mincho); font-weight:700;
+  font-size:clamp(21px, min(5.4vh, 6.8vw), 46px);
+  letter-spacing:.18em; text-indent:.18em; color:#3f3a2e;
+  line-height:1.3; margin:0 0 clamp(8px, 1.6vh, 18px);
+}
+.wa-rule{
+  width:min(70%, 420px); height:2px; margin:0 auto clamp(10px, 2vh, 22px);
+  background-image:repeating-linear-gradient(90deg, #8d8674 0 2px, transparent 2px 9px);
+}
+.wa-note{
+  font-family:var(--mincho); font-size:clamp(11px, min(2.2vh, 3.1vw), 19px);
+  letter-spacing:.1em; color:#6b6252; line-height:1.7;
+  margin:0 0 clamp(16px, 3.2vh, 34px);
+}
+.wa-group{ margin-bottom:clamp(14px, 2.8vh, 30px); }
+.wa-group-title{
+  font-family:var(--mincho); font-size:clamp(11px, min(1.9vh, 2.9vw), 17px);
+  letter-spacing:.16em; text-indent:.16em; color:#7a7263;
+  margin-bottom:clamp(7px, 1.3vh, 13px);
+}
+/* 大きい選択肢（ひとり／対戦、小学校／中学校） */
+.wa-choice{ display:flex; flex-wrap:wrap; justify-content:center; gap:clamp(14px, 4vw, 46px); }
+.wa-opt{
+  position:relative; -webkit-appearance:none; appearance:none;
+  background:#fdfcf7; border:2px solid #4a4436; border-radius:0; color:#3f3a2e;
+  font-family:var(--mincho); font-weight:700;
+  font-size:clamp(14px, min(2.7vh, 4vw), 27px);
+  letter-spacing:.16em; text-indent:.16em; line-height:1.35;
+  padding:clamp(12px, 2.3vh, 26px) clamp(8px, 1.8vw, 20px);
+  flex:1 1 190px; max-width:330px; cursor:pointer;
+}
+.wa-opt::after{
+  content:""; position:absolute; left:-7px; right:-7px; top:8px; bottom:-11px;
+  border:2px solid #4a4436; z-index:-1;
+}
+.wa-opt .wa-sub{
+  display:block; margin-top:.55em; font-size:.6em; font-weight:400;
+  letter-spacing:.05em; text-indent:.05em; color:#7a7263; line-height:1.5;
+}
+.wa-opt.selected{ background:#e9e0c9; border-color:#3f3a2e; color:#2f2b21; }
+.wa-opt.selected .wa-sub{ color:#6b6252; }
+.wa-opt:active{ background:#efe9da; }
+/* 小さい選択肢（時代・人数・枚数・ルール） */
+.wa-chips{ display:flex; flex-wrap:wrap; justify-content:center; gap:clamp(7px, 1.2vw, 13px); }
+.wa-chip{
+  -webkit-appearance:none; appearance:none;
+  background:#fdfcf7; border:1.5px solid #8a8270; border-radius:0; color:#4a4436;
+  font-family:var(--mincho); font-weight:700;
+  font-size:clamp(12px, min(2vh, 3vw), 18px);
+  letter-spacing:.1em; text-indent:.1em; line-height:1.3;
+  padding:clamp(8px, 1.4vh, 14px) clamp(9px, 1.3vw, 17px);
+  min-width:96px; cursor:pointer;
+}
+.wa-chip .wa-sub{
+  display:block; margin-top:.35em; font-size:.68em; font-weight:400;
+  letter-spacing:.04em; text-indent:.04em; color:#8a8270;
+}
+.wa-chip.selected{ background:#3f3a2e; border-color:#3f3a2e; color:#f7f4ea; }
+.wa-chip.selected .wa-sub{ color:#cfc7b1; }
+.wa-chip:active{ background:#efe9da; }
+.wa-chip.selected:active{ background:#4d473a; }
+.wa-chip:disabled{ opacity:.35; cursor:default; }
+.era-chip{ min-width:clamp(92px, 13vw, 132px); }
+.hand-empty-msg{ font-family:var(--mincho); }
+/* 開始ボタン */
+.wa-start{
+  position:relative; display:block; margin:clamp(16px, 3vh, 34px) auto 0;
+  -webkit-appearance:none; appearance:none;
+  background:#3f3a2e; border:2px solid #3f3a2e; border-radius:0; color:#f7f4ea;
+  font-family:var(--mincho); font-weight:700;
+  font-size:clamp(15px, min(2.8vh, 4.2vw), 27px);
+  letter-spacing:.24em; text-indent:.24em; line-height:1.3;
+  padding:clamp(12px, 2.3vh, 24px) clamp(20px, 4vw, 54px);
+  width:min(88%, 330px); cursor:pointer;
+}
+.wa-start::after{
+  content:""; position:absolute; left:-7px; right:-7px; top:8px; bottom:-11px;
+  border:2px solid #8c7f5f; z-index:-1;
+}
+.wa-start:active{ background:#4d473a; }
+
+</style>
+</head>
+<body>
+
+<div id="app">
+
+  <!-- ===================== トップページ ===================== -->
+  <section id="menu-screen" class="screen active home-screen">
+
+    <!-- 背景の意匠（雲・円）。装飾なので読み上げ対象外 -->
+    <div class="home-bg" aria-hidden="true">
+      <svg class="deco deco-cloud-tl" viewBox="0 0 600 240">
+        <g fill="none" stroke="#c9c4a1" stroke-width="74" stroke-linecap="round">
+          <path d="M-80 62H470"/>
+          <path d="M-80 150H548"/>
+        </g>
+      </svg>
+
+      <svg class="deco deco-line-tl" viewBox="0 0 420 300">
+        <g fill="none" stroke-linecap="butt">
+          <path d="M-30 40H300A34 34 0 0 1 300 108H80A34 34 0 0 0 80 176H360A34 34 0 0 1 360 244H-30" stroke="#cbc299" stroke-width="30"/>
+          <path d="M-30 40H300A34 34 0 0 1 300 108H80A34 34 0 0 0 80 176H360A34 34 0 0 1 360 244H-30" stroke="#f3f1e9" stroke-width="23"/>
+        </g>
+      </svg>
+
+      <svg class="deco deco-cloud-br" viewBox="0 0 640 300">
+        <g fill="none" stroke="#c9c4a1" stroke-width="74" stroke-linecap="round">
+          <path d="M720 62H215"/>
+          <path d="M720 150H70"/>
+          <path d="M720 238H330"/>
+        </g>
+      </svg>
+
+      <svg class="deco deco-line-br" viewBox="0 0 420 300">
+        <g fill="none" stroke-linecap="butt">
+          <path d="M450 40H120A34 34 0 0 0 120 108H340A34 34 0 0 1 340 176H60A34 34 0 0 0 60 244H450" stroke="#cbc299" stroke-width="30"/>
+          <path d="M450 40H120A34 34 0 0 0 120 108H340A34 34 0 0 1 340 176H60A34 34 0 0 0 60 244H450" stroke="#f3f1e9" stroke-width="23"/>
+        </g>
+      </svg>
+
+      <div class="home-circle"></div>
+    </div>
+
+    <div class="home-inner">
+      <h1 class="brand-title">歴史ならべ</h1>
+      <div class="brand-rule"></div>
+      <p class="brand-sub">カードを正しい年代の順番にならべよう</p>
+
+      <div class="home-menu">
+        <button class="home-btn" id="open-scope-btn">出題範囲</button>
+        <button class="home-btn" id="open-level-btn">出題レベル</button>
+      </div>
+      <button class="home-btn home-btn-play" id="open-play-btn">プレイ</button>
+    </div>
+
+    <div class="footer-note">人物イラストは準備中（あとから追加されます）</div>
+  </section>
+
+  <!-- ===================== 出題範囲 ===================== -->
+  <section id="scope-screen" class="screen wa-screen">
+    <button class="wa-back" data-back="menu-screen" aria-label="もどる">‹</button>
+    <div class="wa-inner">
+      <h2 class="wa-title">出題範囲</h2>
+      <div class="wa-rule"></div>
+      <p class="wa-note">縄文時代から、どの時代まで出題するか選ぼう</p>
+      <div class="wa-chips" id="era-options"></div>
+    </div>
+  </section>
+
+  <!-- ===================== 出題レベル ===================== -->
+  <section id="level-screen" class="screen wa-screen">
+    <button class="wa-back" data-back="menu-screen" aria-label="もどる">‹</button>
+    <div class="wa-inner">
+      <h2 class="wa-title">出題レベル</h2>
+      <div class="wa-rule"></div>
+      <p class="wa-note">どこまで習った人物を出題するか選ぼう</p>
+      <div class="wa-choice" id="grade-options">
+        <button class="wa-opt selected" data-grade="elementary">小学校<span class="wa-sub" id="level-count-e">きほん</span></button>
+        <button class="wa-opt" data-grade="extended">小学校＋中学校<span class="wa-sub" id="level-count-m">むずかしい</span></button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== プレイ（あそびかた選択） ===================== -->
+  <section id="mode-screen" class="screen wa-screen">
+    <button class="wa-back" data-back="menu-screen" aria-label="もどる">‹</button>
+    <div class="wa-inner">
+      <h2 class="wa-title">あそびかた</h2>
+      <div class="wa-rule"></div>
+      <p class="wa-note">ひとりであそぶか、みんなで対戦するか選ぼう</p>
+      <div class="wa-choice">
+        <button class="wa-opt" id="mode-solo-btn">ひとりでチャレンジ<span class="wa-sub">タイムアタック／ミス3回まで</span></button>
+        <button class="wa-opt" id="mode-multi-btn">みんなで対戦<span class="wa-sub">2〜4人でじゅんばんに</span></button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== 対戦セットアップ ===================== -->
+  <section id="setup-multi-screen" class="screen wa-screen">
+    <button class="wa-back" data-back="mode-screen" aria-label="もどる">‹</button>
+    <div class="wa-inner">
+      <h2 class="wa-title">対戦の設定</h2>
+      <div class="wa-rule"></div>
+      <div class="wa-group">
+        <div class="wa-group-title">プレイヤー人数</div>
+        <div class="wa-chips" id="player-count-options">
+          <button class="wa-chip selected" data-count="2">2人</button>
+          <button class="wa-chip" data-count="3">3人</button>
+          <button class="wa-chip" data-count="4">4人</button>
+        </div>
+      </div>
+      <div class="wa-group">
+        <div class="wa-group-title">手札の枚数</div>
+        <div class="wa-chips" id="hand-size-options">
+          <button class="wa-chip" data-hand="3">3枚</button>
+          <button class="wa-chip selected" data-hand="4">4枚</button>
+          <button class="wa-chip" data-hand="5">5枚</button>
+        </div>
+      </div>
+      <div class="wa-group">
+        <div class="wa-group-title">まちがえたときのルール</div>
+        <div class="wa-chips" id="rule-options-multi">
+          <button class="wa-chip selected" data-rule="normal">ふつう<span class="wa-sub">すてて1枚引く</span></button>
+          <button class="wa-chip" data-rule="advanced">上級者<span class="wa-sub">正しい位置に直す</span></button>
+        </div>
+      </div>
+      <button class="wa-start" id="start-multi-btn">対戦スタート</button>
+    </div>
+  </section>
+
+  <!-- ===================== ソロセットアップ ===================== -->
+  <section id="setup-solo-screen" class="screen wa-screen">
+    <button class="wa-back" data-back="mode-screen" aria-label="もどる">‹</button>
+    <div class="wa-inner">
+      <h2 class="wa-title">チャレンジの設定</h2>
+      <div class="wa-rule"></div>
+      <div class="wa-group">
+        <div class="wa-group-title">チャレンジ形式</div>
+        <div class="wa-chips" id="solo-type-options">
+          <button class="wa-chip selected" data-solotype="time">タイムアタック<span class="wa-sub">90秒で何枚正解できるか</span></button>
+          <button class="wa-chip" data-solotype="miss">ミス3回まで<span class="wa-sub">何枚連続で正解できるか</span></button>
+        </div>
+      </div>
+      <div class="wa-group">
+        <div class="wa-group-title">まちがえたときのルール</div>
+        <div class="wa-chips" id="rule-options-solo">
+          <button class="wa-chip selected" data-rule="normal">ふつう<span class="wa-sub">つぎのカードへ</span></button>
+          <button class="wa-chip" data-rule="advanced">上級者<span class="wa-sub">正しい位置に直す</span></button>
+        </div>
+      </div>
+      <button class="wa-start" id="start-solo-btn">チャレンジスタート</button>
+    </div>
+  </section>
+
+  <!-- ===================== ゲーム画面 ===================== -->
+  <section id="game-screen" class="screen">
+    <div class="hud">
+      <div class="turn-label" id="turn-label">プレイヤー1のばん</div>
+      <div class="deck-count" id="deck-count">山札:0 残り時間:--</div>
+    </div>
+
+    <div id="timeline-wrap"></div>
+    <div class="hint-bar" id="hint-bar">手札のカードをえらんでね</div>
+
+    <div id="hand-wrap">
+      <div class="hand-row" id="hand-row"></div>
+    </div>
+  </section>
+
+  <!-- ===================== 結果画面 ===================== -->
+  <section id="result-screen" class="screen wa-screen">
+    <div class="wa-inner">
+      <div class="result-title" id="result-title">プレイヤー1の勝ち！</div>
+      <div class="wa-rule"></div>
+      <div class="result-sub" id="result-sub"></div>
+      <div class="wa-choice">
+        <button class="wa-opt" id="retry-btn">もう一度あそぶ</button>
+        <button class="wa-opt" id="menu-back-btn">トップにもどる</button>
+      </div>
+    </div>
+  </section>
+
+</div>
+
+<div id="toast"></div>
+
+<script>
+(function(){
+"use strict";
+
+/* ============================================================
+   0. 初期化まわり（拡大防止・高さ対応・保険）
+   ============================================================ */
+['gesturestart','gesturechange','gestureend'].forEach(function(t){
+  document.addEventListener(t, function(e){ e.preventDefault(); }, { passive:false });
+});
+
+function setAppHeight(){
+  var el = document.activeElement;
+  if(el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA')) return;
+  var h = window.visualViewport ? window.visualViewport.height : window.innerHeight;
+  if(h > 0) document.documentElement.style.setProperty('--app-h', Math.round(h) + 'px');
+}
+setAppHeight();
+['resize','pageshow'].forEach(function(t){ window.addEventListener(t, setAppHeight); });
+window.addEventListener('orientationchange', function(){ setTimeout(setAppHeight,250); });
+if(window.visualViewport){
+  visualViewport.addEventListener('resize', setAppHeight);
+  visualViewport.addEventListener('scroll', setAppHeight);
+}
+function resetZoomIfNeeded(){
+  if(!window.visualViewport || window.visualViewport.scale <= 1.02) return;
+  var meta = document.querySelector('meta[name="viewport"]');
+  if(!meta) return;
+  var original = meta.getAttribute('content');
+  meta.setAttribute('content', original + ', maximum-scale=1.0');
+  requestAnimationFrame(function(){ meta.setAttribute('content', original); });
+}
+if(window.visualViewport){
+  visualViewport.addEventListener('resize', resetZoomIfNeeded);
+  visualViewport.addEventListener('scroll', resetZoomIfNeeded);
+}
+document.addEventListener('gestureend', function(){ setTimeout(resetZoomIfNeeded,50); }, { passive:true });
+
+window.addEventListener('load', function(){
+  setAppHeight();
+  var revealed = false;
+  function revealOnce(){
+    if(revealed) return;
+    revealed = true;
+    setAppHeight();
+    requestAnimationFrame(function(){
+      document.getElementById('app').classList.add('ready');
+    });
+  }
+  T(revealOnce, 1400);   // 保険：明朝体が届かなくても必ず表示する
+  if(document.fonts && document.fonts.ready){
+    document.fonts.ready.then(function(){ T(revealOnce, 300); }, function(){ T(revealOnce, 300); });
+  } else {
+    T(revealOnce, 300);
+  }
+});
+
+var timers = [];
+function T(fn, ms){ var id = setTimeout(fn, ms); timers.push(id); return id; }
+function cancelAllTimers(){
+  timers.forEach(clearTimeout);
+  timers = [];
+  if(game && game.timerId){ clearInterval(game.timerId); game.timerId = null; }
+}
+
+/* ============================================================
+   1. 人物データ（ダミー／あとでイラストを差し込む前提）
+   grade: 'e' = 小学校, 'm' = 中学校で追加
+   ============================================================ */
+var CHARACTERS = [
+  { id:1, name:"聖徳太子", achievement:"十七条の憲法を制定", year:604, grade:"e" },
+  { id:2, name:"聖武天皇", achievement:"東大寺の大仏づくりの詔", year:743, grade:"e" },
+  { id:3, name:"藤原道長", achievement:"摂政に就任", year:1016, grade:"e" },
+  { id:4, name:"源頼朝", achievement:"鎌倉幕府を開く", year:1192, grade:"e" },
+  { id:5, name:"足利義満", achievement:"金閣を建てる", year:1397, grade:"e" },
+  { id:6, name:"織田信長", achievement:"桶狭間の戦いに勝つ", year:1560, grade:"e" },
+  { id:7, name:"豊臣秀吉", achievement:"天下統一を果たす", year:1590, grade:"e" },
+  { id:8, name:"徳川家康", achievement:"江戸幕府を開く", year:1603, grade:"e" },
+  { id:9, name:"徳川家光", achievement:"参勤交代を制度化", year:1635, grade:"e" },
+  { id:10, name:"杉田玄白", achievement:"解体新書を出版", year:1774, grade:"e" },
+  { id:11, name:"伊能忠敬", achievement:"日本地図の測量を開始", year:1800, grade:"e" },
+  { id:12, name:"勝海舟", achievement:"江戸城を無血開城", year:1868, grade:"e" },
+  { id:13, name:"明治天皇", achievement:"五箇条の御誓文を発布", year:1868, grade:"e" },
+  { id:14, name:"福沢諭吉", achievement:"学問のすゝめを出版", year:1872, grade:"e" },
+  { id:15, name:"野口英世", achievement:"黄熱病の研究に取り組む", year:1928, grade:"e" },
+  { id:16, name:"卑弥呼", achievement:"中国(魏)に使いを送る", year:239, grade:"e" },
+  { id:17, name:"中大兄皇子", achievement:"大化の改新をおこなう", year:645, grade:"e" },
+  { id:18, name:"鑑真", achievement:"来日し戒律を伝える", year:754, grade:"e" },
+  { id:19, name:"平清盛", achievement:"太政大臣に就任", year:1167, grade:"e" },
+  { id:20, name:"足利尊氏", achievement:"室町幕府を開く", year:1338, grade:"m" },
+  { id:21, name:"雪舟", achievement:"水墨画を大成させる", year:1486, grade:"e" },
+  { id:22, name:"大隈重信", achievement:"立憲改進党を結成", year:1882, grade:"e" },
+  { id:23, name:"伊藤博文", achievement:"初代内閣総理大臣に就任", year:1885, grade:"e" },
+  { id:24, name:"陸奥宗光", achievement:"治外法権の撤廃に成功", year:1894, grade:"e" },
+  { id:25, name:"小村寿太郎", achievement:"関税自主権を回復", year:1911, grade:"e" },
+  { id:26, name:"小野妹子", achievement:"遣隋使として隋にわたる", year:607, grade:"e" },
+  { id:27, name:"中臣鎌足", achievement:"藤原の姓を授かる", year:669, grade:"e" },
+  { id:28, name:"行基", achievement:"東大寺の大仏づくりに協力する", year:745, grade:"e" },
+  { id:29, name:"清少納言", achievement:"枕草子を書く", year:1000, grade:"e" },
+  { id:30, name:"紫式部", achievement:"源氏物語を書く", year:1008, grade:"e" },
+  { id:31, name:"源義経", achievement:"壇ノ浦の戦いで平氏をほろぼす", year:1185, grade:"e" },
+  { id:32, name:"北条時宗", achievement:"元軍の襲来(元寇)を退ける", year:1274, grade:"e" },
+  { id:33, name:"足利義政", achievement:"銀閣を建てる", year:1489, grade:"e" },
+  { id:34, name:"ザビエル", achievement:"日本にキリスト教を伝える", year:1549, grade:"e" },
+  { id:35, name:"近松門左衛門", achievement:"人形浄瑠璃の脚本を書く", year:1703, grade:"e" },
+  { id:36, name:"本居宣長", achievement:"古事記伝を書き上げる", year:1798, grade:"e" },
+  { id:37, name:"歌川広重", achievement:"浮世絵東海道五十三次をえがく", year:1833, grade:"e" },
+  { id:38, name:"ペリー", achievement:"黒船で浦賀に来航する", year:1853, grade:"e" },
+  { id:39, name:"木戸孝允", achievement:"五か条の御誓文の作成に加わる", year:1868, grade:"e" },
+  { id:41, name:"西郷隆盛", achievement:"西南戦争を起こす", year:1877, grade:"e" },
+  { id:42, name:"板垣退助", achievement:"自由党を結成する", year:1881, grade:"e" },
+  { id:43, name:"東郷平八郎", achievement:"日本海海戦で勝利する", year:1905, grade:"e" },
+  { id:44, name:"蘇我馬子", achievement:"蘇我氏の勢力を強める", year:587, grade:"m" },
+  { id:45, name:"仁徳天皇", achievement:"大仙(仁徳天皇陵)古墳をつくらせる", year:400, grade:"m" },
+  { id:46, name:"天武天皇", achievement:"壬申の乱に勝ち天皇になる", year:673, grade:"m" },
+  { id:47, name:"持統天皇", achievement:"藤原京をつくる", year:694, grade:"m" },
+  { id:48, name:"太安万侶", achievement:"古事記を編さんする", year:712, grade:"m" },
+  { id:49, name:"桓武天皇", achievement:"都を平安京に移す", year:794, grade:"m" },
+  { id:50, name:"最澄", achievement:"天台宗を開く", year:806, grade:"m" },
+  { id:51, name:"空海", achievement:"真言宗を開く", year:816, grade:"m" },
+  { id:52, name:"菅原道真", achievement:"遣唐使の停止を提案する", year:894, grade:"m" },
+  { id:53, name:"平将門", achievement:"関東で反乱を起こす", year:939, grade:"m" },
+  { id:54, name:"法然", achievement:"浄土宗を開く", year:1175, grade:"m" },
+  { id:55, name:"北条政子", achievement:"御家人を説得し承久の乱に勝つ", year:1221, grade:"m" },
+  { id:56, name:"運慶", achievement:"東大寺南大門の金剛力士像をつくる", year:1203, grade:"m" },
+  { id:57, name:"道元", achievement:"曹洞宗を開く", year:1227, grade:"m" },
+  { id:58, name:"日蓮", achievement:"日蓮宗を開く", year:1253, grade:"m" },
+  { id:59, name:"世阿弥", achievement:"能を大成する", year:1400, grade:"m" },
+  { id:60, name:"武田信玄", achievement:"川中島で上杉謙信と戦う", year:1553, grade:"m" },
+  { id:61, name:"毛利元就", achievement:"中国地方を統一する", year:1555, grade:"m" },
+  { id:62, name:"今川義元", achievement:"桶狭間の戦いで信長に敗れる", year:1560, grade:"m" },
+  { id:63, name:"上杉謙信", achievement:"川中島で武田信玄と戦う", year:1561, grade:"m" },
+  { id:64, name:"千利休", achievement:"わび茶(茶道)を大成する", year:1587, grade:"m" },
+  { id:65, name:"明智光秀", achievement:"本能寺の変で信長をたおす", year:1582, grade:"m" },
+  { id:66, name:"石田三成", achievement:"関ヶ原の戦いで家康と戦う", year:1600, grade:"m" },
+  { id:67, name:"徳川綱吉", achievement:"生類憐みの令を出す", year:1685, grade:"m" },
+  { id:68, name:"松尾芭蕉", achievement:"「おくのほそ道」をあらわす", year:1689, grade:"m" },
+  { id:69, name:"田沼意次", achievement:"商業を重視した政治を行う", year:1772, grade:"m" },
+  { id:70, name:"松平定信", achievement:"寛政の改革を行う", year:1787, grade:"m" },
+  { id:71, name:"二宮尊徳", achievement:"農村の立て直しにつくす", year:1822, grade:"m" },
+  { id:72, name:"葛飾北斎", achievement:"浮世絵「富嶽三十六景」をえがく", year:1831, grade:"m" },
+  { id:73, name:"水野忠邦", achievement:"天保の改革を行う", year:1841, grade:"m" },
+  { id:74, name:"近藤勇", achievement:"新選組を率いる", year:1863, grade:"m" },
+  { id:75, name:"坂本龍馬", achievement:"薩長同盟の仲立ちをする", year:1866, grade:"m" },
+  { id:76, name:"徳川慶喜", achievement:"大政奉還を行う", year:1867, grade:"m" },
+  { id:77, name:"岩倉具視", achievement:"岩倉使節団を率いて欧米へ行く", year:1871, grade:"m" },
+  { id:78, name:"渋沢栄一", achievement:"多くの会社や銀行をつくる", year:1873, grade:"m" },
+  { id:79, name:"北里柴三郎", achievement:"破傷風の血清療法を発見する", year:1890, grade:"m" },
+  { id:80, name:"樋口一葉", achievement:"小説「たけくらべ」を書く", year:1895, grade:"m" },
+  { id:81, name:"津田梅子", achievement:"女子教育に力をつくす", year:1900, grade:"m" },
+  { id:82, name:"与謝野晶子", achievement:"日露戦争に反対する詩を発表する", year:1904, grade:"m" },
+  { id:83, name:"夏目漱石", achievement:"小説「吾輩は猫である」を発表する", year:1905, grade:"m" },
+  { id:84, name:"平塚らいてう", achievement:"女性の地位向上を目指す運動を行う", year:1911, grade:"m" },
+  { id:85, name:"犬養毅", achievement:"五・一五事件で暗殺される", year:1932, grade:"m" },
+  { id:86, name:"東条英機", achievement:"太平洋戦争が始まったときの首相になる", year:1941, grade:"m" },
+  { id:87, name:"昭和天皇", achievement:"戦争の終わりを国民に伝える", year:1945, grade:"m" },
+  { id:88, name:"湯川秀樹", achievement:"日本人で初めてノーベル賞を受賞する", year:1949, grade:"m" },
+  { id:89, name:"吉田茂", achievement:"サンフランシスコ平和条約を結ぶ", year:1951, grade:"m" },
+  { id:90, name:"田中角栄", achievement:"日中国交正常化を実現する", year:1972, grade:"m" },
+  { id:91, name:"聖徳太子", achievement:"冠位十二階を定める", year:603, grade:"e" },
+  { id:92, name:"中大兄皇子", achievement:"即位して天智天皇となる", year:668, grade:"e" },
+  { id:93, name:"聖武天皇", achievement:"国分寺・国分尼寺を建てる詔を出す", year:741, grade:"e" },
+  { id:94, name:"藤原道長", achievement:"望月の歌をよみ権力の絶頂をむかえる", year:1018, grade:"e" },
+  { id:95, name:"平清盛", achievement:"兵庫の港を整備し日宋貿易を進める", year:1173, grade:"e" },
+  { id:96, name:"源頼朝", achievement:"守護・地頭を置く", year:1185, grade:"e" },
+  { id:97, name:"源義経", achievement:"頼朝と対立し平泉で亡くなる", year:1189, grade:"e" },
+  { id:98, name:"北条時宗", achievement:"元軍の再度の襲来(弘安の役)を退ける", year:1281, grade:"e" },
+  { id:99, name:"足利義満", achievement:"南朝と北朝を統一する", year:1392, grade:"e" },
+  { id:100, name:"足利義満", achievement:"中国(明)との貿易(日明貿易)を始める", year:1404, grade:"e" },
+  { id:101, name:"織田信長", achievement:"室町幕府をほろぼす", year:1573, grade:"e" },
+  { id:102, name:"豊臣秀吉", achievement:"刀狩令を出す", year:1588, grade:"e" },
+  { id:103, name:"豊臣秀吉", achievement:"朝鮮(明)に大軍を送る", year:1592, grade:"e" },
+  { id:104, name:"徳川家康", achievement:"関ヶ原の戦いに勝つ", year:1600, grade:"e" },
+  { id:105, name:"徳川家康", achievement:"大阪城を攻め豊臣氏をほろぼす", year:1615, grade:"e" },
+  { id:106, name:"徳川家光", achievement:"鎖国を完成させる", year:1639, grade:"e" },
+  { id:107, name:"西郷隆盛", achievement:"勝海舟と話し合い、江戸城を無血開城させる", year:1868, grade:"e" },
+  { id:108, name:"大久保利通", achievement:"版籍奉還を行う", year:1869, grade:"e" },
+  { id:109, name:"大久保利通", achievement:"廃藩置県を行う", year:1871, grade:"e" },
+  { id:110, name:"明治天皇", achievement:"大日本帝国憲法を発布する", year:1889, grade:"e" },
+  { id:111, name:"福沢諭吉", achievement:"慶應義塾を創立する", year:1858, grade:"e" },
+  { id:112, name:"伊藤博文", achievement:"憲法の草案づくりを進める", year:1888, grade:"e" },
+  { id:113, name:"野口英世", achievement:"アメリカにわたり梅毒の研究に取り組む", year:1911, grade:"e" }
+];
+/* イラスト追加用フィールドの想定: character.image = "画像URL or base64"
+   カード描画側は image があれば <img>、無ければ img-ph（丸プレースホルダ）を出す設計にしてある */
+
+/* 出題範囲（時代）の一覧。endYear はその時代の終わりのおおよその年。
+   「出題範囲」でえらんだ時代までの人物だけが出題対象になる。 */
+var ERAS = [
+  { key:'jomon',     label:'縄文時代',     endYear:-300 },
+  { key:'yayoi',     label:'弥生時代',     endYear:300 },
+  { key:'kofun',     label:'古墳時代',     endYear:592 },
+  { key:'asuka',     label:'飛鳥時代',     endYear:710 },
+  { key:'nara',      label:'奈良時代',     endYear:794 },
+  { key:'heian',     label:'平安時代',     endYear:1185 },
+  { key:'kamakura',  label:'鎌倉時代',     endYear:1333 },
+  { key:'muromachi', label:'室町時代',     endYear:1467 },
+  { key:'sengoku',   label:'戦国時代',     endYear:1573 },
+  { key:'azuchi',    label:'安土桃山時代', endYear:1603 },
+  { key:'edo',       label:'江戸時代',     endYear:1868 },
+  { key:'meiji',     label:'明治時代',     endYear:1912 },
+  { key:'taisho',    label:'大正時代',     endYear:1926 },
+  { key:'showa',     label:'昭和時代',     endYear:1989 },
+  { key:'heisei',    label:'平成時代',     endYear:2019 },
+  { key:'reiwa',     label:'令和時代',     endYear:9999 }
+];
+
+/* ============================================================
+   2. ユーティリティ
+   ============================================================ */
+function shuffle(arr){
+  var a = arr.slice();
+  for(var i = a.length - 1; i > 0; i--){
+    var j = Math.floor(Math.random() * (i + 1));
+    var tmp = a[i]; a[i] = a[j]; a[j] = tmp;
+  }
+  return a;
+}
+function escapeHtml(str){
+  return String(str).replace(/[&<>"']/g, function(c){
+    return ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' })[c];
+  });
+}
+function showScreen(id){
+  document.querySelectorAll('.screen').forEach(function(s){ s.classList.remove('active'); });
+  document.getElementById(id).classList.add('active');
+  if(id === 'scope-screen') renderEraOptions();      // 枚数は出題レベルによって変わる
+  if(id === 'level-screen') refreshLevelCounts();
+  var inner = document.querySelector('#' + id + ' .wa-inner');
+  if(inner) inner.scrollTop = 0;
+}
+var toastTimer = null;
+function showToast(msg, kind){
+  var el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = kind ? kind : '';
+  requestAnimationFrame(function(){ el.classList.add('show'); });
+  if(toastTimer) clearTimeout(toastTimer);
+  toastTimer = setTimeout(function(){ el.classList.remove('show'); }, 1100);
+}
+
+/* ============================================================
+   3. 状態(state)
+   ============================================================ */
+var settings = {
+  grade: 'elementary',   // 'elementary' | 'extended'
+  rule: 'normal',        // 'normal' | 'advanced'
+  mode: 'multi',         // 'multi' | 'solo'
+  playerCount: 2,
+  handSize: 4,
+  soloType: 'time',       // 'time' | 'miss'
+  eraEndIndex: 15         // ERAS配列のインデックス。初期値は最後(令和=すべての時代)
+};
+
+var game = null; // 対局中の状態オブジェクト（後述 initMultiGame / initSoloGame で構築）
+var uiLocked = false; // 配置アニメーション中に連打で二重処理されるのを防ぐロック
+
+/* ============================================================
+   4. トップメニュー：選択UIの配線
+   ============================================================ */
+function wireOptionGroup(containerId, dataAttr, onSelect){
+  var container = document.getElementById(containerId);
+  if(!container) return;
+  container.addEventListener('click', function(e){
+    var btn = e.target.closest('button');
+    if(!btn || !container.contains(btn) || !btn.hasAttribute(dataAttr)) return;
+    container.querySelectorAll('button').forEach(function(b){ b.classList.remove('selected'); });
+    btn.classList.add('selected');
+    onSelect(btn.getAttribute(dataAttr));
+  });
+}
+/* 同じ設定を持つ別の選択グループの表示も合わせる（ルールは対戦・ソロ両方にある） */
+function markSelected(containerId, dataAttr, value){
+  var c = document.getElementById(containerId);
+  if(!c) return;
+  c.querySelectorAll('button').forEach(function(b){
+    b.classList.toggle('selected', b.getAttribute(dataAttr) === String(value));
+  });
+}
+/* いまの設定で出題できるカードの枚数 */
+function poolCount(grade, eraIdx){
+  var endYear = ERAS[eraIdx] ? ERAS[eraIdx].endYear : ERAS[ERAS.length - 1].endYear;
+  return CHARACTERS.filter(function(c){
+    return (grade === 'extended' ? true : c.grade === 'e') && c.year <= endYear;
+  }).length;
+}
+function refreshLevelCounts(){
+  var e = document.getElementById('level-count-e');
+  var m = document.getElementById('level-count-m');
+  if(e) e.textContent = 'きほん（' + poolCount('elementary', settings.eraEndIndex) + '枚）';
+  if(m) m.textContent = 'むずかしい（' + poolCount('extended', settings.eraEndIndex) + '枚）';
+}
+wireOptionGroup('grade-options', 'data-grade', function(v){ settings.grade = v; });
+['rule-options-multi','rule-options-solo'].forEach(function(id){
+  wireOptionGroup(id, 'data-rule', function(v){
+    settings.rule = v;
+    markSelected('rule-options-multi', 'data-rule', v);
+    markSelected('rule-options-solo', 'data-rule', v);
+  });
+});
+wireOptionGroup('player-count-options', 'data-count', function(v){ settings.playerCount = parseInt(v,10); });
+wireOptionGroup('hand-size-options', 'data-hand', function(v){ settings.handSize = parseInt(v,10); });
+wireOptionGroup('solo-type-options', 'data-solotype', function(v){ settings.soloType = v; });
+
+function renderEraOptions(){
+  var row = document.getElementById('era-options');
+  row.innerHTML = '';
+  ERAS.forEach(function(era, idx){
+    var n = poolCount(settings.grade, idx);
+    var btn = document.createElement('button');
+    btn.className = 'wa-chip era-chip' + (idx === settings.eraEndIndex ? ' selected' : '');
+    btn.innerHTML = escapeHtml(era.label) + '<span class="wa-sub">' + n + '枚</span>';
+    if(n < 2) btn.disabled = true;   // カードが少なすぎる範囲は選べないようにする
+    btn.addEventListener('click', function(){
+      settings.eraEndIndex = idx;
+      row.querySelectorAll('button').forEach(function(b){ b.classList.remove('selected'); });
+      btn.classList.add('selected');
+    });
+    row.appendChild(btn);
+  });
+}
+renderEraOptions();
+
+document.getElementById('open-scope-btn').addEventListener('click', function(){ showScreen('scope-screen'); });
+document.getElementById('open-level-btn').addEventListener('click', function(){ showScreen('level-screen'); });
+document.getElementById('open-play-btn').addEventListener('click', function(){ showScreen('mode-screen'); });
+
+document.getElementById('mode-multi-btn').addEventListener('click', function(){
+  settings.mode = 'multi';
+  showScreen('setup-multi-screen');
+});
+document.getElementById('mode-solo-btn').addEventListener('click', function(){
+  settings.mode = 'solo';
+  showScreen('setup-solo-screen');
+});
+
+document.querySelectorAll('[data-back]').forEach(function(btn){
+  btn.addEventListener('click', function(){ showScreen(btn.getAttribute('data-back')); });
+});
+document.getElementById('menu-back-btn').addEventListener('click', function(){
+  cancelAllTimers();
+  showScreen('menu-screen');
+});
+
+/* ============================================================
+   5. デッキ生成
+   ============================================================ */
+function buildDeck(){
+  var endYear = ERAS[settings.eraEndIndex] ? ERAS[settings.eraEndIndex].endYear : ERAS[ERAS.length - 1].endYear;
+  var pool = CHARACTERS.filter(function(c){
+    var gradeOk = settings.grade === 'extended' ? true : c.grade === 'e';
+    return gradeOk && c.year <= endYear;
+  });
+  return shuffle(pool);
+}
+
+/* 正しい挿入位置(ギャップindex)を、現在のtimeline(年代昇順配列)から求める */
+function correctGapIndex(timeline, year){
+  var idx = 0;
+  while(idx < timeline.length && timeline[idx].year <= year) idx++;
+  return idx;
+}
+
+/* ============================================================
+   5.5 カードを飛ばす演出
+   ============================================================ */
+/* ▲マーカーの位置(横方向)を基準に、実際にカードが現れる「上段（カード行）」の
+   位置・サイズを算出する。既存カードの実測サイズを使うので、カードデザインを
+   変えてもここを直す必要がない。 */
+function computeInsertTargetRect(markerEl){
+  var gapRect = markerEl.getBoundingClientRect();
+  var refCard = document.querySelector('#timeline-wrap .tl-card');
+  var w, h, top;
+  if(refCard){
+    var r = refCard.getBoundingClientRect();
+    w = r.width; h = r.height; top = r.top;
+  } else {
+    w = 96; h = 148; top = gapRect.top - (h + 12);
+  }
+  var centerX = gapRect.left + gapRect.width / 2;
+  return { left: centerX - w / 2, top: top, width: w, height: h };
+}
+
+/* 手札のカードを一回り大きくポップさせてから、年表上の着地位置(target)へ
+   スーッと移動させ、そこで実際の年表カードと同じサイズへ収束させる。
+   target は DOM要素、または {left,top,width,height} のどちらでもよい。 */
+function playFlyAnimation(sourceEl, target, onDone){
+  if(!sourceEl || !target){ onDone(); return; }
+  var sRect = sourceEl.getBoundingClientRect();
+  var tRect = (typeof target.getBoundingClientRect === 'function') ? target.getBoundingClientRect() : target;
+
+  var clone = document.createElement('div');
+  clone.className = 'fly-card';
+  clone.innerHTML = sourceEl.innerHTML;
+  document.body.appendChild(clone);
+
+  var bigW = 132, bigH = 168;
+  clone.style.left = (sRect.left + sRect.width / 2 - bigW / 2) + 'px';
+  clone.style.top = (sRect.top + sRect.height / 2 - bigH / 2) + 'px';
+  clone.style.width = bigW + 'px';
+  clone.style.height = bigH + 'px';
+
+  sourceEl.style.visibility = 'hidden';
+
+  requestAnimationFrame(function(){
+    requestAnimationFrame(function(){
+      clone.style.left = tRect.left + 'px';
+      clone.style.top = tRect.top + 'px';
+      clone.style.width = tRect.width + 'px';
+      clone.style.height = tRect.height + 'px';
+      clone.style.borderRadius = '10px';
+    });
+  });
+
+  var done = false;
+  function finish(){
+    if(done) return;
+    done = true;
+    clone.remove();
+    onDone();
+  }
+  clone.addEventListener('transitionend', finish);
+  T(finish, 600); // 保険：transitionendが発火しない端末があるため
+}
+
+/* 誤答（通常ルール）：カードを軽く揺らして消す演出 */
+function playShakeAndRemove(sourceEl, onDone){
+  if(!sourceEl){ onDone(); return; }
+  sourceEl.classList.add('shake-out');
+  var done = false;
+  function finish(){
+    if(done) return;
+    done = true;
+    onDone();
+  }
+  sourceEl.addEventListener('animationend', finish);
+  T(finish, 500);
+}
+
+/* 年表に新しいカードが差し込まれる直前の、既存カードの位置を記録しておく（FLIP法） */
+function captureTimelineRects(){
+  var map = {};
+  document.querySelectorAll('#timeline-wrap .tl-card').forEach(function(el){
+    map[el.dataset.id] = el.getBoundingClientRect();
+  });
+  return map;
+}
+
+/* 差し込み後、既存カードが新しい位置へ「ニョーン」とスライドしながら間を空けるように見せる */
+function playTimelineFlip(oldRects){
+  var toAnimate = [];
+  document.querySelectorAll('#timeline-wrap .tl-card').forEach(function(el){
+    var old = oldRects[el.dataset.id];
+    if(!old) return; // 今回新しく差し込まれたカードはアニメーション対象外（すでに飛来演出で着地済み）
+    var now = el.getBoundingClientRect();
+    var dx = old.left - now.left;
+    if(Math.abs(dx) < 0.5) return;
+    el.style.transition = 'none';
+    el.style.transform = 'translateX(' + dx + 'px)';
+    toAnimate.push(el);
+  });
+  if(toAnimate.length === 0) return;
+  requestAnimationFrame(function(){
+    requestAnimationFrame(function(){
+      toAnimate.forEach(function(el){
+        el.style.transition = 'transform .38s cubic-bezier(.4,0,.2,1)';
+        el.style.transform = '';
+      });
+    });
+  });
+}
+
+/* ============================================================
+   6. 対戦モード（みんなで対戦・ローカル回し打ち）
+   ============================================================ */
+function initMultiGame(){
+  uiLocked = false;
+  var deck = buildDeck();
+  if(deck.length < settings.playerCount * settings.handSize + 1){
+    showToast('カードが足りません。人数や手札枚数を減らしてね', 'ng');
+    showScreen('setup-multi-screen');
+    return;
+  }
+
+  var timeline = [deck.pop()]; // 基準カードを1枚オモテで場に置く
+
+  var players = [];
+  for(var p = 0; p < settings.playerCount; p++){
+    var hand = [];
+    for(var h = 0; h < settings.handSize; h++){ hand.push(deck.pop()); }
+    players.push({ name:'プレイヤー' + (p+1), hand:hand, misses:0 });
+  }
+
+  game = {
+    type:'multi',
+    deck: deck,
+    timeline: timeline,
+    players: players,
+    currentPlayerIndex: 0,
+    selectedHandCardId: null
+  };
+
+  showScreen('game-screen');
+  renderGame();
+}
+
+function currentPlayer(){ return game.players[game.currentPlayerIndex]; }
+
+function nextTurnMulti(){
+  game.selectedHandCardId = null;
+  var total = game.players.length;
+  var hasActivePlayer = game.players.some(function(pl){ return pl.hand.length > 0; });
+  if(!hasActivePlayer){
+    endMultiGameStalemate();
+    return;
+  }
+  for(var i = 0; i < total; i++){
+    game.currentPlayerIndex = (game.currentPlayerIndex + 1) % total;
+    if(game.players[game.currentPlayerIndex].hand.length > 0) break;
+  }
+  renderGame();
+}
+
+function drawOne(){
+  if(game.deck.length === 0) return null;
+  return game.deck.pop();
+}
+
+function handleMultiPlacement(card, gapIndex, gapEl, sourceEl){
+  if(uiLocked) return;
+  uiLocked = true;
+  var correct = correctGapIndex(game.timeline, card.year);
+  var player = currentPlayer();
+
+  if(gapIndex === correct){
+    showToast('せいかい！', 'ok');
+    playFlyAnimation(sourceEl, computeInsertTargetRect(gapEl), function(){
+      var oldRects = captureTimelineRects();
+      game.timeline.splice(correct, 0, card);
+      player.hand = player.hand.filter(function(c){ return c.id !== card.id; });
+      if(player.hand.length === 0){
+        uiLocked = false;
+        endMultiGame(player);
+        return;
+      }
+      nextTurnMulti();
+      playTimelineFlip(oldRects);
+      uiLocked = false;
+    });
+    return;
+  }
+
+  player.misses++;
+  if(settings.rule === 'normal'){
+    showToast('ざんねん…カードを捨てて1枚引いたよ', 'ng');
+    playShakeAndRemove(sourceEl, function(){
+      player.hand = player.hand.filter(function(c){ return c.id !== card.id; });
+      var drawn = drawOne();
+      if(drawn) player.hand.push(drawn);
+      nextTurnMulti();
+      uiLocked = false;
+    });
+  } else {
+    showToast('ざんねん…正しい位置に直されて場に追加されたよ', 'ng');
+    var gaps = document.querySelectorAll('#timeline-wrap .tl-marker-btn');
+    var correctGapEl = gaps[correct];
+    playFlyAnimation(sourceEl, computeInsertTargetRect(correctGapEl), function(){
+      var oldRects = captureTimelineRects();
+      game.timeline.splice(correct, 0, card);
+      player.hand = player.hand.filter(function(c){ return c.id !== card.id; });
+      var drawn2 = drawOne();
+      if(drawn2) player.hand.push(drawn2);
+      nextTurnMulti();
+      playTimelineFlip(oldRects);
+      uiLocked = false;
+    });
+  }
+}
+
+function endMultiGame(winner){
+  document.getElementById('result-title').textContent = winner.name + 'の勝ち！';
+  document.getElementById('result-sub').textContent = '手札をすべて出しきりました';
+  showScreen('result-screen');
+}
+
+function endMultiGameStalemate(){
+  var best = game.players[0];
+  var tie = false;
+  game.players.forEach(function(pl){
+    if(pl.misses < best.misses){ best = pl; tie = false; }
+    else if(pl.misses === best.misses && pl !== best){ tie = true; }
+  });
+  if(tie){
+    document.getElementById('result-title').textContent = '山札切れ・引き分け！';
+  } else {
+    document.getElementById('result-title').textContent = '山札切れ・' + best.name + 'の勝ち！';
+  }
+  document.getElementById('result-sub').textContent = 'まちがえた回数がいちばん少ない人が勝ちです';
+  showScreen('result-screen');
+}
+
+/* ============================================================
+   7. ソロチャレンジモード
+   ============================================================ */
+function initSoloGame(){
+  uiLocked = false;
+  var deck = buildDeck();
+  if(deck.length < 2){
+    showToast('カードが足りません', 'ng');
+    showScreen('setup-solo-screen');
+    return;
+  }
+  var timeline = [deck.pop()];
+  var current = deck.pop();
+
+  game = {
+    type:'solo',
+    deck: deck,
+    timeline: timeline,
+    current: current,
+    correctCount: 0,
+    missCount: 0,
+    soloType: settings.soloType,
+    timeLeft: 90,
+    timerId: null,
+    ended: false
+  };
+
+  showScreen('game-screen');
+  renderGame();
+
+  if(game.soloType === 'time'){
+    game.timerId = setInterval(function(){
+      if(!game || game.ended) return;
+      game.timeLeft--;
+      if(game.timeLeft <= 0){
+        game.timeLeft = 0;
+        renderHud();
+        endSoloGame();
+      } else {
+        renderHud();
+      }
+    }, 1000);
+  }
+}
+
+function finishSoloStep(){
+  if(game.soloType === 'miss' && game.missCount >= 3){
+    endSoloGame();
+    return;
+  }
+  if(game.deck.length === 0){
+    endSoloGame();
+    return;
+  }
+  game.current = game.deck.pop();
+  renderGame();
+}
+
+function handleSoloPlacement(gapIndex, gapEl, sourceEl){
+  if(uiLocked) return;
+  uiLocked = true;
+  var card = game.current;
+  var correct = correctGapIndex(game.timeline, card.year);
+
+  if(gapIndex === correct){
+    showToast('せいかい！', 'ok');
+    playFlyAnimation(sourceEl, computeInsertTargetRect(gapEl), function(){
+      var oldRects = captureTimelineRects();
+      game.timeline.splice(correct, 0, card);
+      game.correctCount++;
+      finishSoloStep();
+      if(!game.ended){ playTimelineFlip(oldRects); }
+      uiLocked = false;
+    });
+    return;
+  }
+
+  game.missCount++;
+  if(settings.rule === 'advanced'){
+    showToast('ざんねん…正しい位置に直されたよ', 'ng');
+    var gaps = document.querySelectorAll('#timeline-wrap .tl-marker-btn');
+    var correctGapEl = gaps[correct];
+    playFlyAnimation(sourceEl, computeInsertTargetRect(correctGapEl), function(){
+      var oldRects = captureTimelineRects();
+      game.timeline.splice(correct, 0, card);
+      finishSoloStep();
+      if(!game.ended){ playTimelineFlip(oldRects); }
+      uiLocked = false;
+    });
+  } else {
+    showToast('ざんねん…', 'ng');
+    playShakeAndRemove(sourceEl, function(){
+      finishSoloStep();
+      uiLocked = false;
+    });
+  }
+}
+
+function endSoloGame(){
+  if(!game || game.ended) return;
+  game.ended = true;
+  if(game.timerId){ clearInterval(game.timerId); game.timerId = null; }
+  document.getElementById('result-title').textContent = 'チャレンジ終了！';
+  var subMsg = '正解 ' + game.correctCount + '枚 ／ ミス ' + game.missCount + '回';
+  document.getElementById('result-sub').textContent = subMsg;
+  showScreen('result-screen');
+}
+
+/* ============================================================
+   8. スタートボタン
+   ============================================================ */
+document.getElementById('start-multi-btn').addEventListener('click', initMultiGame);
+document.getElementById('start-solo-btn').addEventListener('click', initSoloGame);
+
+document.getElementById('retry-btn').addEventListener('click', function(){
+  if(!game) { showScreen('menu-screen'); return; }
+  if(game.type === 'multi') initMultiGame();
+  else initSoloGame();
+});
+
+/* ============================================================
+   9. 描画
+   ============================================================ */
+function cardInnerHtml(c){
+  var img = c.image
+    ? '<img src="' + escapeHtml(c.image) + '" style="width:24px;height:24px;border-radius:50%;object-fit:cover;flex:0 0 auto;" alt="">'
+    : '<div class="img-ph"></div>';
+  return img +
+    '<div class="info">' +
+      '<div class="name">' + escapeHtml(c.name) + '</div>' +
+      '<div class="event">' + escapeHtml(c.achievement) + '</div>' +
+    '</div>' +
+    '<div class="year">' + c.year + '年</div>';
+}
+function handCardInnerHtml(c){
+  var img = c.image
+    ? '<img src="' + escapeHtml(c.image) + '" style="width:40px;height:40px;border-radius:50%;object-fit:cover;margin-bottom:6px;" alt="">'
+    : '<div class="img-ph"></div>';
+  return img +
+    '<div class="name">' + escapeHtml(c.name) + '</div>' +
+    '<div class="event">' + escapeHtml(c.achievement) + '</div>';
+}
+
+function renderHud(){
+  if(!game) return;
+  var turnLabel = document.getElementById('turn-label');
+  var deckCount = document.getElementById('deck-count');
+
+  if(game.type === 'multi'){
+    turnLabel.textContent = currentPlayer().name + 'のばん';
+    deckCount.textContent = '山札:' + game.deck.length + '枚';
+  } else {
+    turnLabel.textContent = '正解 ' + game.correctCount + '枚';
+    var timeStr = game.soloType === 'time' ? ('残り時間:' + game.timeLeft + '秒') : ('ミス:' + game.missCount + '/3');
+    deckCount.textContent = '山札:' + game.deck.length + '枚　' + timeStr;
+  }
+}
+
+function renderTimeline(onGapTap){
+  var wrap = document.getElementById('timeline-wrap');
+  wrap.innerHTML = '';
+
+  var n = game.timeline.length;
+  var grid = document.createElement('div');
+  grid.className = 'tl-grid';
+  var cols = [];
+  for(var i = 0; i < n; i++){ cols.push('var(--gapw)'); cols.push('var(--cardw)'); }
+  cols.push('var(--gapw)');
+  grid.style.gridTemplateColumns = cols.join(' ');
+
+  // 下段：▲マーカー（挿入位置）。カードの間の空きを圧迫しないよう別段に配置。
+  for(var g = 0; g <= n; g++){
+    var cell = document.createElement('div');
+    cell.className = 'tl-marker-cell';
+    cell.style.gridColumn = (2 * g + 1);
+    cell.style.gridRow = 2;
+    var btn = document.createElement('button');
+    btn.className = 'tl-marker-btn pickable';
+    btn.textContent = '▲';
+    btn.dataset.gap = g;
+    btn.addEventListener('click', (function(idx, btnEl){
+      return function(){ onGapTap(idx, btnEl); };
+    })(g, btn));
+    cell.appendChild(btn);
+    grid.appendChild(cell);
+  }
+
+  // 上段：カード本体
+  game.timeline.forEach(function(c, i){
+    var card = document.createElement('div');
+    card.className = 'tl-card';
+    card.dataset.id = c.id;
+    card.style.gridColumn = (2 * (i + 1));
+    card.style.gridRow = 1;
+    card.innerHTML = cardInnerHtml(c);
+    grid.appendChild(card);
+  });
+
+  wrap.appendChild(grid);
+}
+
+function renderHandMulti(){
+  var row = document.getElementById('hand-row');
+  row.innerHTML = '';
+  var player = currentPlayer();
+  if(player.hand.length === 0){
+    row.innerHTML = '<div class="hand-empty-msg">手札がありません</div>';
+    return;
+  }
+  player.hand.forEach(function(c){
+    var el = document.createElement('div');
+    el.className = 'hand-card' + (game.selectedHandCardId === c.id ? ' selected' : '');
+    el.innerHTML = handCardInnerHtml(c);
+    attachCardDrag(el, {
+      onTap: function(){
+        game.selectedHandCardId = (game.selectedHandCardId === c.id) ? null : c.id;
+        renderGame();
+      },
+      onDrop: function(gapIndex, gapEl, srcEl){
+        handleMultiPlacement(c, gapIndex, gapEl, srcEl);
+      }
+    });
+    row.appendChild(el);
+  });
+}
+
+function renderHandSolo(){
+  var row = document.getElementById('hand-row');
+  row.innerHTML = '';
+  if(!game.current) return;
+  var el = document.createElement('div');
+  el.className = 'hand-card selected';
+  el.innerHTML = handCardInnerHtml(game.current);
+  attachCardDrag(el, {
+    onTap: function(){ /* ソロは常に唯一のカードが選択状態なので何もしない */ },
+    onDrop: function(gapIndex, gapEl, srcEl){
+      handleSoloPlacement(gapIndex, gapEl, srcEl);
+    }
+  });
+  row.appendChild(el);
+}
+
+/* 手札カードをタップ（選択）／年表の▲マーカーへ指でドラッグして差し込む、両方に対応 */
+function attachCardDrag(el, opts){
+  var st = null;
+  var THRESHOLD = 12;
+
+  function findMarker(x, y){
+    var under = document.elementFromPoint(x, y);
+    return under ? under.closest('.tl-marker-btn') : null;
+  }
+  function clearMarkerHighlight(){
+    document.querySelectorAll('.tl-marker-btn.drag-over').forEach(function(m){ m.classList.remove('drag-over'); });
+  }
+
+  el.addEventListener('pointerdown', function(e){
+    if(e.button !== undefined && e.button !== 0) return;
+    // 前回のドラッグの後片付けが漏れていた場合の保険
+    if(st && st.ghost) st.ghost.remove();
+    document.querySelectorAll('.fly-card.drag-ghost').forEach(function(g){ g.remove(); });
+    st = { id:e.pointerId, sx:e.clientX, sy:e.clientY, moved:false, ghost:null };
+    try{ el.setPointerCapture(e.pointerId); }catch(err){}
+  });
+
+  el.addEventListener('pointermove', function(e){
+    if(!st || st.id !== e.pointerId) return;
+    var dx = e.clientX - st.sx, dy = e.clientY - st.sy;
+    if(!st.moved && Math.sqrt(dx * dx + dy * dy) > THRESHOLD){
+      st.moved = true;
+      st.ghost = document.createElement('div');
+      st.ghost.className = 'fly-card drag-ghost';
+      st.ghost.innerHTML = el.innerHTML;
+      document.body.appendChild(st.ghost);
+      el.style.visibility = 'hidden';
+    }
+    if(st.moved){
+      e.preventDefault();
+      var w = 120, h = 156;
+      st.ghost.style.left = (e.clientX - w / 2) + 'px';
+      st.ghost.style.top = (e.clientY - h / 2) + 'px';
+      st.ghost.style.width = w + 'px';
+      st.ghost.style.height = h + 'px';
+      var marker = findMarker(e.clientX, e.clientY);
+      clearMarkerHighlight();
+      if(marker) marker.classList.add('drag-over');
+    }
+  });
+
+  function endDrag(e){
+    if(!st || st.id !== e.pointerId) return;
+    var wasMoved = st.moved;
+    if(st.ghost) st.ghost.remove();
+    clearMarkerHighlight();
+    el.style.visibility = '';
+    try{ el.releasePointerCapture(e.pointerId); }catch(err){}
+
+    if(wasMoved){
+      var marker = findMarker(e.clientX, e.clientY);
+      if(marker){
+        var gapIndex = parseInt(marker.dataset.gap, 10);
+        opts.onDrop(gapIndex, marker, el);
+      }
+    } else {
+      opts.onTap();
+    }
+    st = null;
+  }
+  el.addEventListener('pointerup', endDrag);
+  el.addEventListener('pointercancel', function(e){
+    if(st && st.ghost) st.ghost.remove();
+    if(st) el.style.visibility = '';
+    clearMarkerHighlight();
+    st = null;
+  });
+}
+
+function renderGame(){
+  if(!game) return;
+  // ドラッグ演出の分身が万一残っていた場合の保険的クリーンアップ
+  document.querySelectorAll('.fly-card.drag-ghost').forEach(function(g){ g.remove(); });
+  renderHud();
+
+  var hint = document.getElementById('hint-bar');
+
+  if(game.type === 'multi'){
+    var selectedCard = null;
+    if(game.selectedHandCardId != null){
+      selectedCard = currentPlayer().hand.find(function(c){ return c.id === game.selectedHandCardId; });
+    }
+    renderTimeline(function(gapIndex, gapEl){
+      if(!selectedCard){
+        showToast('先に手札のカードをえらんでね', 'ng');
+        return;
+      }
+      var srcEl = document.querySelector('.hand-card.selected');
+      handleMultiPlacement(selectedCard, gapIndex, gapEl, srcEl);
+    });
+    renderHandMulti();
+    hint.textContent = selectedCard
+      ? (selectedCard.name + ' を年表のどこに置くか ▲ をタップ／指でドラッグ')
+      : '手札のカードをえらんでね(タップ or ドラッグ)';
+  } else {
+    renderTimeline(function(gapIndex, gapEl){
+      var srcEl = document.querySelector('#hand-row .hand-card');
+      handleSoloPlacement(gapIndex, gapEl, srcEl);
+    });
+    renderHandSolo();
+    hint.textContent = game.current ? (game.current.name + ' を年表のどこに置くか ▲ をタップ／指でドラッグ') : '';
+  }
+}
+
+})();
+</script>
+</body>
+</html>
