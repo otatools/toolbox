@@ -1,3159 +1,1510 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
+<!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-YTH979WTKL"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+  gtag('config', 'G-YTH979WTKL');
+</script>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>顔ぼかし＆結合ツール</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>歴史ならべ</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Shippori+Mincho:wght@500;700&display=swap">
+<link rel="icon" type="image/png" sizes="1x1" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=">
 <style>
-  :root{
-    --bg:#f4f5f7;
-    --panel:#ffffff;
-    --border:#e0e2e7;
-    --accent:#3f6fd6;
-    --accent-dark:#2f56ad;
-    --text:#232530;
-    --sub:#6b7080;
-    --danger:#d9534f;
-    --ok:#3f9d5b;
-  }
-  *{box-sizing:border-box;}
-  body{
-    margin:0;
-    font-family:"Hiragino Kaku Gothic ProN","Yu Gothic",Meiryo,system-ui,-apple-system,sans-serif;
-    background:var(--bg);
-    color:var(--text);
-    padding:16px;
-    line-height:1.4;
-  }
-  h1{font-size:17px;margin:0;font-weight:700;}
-  .app-header{
-    display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;
-    margin:-16px -16px 12px;
-    padding:10px 16px;
-    position:sticky;top:0;z-index:100;
-    background:var(--bg);
-    box-shadow:0 2px 6px rgba(0,0,0,0.06);
-  }
-  .app-header-right{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
-  .status-pill{
-    font-size:11px;padding:4px 10px;border-radius:999px;white-space:nowrap;
-    background:#fff8e1;border:1px solid #f0d98c;color:#7a5c00;
-    transition:opacity .5s ease, max-width .5s ease, padding .5s ease;
-    max-width:400px;overflow:hidden;
-  }
-  .status-pill.ok{background:#eefaf0;border-color:#bfe6c8;color:#1f6b34;}
-  .status-pill.err{background:#fdeceb;border-color:#f2bdb9;color:#9c2c26;}
-  .status-pill.hidden{opacity:0;max-width:0;padding:4px 0;border-width:0;margin:0;}
-  h2{font-size:16px;margin:0 0 12px;display:flex;align-items:center;gap:8px;}
-  .step-badge{
-    display:inline-flex;align-items:center;justify-content:center;
-    width:22px;height:22px;border-radius:50%;background:var(--accent);color:#fff;
-    font-size:12px;font-weight:bold;flex:none;
-  }
-  .subtitle{color:var(--sub);font-size:13px;margin-bottom:14px;}
-  .panel{
-    background:var(--panel);
-    border:1px solid var(--border);
-    border-radius:12px;
-    padding:14px;
-    margin-bottom:14px;
-  }
-  .dropzone{
-    border:2px dashed #b7bdd0;
-    border-radius:10px;
-    padding:22px 16px;
-    text-align:center;
-    color:var(--sub);
-    cursor:pointer;
-    transition:.15s;
-    background:#fafbfe;
-  }
-  .dropzone.drag{ background:#eef2ff; border-color:var(--accent); color:var(--accent-dark); }
-  .dropzone strong{color:var(--text);}
-  input[type=file]{display:none;}
-  .btn{
-    appearance:none;border:1px solid var(--border);background:#fff;color:var(--text);
-    padding:8px 14px;border-radius:8px;font-size:13px;cursor:pointer;font-weight:600;
-  }
-  .btn:hover{border-color:var(--accent);color:var(--accent-dark);}
-  .btn.primary{background:var(--accent);border-color:var(--accent);color:#fff;}
-  .btn.primary:hover{background:var(--accent-dark);border-color:var(--accent-dark);color:#fff;}
-  .btn.danger{border-color:var(--danger);color:var(--danger);}
-  .btn.danger:hover{background:#fdeceb;}
-  .btn.small{padding:5px 10px;font-size:12px;}
-  .btn[disabled]{opacity:.45;cursor:not-allowed;}
-  .btn.toggle.active{background:var(--accent);border-color:var(--accent);color:#fff;}
+:root{
+  --app-h:100vh;
+  --bg:#f3f1e9;
+  --ink:#3a2e20;
+  --accent:#c0392b;
+  --accent2:#2d6a4f;
+  --card:#fffaf0;
+  --line:#d8c9a3;
+  --gold:#b8860b;
+  --mincho:"Shippori Mincho","Yu Mincho",YuMincho,"Hiragino Mincho ProN","MS PMincho",serif;
+}
+@supports (height:100dvh){ :root{ --app-h:100dvh; } }
+*{ box-sizing:border-box; touch-action:manipulation; -webkit-touch-callout:none; -webkit-tap-highlight-color:transparent; }
+html,body{ margin:0; padding:0; background:var(--bg); overscroll-behavior-y:none; }
+body{
+  height:var(--app-h);
+  font-family:"Hiragino Maru Gothic ProN","Hiragino Sans","Yu Gothic",sans-serif;
+  color:var(--ink);
+  overflow:hidden;
+  user-select:none;
+}
+input,textarea{ user-select:text; }
 
-  .thumb-grid{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;}
-  .thumb{
-    width:96px;position:relative;border:2px solid transparent;border-radius:8px;
-    overflow:hidden;cursor:pointer;background:#eee;
-  }
-  .thumb.selected{border-color:var(--accent);}
-  .thumb img{width:100%;height:70px;object-fit:cover;display:block;}
-  .thumb .name{font-size:10px;padding:3px 5px;background:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-  .thumb .badge{
-    position:absolute;top:4px;left:4px;background:rgba(0,0,0,.55);color:#fff;
-    font-size:10px;padding:1px 5px;border-radius:8px;
-  }
-  .thumb .rm{
-    position:absolute;top:2px;right:2px;background:rgba(0,0,0,.55);color:#fff;border:none;
-    border-radius:50%;width:18px;height:18px;font-size:11px;cursor:pointer;line-height:18px;padding:0;
-  }
-  .thumb .check{
-    position:absolute;bottom:22px;right:4px;width:18px;height:18px;
-  }
+#app{ height:100%; width:100%; opacity:0; transition:opacity .25s ease; display:flex; flex-direction:column; }
+#app.ready{ opacity:1; }
 
-  .editor-layout{display:flex;gap:12px;flex-wrap:wrap;margin-top:14px;align-items:flex-start;}
-  /* STEP1は画像を必ず左・ツールを必ず右に保つ。画像側は縮めず、ツール側だけが幅に合わせて縮む（中のボタン等は自然に折り返す） */
-  #editorPanel .editor-layout{flex-wrap:nowrap;}
-  .editor-canvas-col{display:inline-flex;flex-direction:column;gap:8px;flex:0 0 auto;max-width:100%;min-width:0;}
-  .editor-canvas-col .field{margin-bottom:0;}
-  .editor-canvas-wrap{
-    flex:0 1 auto; max-width:100%;
-    background:#20222c;border-radius:8px;padding:6px;
-    display:inline-flex;align-items:center;justify-content:center;
-  }
-  .editor-canvas-wrap canvas{max-width:100%;max-height:min(62vh,640px);width:auto;height:auto;display:block;cursor:default;border-radius:4px;}
-  #editCanvasWrap{
-    overflow:hidden;
-    align-items:center;justify-content:center;min-width:0;flex:0 0 auto;
-    /* 実際の幅・高さはJSでpx指定する（写真が横長か縦長かで4:3／3:4に切り替える。flexboxでのaspect-ratioの挙動に依存しないための措置） */
-  }
-  #editCanvasWrap.zoomed{overflow:auto;align-items:flex-start;justify-content:flex-start;}
-  #editCanvasWrap canvas{max-width:100%;max-height:100%;width:auto;height:auto;}
-  .editor-side{flex:1 1 220px;min-width:200px;}
-  #editorPanel .editor-side{flex:1 1 0;min-width:0;}
-  .step2-side-left{flex:0 0 170px;min-width:150px;}
-  .step2-side-left .field{margin-bottom:16px;}
-  /* 並べ方プリセットは3列で表示（使うほど左上に上がってくる）。ウィンドウが狭い時だけ2列に落とす */
-  .step2-side-left .layout-preset-grid{display:grid;grid-template-columns:repeat(3, 1fr);gap:6px;}
-  .step2-side-left .preset-icon{width:100%;height:auto;aspect-ratio:1/1;}
-  @media (max-width: 700px){
-    .step2-side-left{flex:0 0 140px;min-width:120px;}
-    .step2-side-left .layout-preset-grid{grid-template-columns:repeat(2, 1fr);}
-  }
-  .field{margin-bottom:14px;}
-  .field label{display:block;font-size:12px;color:var(--sub);margin-bottom:4px;font-weight:600;}
-  .field input[type=range]{width:100%;}
-  .field select{width:100%;padding:6px;border-radius:6px;border:1px solid var(--border);}
-  .row-val{font-size:11px;color:var(--sub);float:right;}
-  .btn-row{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;}
-  .btn-grid-2{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;}
-  .btn-grid-2 .btn{width:100%;white-space:normal;line-height:1.3;}
-  .empty-hint{color:var(--sub);font-size:13px;text-align:center;padding:20px 0;}
+.screen{ display:none; flex-direction:column; height:100%; width:100%; padding:16px; }
+.screen.active{ display:flex; }
 
-  .layout-preset-grid{display:flex;flex-wrap:wrap;gap:10px;}
-  .hscroll{flex-wrap:nowrap !important;overflow-x:auto;padding-bottom:6px;}
-  .hscroll > *{flex:none;}
-  #thumbGrid2.thumb-grid{gap:10px;margin-top:8px;}
-  #thumbGrid2 .thumb{width:140px;}
-  #thumbGrid2 .thumb img{height:100px;}
-  #thumbGrid2 .thumb .name{display:none;}
-  .slot-action-row .btn{flex:1 1 0;min-width:0;text-align:center;padding-left:6px;padding-right:6px;}
-  .hscroll::-webkit-scrollbar{height:6px;}
-  .hscroll::-webkit-scrollbar-thumb{background:#c7cbd8;border-radius:3px;}
-  .preset-icon{flex:none;}
-  .preset-icon{
-    width:64px;height:64px;border:2px solid var(--border);border-radius:8px;background:#fff;
-    position:relative;cursor:pointer;overflow:hidden;padding:4px;box-sizing:border-box;
-  }
-  .preset-icon.active{border-color:var(--accent);box-shadow:0 0 0 2px rgba(63,111,214,.25);}
-  .preset-icon .r{position:absolute;background:#c9d3ee;border:1px solid #fff;box-sizing:border-box;}
-  #collageCanvasWrap{background:#20222c;border-radius:8px;padding:6px;display:inline-flex;align-items:center;justify-content:center;}
-  #collageBaseCanvas, #collageOverlayCanvas{max-width:100%;max-height:min(62vh,640px);width:auto;height:auto;border-radius:4px;}
-  #step2View.orientation-portrait #collageBaseCanvas,
-  #step2View.orientation-portrait #collageOverlayCanvas{max-height:min(50vh,520px);}
-  #collageOverlayCanvas{cursor:grab;}
-  #collageOverlayCanvas.dragging{cursor:grabbing;}
-  #collageOverlayCanvas.swap-mode{cursor:pointer;}
-  .loading-overlay{
-    position:fixed;inset:0;background:rgba(20,21,28,.45);
-    display:flex;align-items:center;justify-content:center;flex-direction:column;gap:14px;
-    z-index:9999;
-  }
-  .spinner{
-    width:56px;height:56px;border-radius:50%;
-    border:6px solid rgba(255,255,255,.28);border-top-color:#fff;
-    animation:spin .8s linear infinite;
-  }
-  .loading-overlay .loading-label{color:#fff;font-size:13px;font-weight:600;}
-  @keyframes spin{to{transform:rotate(360deg);}}
-  .hint{font-size:11.5px;color:var(--sub);margin-top:6px;}
-  .disabled-panel{opacity:.5;pointer-events:none;}
-  footer{color:var(--sub);font-size:11px;text-align:center;margin-top:16px;}
+h1,h2,h3{ margin:0 0 8px; }
+h1{ font-size:1.5rem; text-align:center; letter-spacing:.05em; }
+/* ---- ゲーム画面 ---- */
+#game-screen{ padding:10px 0 0; }
+.hud{
+  display:flex; justify-content:space-between; align-items:center;
+  padding:0 12px 8px; flex:0 0 auto;
+  width:100%; max-width:1100px; margin:0 auto;
+}
+.hud .turn-label{ font-weight:700; font-size:.95rem; }
+.hud .deck-count{ font-size:.75rem; color:#6b5c42; }
 
-  .tabs{display:flex;gap:8px;margin-bottom:12px;}
-  .tab-btn{
-    flex:1;padding:9px;border-radius:10px;border:1px solid var(--border);background:#fff;
-    color:var(--sub);font-weight:700;font-size:14px;cursor:pointer;
-  }
-  .tab-btn.active{background:var(--accent);border-color:var(--accent);color:#fff;}
-  .tab-btn[disabled]{opacity:.5;cursor:not-allowed;}
-  .next-row{display:flex;justify-content:flex-end;margin-top:12px;}
-  .back-link{background:none;border:none;color:var(--accent-dark);font-size:13px;cursor:pointer;padding:0 0 12px;font-weight:600;}
+#timeline-wrap{
+  flex:1 1 0; min-height:0; overflow-x:auto; overflow-y:hidden;
+  display:flex; align-items:center; padding:6px 12px;
+  background:repeating-linear-gradient(90deg,transparent,transparent 40px,rgba(184,134,11,.08) 40px,rgba(184,134,11,.08) 41px);
+}
+.tl-grid{
+  --gapw: 10px; --cardw: 96px;
+  display:grid; grid-template-rows:148px 34px; row-gap:3px; align-items:center; justify-items:center;
+  padding:4px 4px 8px;
+  margin:auto;            /* 中央ぞろえ。カードが増えて横に収まらなくなったら自動で左端から並ぶ */
+}
+.tl-card{
+  width:100%; height:100%; box-sizing:border-box;
+  background:var(--card); border:2px solid var(--gold); border-radius:10px;
+  display:flex; flex-direction:column; align-items:center; justify-content:space-between;
+  padding:8px 6px; text-align:center; transform:translateX(0);
+}
+.tl-card .img-ph{ width:30px; height:30px; border-radius:50%; background:#eadfc4; flex:0 0 auto; }
+.tl-card .info{ display:flex; flex-direction:column; align-items:center; min-width:0; flex:1 1 auto; justify-content:center; }
+.tl-card .name{ font-weight:700; font-size:.74rem; line-height:1.2; }
+.tl-card .event{
+  font-size:.62rem; color:#6b5c42; line-height:1.2; margin-top:3px;
+  display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;
+}
+.tl-card .year{ font-weight:900; color:var(--accent); font-size:.8rem; flex:0 0 auto; }
+
+.tl-marker-cell{ display:flex; align-items:center; justify-content:center; width:100%; }
+.tl-marker-btn{
+  -webkit-appearance:none; appearance:none; border:none; background:transparent;
+  color:var(--gold); font-size:1.05rem; line-height:1; padding:8px 4px; margin:0;
+  min-width:26px; min-height:30px; border-radius:8px; overflow:visible;
+}
+.tl-marker-btn.pickable{ color:var(--accent); background:#fff3cd; }
+.tl-marker-btn:active{ transform:scale(.85); }
+.tl-marker-btn.drag-over{ background:#ffe08a; transform:scale(1.35); box-shadow:0 0 0 4px rgba(184,134,11,.25); }
+
+#hand-wrap{ flex:0 0 auto; padding:10px 12px 16px; }
+.hand-row{ display:flex; gap:12px; overflow-x:auto; overflow-y:hidden; padding:34px 4px 10px; align-items:flex-end; }
+.hand-row > *:first-child{ margin-left:auto; }   /* 中央ぞろえ（はみ出すときは 0 になる） */
+.hand-row > *:last-child{ margin-right:auto; }
+.hand-card{
+  flex:0 0 auto; width:132px; height:182px; border-radius:16px; border:2px solid var(--line);
+  background:var(--card); display:flex; flex-direction:column; align-items:center; justify-content:center;
+  padding:10px 8px; text-align:center; font-size:.72rem; position:relative;
+  box-shadow:0 2px 4px rgba(0,0,0,.08);
+  transition:transform .18s ease, box-shadow .18s ease, margin .18s ease;
+  touch-action:none;
+}
+.hand-card .img-ph{ width:48px; height:48px; border-radius:50%; background:#eadfc4; margin-bottom:8px; flex:0 0 auto; }
+.hand-card .name{ font-weight:700; font-size:.86rem; line-height:1.25; }
+.hand-card .event{
+  font-size:.68rem; color:#6b5c42; line-height:1.25; margin-top:6px;
+  display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden;
+}
+.hand-card.selected{
+  border-color:var(--accent);
+  transform:translateY(-16px) scale(1.14);
+  box-shadow:0 10px 18px rgba(192,57,43,.35);
+  z-index:5;
+}
+.hand-card.shake-out{ animation:shakeOut .45s ease forwards; }
+@keyframes shakeOut{
+  0%{ transform:translateX(0) scale(1); opacity:1; }
+  20%{ transform:translateX(-6px) scale(1); }
+  40%{ transform:translateX(6px) scale(1); }
+  60%{ transform:translateX(-4px) scale(.96); }
+  80%{ transform:translateX(4px) scale(.9); opacity:.6; }
+  100%{ transform:translateX(0) scale(.75); opacity:0; }
+}
+.hand-empty-msg{ text-align:center; font-size:.8rem; color:#8a7a5c; padding:20px 0; }
+
+.fly-card{
+  position:fixed; z-index:999; pointer-events:none;
+  background:var(--card); border:2px solid var(--gold); border-radius:12px;
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  padding:6px; text-align:center; font-size:.72rem; overflow:hidden;
+  box-shadow:0 10px 22px rgba(0,0,0,.28);
+  transition:left .45s cubic-bezier(.4,0,.2,1), top .45s cubic-bezier(.4,0,.2,1),
+             width .45s cubic-bezier(.4,0,.2,1), height .45s cubic-bezier(.4,0,.2,1),
+             opacity .45s ease, border-radius .45s ease;
+}
+.fly-card .img-ph{ width:32px; height:32px; border-radius:50%; background:#eadfc4; margin-bottom:4px; flex:0 0 auto; }
+.fly-card .name{ font-weight:700; font-size:.7rem; line-height:1.2; }
+.fly-card .event{
+  font-size:.6rem; color:#6b5c42; line-height:1.2; margin-top:4px;
+  display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden;
+}
+.fly-card.drag-ghost{ transition:none; z-index:1000; }
+
+.hint-bar{ text-align:center; font-size:.75rem; color:#6b5c42; min-height:1.1em; padding-bottom:4px; }
+
+/* ---- 結果画面 ---- */
+#result-screen .result-title{
+  font-family:var(--mincho); font-weight:700;
+  font-size:clamp(22px, min(5.2vh, 6.6vw), 44px);
+  letter-spacing:.14em; text-indent:.14em; color:#3f3a2e; line-height:1.35;
+  margin:0 0 clamp(8px, 1.6vh, 16px);
+}
+#result-screen .result-sub{
+  font-family:var(--mincho); font-size:clamp(12px, min(2.2vh, 3.2vw), 20px);
+  letter-spacing:.1em; color:#6b6252; margin:0 0 clamp(20px, 4vh, 40px);
+}
+
+/* トースト（誤答・正解フィードバック） */
+#toast{
+  position:fixed; left:50%; top:14px; transform:translate(-50%,-140%);
+  background:rgba(0,0,0,.82); color:#fff; padding:10px 18px; border-radius:999px;
+  font-size:.85rem; font-weight:700; z-index:50; pointer-events:none;
+  white-space:nowrap;
+  opacity:0; visibility:hidden;                       /* 非表示時に上端からはみ出さないように */
+  transition:transform .25s ease, opacity .25s ease, visibility 0s linear .25s;
+}
+#toast.show{
+  transform:translate(-50%,0);
+  opacity:1; visibility:visible;
+  transition:transform .25s ease, opacity .25s ease, visibility 0s linear 0s;
+}
+#toast.ok{ background:rgba(45,106,79,.92); }
+#toast.ng{ background:rgba(192,57,43,.92); }
+
+.footer-note{ text-align:center; font-size:.68rem; color:#a0916f; padding:6px 0 0; flex:0 0 auto; }
+
+/* ---- トップページ ---- */
+.home-screen{
+  position:relative; overflow:hidden;
+  align-items:center; justify-content:center; text-align:center;
+  background-color:#f3f1e9;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='44' height='44' viewBox='0 0 44 44'%3E%3Cg fill='none' stroke='rgba(168,153,110,0.17)' stroke-width='1'%3E%3Ccircle cx='0' cy='0' r='22'/%3E%3Ccircle cx='44' cy='0' r='22'/%3E%3Ccircle cx='0' cy='44' r='22'/%3E%3Ccircle cx='44' cy='44' r='22'/%3E%3Ccircle cx='22' cy='22' r='22'/%3E%3C/g%3E%3C/svg%3E");
+  background-size:44px 44px;
+}
+/* 背景（地紋の上・円の下に雲の意匠を敷く） */
+.home-bg{ position:absolute; inset:0; overflow:hidden; pointer-events:none; }
+.deco{ position:absolute; display:block; }
+.deco-cloud-tl{ --w:clamp(200px, 30vw, 620px); width:var(--w); height:calc(var(--w) / 2.5); top:0; left:0; }
+.deco-cloud-br{ --w:clamp(210px, 32vw, 640px); width:var(--w); height:calc(var(--w) / 2.133); right:0; bottom:0; }
+.deco-line-tl{ --w:clamp(110px, 18vw, 360px); width:var(--w); height:calc(var(--w) / 1.4); left:1.5vw; top:25vh; }
+.deco-line-br{ --w:clamp(110px, 18vw, 360px); width:var(--w); height:calc(var(--w) / 1.4); right:9vw; bottom:2vh; }
+.home-circle{
+  position:absolute; left:50%; top:47%;
+  width:min(138vw, 92vh); height:min(138vw, 92vh);
+  transform:translate(-50%,-50%); border-radius:50%;
+  background:radial-gradient(circle at 50% 50%, #fcfbf7 0 97%, rgba(252,251,247,0) 100%);
+}
+/* 前面のコンテンツ */
+.home-inner{ position:relative; z-index:2; width:100%; max-width:min(94%, 900px); }
+.brand-title{
+  font-family:var(--mincho);
+  font-size:clamp(30px, min(10vh, 13vw), 104px);
+  font-weight:700; letter-spacing:.14em; text-indent:.14em; white-space:nowrap;
+  color:#3f3a2e; line-height:1.25; margin:0 0 clamp(8px, 1.8vh, 20px);
+}
+.brand-rule{
+  width:min(78%, 640px); height:2px; margin:0 auto clamp(10px, 2.2vh, 24px);
+  background-image:repeating-linear-gradient(90deg, #8d8674 0 2px, transparent 2px 9px);
+}
+.brand-sub{
+  font-family:var(--mincho);
+  font-size:clamp(12px, min(2.8vh, 3.6vw), 30px);
+  letter-spacing:.18em; text-indent:.18em; color:#4a4438;
+  margin:0 0 clamp(20px, min(12vh, 9vw), 140px);
+}
+.home-menu{
+  display:flex; flex-wrap:wrap; justify-content:center; align-items:stretch;
+  gap:clamp(14px, 6vw, 115px);
+  width:100%; max-width:min(96%, 940px); margin:0 auto clamp(14px, min(9vh, 7vw), 105px);
+}
+.home-btn{
+  position:relative; -webkit-appearance:none; appearance:none;
+  background:#fdfcf7; border:2px solid #4a4436; border-radius:0;
+  color:#3f3a2e; font-family:var(--mincho); font-weight:700;
+  font-size:clamp(14px, min(3vh, 4.4vw), 32px);
+  letter-spacing:.3em; text-indent:.3em; line-height:1.25;
+  padding:clamp(10px, 2.2vh, 26px) clamp(6px, 1.6vw, 18px);
+  flex:1 1 40%; max-width:400px; cursor:pointer;
+}
+.home-btn::after{
+  content:""; position:absolute; left:-8px; right:-8px; top:9px; bottom:-12px;
+  border:2px solid #4a4436; z-index:-1;
+}
+.home-btn:active{ background:#efe9da; }
+.home-btn-play{
+  display:block; flex:none; margin:0 auto;
+  width:calc(50% - clamp(7px, 3vw, 58px)); min-width:150px; max-width:400px;
+}
+.home-screen .footer-note{ position:absolute; left:0; right:0; bottom:6px; z-index:2; color:#9a927c; }
+/* ---- 設定・選択画面（トップページと同じ意匠） ---- */
+.wa-screen{
+  position:relative; overflow:hidden;
+  align-items:center; justify-content:center; text-align:center;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='44' height='44' viewBox='0 0 44 44'%3E%3Cg fill='none' stroke='rgba(168,153,110,0.17)' stroke-width='1'%3E%3Ccircle cx='0' cy='0' r='22'/%3E%3Ccircle cx='44' cy='0' r='22'/%3E%3Ccircle cx='0' cy='44' r='22'/%3E%3Ccircle cx='44' cy='44' r='22'/%3E%3Ccircle cx='22' cy='22' r='22'/%3E%3C/g%3E%3C/svg%3E");
+  background-size:44px 44px;
+}
+.wa-screen::before{                       /* トップページと同じ白い円 */
+  content:""; position:absolute; left:50%; top:50%;
+  width:min(138vw, 92vh); height:min(138vw, 92vh);
+  transform:translate(-50%,-50%); border-radius:50%;
+  background:radial-gradient(circle at 50% 50%, #fcfbf7 0 97%, rgba(252,251,247,0) 100%);
+  z-index:0; pointer-events:none;
+}
+.wa-back{
+  position:absolute; left:14px; top:12px; z-index:3;
+  width:44px; height:44px; padding:0; line-height:1;
+  display:flex; align-items:center; justify-content:center;
+  -webkit-appearance:none; appearance:none;
+  background:#fdfcf7; border:2px solid #4a4436; border-radius:0;
+  color:#3f3a2e; font-family:var(--mincho); font-size:22px; cursor:pointer;
+}
+.wa-back:active{ background:#efe9da; }
+.wa-inner{
+  position:relative; z-index:2; width:100%; max-width:min(94%, 760px);
+  min-height:0; max-height:100%; overflow-y:auto; overflow-x:hidden;
+  padding:6px 14px 18px;
+}
+.wa-title{
+  font-family:var(--mincho); font-weight:700;
+  font-size:clamp(21px, min(5.4vh, 6.8vw), 46px);
+  letter-spacing:.18em; text-indent:.18em; color:#3f3a2e;
+  line-height:1.3; margin:0 0 clamp(8px, 1.6vh, 18px);
+}
+.wa-rule{
+  width:min(70%, 420px); height:2px; margin:0 auto clamp(10px, 2vh, 22px);
+  background-image:repeating-linear-gradient(90deg, #8d8674 0 2px, transparent 2px 9px);
+}
+.wa-note{
+  font-family:var(--mincho); font-size:clamp(11px, min(2.2vh, 3.1vw), 19px);
+  letter-spacing:.1em; color:#6b6252; line-height:1.7;
+  margin:0 0 clamp(16px, 3.2vh, 34px);
+}
+.wa-group{ margin-bottom:clamp(14px, 2.8vh, 30px); }
+.wa-group-title{
+  font-family:var(--mincho); font-size:clamp(11px, min(1.9vh, 2.9vw), 17px);
+  letter-spacing:.16em; text-indent:.16em; color:#7a7263;
+  margin-bottom:clamp(7px, 1.3vh, 13px);
+}
+/* 大きい選択肢（ひとり／対戦、小学校／中学校） */
+.wa-choice{ display:flex; flex-wrap:wrap; justify-content:center; gap:clamp(14px, 4vw, 46px); }
+.wa-opt{
+  position:relative; -webkit-appearance:none; appearance:none;
+  background:#fdfcf7; border:2px solid #4a4436; border-radius:0; color:#3f3a2e;
+  font-family:var(--mincho); font-weight:700;
+  font-size:clamp(14px, min(2.7vh, 4vw), 27px);
+  letter-spacing:.16em; text-indent:.16em; line-height:1.35;
+  padding:clamp(12px, 2.3vh, 26px) clamp(8px, 1.8vw, 20px);
+  flex:1 1 190px; max-width:330px; cursor:pointer;
+}
+.wa-opt::after{
+  content:""; position:absolute; left:-7px; right:-7px; top:8px; bottom:-11px;
+  border:2px solid #4a4436; z-index:-1;
+}
+.wa-opt .wa-sub{
+  display:block; margin-top:.55em; font-size:.6em; font-weight:400;
+  letter-spacing:.05em; text-indent:.05em; color:#7a7263; line-height:1.5;
+}
+.wa-opt.selected{ background:#e9e0c9; border-color:#3f3a2e; color:#2f2b21; }
+.wa-opt.selected .wa-sub{ color:#6b6252; }
+.wa-opt:active{ background:#efe9da; }
+/* 小さい選択肢（時代・人数・枚数・ルール） */
+.wa-chips{ display:flex; flex-wrap:wrap; justify-content:center; gap:clamp(7px, 1.2vw, 13px); }
+.wa-chip{
+  -webkit-appearance:none; appearance:none;
+  background:#fdfcf7; border:1.5px solid #8a8270; border-radius:0; color:#4a4436;
+  font-family:var(--mincho); font-weight:700;
+  font-size:clamp(12px, min(2vh, 3vw), 18px);
+  letter-spacing:.1em; text-indent:.1em; line-height:1.3;
+  padding:clamp(8px, 1.4vh, 14px) clamp(9px, 1.3vw, 17px);
+  min-width:96px; cursor:pointer;
+}
+.wa-chip .wa-sub{
+  display:block; margin-top:.35em; font-size:.68em; font-weight:400;
+  letter-spacing:.04em; text-indent:.04em; color:#8a8270;
+}
+.wa-chip.selected{ background:#3f3a2e; border-color:#3f3a2e; color:#f7f4ea; }
+.wa-chip.selected .wa-sub{ color:#cfc7b1; }
+.wa-chip:active{ background:#efe9da; }
+.wa-chip.selected:active{ background:#4d473a; }
+.wa-chip:disabled{ opacity:.35; cursor:default; }
+.era-chip{ min-width:clamp(92px, 13vw, 132px); }
+.hand-empty-msg{ font-family:var(--mincho); }
+/* 開始ボタン */
+.wa-start{
+  position:relative; display:block; margin:clamp(16px, 3vh, 34px) auto 0;
+  -webkit-appearance:none; appearance:none;
+  background:#3f3a2e; border:2px solid #3f3a2e; border-radius:0; color:#f7f4ea;
+  font-family:var(--mincho); font-weight:700;
+  font-size:clamp(15px, min(2.8vh, 4.2vw), 27px);
+  letter-spacing:.24em; text-indent:.24em; line-height:1.3;
+  padding:clamp(12px, 2.3vh, 24px) clamp(20px, 4vw, 54px);
+  width:min(88%, 330px); cursor:pointer;
+}
+.wa-start::after{
+  content:""; position:absolute; left:-7px; right:-7px; top:8px; bottom:-11px;
+  border:2px solid #8c7f5f; z-index:-1;
+}
+.wa-start:active{ background:#4d473a; }
+
 </style>
 </head>
 <body>
 
-<div class="app-header">
-  <h1>顔ぼかし＆画像結合ツール</h1>
-  <div class="app-header-right">
-    <span id="statusBar" class="status-pill">顔検出モデルを読み込み中…</span>
-    <button class="btn small" id="btnUndo" title="1つ前の操作に戻します (Ctrl+Z)" disabled>↶ 元に戻す</button>
-    <button class="btn small" id="btnRedo" title="元に戻した操作をやり直します (Ctrl+Y)" disabled>↷ やり直す</button>
-    <button class="btn toggle small active" id="btnPersistImagesToggle" title="ONにすると、ブラウザを閉じても画像と編集内容がこのパソコンに残ります（次に開いたときに復元されます）">作業を保存：ON</button>
-    <button class="btn small" id="btnResetSettings" title="ぼかしの強さ・比率・間隔などの設定を初期値に戻します">⚙ 設定をリセット</button>
-  </div>
+<div id="app">
+
+  <!-- ===================== トップページ ===================== -->
+  <section id="menu-screen" class="screen active home-screen">
+
+    <!-- 背景の意匠（雲・円）。装飾なので読み上げ対象外 -->
+    <div class="home-bg" aria-hidden="true">
+      <svg class="deco deco-cloud-tl" viewBox="0 0 600 240">
+        <g fill="none" stroke="#c9c4a1" stroke-width="74" stroke-linecap="round">
+          <path d="M-80 62H470"/>
+          <path d="M-80 150H548"/>
+        </g>
+      </svg>
+
+      <svg class="deco deco-line-tl" viewBox="0 0 420 300">
+        <g fill="none" stroke-linecap="butt">
+          <path d="M-30 40H300A34 34 0 0 1 300 108H80A34 34 0 0 0 80 176H360A34 34 0 0 1 360 244H-30" stroke="#cbc299" stroke-width="30"/>
+          <path d="M-30 40H300A34 34 0 0 1 300 108H80A34 34 0 0 0 80 176H360A34 34 0 0 1 360 244H-30" stroke="#f3f1e9" stroke-width="23"/>
+        </g>
+      </svg>
+
+      <svg class="deco deco-cloud-br" viewBox="0 0 640 300">
+        <g fill="none" stroke="#c9c4a1" stroke-width="74" stroke-linecap="round">
+          <path d="M720 62H215"/>
+          <path d="M720 150H70"/>
+          <path d="M720 238H330"/>
+        </g>
+      </svg>
+
+      <svg class="deco deco-line-br" viewBox="0 0 420 300">
+        <g fill="none" stroke-linecap="butt">
+          <path d="M450 40H120A34 34 0 0 0 120 108H340A34 34 0 0 1 340 176H60A34 34 0 0 0 60 244H450" stroke="#cbc299" stroke-width="30"/>
+          <path d="M450 40H120A34 34 0 0 0 120 108H340A34 34 0 0 1 340 176H60A34 34 0 0 0 60 244H450" stroke="#f3f1e9" stroke-width="23"/>
+        </g>
+      </svg>
+
+      <div class="home-circle"></div>
+    </div>
+
+    <div class="home-inner">
+      <h1 class="brand-title">歴史ならべ</h1>
+      <div class="brand-rule"></div>
+      <p class="brand-sub">カードを正しい年代の順番にならべよう</p>
+
+      <div class="home-menu">
+        <button class="home-btn" id="open-scope-btn">出題範囲</button>
+        <button class="home-btn" id="open-level-btn">出題レベル</button>
+      </div>
+      <button class="home-btn home-btn-play" id="open-play-btn">プレイ</button>
+    </div>
+
+    <div class="footer-note">人物イラストは準備中（あとから追加されます）</div>
+  </section>
+
+  <!-- ===================== 出題範囲 ===================== -->
+  <section id="scope-screen" class="screen wa-screen">
+    <button class="wa-back" data-back="menu-screen" aria-label="もどる">‹</button>
+    <div class="wa-inner">
+      <h2 class="wa-title">出題範囲</h2>
+      <div class="wa-rule"></div>
+      <p class="wa-note">縄文時代から、どの時代まで出題するか選ぼう</p>
+      <div class="wa-chips" id="era-options"></div>
+    </div>
+  </section>
+
+  <!-- ===================== 出題レベル ===================== -->
+  <section id="level-screen" class="screen wa-screen">
+    <button class="wa-back" data-back="menu-screen" aria-label="もどる">‹</button>
+    <div class="wa-inner">
+      <h2 class="wa-title">出題レベル</h2>
+      <div class="wa-rule"></div>
+      <p class="wa-note">どこまで習った人物を出題するか選ぼう</p>
+      <div class="wa-choice" id="grade-options">
+        <button class="wa-opt selected" data-grade="elementary">小学校<span class="wa-sub" id="level-count-e">きほん</span></button>
+        <button class="wa-opt" data-grade="extended">小学校＋中学校<span class="wa-sub" id="level-count-m">むずかしい</span></button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== プレイ（あそびかた選択） ===================== -->
+  <section id="mode-screen" class="screen wa-screen">
+    <button class="wa-back" data-back="menu-screen" aria-label="もどる">‹</button>
+    <div class="wa-inner">
+      <h2 class="wa-title">あそびかた</h2>
+      <div class="wa-rule"></div>
+      <p class="wa-note">ひとりであそぶか、みんなで対戦するか選ぼう</p>
+      <div class="wa-choice">
+        <button class="wa-opt" id="mode-solo-btn">ひとりでチャレンジ<span class="wa-sub">タイムアタック／ミス3回まで</span></button>
+        <button class="wa-opt" id="mode-multi-btn">みんなで対戦<span class="wa-sub">2〜4人でじゅんばんに</span></button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== 対戦セットアップ ===================== -->
+  <section id="setup-multi-screen" class="screen wa-screen">
+    <button class="wa-back" data-back="mode-screen" aria-label="もどる">‹</button>
+    <div class="wa-inner">
+      <h2 class="wa-title">対戦の設定</h2>
+      <div class="wa-rule"></div>
+      <div class="wa-group">
+        <div class="wa-group-title">プレイヤー人数</div>
+        <div class="wa-chips" id="player-count-options">
+          <button class="wa-chip selected" data-count="2">2人</button>
+          <button class="wa-chip" data-count="3">3人</button>
+          <button class="wa-chip" data-count="4">4人</button>
+        </div>
+      </div>
+      <div class="wa-group">
+        <div class="wa-group-title">手札の枚数</div>
+        <div class="wa-chips" id="hand-size-options">
+          <button class="wa-chip" data-hand="3">3枚</button>
+          <button class="wa-chip selected" data-hand="4">4枚</button>
+          <button class="wa-chip" data-hand="5">5枚</button>
+        </div>
+      </div>
+      <div class="wa-group">
+        <div class="wa-group-title">まちがえたときのルール</div>
+        <div class="wa-chips" id="rule-options-multi">
+          <button class="wa-chip selected" data-rule="normal">ふつう<span class="wa-sub">すてて1枚引く</span></button>
+          <button class="wa-chip" data-rule="advanced">上級者<span class="wa-sub">正しい位置に直す</span></button>
+        </div>
+      </div>
+      <button class="wa-start" id="start-multi-btn">対戦スタート</button>
+    </div>
+  </section>
+
+  <!-- ===================== ソロセットアップ ===================== -->
+  <section id="setup-solo-screen" class="screen wa-screen">
+    <button class="wa-back" data-back="mode-screen" aria-label="もどる">‹</button>
+    <div class="wa-inner">
+      <h2 class="wa-title">チャレンジの設定</h2>
+      <div class="wa-rule"></div>
+      <div class="wa-group">
+        <div class="wa-group-title">チャレンジ形式</div>
+        <div class="wa-chips" id="solo-type-options">
+          <button class="wa-chip selected" data-solotype="time">タイムアタック<span class="wa-sub">90秒で何枚正解できるか</span></button>
+          <button class="wa-chip" data-solotype="miss">ミス3回まで<span class="wa-sub">何枚連続で正解できるか</span></button>
+        </div>
+      </div>
+      <div class="wa-group">
+        <div class="wa-group-title">まちがえたときのルール</div>
+        <div class="wa-chips" id="rule-options-solo">
+          <button class="wa-chip selected" data-rule="normal">ふつう<span class="wa-sub">つぎのカードへ</span></button>
+          <button class="wa-chip" data-rule="advanced">上級者<span class="wa-sub">正しい位置に直す</span></button>
+        </div>
+      </div>
+      <button class="wa-start" id="start-solo-btn">チャレンジスタート</button>
+    </div>
+  </section>
+
+  <!-- ===================== ゲーム画面 ===================== -->
+  <section id="game-screen" class="screen">
+    <div class="hud">
+      <div class="turn-label" id="turn-label">プレイヤー1のばん</div>
+      <div class="deck-count" id="deck-count">山札:0 残り時間:--</div>
+    </div>
+
+    <div id="timeline-wrap"></div>
+    <div class="hint-bar" id="hint-bar">手札のカードをえらんでね</div>
+
+    <div id="hand-wrap">
+      <div class="hand-row" id="hand-row"></div>
+    </div>
+  </section>
+
+  <!-- ===================== 結果画面 ===================== -->
+  <section id="result-screen" class="screen wa-screen">
+    <div class="wa-inner">
+      <div class="result-title" id="result-title">プレイヤー1の勝ち！</div>
+      <div class="wa-rule"></div>
+      <div class="result-sub" id="result-sub"></div>
+      <div class="wa-choice">
+        <button class="wa-opt" id="retry-btn">もう一度あそぶ</button>
+        <button class="wa-opt" id="menu-back-btn">トップにもどる</button>
+      </div>
+    </div>
+  </section>
+
 </div>
 
-<div class="tabs">
-  <button class="tab-btn active" id="tabBtn1">STEP 1　顔をぼかす</button>
-  <button class="tab-btn" id="tabBtn2">STEP 2　画像を結合する</button>
-</div>
+<div id="toast"></div>
 
-<!-- ============ STEP 1 ============ -->
-<div id="step1View">
-
-  <div class="panel">
-    <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:12px;">
-      <h2 style="margin:0;"><span class="step-badge">1</span>画像を追加</h2>
-      <div style="display:flex;gap:8px;flex-wrap:wrap;">
-        <button class="btn toggle small" id="btnBatchAutoAdjustToggle" title="ONにすると、画像を追加したときに自動で明るさ・色合いを自動調整します">一括自動調整：OFF</button>
-        <button class="btn toggle small" id="btnThumbListToggle1" title="ONにすると、サムネイルを折り返して一覧表示します">一覧表示：OFF</button>
-        <button class="btn toggle small active" id="btnBlurToggle" title="OFFにすると、顔にぼかしをかけずにそのまま結合できます">顔ぼかし：ON</button>
-      </div>
-    </div>
-    <div id="dropzone" class="dropzone">
-      <div><strong>ここに画像をドラッグ＆ドロップ</strong></div>
-      <div>またはクリックしてフォルダから選択（複数選択可）</div>
-    </div>
-    <input type="file" id="fileInput" accept="image/*" multiple>
-    <div id="thumbGrid" class="thumb-grid hscroll"></div>
-  </div>
-
-  <div class="panel" id="editorPanel" style="display:none;">
-    <h2><span class="step-badge">2</span>顔ぼかしを編集（ガウスぼかし）</h2>
-    <div class="editor-layout">
-      <div class="editor-canvas-col">
-        <div class="editor-canvas-wrap" id="editCanvasWrap" data-ratio="4/3">
-          <canvas id="editCanvas"></canvas>
-        </div>
-      </div>
-      <div class="editor-side">
-        <div class="btn-grid-2">
-          <button class="btn" id="btnRedetect">🔄 再検出</button>
-          <button class="btn danger" id="btnClearBoxes">全て解除</button>
-          <button class="btn toggle" id="btnAddMode">＋ 手動で追加</button>
-          <button class="btn toggle" id="btnEraseMode">🧹 消しゴム</button>
-        </div>
-        <div class="btn-row" id="shapeRow" style="display:none;margin-bottom:6px;">
-          <button class="btn toggle small active" id="shapeEllipse" title="楕円形のぼかし">⬭ 楕円</button>
-          <button class="btn toggle small" id="shapeRect" title="長方形のぼかし">▭ 長方形</button>
-          <button class="btn toggle small" id="shapePolygon" title="多角形のぼかし（クリックで頂点を追加）">🔺 多角形</button>
-        </div>
-        <div class="hint" id="addModeHint" style="display:none;">キャンバス上をドラッグして四角を描くと、その範囲に楕円形のぼかしが追加されます。</div>
-        <div class="hint" id="polygonHint" style="display:none;">クリックして頂点を追加してください。最初の点の近くをクリックするか「確定」で多角形のぼかしを追加します（3点以上必要）。</div>
-        <div class="btn-row" id="polygonActionRow" style="display:none;margin-bottom:6px;">
-          <button class="btn small" id="btnPolygonFinish">✓ 確定</button>
-          <button class="btn small danger" id="btnPolygonCancel">✕ キャンセル</button>
-        </div>
-        <div class="hint" id="eraseModeHint" style="display:none;">消したいぼかしの上をクリックすると、そのぼかしだけが解除されます。</div>
-
-        <div class="field" style="margin-top:14px;">
-          <div class="btn-row" style="margin-bottom:6px;">
-            <button class="btn toggle active" id="btnScopeBatch">🌐 一括設定</button>
-            <button class="btn toggle" id="btnScopeItem">🖼 この画像だけ</button>
-            <button class="btn small" id="btnAutoAdjust" title="この画像だけ、明るさ・コントラスト・色合いを自動調整します（他の画像には影響しません）">🎨 自動調整</button>
-            <button class="btn small toggle" id="btnManualAdjust" title="この画像だけ、明るさ・コントラスト・彩度を手動で調整します（他の画像には影響しません）">🎚 手動調整</button>
-          </div>
-          <div class="hint" id="scopeHintBatch" style="margin-top:0;">すべての画像に共通で適用されます。</div>
-          <div class="hint" id="scopeHintItem" style="display:none;margin-top:0;">この画像だけに適用され、他の画像には影響しません。</div>
-          <div class="hint" style="margin-top:0;">🎨 自動調整・🎚 手動調整：どちらもこの画像だけに適用され、他の画像には影響しません。自動調整のあとに手動調整でさらに整えることもできます。</div>
-          <button class="btn small" id="btnResetAutoAdjust" style="width:100%;display:none;margin-top:6px;">↺ この画像の自動調整を解除</button>
-
-          <div id="manualAdjustPanel" style="display:none;margin-top:10px;padding-top:10px;border-top:1px dashed var(--border);">
-            <div class="field">
-              <label>明るさ <span class="row-val" id="manualBrightnessVal">100%</span></label>
-              <input type="range" id="manualBrightness" min="50" max="150" value="100">
-            </div>
-            <div class="field">
-              <label>コントラスト <span class="row-val" id="manualContrastVal">100%</span></label>
-              <input type="range" id="manualContrast" min="50" max="150" value="100">
-            </div>
-            <div class="field">
-              <label>彩度（色の鮮やかさ） <span class="row-val" id="manualSaturateVal">100%</span></label>
-              <input type="range" id="manualSaturate" min="0" max="200" value="100">
-            </div>
-            <button class="btn small" id="btnResetManualAdjust" style="width:100%;display:none;">↺ この画像の手動調整をリセット</button>
-          </div>
-        </div>
-
-        <div class="field">
-          <label>ぼかしの強さ <span class="row-val" id="strengthVal">4</span></label>
-          <input type="range" id="strength" min="1" max="7" step="0.5" value="4">
-        </div>
-        <div class="field">
-          <label>縁のやわらかさ（ぼかしの境目の自然さ） <span class="row-val" id="featherVal">40%</span></label>
-          <input type="range" id="feather" min="0" max="90" value="40">
-        </div>
-        <div class="field">
-          <label>ぼかし範囲の余白（顔まわりの広さ） <span class="row-val" id="paddingVal">30%</span></label>
-          <input type="range" id="padding" min="0" max="100" value="30">
-        </div>
-        <div class="field">
-          <label>検出感度（低いほど多く検出／誤検出も増加） <span class="row-val" id="sensVal">0.35</span></label>
-          <input type="range" id="sensitivity" min="10" max="80" value="35">
-        </div>
-        <button class="btn small" id="btnResetItemOverrides" style="width:100%;display:none;">この画像の個別設定を解除（一括設定に戻す）</button>
-
-        <button class="btn primary" id="btnDownloadOne" style="width:100%;">⬇ この画像を1枚だけダウンロード</button>
-      </div>
-    </div>
-    <div class="field" id="editZoomField" style="margin-top:8px;">
-      <label>画像を拡大して細かく確認（表示枠の大きさは変わりません・書き出しには影響しません） <span class="row-val" id="editZoomVal">100%</span></label>
-      <input type="range" id="editZoom" min="100" max="300" value="100">
-    </div>
-    <div class="next-row">
-      <button class="btn primary" id="btnGoStep2">この内容で STEP 2（画像を結合）へ進む →</button>
-    </div>
-  </div>
-
-</div>
-
-<!-- ============ STEP 2 ============ -->
-<div id="step2View" style="display:none;">
-  <div class="panel">
-    <button class="back-link" id="btnBackStep1">← STEP 1（ぼかし編集）へ戻る</button>
-    <h2><span class="step-badge">2</span>ぼかし済みの画像を結合する</h2>
-    <div class="hint">①比率・並べ方を選ぶ→②画像をクリックして枠にはめる→③ドラッグ・スライダーで調整</div>
-
-    <div class="hint" style="margin-top:10px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
-      <span>クリックまたはドラッグで枠にはめ込みます（×で削除）。</span>
-      <button class="btn toggle small" id="btnThumbListToggle2" title="ONにすると、サムネイルを折り返して一覧表示します">一覧表示：OFF</button>
-    </div>
-    <div class="thumb-grid hscroll" id="thumbGrid2"></div>
-
-    <div class="editor-layout" style="margin-top:12px;">
-      <div class="step2-side-left">
-        <div class="field">
-          <label>キャンバスの比率</label>
-          <select id="canvasRatio">
-            <option value="1:1">1:1（正方形）</option>
-            <option value="4:3" selected>4:3</option>
-            <option value="3:2">3:2</option>
-            <option value="16:9">16:9（ワイド）</option>
-            <option value="5:4">5:4</option>
-          </select>
-        </div>
-        <div class="field">
-          <label>向き</label>
-          <div class="btn-row" style="margin-bottom:0;">
-            <button class="btn toggle active" id="btnOrientPortrait">縦</button>
-            <button class="btn toggle" id="btnOrientLandscape">横</button>
-          </div>
-        </div>
-        <div class="field">
-          <label>画像の枚数</label>
-          <div class="btn-row" id="countTabs"></div>
-        </div>
-        <div class="field">
-          <label style="display:flex;align-items:center;justify-content:space-between;gap:6px;">
-            <span>並べ方</span>
-            <button class="btn toggle small active" id="btnPresetSortToggle" title="ONにすると、よく使う（ダウンロードした回数が多い）プリセットを左上から順に並べます" style="flex:0 0 auto;">よく使う順：ON</button>
-          </label>
-          <div class="layout-preset-grid" id="layoutPresetGrid"></div>
-        </div>
-      </div>
-
-      <div class="editor-canvas-wrap" id="collageCanvasWrap" style="position:relative;">
-        <div id="collageStack" style="position:relative;line-height:0;">
-          <canvas id="collageBaseCanvas" style="display:block;"></canvas>
-          <canvas id="collageOverlayCanvas" style="position:absolute;left:0;top:0;display:block;"></canvas>
-        </div>
-      </div>
-      <div class="editor-side">
-        <div class="field" style="margin-top:0;">
-          <label>選択中の枠の操作</label>
-          <div class="btn-row slot-action-row">
-            <button class="btn small" id="btnSlotReset">リセット</button>
-            <button class="btn small danger" id="btnSlotClear">空にする</button>
-            <button class="btn toggle small" id="btnSwapMode">🔀 入れ替え</button>
-          </div>
-          <div class="hint" id="swapModeHint" style="display:none;margin-top:0;">入れ替えたい枠を2つ順にクリックしてください。</div>
-        </div>
-
-        <div class="field">
-          <label>選択中の枠の拡大 <span class="row-val" id="slotZoomVal">100%</span></label>
-          <input type="range" id="slotZoom" min="100" max="300" value="100">
-        </div>
-
-        <div class="field-row" style="display:flex;gap:16px;align-items:flex-end;margin-top:12px;">
-          <div class="field" style="flex:1;min-width:0;margin-bottom:10px;">
-            <label>間隔 <span class="row-val" id="gapVal">0px</span></label>
-            <input type="range" id="gap" min="0" max="60" value="0">
-          </div>
-          <div class="field" style="flex:0 0 auto;margin-bottom:10px;">
-            <label>背景色</label>
-            <input type="color" id="bgColor" value="#ffffff">
-          </div>
-        </div>
-        <div class="field">
-          <label style="display:flex;align-items:center;justify-content:space-between;gap:6px;">
-            <span>ダウンロードサイズ</span>
-            <span style="display:flex;align-items:center;gap:4px;font-weight:normal;">
-              通し番号
-              <input type="text" id="downloadCounterInput" value="0001" maxlength="6" title="ファイル名の通し番号（例：日付_0001）。数字を書き換えると、次のダウンロードからその番号になります。日本時間で日付が変わると自動で0000に戻ります" style="width:60px;text-align:center;padding:4px;border:1px solid #ccd0dc;border-radius:6px;">
-            </span>
-          </label>
-          <div class="btn-row" id="downloadSizeTabs">
-            <button class="btn toggle" id="btnSizeSmall" data-size="small">小</button>
-            <button class="btn toggle active" id="btnSizeMedium" data-size="medium">中</button>
-            <button class="btn toggle" id="btnSizeLarge" data-size="large">大</button>
-          </div>
-        </div>
-        <button class="btn toggle small" id="btnDeleteUsedToggle" title="ONにすると、ダウンロード時に結合で使った画像をSTEP1・STEP2の一覧から削除します" style="width:100%;margin-bottom:8px;">ダウンロード後に使用画像を削除：OFF</button>
-        <button class="btn primary" id="btnDownloadCombined" style="width:100%;" disabled>⬇ 結合した画像をダウンロード</button>
-      </div>
-    </div>
-  </div>
-</div>
-
-<div class="loading-overlay" id="loadingOverlay" style="display:none;">
-  <div class="spinner"></div>
-  <div class="loading-label" id="loadingLabel">処理中…</div>
-</div>
-
-<footer>顔検出：face-api.js（tiny face detector）／画像そのものは一切どこにも送信されず、すべてこの端末のブラウザ内だけで処理されます／ぼかしの強さ・比率・間隔などの設定はこのブラウザに自動的に記憶されます</footer>
-
-<script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
 <script>
 (function(){
-  "use strict";
+"use strict";
 
-  const statusBar = document.getElementById('statusBar');
-  const loadingOverlay = document.getElementById('loadingOverlay');
-  const loadingLabel = document.getElementById('loadingLabel');
-  let loadingCount = 0;
-  function showLoading(text){
-    loadingCount++;
-    if(text) loadingLabel.textContent = text;
-    loadingOverlay.style.display = 'flex';
-  }
-  function hideLoading(){
-    loadingCount = Math.max(0, loadingCount - 1);
-    if(loadingCount === 0) loadingOverlay.style.display = 'none';
-  }
-  const dropzone = document.getElementById('dropzone');
-  const fileInput = document.getElementById('fileInput');
-  const thumbGrid = document.getElementById('thumbGrid');
-  const editorPanel = document.getElementById('editorPanel');
-  const editCanvas = document.getElementById('editCanvas');
-  const ectx = editCanvas.getContext('2d');
-  const editCanvasWrap = document.getElementById('editCanvasWrap');
-  const editZoomEl = document.getElementById('editZoom');
-  const editZoomVal = document.getElementById('editZoomVal');
-  let editZoom = 1;
-  let editFitSize = null; // 拡大なし（100%）のときの表示サイズ（px）をキャッシュ
+/* ============================================================
+   0. 初期化まわり（拡大防止・高さ対応・保険）
+   ============================================================ */
+['gesturestart','gesturechange','gestureend'].forEach(function(t){
+  document.addEventListener(t, function(e){ e.preventDefault(); }, { passive:false });
+});
 
-  // 表示枠（黒い背景の部分）のサイズをJSで直接pxで計算して指定する。
-  // （flexboxの中でCSSのaspect-ratioに任せると、環境によって意図通りの縦横比にならない場合があるため、確実にpx指定する）
-  function computeFrameSize(ratioW, ratioH){
-    const maxW = Math.min(640, Math.max(200, window.innerWidth - 420));
-    const maxH = Math.min(480, window.innerHeight * 0.56);
-    let w = maxW, h = w * ratioH / ratioW;
-    if(h > maxH){ h = maxH; w = h * ratioW / ratioH; }
-    return { w, h };
-  }
-  function applyFrameSize(){
-    const isPortrait = editCanvasWrap.dataset.ratio === '3/4';
-    const size = isPortrait ? computeFrameSize(3,4) : computeFrameSize(4,3);
-    editCanvasWrap.style.width = Math.round(size.w) + 'px';
-    editCanvasWrap.style.height = Math.round(size.h) + 'px';
-  }
-  applyFrameSize(); // 初期表示（画像を選ぶ前）の枠サイズも決めておく
+function setAppHeight(){
+  var el = document.activeElement;
+  if(el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA')) return;
+  var h = window.visualViewport ? window.visualViewport.height : window.innerHeight;
+  if(h > 0) document.documentElement.style.setProperty('--app-h', Math.round(h) + 'px');
+}
+setAppHeight();
+['resize','pageshow'].forEach(function(t){ window.addEventListener(t, setAppHeight); });
+window.addEventListener('orientationchange', function(){ setTimeout(setAppHeight,250); });
+if(window.visualViewport){
+  visualViewport.addEventListener('resize', setAppHeight);
+  visualViewport.addEventListener('scroll', setAppHeight);
+}
+function resetZoomIfNeeded(){
+  if(!window.visualViewport || window.visualViewport.scale <= 1.02) return;
+  var meta = document.querySelector('meta[name="viewport"]');
+  if(!meta) return;
+  var original = meta.getAttribute('content');
+  meta.setAttribute('content', original + ', maximum-scale=1.0');
+  requestAnimationFrame(function(){ meta.setAttribute('content', original); });
+}
+if(window.visualViewport){
+  visualViewport.addEventListener('resize', resetZoomIfNeeded);
+  visualViewport.addEventListener('scroll', resetZoomIfNeeded);
+}
+document.addEventListener('gestureend', function(){ setTimeout(resetZoomIfNeeded,50); }, { passive:true });
 
-  // 表示枠（黒い背景の部分）の大きさは変えず、その中の画像だけを拡大する。
-  // はみ出た部分は枠の中でスクロール（パン）して見る。書き出し結果には影響しない。
-  // 表示枠（黒い背景の部分）は、画像の大きさやウィンドウ幅に関わらず一定サイズ（CSSで固定）。
-  // 拡大するときは、その枠の中の画像だけを大きくし、はみ出た分は枠内のスクロールで確認する。
-  function applyEditCanvasZoom(){
-    if(editZoom <= 1.001){
-      editCanvas.style.width = '';
-      editCanvas.style.height = '';
-      editCanvas.style.maxWidth = '';
-      editCanvas.style.maxHeight = '';
-      editCanvasWrap.classList.remove('zoomed');
-      editCanvasWrap.scrollLeft = 0;
-      editCanvasWrap.scrollTop = 0;
-      editFitSize = null;
-      updateEditCursor();
-      return;
-    }
-    if(!editFitSize){
-      // 一旦、拡大なしの状態に戻して、枠の中で画像が自然に表示されるサイズを測る
-      editCanvas.style.width = '';
-      editCanvas.style.height = '';
-      editCanvas.style.maxWidth = '';
-      editCanvas.style.maxHeight = '';
-      editCanvasWrap.classList.remove('zoomed');
-      const rect = editCanvas.getBoundingClientRect();
-      editFitSize = { w: rect.width, h: rect.height };
-    }
-    editCanvasWrap.classList.add('zoomed');
-    editCanvas.style.maxWidth = 'none';
-    editCanvas.style.maxHeight = 'none';
-    editCanvas.style.width = Math.round(editFitSize.w * editZoom) + 'px';
-    editCanvas.style.height = Math.round(editFitSize.h * editZoom) + 'px';
-    updateEditCursor();
+window.addEventListener('load', function(){
+  setAppHeight();
+  var revealed = false;
+  function revealOnce(){
+    if(revealed) return;
+    revealed = true;
+    setAppHeight();
+    requestAnimationFrame(function(){
+      document.getElementById('app').classList.add('ready');
+    });
   }
-  editZoomEl.addEventListener('input', () => {
-    const z = parseInt(editZoomEl.value, 10);
-    editZoomVal.textContent = z + '%';
-    editZoom = z / 100;
-    applyEditCanvasZoom();
+  T(revealOnce, 1400);   // 保険：明朝体が届かなくても必ず表示する
+  if(document.fonts && document.fonts.ready){
+    document.fonts.ready.then(function(){ T(revealOnce, 300); }, function(){ T(revealOnce, 300); });
+  } else {
+    T(revealOnce, 300);
+  }
+});
+
+var timers = [];
+function T(fn, ms){ var id = setTimeout(fn, ms); timers.push(id); return id; }
+function cancelAllTimers(){
+  timers.forEach(clearTimeout);
+  timers = [];
+  if(game && game.timerId){ clearInterval(game.timerId); game.timerId = null; }
+}
+
+/* ============================================================
+   1. 人物データ（ダミー／あとでイラストを差し込む前提）
+   grade: 'e' = 小学校, 'm' = 中学校で追加
+   ============================================================ */
+var CHARACTERS = [
+  { id:1, name:"聖徳太子", achievement:"十七条の憲法を制定", year:604, grade:"e" },
+  { id:2, name:"聖武天皇", achievement:"東大寺の大仏づくりの詔", year:743, grade:"e" },
+  { id:3, name:"藤原道長", achievement:"摂政に就任", year:1016, grade:"e" },
+  { id:4, name:"源頼朝", achievement:"鎌倉幕府を開く", year:1192, grade:"e" },
+  { id:5, name:"足利義満", achievement:"金閣を建てる", year:1397, grade:"e" },
+  { id:6, name:"織田信長", achievement:"桶狭間の戦いに勝つ", year:1560, grade:"e" },
+  { id:7, name:"豊臣秀吉", achievement:"天下統一を果たす", year:1590, grade:"e" },
+  { id:8, name:"徳川家康", achievement:"江戸幕府を開く", year:1603, grade:"e" },
+  { id:9, name:"徳川家光", achievement:"参勤交代を制度化", year:1635, grade:"e" },
+  { id:10, name:"杉田玄白", achievement:"解体新書を出版", year:1774, grade:"e" },
+  { id:11, name:"伊能忠敬", achievement:"日本地図の測量を開始", year:1800, grade:"e" },
+  { id:12, name:"勝海舟", achievement:"江戸城を無血開城", year:1868, grade:"e" },
+  { id:13, name:"明治天皇", achievement:"五箇条の御誓文を発布", year:1868, grade:"e" },
+  { id:14, name:"福沢諭吉", achievement:"学問のすゝめを出版", year:1872, grade:"e" },
+  { id:15, name:"野口英世", achievement:"黄熱病の研究に取り組む", year:1928, grade:"e" },
+  { id:16, name:"卑弥呼", achievement:"中国(魏)に使いを送る", year:239, grade:"e" },
+  { id:17, name:"中大兄皇子", achievement:"大化の改新をおこなう", year:645, grade:"e" },
+  { id:18, name:"鑑真", achievement:"来日し戒律を伝える", year:754, grade:"e" },
+  { id:19, name:"平清盛", achievement:"太政大臣に就任", year:1167, grade:"e" },
+  { id:20, name:"足利尊氏", achievement:"室町幕府を開く", year:1338, grade:"m" },
+  { id:21, name:"雪舟", achievement:"水墨画を大成させる", year:1486, grade:"e" },
+  { id:22, name:"大隈重信", achievement:"立憲改進党を結成", year:1882, grade:"e" },
+  { id:23, name:"伊藤博文", achievement:"初代内閣総理大臣に就任", year:1885, grade:"e" },
+  { id:24, name:"陸奥宗光", achievement:"治外法権の撤廃に成功", year:1894, grade:"e" },
+  { id:25, name:"小村寿太郎", achievement:"関税自主権を回復", year:1911, grade:"e" },
+  { id:26, name:"小野妹子", achievement:"遣隋使として隋にわたる", year:607, grade:"e" },
+  { id:27, name:"中臣鎌足", achievement:"藤原の姓を授かる", year:669, grade:"e" },
+  { id:28, name:"行基", achievement:"東大寺の大仏づくりに協力する", year:745, grade:"e" },
+  { id:29, name:"清少納言", achievement:"枕草子を書く", year:1000, grade:"e" },
+  { id:30, name:"紫式部", achievement:"源氏物語を書く", year:1008, grade:"e" },
+  { id:31, name:"源義経", achievement:"壇ノ浦の戦いで平氏をほろぼす", year:1185, grade:"e" },
+  { id:32, name:"北条時宗", achievement:"元軍の襲来(元寇)を退ける", year:1274, grade:"e" },
+  { id:33, name:"足利義政", achievement:"銀閣を建てる", year:1489, grade:"e" },
+  { id:34, name:"ザビエル", achievement:"日本にキリスト教を伝える", year:1549, grade:"e" },
+  { id:35, name:"近松門左衛門", achievement:"人形浄瑠璃の脚本を書く", year:1703, grade:"e" },
+  { id:36, name:"本居宣長", achievement:"古事記伝を書き上げる", year:1798, grade:"e" },
+  { id:37, name:"歌川広重", achievement:"浮世絵東海道五十三次をえがく", year:1833, grade:"e" },
+  { id:38, name:"ペリー", achievement:"黒船で浦賀に来航する", year:1853, grade:"e" },
+  { id:39, name:"木戸孝允", achievement:"五か条の御誓文の作成に加わる", year:1868, grade:"e" },
+  { id:41, name:"西郷隆盛", achievement:"西南戦争を起こす", year:1877, grade:"e" },
+  { id:42, name:"板垣退助", achievement:"自由党を結成する", year:1881, grade:"e" },
+  { id:43, name:"東郷平八郎", achievement:"日本海海戦で勝利する", year:1905, grade:"e" },
+  { id:44, name:"蘇我馬子", achievement:"蘇我氏の勢力を強める", year:587, grade:"m" },
+  { id:45, name:"仁徳天皇", achievement:"大仙(仁徳天皇陵)古墳をつくらせる", year:400, grade:"m" },
+  { id:46, name:"天武天皇", achievement:"壬申の乱に勝ち天皇になる", year:673, grade:"m" },
+  { id:47, name:"持統天皇", achievement:"藤原京をつくる", year:694, grade:"m" },
+  { id:48, name:"太安万侶", achievement:"古事記を編さんする", year:712, grade:"m" },
+  { id:49, name:"桓武天皇", achievement:"都を平安京に移す", year:794, grade:"m" },
+  { id:50, name:"最澄", achievement:"天台宗を開く", year:806, grade:"m" },
+  { id:51, name:"空海", achievement:"真言宗を開く", year:816, grade:"m" },
+  { id:52, name:"菅原道真", achievement:"遣唐使の停止を提案する", year:894, grade:"m" },
+  { id:53, name:"平将門", achievement:"関東で反乱を起こす", year:939, grade:"m" },
+  { id:54, name:"法然", achievement:"浄土宗を開く", year:1175, grade:"m" },
+  { id:55, name:"北条政子", achievement:"御家人を説得し承久の乱に勝つ", year:1221, grade:"m" },
+  { id:56, name:"運慶", achievement:"東大寺南大門の金剛力士像をつくる", year:1203, grade:"m" },
+  { id:57, name:"道元", achievement:"曹洞宗を開く", year:1227, grade:"m" },
+  { id:58, name:"日蓮", achievement:"日蓮宗を開く", year:1253, grade:"m" },
+  { id:59, name:"世阿弥", achievement:"能を大成する", year:1400, grade:"m" },
+  { id:60, name:"武田信玄", achievement:"川中島で上杉謙信と戦う", year:1553, grade:"m" },
+  { id:61, name:"毛利元就", achievement:"中国地方を統一する", year:1555, grade:"m" },
+  { id:62, name:"今川義元", achievement:"桶狭間の戦いで信長に敗れる", year:1560, grade:"m" },
+  { id:63, name:"上杉謙信", achievement:"川中島で武田信玄と戦う", year:1561, grade:"m" },
+  { id:64, name:"千利休", achievement:"わび茶(茶道)を大成する", year:1587, grade:"m" },
+  { id:65, name:"明智光秀", achievement:"本能寺の変で信長をたおす", year:1582, grade:"m" },
+  { id:66, name:"石田三成", achievement:"関ヶ原の戦いで家康と戦う", year:1600, grade:"m" },
+  { id:67, name:"徳川綱吉", achievement:"生類憐みの令を出す", year:1685, grade:"m" },
+  { id:68, name:"松尾芭蕉", achievement:"「おくのほそ道」をあらわす", year:1689, grade:"m" },
+  { id:69, name:"田沼意次", achievement:"商業を重視した政治を行う", year:1772, grade:"m" },
+  { id:70, name:"松平定信", achievement:"寛政の改革を行う", year:1787, grade:"m" },
+  { id:71, name:"二宮尊徳", achievement:"農村の立て直しにつくす", year:1822, grade:"m" },
+  { id:72, name:"葛飾北斎", achievement:"浮世絵「富嶽三十六景」をえがく", year:1831, grade:"m" },
+  { id:73, name:"水野忠邦", achievement:"天保の改革を行う", year:1841, grade:"m" },
+  { id:74, name:"近藤勇", achievement:"新選組を率いる", year:1863, grade:"m" },
+  { id:75, name:"坂本龍馬", achievement:"薩長同盟の仲立ちをする", year:1866, grade:"m" },
+  { id:76, name:"徳川慶喜", achievement:"大政奉還を行う", year:1867, grade:"m" },
+  { id:77, name:"岩倉具視", achievement:"岩倉使節団を率いて欧米へ行く", year:1871, grade:"m" },
+  { id:78, name:"渋沢栄一", achievement:"多くの会社や銀行をつくる", year:1873, grade:"m" },
+  { id:79, name:"北里柴三郎", achievement:"破傷風の血清療法を発見する", year:1890, grade:"m" },
+  { id:80, name:"樋口一葉", achievement:"小説「たけくらべ」を書く", year:1895, grade:"m" },
+  { id:81, name:"津田梅子", achievement:"女子教育に力をつくす", year:1900, grade:"m" },
+  { id:82, name:"与謝野晶子", achievement:"日露戦争に反対する詩を発表する", year:1904, grade:"m" },
+  { id:83, name:"夏目漱石", achievement:"小説「吾輩は猫である」を発表する", year:1905, grade:"m" },
+  { id:84, name:"平塚らいてう", achievement:"女性の地位向上を目指す運動を行う", year:1911, grade:"m" },
+  { id:85, name:"犬養毅", achievement:"五・一五事件で暗殺される", year:1932, grade:"m" },
+  { id:86, name:"東条英機", achievement:"太平洋戦争が始まったときの首相になる", year:1941, grade:"m" },
+  { id:87, name:"昭和天皇", achievement:"戦争の終わりを国民に伝える", year:1945, grade:"m" },
+  { id:88, name:"湯川秀樹", achievement:"日本人で初めてノーベル賞を受賞する", year:1949, grade:"m" },
+  { id:89, name:"吉田茂", achievement:"サンフランシスコ平和条約を結ぶ", year:1951, grade:"m" },
+  { id:90, name:"田中角栄", achievement:"日中国交正常化を実現する", year:1972, grade:"m" },
+  { id:91, name:"聖徳太子", achievement:"冠位十二階を定める", year:603, grade:"e" },
+  { id:92, name:"中大兄皇子", achievement:"即位して天智天皇となる", year:668, grade:"e" },
+  { id:93, name:"聖武天皇", achievement:"国分寺・国分尼寺を建てる詔を出す", year:741, grade:"e" },
+  { id:94, name:"藤原道長", achievement:"望月の歌をよみ権力の絶頂をむかえる", year:1018, grade:"e" },
+  { id:95, name:"平清盛", achievement:"兵庫の港を整備し日宋貿易を進める", year:1173, grade:"e" },
+  { id:96, name:"源頼朝", achievement:"守護・地頭を置く", year:1185, grade:"e" },
+  { id:97, name:"源義経", achievement:"頼朝と対立し平泉で亡くなる", year:1189, grade:"e" },
+  { id:98, name:"北条時宗", achievement:"元軍の再度の襲来(弘安の役)を退ける", year:1281, grade:"e" },
+  { id:99, name:"足利義満", achievement:"南朝と北朝を統一する", year:1392, grade:"e" },
+  { id:100, name:"足利義満", achievement:"中国(明)との貿易(日明貿易)を始める", year:1404, grade:"e" },
+  { id:101, name:"織田信長", achievement:"室町幕府をほろぼす", year:1573, grade:"e" },
+  { id:102, name:"豊臣秀吉", achievement:"刀狩令を出す", year:1588, grade:"e" },
+  { id:103, name:"豊臣秀吉", achievement:"朝鮮(明)に大軍を送る", year:1592, grade:"e" },
+  { id:104, name:"徳川家康", achievement:"関ヶ原の戦いに勝つ", year:1600, grade:"e" },
+  { id:105, name:"徳川家康", achievement:"大阪城を攻め豊臣氏をほろぼす", year:1615, grade:"e" },
+  { id:106, name:"徳川家光", achievement:"鎖国を完成させる", year:1639, grade:"e" },
+  { id:107, name:"西郷隆盛", achievement:"勝海舟と話し合い、江戸城を無血開城させる", year:1868, grade:"e" },
+  { id:108, name:"大久保利通", achievement:"版籍奉還を行う", year:1869, grade:"e" },
+  { id:109, name:"大久保利通", achievement:"廃藩置県を行う", year:1871, grade:"e" },
+  { id:110, name:"明治天皇", achievement:"大日本帝国憲法を発布する", year:1889, grade:"e" },
+  { id:111, name:"福沢諭吉", achievement:"慶應義塾を創立する", year:1858, grade:"e" },
+  { id:112, name:"伊藤博文", achievement:"憲法の草案づくりを進める", year:1888, grade:"e" },
+  { id:113, name:"野口英世", achievement:"アメリカにわたり梅毒の研究に取り組む", year:1911, grade:"e" }
+];
+/* イラスト追加用フィールドの想定: character.image = "画像URL or base64"
+   カード描画側は image があれば <img>、無ければ img-ph（丸プレースホルダ）を出す設計にしてある */
+
+/* 出題範囲（時代）の一覧。endYear はその時代の終わりのおおよその年。
+   「出題範囲」でえらんだ時代までの人物だけが出題対象になる。 */
+var ERAS = [
+  { key:'jomon',     label:'縄文時代',     endYear:-300 },
+  { key:'yayoi',     label:'弥生時代',     endYear:300 },
+  { key:'kofun',     label:'古墳時代',     endYear:592 },
+  { key:'asuka',     label:'飛鳥時代',     endYear:710 },
+  { key:'nara',      label:'奈良時代',     endYear:794 },
+  { key:'heian',     label:'平安時代',     endYear:1185 },
+  { key:'kamakura',  label:'鎌倉時代',     endYear:1333 },
+  { key:'muromachi', label:'室町時代',     endYear:1467 },
+  { key:'sengoku',   label:'戦国時代',     endYear:1573 },
+  { key:'azuchi',    label:'安土桃山時代', endYear:1603 },
+  { key:'edo',       label:'江戸時代',     endYear:1868 },
+  { key:'meiji',     label:'明治時代',     endYear:1912 },
+  { key:'taisho',    label:'大正時代',     endYear:1926 },
+  { key:'showa',     label:'昭和時代',     endYear:1989 },
+  { key:'heisei',    label:'平成時代',     endYear:2019 },
+  { key:'reiwa',     label:'令和時代',     endYear:9999 }
+];
+
+/* ============================================================
+   2. ユーティリティ
+   ============================================================ */
+function shuffle(arr){
+  var a = arr.slice();
+  for(var i = a.length - 1; i > 0; i--){
+    var j = Math.floor(Math.random() * (i + 1));
+    var tmp = a[i]; a[i] = a[j]; a[j] = tmp;
+  }
+  return a;
+}
+function escapeHtml(str){
+  return String(str).replace(/[&<>"']/g, function(c){
+    return ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' })[c];
   });
-  window.addEventListener('resize', () => {
-    if(!getSelected()) return;
-    applyFrameSize();
-    editFitSize = null;
-    applyEditCanvasZoom();
+}
+function showScreen(id){
+  document.querySelectorAll('.screen').forEach(function(s){ s.classList.remove('active'); });
+  document.getElementById(id).classList.add('active');
+  if(id === 'scope-screen') renderEraOptions();      // 枚数は出題レベルによって変わる
+  if(id === 'level-screen') refreshLevelCounts();
+  var inner = document.querySelector('#' + id + ' .wa-inner');
+  if(inner) inner.scrollTop = 0;
+}
+var toastTimer = null;
+function showToast(msg, kind){
+  var el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = kind ? kind : '';
+  requestAnimationFrame(function(){ el.classList.add('show'); });
+  if(toastTimer) clearTimeout(toastTimer);
+  toastTimer = setTimeout(function(){ el.classList.remove('show'); }, 1100);
+}
+
+/* ============================================================
+   3. 状態(state)
+   ============================================================ */
+var settings = {
+  grade: 'elementary',   // 'elementary' | 'extended'
+  rule: 'normal',        // 'normal' | 'advanced'
+  mode: 'multi',         // 'multi' | 'solo'
+  playerCount: 2,
+  handSize: 4,
+  soloType: 'time',       // 'time' | 'miss'
+  eraEndIndex: 15         // ERAS配列のインデックス。初期値は最後(令和=すべての時代)
+};
+
+var game = null; // 対局中の状態オブジェクト（後述 initMultiGame / initSoloGame で構築）
+var uiLocked = false; // 配置アニメーション中に連打で二重処理されるのを防ぐロック
+
+/* ============================================================
+   4. トップメニュー：選択UIの配線
+   ============================================================ */
+function wireOptionGroup(containerId, dataAttr, onSelect){
+  var container = document.getElementById(containerId);
+  if(!container) return;
+  container.addEventListener('click', function(e){
+    var btn = e.target.closest('button');
+    if(!btn || !container.contains(btn) || !btn.hasAttribute(dataAttr)) return;
+    container.querySelectorAll('button').forEach(function(b){ b.classList.remove('selected'); });
+    btn.classList.add('selected');
+    onSelect(btn.getAttribute(dataAttr));
+  });
+}
+/* 同じ設定を持つ別の選択グループの表示も合わせる（ルールは対戦・ソロ両方にある） */
+function markSelected(containerId, dataAttr, value){
+  var c = document.getElementById(containerId);
+  if(!c) return;
+  c.querySelectorAll('button').forEach(function(b){
+    b.classList.toggle('selected', b.getAttribute(dataAttr) === String(value));
+  });
+}
+/* いまの設定で出題できるカードの枚数 */
+function poolCount(grade, eraIdx){
+  var endYear = ERAS[eraIdx] ? ERAS[eraIdx].endYear : ERAS[ERAS.length - 1].endYear;
+  return CHARACTERS.filter(function(c){
+    return (grade === 'extended' ? true : c.grade === 'e') && c.year <= endYear;
+  }).length;
+}
+function refreshLevelCounts(){
+  var e = document.getElementById('level-count-e');
+  var m = document.getElementById('level-count-m');
+  if(e) e.textContent = 'きほん（' + poolCount('elementary', settings.eraEndIndex) + '枚）';
+  if(m) m.textContent = 'むずかしい（' + poolCount('extended', settings.eraEndIndex) + '枚）';
+}
+wireOptionGroup('grade-options', 'data-grade', function(v){ settings.grade = v; });
+['rule-options-multi','rule-options-solo'].forEach(function(id){
+  wireOptionGroup(id, 'data-rule', function(v){
+    settings.rule = v;
+    markSelected('rule-options-multi', 'data-rule', v);
+    markSelected('rule-options-solo', 'data-rule', v);
+  });
+});
+wireOptionGroup('player-count-options', 'data-count', function(v){ settings.playerCount = parseInt(v,10); });
+wireOptionGroup('hand-size-options', 'data-hand', function(v){ settings.handSize = parseInt(v,10); });
+wireOptionGroup('solo-type-options', 'data-solotype', function(v){ settings.soloType = v; });
+
+function renderEraOptions(){
+  var row = document.getElementById('era-options');
+  row.innerHTML = '';
+  ERAS.forEach(function(era, idx){
+    var n = poolCount(settings.grade, idx);
+    var btn = document.createElement('button');
+    btn.className = 'wa-chip era-chip' + (idx === settings.eraEndIndex ? ' selected' : '');
+    btn.innerHTML = escapeHtml(era.label) + '<span class="wa-sub">' + n + '枚</span>';
+    if(n < 2) btn.disabled = true;   // カードが少なすぎる範囲は選べないようにする
+    btn.addEventListener('click', function(){
+      settings.eraEndIndex = idx;
+      row.querySelectorAll('button').forEach(function(b){ b.classList.remove('selected'); });
+      btn.classList.add('selected');
+    });
+    row.appendChild(btn);
+  });
+}
+renderEraOptions();
+
+document.getElementById('open-scope-btn').addEventListener('click', function(){ showScreen('scope-screen'); });
+document.getElementById('open-level-btn').addEventListener('click', function(){ showScreen('level-screen'); });
+document.getElementById('open-play-btn').addEventListener('click', function(){ showScreen('mode-screen'); });
+
+document.getElementById('mode-multi-btn').addEventListener('click', function(){
+  settings.mode = 'multi';
+  showScreen('setup-multi-screen');
+});
+document.getElementById('mode-solo-btn').addEventListener('click', function(){
+  settings.mode = 'solo';
+  showScreen('setup-solo-screen');
+});
+
+document.querySelectorAll('[data-back]').forEach(function(btn){
+  btn.addEventListener('click', function(){ showScreen(btn.getAttribute('data-back')); });
+});
+document.getElementById('menu-back-btn').addEventListener('click', function(){
+  cancelAllTimers();
+  showScreen('menu-screen');
+});
+
+/* ============================================================
+   5. デッキ生成
+   ============================================================ */
+function buildDeck(){
+  var endYear = ERAS[settings.eraEndIndex] ? ERAS[settings.eraEndIndex].endYear : ERAS[ERAS.length - 1].endYear;
+  var pool = CHARACTERS.filter(function(c){
+    var gradeOk = settings.grade === 'extended' ? true : c.grade === 'e';
+    return gradeOk && c.year <= endYear;
+  });
+  return shuffle(pool);
+}
+
+/* 正しい挿入位置(ギャップindex)を、現在のtimeline(年代昇順配列)から求める */
+function correctGapIndex(timeline, year){
+  var idx = 0;
+  while(idx < timeline.length && timeline[idx].year <= year) idx++;
+  return idx;
+}
+
+/* ============================================================
+   5.5 カードを飛ばす演出
+   ============================================================ */
+/* 年表にカードを差し込むときの演出。
+   「まわりのカードが間を空ける動き」と「手札のカードが飛んでいく動き」を同時に始め、
+   カードが着地したときには、まわりのカードの動きが終わっているようにする。
+   先に年表を確定させてしまい、置き場所の実測値に向かって飛ばすので、
+   着地位置がずれることもない。 */
+function insertCardWithAnimation(card, insertIndex, sourceEl, onLanded){
+  var oldRects = captureTimelineRects();        // 動く前の位置を記録
+  game.timeline.splice(insertIndex, 0, card);   // 年表を先に確定させる
+  renderTimeline(function(){});                 // 年表だけ描き直す（手札はそのまま残す）
+
+  var newEl = document.querySelector('#timeline-wrap .tl-card[data-id="' + card.id + '"]');
+  var target = null;
+  if(newEl){
+    target = newEl.getBoundingClientRect();     // 着地位置（確定後の実測値）
+    newEl.style.visibility = 'hidden';          // 飛んできたカードが着くまで隠しておく
+  }
+
+  playTimelineFlip(oldRects);                   // まわりのカードが間を空ける（.32秒）
+  playFlyAnimation(sourceEl, target, function(){ // 同時に手札から飛ばす（.45秒）
+    if(newEl) newEl.style.visibility = '';
+    onLanded();
+  });
+}
+
+/* 手札のカードを一回り大きくポップさせてから、年表上の着地位置(target)へ
+   スーッと移動させ、そこで実際の年表カードと同じサイズへ収束させる。
+   target は DOM要素、または {left,top,width,height} のどちらでもよい。 */
+function playFlyAnimation(sourceEl, target, onDone){
+  if(!sourceEl || !target){ onDone(); return; }
+  var sRect = sourceEl.getBoundingClientRect();
+  var tRect = (typeof target.getBoundingClientRect === 'function') ? target.getBoundingClientRect() : target;
+
+  var clone = document.createElement('div');
+  clone.className = 'fly-card';
+  clone.innerHTML = sourceEl.innerHTML;
+  document.body.appendChild(clone);
+
+  var bigW = 132, bigH = 168;
+  clone.style.left = (sRect.left + sRect.width / 2 - bigW / 2) + 'px';
+  clone.style.top = (sRect.top + sRect.height / 2 - bigH / 2) + 'px';
+  clone.style.width = bigW + 'px';
+  clone.style.height = bigH + 'px';
+
+  sourceEl.style.visibility = 'hidden';
+
+  requestAnimationFrame(function(){
+    requestAnimationFrame(function(){
+      clone.style.left = tRect.left + 'px';
+      clone.style.top = tRect.top + 'px';
+      clone.style.width = tRect.width + 'px';
+      clone.style.height = tRect.height + 'px';
+      clone.style.borderRadius = '10px';
+    });
   });
 
-  // カーソルの見た目（拡大中はドラッグで動かせることが分かるように「掴む」アイコンにする）
-  function updateEditCursor(){
-    if(addMode){ editCanvas.style.cursor = 'crosshair'; return; }
-    if(eraseMode){ editCanvas.style.cursor = 'pointer'; return; }
-    editCanvas.style.cursor = editCanvasWrap.classList.contains('zoomed') ? 'grab' : 'default';
+  var done = false;
+  function finish(){
+    if(done) return;
+    done = true;
+    clone.remove();
+    onDone();
   }
+  clone.addEventListener('transitionend', finish);
+  T(finish, 600); // 保険：transitionendが発火しない端末があるため
+}
 
-  // マウスのカーソル位置を中心にズームし、位置がなるべくズレないようにする
-  function setEditZoomAnchored(newZoom, clientX, clientY){
-    if(!getSelected()) return;
-    newZoom = Math.max(1, Math.min(3, newZoom));
-    const wasZoomed = editCanvasWrap.classList.contains('zoomed');
-    const wrapRect = editCanvasWrap.getBoundingClientRect();
-    let ratioX = 0.5, ratioY = 0.5;
-    if(wasZoomed && editFitSize){
-      const contentW = editFitSize.w * editZoom;
-      const contentH = editFitSize.h * editZoom;
-      const contentX = editCanvasWrap.scrollLeft + (clientX - wrapRect.left);
-      const contentY = editCanvasWrap.scrollTop + (clientY - wrapRect.top);
-      ratioX = contentW ? contentX / contentW : 0.5;
-      ratioY = contentH ? contentY / contentH : 0.5;
-    } else if(wrapRect.width && wrapRect.height){
-      ratioX = (clientX - wrapRect.left) / wrapRect.width;
-      ratioY = (clientY - wrapRect.top) / wrapRect.height;
-    }
-    if(Math.abs(newZoom - editZoom) < 0.001) return;
-    editZoom = newZoom;
-    editZoomEl.value = Math.round(editZoom * 100);
-    editZoomVal.textContent = Math.round(editZoom * 100) + '%';
-    applyEditCanvasZoom();
-    updateEditCursor();
-    if(editCanvasWrap.classList.contains('zoomed') && editFitSize){
-      const newContentW = editFitSize.w * editZoom;
-      const newContentH = editFitSize.h * editZoom;
-      editCanvasWrap.scrollLeft = ratioX * newContentW - (clientX - wrapRect.left);
-      editCanvasWrap.scrollTop = ratioY * newContentH - (clientY - wrapRect.top);
-    }
+/* 誤答（通常ルール）：カードを軽く揺らして消す演出 */
+function playShakeAndRemove(sourceEl, onDone){
+  if(!sourceEl){ onDone(); return; }
+  sourceEl.classList.add('shake-out');
+  var done = false;
+  function finish(){
+    if(done) return;
+    done = true;
+    onDone();
   }
-  editCanvasWrap.addEventListener('wheel', e => {
-    if(!getSelected()) return;
-    e.preventDefault();
-    const step = 0.15;
-    setEditZoomAnchored(editZoom + (e.deltaY < 0 ? step : -step), e.clientX, e.clientY);
-  }, {passive:false});
+  sourceEl.addEventListener('animationend', finish);
+  T(finish, 500);
+}
 
-  // 拡大時：ドラッグ（カーソルでずるずる）で画像を移動できるようにする
-  let editPanState = null;
-  let suppressNextEditClick = false;
-  editCanvasWrap.addEventListener('mousedown', e => {
-    if(addMode) return; // 手動追加中は範囲選択のドラッグを優先する
-    if(e.button !== 0) return;
-    if(!editCanvasWrap.classList.contains('zoomed')) return;
-    editPanState = {
-      startX: e.clientX, startY: e.clientY,
-      scrollLeft: editCanvasWrap.scrollLeft, scrollTop: editCanvasWrap.scrollTop,
-      moved: false
-    };
+/* 年表に新しいカードが差し込まれる直前の、既存カードの位置を記録しておく（FLIP法） */
+function captureTimelineRects(){
+  var map = {};
+  document.querySelectorAll('#timeline-wrap .tl-card').forEach(function(el){
+    map[el.dataset.id] = el.getBoundingClientRect();
   });
-  window.addEventListener('mousemove', e => {
-    if(!editPanState) return;
-    const dx = e.clientX - editPanState.startX;
-    const dy = e.clientY - editPanState.startY;
-    if(!editPanState.moved && (Math.abs(dx) > 3 || Math.abs(dy) > 3)){
-      editPanState.moved = true;
-      editCanvas.style.cursor = 'grabbing';
-    }
-    if(editPanState.moved){
-      editCanvasWrap.scrollLeft = editPanState.scrollLeft - dx;
-      editCanvasWrap.scrollTop = editPanState.scrollTop - dy;
-    }
+  return map;
+}
+
+/* 差し込み後、既存カードが新しい位置へ「ニョーン」とスライドしながら間を空けるように見せる */
+function playTimelineFlip(oldRects){
+  var toAnimate = [];
+  document.querySelectorAll('#timeline-wrap .tl-card').forEach(function(el){
+    var old = oldRects[el.dataset.id];
+    if(!old) return; // 今回新しく差し込まれたカードはアニメーション対象外（すでに飛来演出で着地済み）
+    var now = el.getBoundingClientRect();
+    var dx = old.left - now.left;
+    if(Math.abs(dx) < 0.5) return;
+    el.style.transition = 'none';
+    el.style.transform = 'translateX(' + dx + 'px)';
+    toAnimate.push(el);
   });
-  window.addEventListener('mouseup', () => {
-    if(editPanState){
-      if(editPanState.moved) suppressNextEditClick = true;
-      updateEditCursor();
-    }
-    editPanState = null;
+  if(toAnimate.length === 0) return;
+  requestAnimationFrame(function(){
+    requestAnimationFrame(function(){
+      toAnimate.forEach(function(el){
+        el.style.transition = 'transform .32s cubic-bezier(.4,0,.2,1)';
+        el.style.transform = '';
+      });
+    });
   });
-  // ドラッグで画像を動かした直後は、消しゴム／多角形のクリック判定が誤動作しないように抑制する
-  editCanvas.addEventListener('click', e => {
-    if(suppressNextEditClick){
-      suppressNextEditClick = false;
-      e.stopImmediatePropagation();
-      e.preventDefault();
-    }
-  }, true);
+}
 
-  const strengthEl = document.getElementById('strength');
-  const paddingEl = document.getElementById('padding');
-  const sensitivityEl = document.getElementById('sensitivity');
-  const featherEl = document.getElementById('feather');
-  const strengthVal = document.getElementById('strengthVal');
-  const paddingVal = document.getElementById('paddingVal');
-  const sensVal = document.getElementById('sensVal');
-  const featherVal = document.getElementById('featherVal');
-
-  const tabBtn1 = document.getElementById('tabBtn1');
-  const btnBlurToggle = document.getElementById('btnBlurToggle');
-  const btnPresetSortToggle = document.getElementById('btnPresetSortToggle');
-  const btnBatchAutoAdjustToggle = document.getElementById('btnBatchAutoAdjustToggle');
-  const btnThumbListToggle1 = document.getElementById('btnThumbListToggle1');
-  const btnThumbListToggle2 = document.getElementById('btnThumbListToggle2');
-  const btnDeleteUsedToggle = document.getElementById('btnDeleteUsedToggle');
-  const btnPersistImagesToggle = document.getElementById('btnPersistImagesToggle');
-  const tabBtn2 = document.getElementById('tabBtn2');
-  const step1View = document.getElementById('step1View');
-  const step2View = document.getElementById('step2View');
-  const btnGoStep2 = document.getElementById('btnGoStep2');
-  const btnBackStep1 = document.getElementById('btnBackStep1');
-  const thumbGrid2 = document.getElementById('thumbGrid2');
-
-  const btnAddMode = document.getElementById('btnAddMode');
-  const addModeHint = document.getElementById('addModeHint');
-  const btnEraseMode = document.getElementById('btnEraseMode');
-  const eraseModeHint = document.getElementById('eraseModeHint');
-  const shapeRow = document.getElementById('shapeRow');
-  const shapeEllipseBtn = document.getElementById('shapeEllipse');
-  const shapeRectBtn = document.getElementById('shapeRect');
-  const shapePolygonBtn = document.getElementById('shapePolygon');
-  const polygonHint = document.getElementById('polygonHint');
-  const polygonActionRow = document.getElementById('polygonActionRow');
-  const btnPolygonFinish = document.getElementById('btnPolygonFinish');
-  const btnPolygonCancel = document.getElementById('btnPolygonCancel');
-  const btnClearBoxes = document.getElementById('btnClearBoxes');
-  const btnRedetect = document.getElementById('btnRedetect');
-  const btnDownloadOne = document.getElementById('btnDownloadOne');
-
-  const btnScopeBatch = document.getElementById('btnScopeBatch');
-  const btnScopeItem = document.getElementById('btnScopeItem');
-  const scopeHintBatch = document.getElementById('scopeHintBatch');
-  const scopeHintItem = document.getElementById('scopeHintItem');
-  const btnResetItemOverrides = document.getElementById('btnResetItemOverrides');
-  const btnAutoAdjust = document.getElementById('btnAutoAdjust');
-  const btnResetAutoAdjust = document.getElementById('btnResetAutoAdjust');
-  const btnManualAdjust = document.getElementById('btnManualAdjust');
-  const manualAdjustPanel = document.getElementById('manualAdjustPanel');
-  const manualBrightnessEl = document.getElementById('manualBrightness');
-  const manualContrastEl = document.getElementById('manualContrast');
-  const manualSaturateEl = document.getElementById('manualSaturate');
-  const manualBrightnessVal = document.getElementById('manualBrightnessVal');
-  const manualContrastVal = document.getElementById('manualContrastVal');
-  const manualSaturateVal = document.getElementById('manualSaturateVal');
-  const btnResetManualAdjust = document.getElementById('btnResetManualAdjust');
-
-  const gapEl = document.getElementById('gap');
-  const bgColorEl = document.getElementById('bgColor');
-  const gapVal = document.getElementById('gapVal');
-  const btnDownloadCombined = document.getElementById('btnDownloadCombined');
-  const canvasRatioEl = document.getElementById('canvasRatio');
-  const btnOrientPortrait = document.getElementById('btnOrientPortrait');
-  const btnOrientLandscape = document.getElementById('btnOrientLandscape');
-  const countTabs = document.getElementById('countTabs');
-  const layoutPresetGrid = document.getElementById('layoutPresetGrid');
-  const collageBaseCanvas = document.getElementById('collageBaseCanvas');
-  const collageOverlayCanvas = document.getElementById('collageOverlayCanvas');
-  const bctxMain = collageBaseCanvas.getContext('2d');
-  const octx = collageOverlayCanvas.getContext('2d');
-  const slotZoomEl = document.getElementById('slotZoom');
-  const slotZoomVal = document.getElementById('slotZoomVal');
-  const btnSlotReset = document.getElementById('btnSlotReset');
-  const btnSlotClear = document.getElementById('btnSlotClear');
-  const btnSwapMode = document.getElementById('btnSwapMode');
-  const swapModeHint = document.getElementById('swapModeHint');
-  const downloadSizeTabs = document.getElementById('downloadSizeTabs');
-  const downloadCounterInput = document.getElementById('downloadCounterInput');
-
-  let items = [];       // {id, name, img, w, h, boxes:[{x,y,w,h,src}], detected, overrides:{}}
-  let nextId = 1;
-  let selectedId = null;
-  let addMode = false;
-  let eraseMode = false;
-  let modelReady = false;
-  let blurEnabled = true; // OFFのときは、どの画像にもぼかしを適用しない
-
-  function updateBlurToggleUI(){
-    btnBlurToggle.classList.toggle('active', blurEnabled);
-    btnBlurToggle.textContent = blurEnabled ? '顔ぼかし：ON' : '顔ぼかし：OFF';
-    tabBtn1.textContent = blurEnabled ? 'STEP 1　顔をぼかす' : 'STEP 1　顔をぼかさない';
-  }
-  btnBlurToggle.addEventListener('click', () => {
-    pushUndo();
-    blurEnabled = !blurEnabled;
-    updateBlurToggleUI();
-    processedCache.clear();
-    if(getSelected()) drawEditor();
-    if(step2View.style.display !== 'none'){ renderThumbs2(); renderCollage(); }
-    saveSettings();
-  });
-
-  // ---------- 一括設定／この画像だけの個別設定 ----------
-  let batch = {strength:4, feather:40, padding:30, sensitivity:35};
-  let sliderScope = 'batch'; // 'batch' | 'item'
-  function effVal(item, key){
-    if(item && item.overrides && item.overrides[key] != null) return item.overrides[key];
-    return batch[key];
-  }
-  function hasItemOverrides(item){
-    return !!(item && item.overrides && Object.keys(item.overrides).length > 0);
+/* ============================================================
+   6. 対戦モード（みんなで対戦・ローカル回し打ち）
+   ============================================================ */
+function initMultiGame(){
+  uiLocked = false;
+  var deck = buildDeck();
+  if(deck.length < settings.playerCount * settings.handSize + 1){
+    showToast('カードが足りません。人数や手札枚数を減らしてね', 'ng');
+    showScreen('setup-multi-screen');
+    return;
   }
 
-  // この画像の描画元（自動調整済みならそちら、なければ元画像）を返す
-  function baseSource(item){
-    return (item && item.adjustedCanvas) ? item.adjustedCanvas : item.img;
-  }
-  // 実際に描画に使う画像（手動調整があればそれも重ねた結果、なければ自動調整／元画像）を返す
-  function itemSource(item){
-    if(item && item.manualCanvas) return item.manualCanvas;
-    return baseSource(item);
-  }
+  var timeline = [deck.pop()]; // 基準カードを1枚オモテで場に置く
 
-  // ---------- この画像だけの明るさ・コントラスト・彩度を手動調整 ----------
-  function buildManualFilterString(m){
-    if(!m) return '';
-    const parts = [];
-    if(m.brightness != null && m.brightness !== 100) parts.push('brightness(' + m.brightness + '%)');
-    if(m.contrast != null && m.contrast !== 100) parts.push('contrast(' + m.contrast + '%)');
-    if(m.saturate != null && m.saturate !== 100) parts.push('saturate(' + m.saturate + '%)');
-    return parts.join(' ');
-  }
-  function hasManualAdjust(item){
-    const m = item && item.manualAdjust;
-    return !!(m && (m.brightness !== 100 || m.contrast !== 100 || m.saturate !== 100));
-  }
-  // 手動調整を（自動調整済みの画像があればその上に）重ねた結果のキャンバスを作り直す
-  function rebuildManualCanvas(item){
-    const filterStr = buildManualFilterString(item.manualAdjust);
-    if(!filterStr){ item.manualCanvas = null; return; }
-    const src = baseSource(item);
-    const c = document.createElement('canvas');
-    c.width = item.w; c.height = item.h;
-    const cx = c.getContext('2d');
-    cx.filter = filterStr;
-    cx.drawImage(src, 0, 0, item.w, item.h);
-    cx.filter = 'none';
-    item.manualCanvas = c;
+  var players = [];
+  for(var p = 0; p < settings.playerCount; p++){
+    var hand = [];
+    for(var h = 0; h < settings.handSize; h++){ hand.push(deck.pop()); }
+    players.push({ name:'プレイヤー' + (p+1), hand:hand, misses:0 });
   }
 
-  // ---------- この画像だけの明るさ・コントラスト・色合いを自動調整 ----------
-  // 縮小した作業用キャンバスでヒストグラムを解析し、各チャンネルのレベル補正量とホワイトバランス補正量を求める
-  function computeAutoAdjust(img, w, h){
-    const maxDim = 300;
-    const scale = Math.min(1, maxDim / Math.max(w, h));
-    const sw = Math.max(1, Math.round(w * scale)), sh = Math.max(1, Math.round(h * scale));
-    const tmp = document.createElement('canvas');
-    tmp.width = sw; tmp.height = sh;
-    const tctx = tmp.getContext('2d');
-    tctx.drawImage(img, 0, 0, sw, sh);
-    const data = tctx.getImageData(0, 0, sw, sh).data;
-
-    // 明るさ（輝度）のヒストグラムを作る。R/G/Bを別々に伸ばすと色かぶり（変な色味）の原因になるため、
-    // コントラスト調整は輝度基準で1本のレンジを共通で使い、色味の比率を崩さないようにする。
-    const histY = new Array(256).fill(0);
-    let sumR = 0, sumG = 0, sumB = 0, n = 0;
-    for(let i = 0; i < data.length; i += 4){
-      const r = data[i], g = data[i+1], b = data[i+2];
-      const y = 0.299*r + 0.587*g + 0.114*b;
-      histY[Math.max(0, Math.min(255, Math.round(y)))]++;
-      sumR += r; sumG += g; sumB += b; n++;
-    }
-    n = Math.max(1, n);
-
-    function stretchRange(hist, clipRatio){
-      const clip = n * clipRatio;
-      let lo = 0, acc = 0;
-      for(lo = 0; lo < 255; lo++){ acc += hist[lo]; if(acc > clip) break; }
-      let hi = 255; acc = 0;
-      for(hi = 255; hi > 0; hi--){ acc += hist[hi]; if(acc > clip) break; }
-      // すでにコントラストが十分ある写真まで無理に伸ばさないよう、狭すぎる場合だけ少し広げる
-      if(hi - lo < 40){ lo = Math.max(0, lo - 20); hi = Math.min(255, hi + 20); }
-      if(hi <= lo){ lo = 0; hi = 255; }
-      return {lo, hi};
-    }
-    const ry = stretchRange(histY, 0.008);
-
-    // 露出（画面全体の明るさ）を中間調に少しだけ近づける。効きすぎないよう補正量を半分に抑える
-    const avgR = sumR / n, avgG = sumG / n, avgB = sumB / n;
-    const avgY = (avgR*0.299 + avgG*0.587 + avgB*0.114);
-    let brightGain = 1;
-    if(avgY > 1){
-      const idealGain = 128 / avgY;
-      brightGain = 1 + (idealGain - 1) * 0.5;
-      brightGain = Math.max(0.85, Math.min(1.25, brightGain));
-    }
-
-    // グレーワールド仮定で色かぶり（ホワイトバランス）を補正する。かかりすぎないよう控えめにクランプする
-    const avgGray = (avgR + avgG + avgB) / 3;
-    function clampGain(v){ return Math.max(0.94, Math.min(1.08, v)); }
-    const gainR = clampGain(avgGray / (avgR || 1));
-    const gainG = clampGain(avgGray / (avgG || 1));
-    const gainB = clampGain(avgGray / (avgB || 1));
-
-    return {
-      lo: ry.lo, hi: ry.hi, brightGain,
-      r: {gain: gainR}, g: {gain: gainG}, b: {gain: gainB}
-    };
-  }
-
-  // 元画像の全ピクセルに補正を適用した「自動調整済みキャンバス」を作る
-  function buildAdjustedCanvas(img, w, h, adj){
-    const c = document.createElement('canvas');
-    c.width = w; c.height = h;
-    const cx = c.getContext('2d');
-    cx.drawImage(img, 0, 0, w, h);
-    const imgData = cx.getImageData(0, 0, w, h);
-    const d = imgData.data;
-    const range = Math.max(1, adj.hi - adj.lo);
-    function buildLUT(chGain){
-      const lut = new Uint8ClampedArray(256);
-      for(let v = 0; v < 256; v++){
-        // 明るさ基準の共通レベル補正（コントラスト）→ 露出の微調整 → チャンネルごとのホワイトバランス、の順に適用
-        const levelled = (v - adj.lo) * 255 / range;
-        lut[v] = levelled * adj.brightGain * chGain;
-      }
-      return lut;
-    }
-    const lutR = buildLUT(adj.r.gain), lutG = buildLUT(adj.g.gain), lutB = buildLUT(adj.b.gain);
-    for(let i = 0; i < d.length; i += 4){
-      d[i] = lutR[d[i]];
-      d[i+1] = lutG[d[i+1]];
-      d[i+2] = lutB[d[i+2]];
-    }
-    cx.putImageData(imgData, 0, 0);
-    return c;
-  }
-
-  // ---------- 結合（コラージュ）関連の状態 ----------
-  const RATIOS = {
-    '1:1': {a:1,b:1,label:'1:1'},
-    '4:3': {a:4,b:3,label:'4:3'},
-    '3:2': {a:3,b:2,label:'3:2'},
-    '16:9':{a:16,b:9,label:'16:9'},
-    '5:4': {a:5,b:4,label:'5:4'}
+  game = {
+    type:'multi',
+    deck: deck,
+    timeline: timeline,
+    players: players,
+    currentPlayerIndex: 0,
+    selectedHandCardId: null
   };
-  const LAYOUTS = buildLayoutPresets();
-  let orientation = 'portrait';   // 'portrait' | 'landscape'
-  let currentCount = 2;
-  let currentPresetId = null;
-  let slots = [];          // {rect:{x,y,w,h} (0-1), item:null, zoom:1, offX:0, offY:0}
-  let activeSlot = -1;
-  let swapMode = false;
-  let swapSourceIdx = -1;
-  const COLLAGE_LONG = 1600;
-  let presetUsage = {};    // {presetId: ダウンロードした回数} … よく使うプリセットを左上に並べるための記録（選んだだけではカウントしない）
-  let sortByUsage = true;  // ONのときはよく使う順、OFFのときは元の並び順で表示する
-  let batchAutoAdjust = false; // ONのときは画像を追加すると自動で自動調整をかける
-  let thumbListMode1 = false; // ONのときはSTEP1のサムネイルを折り返して一覧表示する（OFFなら横スクロール）
-  let thumbListMode2 = false; // ONのときはSTEP2のサムネイルを折り返して一覧表示する（OFFなら横スクロール）
-  let deleteUsedOnDownload = false; // ONのときは結合ダウンロード時に使用した画像を一覧から削除する
-  function updateBatchAutoAdjustToggleUI(){
-    btnBatchAutoAdjustToggle.classList.toggle('active', batchAutoAdjust);
-    btnBatchAutoAdjustToggle.textContent = batchAutoAdjust ? '一括自動調整：ON' : '一括自動調整：OFF';
+
+  showScreen('game-screen');
+  renderGame();
+}
+
+function currentPlayer(){ return game.players[game.currentPlayerIndex]; }
+
+function nextTurnMulti(){
+  game.selectedHandCardId = null;
+  var total = game.players.length;
+  var hasActivePlayer = game.players.some(function(pl){ return pl.hand.length > 0; });
+  if(!hasActivePlayer){
+    endMultiGameStalemate();
+    return;
   }
-  btnBatchAutoAdjustToggle.addEventListener('click', async () => {
-    batchAutoAdjust = !batchAutoAdjust;
-    updateBatchAutoAdjustToggleUI();
-    saveSettings();
-    if(items.length){
-      pushUndo();
-      const label = batchAutoAdjust ? '自動調整中…' : '自動調整を解除中…';
-      showLoading(items.length > 1 ? `${label}（0/${items.length}）` : label);
-      await nextPaint();
-      for(let i = 0; i < items.length; i++){
-        if(items.length > 1) loadingLabel.textContent = `${label}（${i+1}/${items.length}）`;
-        await nextPaint();
-        try{
-          if(batchAutoAdjust){ applyAutoAdjustToItem(items[i]); }
-          else{ resetAutoAdjustForItem(items[i]); }
-        }catch(err){ console.error('auto adjust error', err); }
-      }
-      hideLoading();
-      if(getSelected()){ refreshSliderUI(); drawEditor(); }
-      renderThumbs();
-    }
-  });
-  function updateThumbListToggleUI(){
-    btnThumbListToggle1.classList.toggle('active', thumbListMode1);
-    btnThumbListToggle1.textContent = thumbListMode1 ? '一覧表示：ON' : '一覧表示：OFF';
-    thumbGrid.classList.toggle('hscroll', !thumbListMode1);
-    btnThumbListToggle2.classList.toggle('active', thumbListMode2);
-    btnThumbListToggle2.textContent = thumbListMode2 ? '一覧表示：ON' : '一覧表示：OFF';
-    thumbGrid2.classList.toggle('hscroll', !thumbListMode2);
+  for(var i = 0; i < total; i++){
+    game.currentPlayerIndex = (game.currentPlayerIndex + 1) % total;
+    if(game.players[game.currentPlayerIndex].hand.length > 0) break;
   }
-  btnThumbListToggle1.addEventListener('click', () => {
-    thumbListMode1 = !thumbListMode1;
-    updateThumbListToggleUI();
-    saveSettings();
-  });
-  btnThumbListToggle2.addEventListener('click', () => {
-    thumbListMode2 = !thumbListMode2;
-    updateThumbListToggleUI();
-    saveSettings();
-  });
-  function updateDeleteUsedToggleUI(){
-    btnDeleteUsedToggle.classList.toggle('active', deleteUsedOnDownload);
-    btnDeleteUsedToggle.textContent = deleteUsedOnDownload ? 'ダウンロード後に使用画像を削除：ON' : 'ダウンロード後に使用画像を削除：OFF';
-  }
-  btnDeleteUsedToggle.addEventListener('click', () => {
-    deleteUsedOnDownload = !deleteUsedOnDownload;
-    updateDeleteUsedToggleUI();
-    saveSettings();
-  });
-  // ダウンロード後、結合で使用した画像をSTEP1・STEP2の一覧から削除する（ONのときのみ）
-  function removeUsedItemsAfterDownload(){
-    const usedIds = new Set(slots.filter(s => s.item).map(s => s.item.id));
-    if(usedIds.size === 0) return;
-    pushUndo();
-    items = items.filter(i => !usedIds.has(i.id));
-    slots.forEach(s => { if(s.item && usedIds.has(s.item.id)) resetSlotAssignment(s); });
-    // 次の画像結合をすぐ始められるよう、STEP2の選択中の枠は空いている最初の枠に戻す
-    activeSlot = slots.findIndex(s => !s.item);
-    if(activeSlot === -1) activeSlot = 0;
-    updateSlotSidePanel();
-    renderThumbs2();
-    renderCollage();
-  }
-
-  // ==================== 画像の保存（IndexedDB） ====================
-  // ONのときは、読み込んだ画像とぼかし・調整の内容をこのパソコンのブラウザ内に保存し、
-  // 誤ってタブを閉じてしまっても次に開いたときに復元できるようにする。
-  let persistImages = true;
-  const IMG_DB_NAME = 'facewb_images_db';
-  const IMG_DB_VERSION = 2;
-  const IMG_DB_STORE = 'items';
-  const IMAGECACHE_STORE = 'imageCache'; // 元画像のデータURLを、一度読み込んだ画像はidごとにずっと保持しておく置き場（元に戻す履歴の復元用）
-  const HISTORY_STORE = 'history';       // 「元に戻す／やり直す」の履歴を保存する置き場
-  let imgDbPromise = null;
-  function openImgDB(){
-    if(!('indexedDB' in window)) return Promise.reject(new Error('IndexedDB not available'));
-    if(imgDbPromise) return imgDbPromise;
-    imgDbPromise = new Promise((resolve, reject) => {
-      const req = indexedDB.open(IMG_DB_NAME, IMG_DB_VERSION);
-      req.onupgradeneeded = () => {
-        const db = req.result;
-        if(!db.objectStoreNames.contains(IMG_DB_STORE)){
-          db.createObjectStore(IMG_DB_STORE, {keyPath: 'id'});
-        }
-        if(!db.objectStoreNames.contains(IMAGECACHE_STORE)){
-          db.createObjectStore(IMAGECACHE_STORE, {keyPath: 'id'});
-        }
-        if(!db.objectStoreNames.contains(HISTORY_STORE)){
-          db.createObjectStore(HISTORY_STORE, {keyPath: 'id'});
-        }
-      };
-      req.onsuccess = () => resolve(req.result);
-      req.onerror = () => reject(req.error);
-    });
-    return imgDbPromise;
-  }
-  async function clearImgDB(){
-    try{
-      const db = await openImgDB();
-      await new Promise((resolve, reject) => {
-        const tx = db.transaction([IMG_DB_STORE, IMAGECACHE_STORE, HISTORY_STORE], 'readwrite');
-        tx.objectStore(IMG_DB_STORE).clear();
-        tx.objectStore(IMAGECACHE_STORE).clear();
-        tx.objectStore(HISTORY_STORE).clear();
-        tx.oncomplete = resolve;
-        tx.onerror = () => reject(tx.error);
-      });
-    }catch(e){ /* 保存機能が使えなくても処理は続行 */ }
-  }
-  // 画像のデータURLをidごとに保存しておく（元に戻す履歴で、一覧から消えた後の画像を復元するために使う）
-  async function cacheImageSource(id, src){
-    if(!persistImages || !src) return;
-    try{
-      const db = await openImgDB();
-      await new Promise((resolve, reject) => {
-        const tx = db.transaction(IMAGECACHE_STORE, 'readwrite');
-        tx.objectStore(IMAGECACHE_STORE).put({id, src});
-        tx.oncomplete = resolve;
-        tx.onerror = () => reject(tx.error);
-      });
-    }catch(e){ /* 保存できなくても処理は続行 */ }
-  }
-  async function loadImageCacheMap(){
-    const map = new Map();
-    try{
-      const db = await openImgDB();
-      const records = await new Promise((resolve, reject) => {
-        const tx = db.transaction(IMAGECACHE_STORE, 'readonly');
-        const req = tx.objectStore(IMAGECACHE_STORE).getAll();
-        req.onsuccess = () => resolve(req.result || []);
-        req.onerror = () => reject(req.error);
-      });
-      records.forEach(r => map.set(r.id, r.src));
-    }catch(e){ /* 読み込めなくても処理は続行 */ }
-    return map;
-  }
-  const WORKSTATE_KEY = 'workState'; // items（数値id）とは別に、STEP2の枠への割り当てなど作業状態をこのidで保存する
-  async function saveItemsToImgDB(){
-    if(!persistImages) return;
-    try{
-      const db = await openImgDB();
-      await new Promise((resolve, reject) => {
-        const tx = db.transaction(IMG_DB_STORE, 'readwrite');
-        const store = tx.objectStore(IMG_DB_STORE);
-        store.clear();
-        items.forEach(it => {
-          store.put({
-            id: it.id, name: it.name, w: it.w, h: it.h,
-            boxes: cloneBoxes(it.boxes || []),
-            detected: !!it.detected,
-            overrides: {...(it.overrides || {})},
-            autoAdjust: it.autoAdjust || null,
-            manualAdjust: it.manualAdjust ? {...it.manualAdjust} : null,
-            adjustVersion: it.adjustVersion || 0,
-            imgSrc: it.img ? it.img.src : null
-          });
-        });
-        // STEP2で画像を枠にはめた配置（結合の作業状態）も一緒に保存する
-        store.put({
-          id: WORKSTATE_KEY,
-          currentCount, currentPresetId,
-          slots: slots.map(s => ({
-            itemId: s.item ? s.item.id : null,
-            zoom: s.zoom, offX: s.offX, offY: s.offY, baseScale: s.baseScale
-          }))
-        });
-        tx.oncomplete = resolve;
-        tx.onerror = () => reject(tx.error);
-      });
-    }catch(e){ /* 保存できなくても処理は続行 */ }
-  }
-  let persistSaveTimer = null;
-  function schedulePersistImages(){
-    if(!persistImages) return;
-    if(persistSaveTimer) clearTimeout(persistSaveTimer);
-    persistSaveTimer = setTimeout(() => { saveItemsToImgDB(); }, 1000);
-  }
-  async function loadItemsFromImgDB(){
-    try{
-      const db = await openImgDB();
-      const records = await new Promise((resolve, reject) => {
-        const tx = db.transaction(IMG_DB_STORE, 'readonly');
-        const req = tx.objectStore(IMG_DB_STORE).getAll();
-        req.onsuccess = () => resolve(req.result || []);
-        req.onerror = () => reject(req.error);
-      });
-      if(!records.length) return;
-      const workState = records.find(r => r.id === WORKSTATE_KEY) || null;
-      const itemRecords = records.filter(r => r.id !== WORKSTATE_KEY);
-      if(!itemRecords.length) return;
-      showLoading('保存されていた画像を読み込み中…');
-      await nextPaint();
-      for(const rec of itemRecords){
-        if(!rec.imgSrc) continue;
-        let img;
-        try{
-          img = await new Promise((resolve, reject) => {
-            const im = new Image();
-            im.onload = () => resolve(im);
-            im.onerror = reject;
-            im.src = rec.imgSrc;
-          });
-        }catch(e){ continue; }
-        const item = {
-          id: rec.id, name: rec.name, img, w: rec.w, h: rec.h,
-          boxes: cloneBoxes(rec.boxes || []),
-          detected: !!rec.detected,
-          overrides: {...(rec.overrides || {})},
-          autoAdjust: rec.autoAdjust || null,
-          adjustedCanvas: null,
-          manualAdjust: rec.manualAdjust || null,
-          manualCanvas: null,
-          adjustVersion: rec.adjustVersion || 0
-        };
-        if(item.autoAdjust){
-          try{ item.adjustedCanvas = buildAdjustedCanvas(item.img, item.w, item.h, item.autoAdjust); }catch(e){}
-        }
-        if(item.manualAdjust){
-          try{ rebuildManualCanvas(item); }catch(e){}
-        }
-        nextId = Math.max(nextId, rec.id + 1);
-        items.push(item);
-        cacheImageSource(item.id, item.img.src);
-      }
-      if(workState) restoreWorkState(workState);
-    }catch(e){
-      console.error(e);
-    }finally{
-      hideLoading();
-    }
-  }
-  // STEP2で画像を枠にはめた配置（結合の作業状態）を復元する
-  function restoreWorkState(ws){
-    try{
-      if(ws.currentCount && LAYOUTS[ws.currentCount]) currentCount = ws.currentCount;
-      const presetsForCount = LAYOUTS[currentCount] || [];
-      const preset = (ws.currentPresetId && presetsForCount.find(p => p.id === ws.currentPresetId)) || presetsForCount[0];
-      if(!preset) return;
-      currentPresetId = preset.id;
-      slots = preset.rects.map(rect => ({rect, item:null, zoom:1, offX:0, offY:0, baseScale:1}));
-      if(Array.isArray(ws.slots)){
-        ws.slots.forEach((s, i) => {
-          if(!slots[i] || s.itemId == null) return;
-          const it = items.find(x => x.id === s.itemId);
-          if(!it) return;
-          slots[i].item = it;
-          slots[i].zoom = s.zoom != null ? s.zoom : 1;
-          slots[i].offX = s.offX || 0;
-          slots[i].offY = s.offY || 0;
-          slots[i].baseScale = s.baseScale || 1;
-        });
-      }
-      activeSlot = slots.findIndex(s => !s.item);
-      if(activeSlot === -1) activeSlot = 0;
-    }catch(e){ console.error(e); }
-  }
-
-  // ---------- 「元に戻す／やり直す」の履歴も保存・復元する ----------
-  // 画像そのもの（img要素）は保存できないので、imageCacheに保存済みの元画像を
-  // idを手がかりに使い回して、履歴の中身（枠の位置や調整の値）だけを保存する。
-  function snapshotItemToStorable(it){
-    return {
-      id: it.id, name: it.name, w: it.w, h: it.h,
-      boxes: cloneBoxes(it.boxes || []),
-      detected: !!it.detected,
-      overrides: {...(it.overrides || {})},
-      autoAdjust: it.autoAdjust || null,
-      manualAdjust: it.manualAdjust ? {...it.manualAdjust} : null,
-      adjustVersion: it.adjustVersion || 0
-    };
-  }
-  function snapshotToStorable(snap){
-    return {
-      controls: {...snap.controls},
-      batch: {...snap.batch},
-      currentCount: snap.currentCount, currentPresetId: snap.currentPresetId,
-      activeSlot: snap.activeSlot, selectedId: snap.selectedId,
-      items: snap.items.map(snapshotItemToStorable),
-      slots: snap.slots.map(s => ({rect:{...s.rect}, itemId: s.itemId, zoom:s.zoom, offX:s.offX, offY:s.offY, baseScale:s.baseScale}))
-    };
-  }
-  let persistHistoryTimer = null;
-  function schedulePersistHistory(){
-    if(!persistImages) return;
-    if(persistHistoryTimer) clearTimeout(persistHistoryTimer);
-    persistHistoryTimer = setTimeout(() => { saveHistoryToImgDB(); }, 800);
-  }
-  async function saveHistoryToImgDB(){
-    if(!persistImages) return;
-    try{
-      const db = await openImgDB();
-      const data = {
-        id: 'undoRedo',
-        undoStack: undoStack.map(snapshotToStorable),
-        redoStack: redoStack.map(snapshotToStorable)
-      };
-      await new Promise((resolve, reject) => {
-        const tx = db.transaction(HISTORY_STORE, 'readwrite');
-        tx.objectStore(HISTORY_STORE).put(data);
-        tx.oncomplete = resolve;
-        tx.onerror = () => reject(tx.error);
-      });
-    }catch(e){ /* 保存できなくても処理は続行 */ }
-  }
-  async function loadHistoryFromImgDB(){
-    try{
-      const db = await openImgDB();
-      const rec = await new Promise((resolve, reject) => {
-        const tx = db.transaction(HISTORY_STORE, 'readonly');
-        const req = tx.objectStore(HISTORY_STORE).get('undoRedo');
-        req.onsuccess = () => resolve(req.result || null);
-        req.onerror = () => reject(req.error);
-      });
-      if(!rec) return;
-      const imageCacheMap = await loadImageCacheMap();
-      const imgObjCache = new Map(); // 同じ画像を何度も読み込み直さないためのキャッシュ
-      async function getSharedImage(id){
-        if(imgObjCache.has(id)) return imgObjCache.get(id);
-        const cur = items.find(x => x.id === id);
-        if(cur && cur.img){ imgObjCache.set(id, cur.img); return cur.img; }
-        const src = imageCacheMap.get(id);
-        if(!src){ imgObjCache.set(id, null); return null; }
-        const img = await new Promise(resolve => {
-          const im = new Image();
-          im.onload = () => resolve(im);
-          im.onerror = () => resolve(null);
-          im.src = src;
-        });
-        imgObjCache.set(id, img);
-        return img;
-      }
-      async function rebuildSnapshot(storable){
-        const itemsArr = [];
-        for(const it of storable.items){
-          const img = await getSharedImage(it.id);
-          if(!img) continue; // 画像が見つからない場合は、そのアイテムだけ復元をあきらめる
-          const full = {
-            id: it.id, name: it.name, img, w: it.w, h: it.h,
-            boxes: cloneBoxes(it.boxes || []),
-            detected: !!it.detected,
-            overrides: {...(it.overrides || {})},
-            autoAdjust: it.autoAdjust || null,
-            adjustedCanvas: null,
-            manualAdjust: it.manualAdjust || null,
-            manualCanvas: null,
-            adjustVersion: it.adjustVersion || 0
-          };
-          if(full.autoAdjust){
-            try{ full.adjustedCanvas = buildAdjustedCanvas(full.img, full.w, full.h, full.autoAdjust); }catch(e){}
-          }
-          if(full.manualAdjust){
-            try{ rebuildManualCanvas(full); }catch(e){}
-          }
-          itemsArr.push(full);
-        }
-        return {
-          controls: {...storable.controls},
-          batch: {...storable.batch},
-          currentCount: storable.currentCount, currentPresetId: storable.currentPresetId,
-          activeSlot: storable.activeSlot, selectedId: storable.selectedId,
-          items: itemsArr,
-          slots: storable.slots.map(s => ({rect:{...s.rect}, itemId: s.itemId, zoom:s.zoom, offX:s.offX, offY:s.offY, baseScale:s.baseScale}))
-        };
-      }
-      const newUndo = [];
-      for(const s of (rec.undoStack || [])) newUndo.push(await rebuildSnapshot(s));
-      const newRedo = [];
-      for(const s of (rec.redoStack || [])) newRedo.push(await rebuildSnapshot(s));
-      undoStack = newUndo;
-      redoStack = newRedo;
-      updateUndoRedoButtons();
-    }catch(e){ console.error(e); }
-  }
-  function updatePersistImagesToggleUI(){
-    btnPersistImagesToggle.classList.toggle('active', persistImages);
-    btnPersistImagesToggle.textContent = persistImages ? '作業を保存：ON' : '作業を保存：OFF';
-  }
-  btnPersistImagesToggle.addEventListener('click', () => {
-    persistImages = !persistImages;
-    updatePersistImagesToggleUI();
-    saveSettings();
-    if(persistImages){
-      items.forEach(it => { if(it.img) cacheImageSource(it.id, it.img.src); });
-      saveItemsToImgDB();
-      saveHistoryToImgDB();
-    } else {
-      clearImgDB();
-    }
-  });
-
-  function updatePresetSortToggleUI(){
-    btnPresetSortToggle.classList.toggle('active', sortByUsage);
-    btnPresetSortToggle.textContent = sortByUsage ? 'よく使う順：ON' : 'よく使う順：OFF';
-  }
-  btnPresetSortToggle.addEventListener('click', () => {
-    sortByUsage = !sortByUsage;
-    updatePresetSortToggleUI();
-    renderPresetGrid();
-    saveSettings();
-  });
-  const DOWNLOAD_SIZES = { large: 1600, medium: 1000, small: 600 }; // ダウンロード時の長辺サイズ(px)
-  let downloadSizeKey = 'medium';
-  function updateDownloadSizeButtons(){
-    downloadSizeTabs.querySelectorAll('button').forEach(btn => {
-      btn.classList.toggle('active', btn.dataset.size === downloadSizeKey);
-    });
-  }
-  downloadSizeTabs.querySelectorAll('button').forEach(btn => {
-    btn.addEventListener('click', () => {
-      downloadSizeKey = btn.dataset.size;
-      updateDownloadSizeButtons();
-      saveSettings();
-    });
-  });
-
-  // ---------- ダウンロードファイル名の通し番号（日本時間の日付＋4桁の番号） ----------
-  let downloadDateStr = '';   // 最後にダウンロードした（または表示を更新した）日本時間の日付「YYYYMMDD」
-  let downloadCounter = 1;    // 次のダウンロードで使う番号
-  function getJSTDateString(){
-    // now.getTime()はタイムゾーンに関係なく常にUTC基準のミリ秒なので、
-    // そこに9時間を足してUTCの関数で読み取れば、パソコンの時刻設定に関係なく日本時間の日付になる
-    const now = new Date();
-    const jst = new Date(now.getTime() + 9 * 60 * 60000);
-    const y = jst.getUTCFullYear();
-    const m = String(jst.getUTCMonth() + 1).padStart(2, '0');
-    const d = String(jst.getUTCDate()).padStart(2, '0');
-    return `${y}${m}${d}`;
-  }
-  // 日本時間で日付が変わっていたら、通し番号を0000にリセットする
-  function ensureDownloadCounterFresh(){
-    const today = getJSTDateString();
-    if(downloadDateStr !== today){
-      downloadDateStr = today;
-      downloadCounter = 1;
-      updateDownloadCounterUI();
-      saveSettings();
-    }
-  }
-  function updateDownloadCounterUI(){
-    downloadCounterInput.value = String(downloadCounter).padStart(4, '0');
-  }
-  function nextDownloadFilename(ext){
-    ensureDownloadCounterFresh();
-    const name = `${downloadDateStr}_${String(downloadCounter).padStart(4, '0')}.${ext}`;
-    downloadCounter++;
-    updateDownloadCounterUI();
-    saveSettings();
-    return name;
-  }
-  downloadCounterInput.addEventListener('change', () => {
-    ensureDownloadCounterFresh();
-    const n = parseInt(downloadCounterInput.value, 10);
-    downloadCounter = (isNaN(n) || n < 0) ? 1 : n;
-    updateDownloadCounterUI();
-    saveSettings();
-  });
-
-  // ---------- 設定の保存／復元（このブラウザに記憶させる） ----------
-  const SETTINGS_KEY = 'facewb_settings_v1';
-  function loadSettings(){
-    let s = null;
-    try{ s = JSON.parse(localStorage.getItem(SETTINGS_KEY) || 'null'); }catch(e){ s = null; }
-    if(!s) return;
-    if(s.strength != null) batch.strength = s.strength;
-    if(s.feather != null) batch.feather = s.feather;
-    if(s.padding != null) batch.padding = s.padding;
-    if(s.sensitivity != null) batch.sensitivity = s.sensitivity;
-    if(s.canvasRatio) canvasRatioEl.value = s.canvasRatio;
-    if(s.orientation) orientation = s.orientation;
-    if(s.gap != null) gapEl.value = s.gap;
-    if(s.bgColor) bgColorEl.value = s.bgColor;
-    if(s.presetUsage) presetUsage = s.presetUsage;
-    if(s.downloadSizeKey && DOWNLOAD_SIZES[s.downloadSizeKey]) downloadSizeKey = s.downloadSizeKey;
-    if(s.blurEnabled != null) blurEnabled = s.blurEnabled;
-    if(s.sortByUsage != null) sortByUsage = s.sortByUsage;
-    if(s.batchAutoAdjust != null) batchAutoAdjust = s.batchAutoAdjust;
-    if(s.thumbListMode1 != null) thumbListMode1 = s.thumbListMode1;
-    if(s.thumbListMode2 != null) thumbListMode2 = s.thumbListMode2;
-    if(s.deleteUsedOnDownload != null) deleteUsedOnDownload = s.deleteUsedOnDownload;
-    if(s.persistImages != null) persistImages = s.persistImages;
-    if(s.downloadDateStr) downloadDateStr = s.downloadDateStr;
-    if(s.downloadCounter != null) downloadCounter = s.downloadCounter;
-    updateBlurToggleUI();
-    updatePresetSortToggleUI();
-    updateBatchAutoAdjustToggleUI();
-    updateThumbListToggleUI();
-    updateDeleteUsedToggleUI();
-    updatePersistImagesToggleUI();
-
-    gapVal.textContent = gapEl.value + 'px';
-    if(orientation === 'landscape'){
-      btnOrientLandscape.classList.add('active'); btnOrientPortrait.classList.remove('active');
-    } else {
-      btnOrientPortrait.classList.add('active'); btnOrientLandscape.classList.remove('active');
-    }
-  }
-  function saveSettings(){
-    const s = {
-      strength: batch.strength, feather: batch.feather, padding: batch.padding,
-      sensitivity: batch.sensitivity,
-      canvasRatio: canvasRatioEl.value, orientation, gap: gapEl.value, bgColor: bgColorEl.value,
-      presetUsage, downloadSizeKey, blurEnabled, sortByUsage, batchAutoAdjust,
-      thumbListMode1, thumbListMode2, deleteUsedOnDownload, persistImages,
-      downloadDateStr, downloadCounter
-    };
-    try{ localStorage.setItem(SETTINGS_KEY, JSON.stringify(s)); }catch(e){ /* 保存できなくても処理は続行 */ }
-  }
-  loadSettings();
-  updateDownloadSizeButtons();
-  ensureDownloadCounterFresh();
-  updateDownloadCounterUI();
-  refreshSliderUI();
-
-  function resetSettingsToDefaults(){
-    batch = {strength:4, feather:40, padding:30, sensitivity:35};
-    canvasRatioEl.value = '4:3';
-    orientation = 'portrait';
-    btnOrientPortrait.classList.add('active'); btnOrientLandscape.classList.remove('active');
-    gapEl.value = 0; gapVal.textContent = '0px';
-    bgColorEl.value = '#ffffff';
-    presetUsage = {};
-    downloadSizeKey = 'medium';
-    blurEnabled = true;
-    updateBlurToggleUI();
-    updateDownloadSizeButtons();
-    try{ localStorage.removeItem(SETTINGS_KEY); }catch(e){}
-    saveSettings();
-
-    const item = getSelected();
-    refreshSliderUI();
-    if(item) drawEditor();
-    refitAllSlots();
-    renderCountTabs();
-    renderPresetGrid();
-    renderCollage();
-  }
-  document.getElementById('btnResetSettings').addEventListener('click', () => {
-    if(!confirm('ぼかしの強さ・キャンバス比率・間隔・色などすべての設定を初期値に戻します。読み込んだ画像やぼかしの位置は消えません。よろしいですか？')) return;
-    resetSettingsToDefaults();
-  });
-
-  // ==================== 元に戻す／やり直す（Undo / Redo） ====================
-  const btnUndo = document.getElementById('btnUndo');
-  const btnRedo = document.getElementById('btnRedo');
-  let undoStack = [];
-  let redoStack = [];
-  const UNDO_LIMIT = 60;
-
-  function cloneBoxes(boxes){
-    return boxes.map(b => {
-      const out = {x:b.x,y:b.y,w:b.w,h:b.h,src:b.src};
-      if(b.shape) out.shape = b.shape;
-      if(b.points) out.points = b.points.map(p => ({x:p.x,y:p.y}));
-      return out;
-    });
-  }
-
-  function snapshotState(){
-    return {
-      controls: {
-        canvasRatio: canvasRatioEl.value, orientation, gap: gapEl.value, bgColor: bgColorEl.value, blurEnabled
-      },
-      batch: {...batch},
-      currentCount, currentPresetId, activeSlot, selectedId,
-      items: items.map(it => ({id:it.id, name:it.name, img:it.img, w:it.w, h:it.h, boxes: cloneBoxes(it.boxes), detected: it.detected, overrides: {...(it.overrides||{})}, autoAdjust: it.autoAdjust || null, adjustedCanvas: it.adjustedCanvas || null, manualAdjust: it.manualAdjust ? {...it.manualAdjust} : null, manualCanvas: it.manualCanvas || null, adjustVersion: it.adjustVersion || 0})),
-      slots: slots.map(s => ({rect:{...s.rect}, itemId: s.item ? s.item.id : null, zoom:s.zoom, offX:s.offX, offY:s.offY, baseScale:s.baseScale}))
-    };
-  }
-
-  function restoreSnapshot(snap){
-    polygonDraft = null;
-    const c = snap.controls;
-    canvasRatioEl.value = c.canvasRatio;
-    orientation = c.orientation;
-    btnOrientPortrait.classList.toggle('active', orientation === 'portrait');
-    btnOrientLandscape.classList.toggle('active', orientation === 'landscape');
-    gapEl.value = c.gap; gapVal.textContent = c.gap + 'px';
-    bgColorEl.value = c.bgColor;
-    blurEnabled = c.blurEnabled !== false;
-    updateBlurToggleUI();
-
-    if(snap.batch) batch = {...snap.batch};
-
-    currentCount = snap.currentCount;
-    currentPresetId = snap.currentPresetId;
-    selectedId = snap.selectedId;
-
-    items = snap.items.map(it => ({id:it.id, name:it.name, img:it.img, w:it.w, h:it.h, boxes: cloneBoxes(it.boxes), detected: it.detected, overrides: {...(it.overrides||{})}, autoAdjust: it.autoAdjust || null, adjustedCanvas: it.adjustedCanvas || null, manualAdjust: it.manualAdjust ? {...it.manualAdjust} : null, manualCanvas: it.manualCanvas || null, adjustVersion: it.adjustVersion || 0}));
-    slots = snap.slots.map(s => ({rect:{...s.rect}, item: s.itemId!=null ? items.find(i=>i.id===s.itemId) || null : null, zoom:s.zoom, offX:s.offX, offY:s.offY, baseScale:s.baseScale}));
-    activeSlot = snap.activeSlot;
-
-    processedCache.clear();
-    renderThumbs();
-    if(getSelected()){ editorPanel.style.display = 'block'; refreshSliderUI(); drawEditor(); } else { editorPanel.style.display = 'none'; }
-    renderCountTabs();
-    renderPresetGrid();
-    renderThumbs2();
-    renderCollage();
-    updateSlotSidePanel();
-  }
-
-  function pushUndo(){
-    undoStack.push(snapshotState());
-    if(undoStack.length > UNDO_LIMIT) undoStack.shift();
-    redoStack = [];
-    updateUndoRedoButtons();
-  }
-  function doUndo(){
-    if(undoStack.length === 0) return;
-    redoStack.push(snapshotState());
-    restoreSnapshot(undoStack.pop());
-    updateUndoRedoButtons();
-  }
-  function doRedo(){
-    if(redoStack.length === 0) return;
-    undoStack.push(snapshotState());
-    restoreSnapshot(redoStack.pop());
-    updateUndoRedoButtons();
-  }
-  function updateUndoRedoButtons(){
-    btnUndo.disabled = undoStack.length === 0;
-    btnRedo.disabled = redoStack.length === 0;
-    schedulePersistHistory();
-  }
-  btnUndo.addEventListener('click', doUndo);
-  btnRedo.addEventListener('click', doRedo);
-  window.addEventListener('keydown', e => {
-    const meta = e.ctrlKey || e.metaKey;
-    if(!meta) return;
-    const k = e.key.toLowerCase();
-    if(k === 'z' && !e.shiftKey){ e.preventDefault(); doUndo(); }
-    else if(k === 'y' || (k === 'z' && e.shiftKey)){ e.preventDefault(); doRedo(); }
-  });
-
-  // 連続した操作（スライダーのドラッグ、ホイールでの拡大など）は1回分の操作としてまとめる
-  function armContinuousUndo(el){
-    el.addEventListener('pointerdown', () => pushUndo());
-  }
-  [strengthEl, featherEl, paddingEl, sensitivityEl, gapEl, bgColorEl, slotZoomEl,
-   canvasRatioEl, manualBrightnessEl, manualContrastEl, manualSaturateEl].forEach(armContinuousUndo);
-
-  let wheelUndoTimer = null;
-  function beginWheelUndoGroup(){
-    if(!wheelUndoTimer) pushUndo();
-    clearTimeout(wheelUndoTimer);
-    wheelUndoTimer = setTimeout(() => { wheelUndoTimer = null; }, 600);
-  }
-
-  // ---------- モデル読み込み ----------
-  const MODEL_URL = 'https://cdn.jsdelivr.net/gh/justadudewhohacks/face-api.js@master/weights';
-  showLoading('顔検出モデルを読み込み中…');
-  faceapi.nets.ssdMobilenetv1.loadFromUri(MODEL_URL).then(() => {
-    modelReady = true;
-    setStatus('準備完了：自動で顔を検出します', 'ok', true);
-    items.filter(it => !it.detected).forEach(it => runDetection(it));
-  }).catch(err => {
-    console.error(err);
-    setStatus('顔検出モデルの読み込みに失敗しました（自動検出は使えません。手動でのぼかし追加は利用できます）', 'err', false);
-  }).finally(() => {
-    hideLoading();
-  });
-
-  // ステータス表示：準備完了になったら少ししてから自動的に小さく消える
-  let statusHideTimer = null;
-  function setStatus(text, kind, autoHide){
-    if(statusHideTimer){ clearTimeout(statusHideTimer); statusHideTimer = null; }
-    statusBar.textContent = text;
-    statusBar.className = 'status-pill' + (kind ? ' ' + kind : '') ;
-    if(autoHide){
-      statusHideTimer = setTimeout(() => { statusBar.classList.add('hidden'); }, 3500);
-    }
-  }
-
-  // ---------- ファイル追加 ----------
-  dropzone.addEventListener('click', () => fileInput.click());
-  dropzone.addEventListener('dragover', e => { e.preventDefault(); dropzone.classList.add('drag'); });
-  dropzone.addEventListener('dragleave', () => dropzone.classList.remove('drag'));
-  dropzone.addEventListener('drop', e => {
-    e.preventDefault();
-    dropzone.classList.remove('drag');
-    handleFiles(e.dataTransfer.files);
-  });
-  fileInput.addEventListener('change', e => { handleFiles(e.target.files); fileInput.value=''; });
-
-  // ブラウザに一度描画（ペイント）させてから次の重い処理に進む。
-  // これを挟まないと、スピナーを表示したつもりでも実際には描画されないまま
-  // 重い処理が連続し、フリーズしたように見えてしまう。
-  function nextPaint(){
-    return new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
-  }
-
-  function loadImageFromFile(file){
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = e => {
-        const img = new Image();
-        img.onload = () => resolve(img);
-        img.onerror = reject;
-        img.src = e.target.result;
-      };
-      reader.onerror = reject;
-      reader.readAsDataURL(file);
-    });
-  }
-
-  async function handleFiles(fileList){
-    const files = Array.from(fileList).filter(f => f.type.startsWith('image/'));
-    if(files.length === 0) return;
-    showLoading(files.length > 1 ? `画像を読み込み中…（0/${files.length}）` : '画像を読み込み中…');
-    await nextPaint();
-    for(let i = 0; i < files.length; i++){
-      const file = files[i];
-      try{
-        if(files.length > 1) loadingLabel.textContent = `画像を読み込み中…（${i+1}/${files.length}）`;
-        await nextPaint();
-        const img = await loadImageFromFile(file);
-        const item = {
-          id: nextId++,
-          name: file.name,
-          img: img,
-          w: img.naturalWidth,
-          h: img.naturalHeight,
-          boxes: [],
-          detected: false,
-          overrides: {},
-          autoAdjust: null,
-          adjustedCanvas: null,
-          manualAdjust: null,
-          manualCanvas: null,
-          adjustVersion: 0
-        };
-        pushUndo();
-        items.push(item);
-        cacheImageSource(item.id, img.src);
-        if(batchAutoAdjust){
-          try{ applyAutoAdjustToItem(item); }catch(err){ console.error('auto adjust error', err); }
-        }
-        renderThumbs();
-        if(!selectedId){ selectItem(item.id); }
-        if(modelReady){
-          const label = files.length > 1 ? `顔を検出中…（${i+1}/${files.length}）` : undefined;
-          await nextPaint();
-          await runDetection(item, label);
-        }
-      }catch(err){
-        console.error('画像の読み込みに失敗しました', file && file.name, err);
-      }
-      await nextPaint();
-    }
-    hideLoading();
-  }
-
-  // ---------- 顔検出 ----------
-  async function runDetection(item, label){
-    if(!modelReady) return;
-    item.detecting = true;
-    renderThumbs();
-    showLoading(label || '顔を検出中…');
-    await nextPaint();
-    try{
-      const sens = effVal(item, 'sensitivity')/100;
-      const results = await faceapi.detectAllFaces(item.img, new faceapi.SsdMobilenetv1Options({minConfidence: sens, maxResults: 300}));
-      // 手動で追加した枠は保持し、自動枠だけ入れ替える
-      const manual = item.boxes.filter(b => b.src === 'manual');
-      const pad = effVal(item, 'padding')/100;
-      const auto = results.map(r => {
-        const b = r.box;
-        const padX = b.width * pad, padY = b.height * pad;
-        return clampBox({
-          x: b.x - padX, y: b.y - padY,
-          w: b.width + padX*2, h: b.height + padY*2,
-          src: 'auto'
-        }, item.w, item.h);
-      });
-      item.boxes = auto.concat(manual);
-      item.detected = true;
-    }catch(err){
-      console.error('detect error', err);
-    }
-    item.detecting = false;
-    hideLoading();
-    renderThumbs();
-    if(selectedId === item.id) drawEditor();
-  }
-
-  function clampBox(b, W, H){
-    let x = Math.max(0, b.x), y = Math.max(0, b.y);
-    let w = Math.min(b.w, W - x), h = Math.min(b.h, H - y);
-    const out = {x,y,w:Math.max(1,w),h:Math.max(1,h),src:b.src};
-    if(b.shape) out.shape = b.shape;
-    if(b.points) out.points = b.points;
-    return out;
-  }
-
-  // ---------- サムネイル ----------
-  function renderThumbs(){
-    schedulePersistImages();
-    thumbGrid.innerHTML = '';
-    items.forEach(item => {
-      const div = document.createElement('div');
-      div.className = 'thumb' + (item.id === selectedId ? ' selected' : '');
-      const im = document.createElement('img');
-      im.src = item.img.src;
-      div.appendChild(im);
-
-      const badge = document.createElement('div');
-      badge.className = 'badge';
-      badge.textContent = item.detecting ? '検出中…' : (item.detected ? `顔${item.boxes.filter(b=>b.src==='auto').length}件` : '未検出');
-      div.appendChild(badge);
-
-      const marks = [];
-      if(hasItemOverrides(item)) marks.push('個別設定');
-      if(item.adjustedCanvas) marks.push('自動調整');
-      if(hasManualAdjust(item)) marks.push('手動調整');
-      if(marks.length){
-        const ov = document.createElement('div');
-        ov.className = 'badge';
-        ov.style.top = 'auto'; ov.style.bottom = '22px'; ov.style.left = '4px';
-        ov.style.background = 'rgba(63,111,214,.85)';
-        ov.textContent = marks.join('・');
-        div.appendChild(ov);
-      }
-
-      const rm = document.createElement('button');
-      rm.className = 'rm'; rm.textContent = '×'; rm.title='削除';
-      rm.onclick = (e) => { e.stopPropagation(); removeItem(item.id); };
-      div.appendChild(rm);
-
-      const nameDiv = document.createElement('div');
-      nameDiv.className = 'name'; nameDiv.textContent = item.name;
-      div.appendChild(nameDiv);
-
-      div.onclick = () => selectItem(item.id);
-      thumbGrid.appendChild(div);
-    });
-  }
-
-  // ---------- STEP2用サムネイル（ぼかし済みプレビュー／クリックで枠にはめ込み） ----------
-  function renderThumbs2(){
-    thumbGrid2.innerHTML = '';
-    if(items.length === 0){
-      thumbGrid2.innerHTML = '<div class="empty-hint">STEP 1で画像を追加してください</div>';
-      return;
-    }
-    items.forEach(item => {
-      const usedCount = slots.filter(s => s.item === item).length;
-      const div = document.createElement('div');
-      div.className = 'thumb';
-      const im = document.createElement('img');
-      im.src = renderProcessedCanvas(item).toDataURL('image/jpeg', 0.85);
-      div.appendChild(im);
-
-      if(usedCount > 0){
-        const badge = document.createElement('div');
-        badge.className = 'badge';
-        badge.textContent = '使用中' + (usedCount > 1 ? `×${usedCount}` : '');
-        div.appendChild(badge);
-      }
-
-      const rm = document.createElement('button');
-      rm.className = 'rm'; rm.textContent = '×'; rm.title = '画像を削除（使用中の枠も空になります）';
-      rm.onclick = (e) => { e.stopPropagation(); removeItem(item.id); };
-      div.appendChild(rm);
-
-      const nameDiv = document.createElement('div');
-      nameDiv.className = 'name'; nameDiv.textContent = item.name;
-      div.appendChild(nameDiv);
-
-      div.draggable = true;
-      div.title = item.name + '（クリックで次の空き枠へ／ドラッグして好きな枠へドロップ）';
-      div.addEventListener('dragstart', e => {
-        e.dataTransfer.setData('text/plain', String(item.id));
-        e.dataTransfer.effectAllowed = 'copy';
-      });
-
-      div.onclick = () => assignItemToSlot(item);
-      thumbGrid2.appendChild(div);
-    });
-  }
-
-  function removeItem(id){
-    pushUndo();
-    items = items.filter(i => i.id !== id);
-    if(selectedId === id){
-      selectedId = items.length ? items[0].id : null;
-    }
-    renderThumbs();
-    if(selectedId){ refreshSliderUI(); drawEditor(); } else { editorPanel.style.display='none'; }
-    slots.forEach(s => { if(s.item && s.item.id === id) resetSlotAssignment(s); });
-    if(step2View.style.display !== 'none'){ renderThumbs2(); renderCollage(); }
-  }
-
-  function selectItem(id){
-    selectedId = id;
-    editorPanel.style.display = 'block';
-    renderThumbs();
-    editZoom = 1; editFitSize = null;
-    editZoomEl.value = 100; editZoomVal.textContent = '100%';
-    applyEditCanvasZoom();
-    polygonDraft = null;
-    refreshSliderUI();
-    drawEditor();
-  }
-
-  function getSelected(){ return items.find(i => i.id === selectedId); }
-
-  // 表示枠の縦横比は横長4:3で固定（縦長の写真は左右に余白が出てもよい、という方針）
-  function updateEditCanvasAspect(item){
-    const ratio = '4/3';
-    if(editCanvasWrap.dataset.ratio === ratio) return;
-    editCanvasWrap.dataset.ratio = ratio;
-    applyFrameSize();
-    editFitSize = null; // 枠の形が変わるので、拡大なし時の基準サイズを測り直す
-    applyEditCanvasZoom();
-  }
-
-  // ---------- エディタ描画 ----------
-  function drawEditor(){
-    const item = getSelected();
-    if(!item) return;
-    schedulePersistImages();
-    updateEditCanvasAspect(item);
-    editCanvas.width = item.w;
-    editCanvas.height = item.h;
-    ectx.clearRect(0,0,item.w,item.h);
-    const src = itemSource(item);
-    ectx.drawImage(src, 0, 0, item.w, item.h);
-
-    if(blurEnabled){
-      const strength = effVal(item, 'strength');
-      const feather = effVal(item, 'feather')/100;
-      item.boxes.forEach(b => {
-        applyBlurForBox(ectx, src, b, strength, feather);
-      });
-    }
-
-    // 枠線
-    item.boxes.forEach(b => {
-      ectx.strokeStyle = (b.src === 'manual' ? '#ff9500' : '#3f6fd6');
-      ectx.lineWidth = Math.max(2, item.w/300);
-      strokeBoxOutline(ectx, b);
-    });
-  }
-
-  function strokeEllipse(ctx, x, y, w, h){
-    ctx.save();
-    ctx.beginPath();
-    ctx.ellipse(x + w/2, y + h/2, w/2, h/2, 0, 0, Math.PI*2);
-    ctx.stroke();
-    ctx.restore();
-  }
-
-  // 顔の輪郭に合わせた楕円形・縁を自然にぼかしたガウスぼかしを適用する
-  function applyBlur(ctx, img, box, strength, feather){
-    const {x,y,w,h} = box;
-    if(w<=0||h<=0) return;
-    const bleed = Math.ceil(strength*2);
-
-    // 1) 余白付きで切り出して、その範囲全体にガウスぼかしをかける
-    const big = document.createElement('canvas');
-    big.width = w + bleed*2; big.height = h + bleed*2;
-    const bctx = big.getContext('2d');
-    bctx.filter = `blur(${strength}px)`;
-    bctx.drawImage(img, x-bleed, y-bleed, w+bleed*2, h+bleed*2, 0, 0, w+bleed*2, h+bleed*2);
-
-    // 2) 中心のw×h部分だけを取り出す（縁のにじみを避けるため）
-    const blurredCrop = document.createElement('canvas');
-    blurredCrop.width = w; blurredCrop.height = h;
-    blurredCrop.getContext('2d').drawImage(big, bleed, bleed, w, h, 0, 0, w, h);
-
-    // 3) 楕円＋フェザー（縁をやわらかく）のマスクを作り、ぼかし画像に適用する
-    const bcx = blurredCrop.getContext('2d');
-    const rx = w/2, ry = h/2;
-    const innerStop = Math.max(0, Math.min(0.98, 1 - feather));
-    bcx.save();
-    bcx.translate(rx, ry);
-    bcx.scale(rx, ry); // 単位円をw×hの楕円に引き伸ばす
-    const grad = bcx.createRadialGradient(0,0,0, 0,0,1);
-    grad.addColorStop(0, 'rgba(255,255,255,1)');
-    grad.addColorStop(innerStop, 'rgba(255,255,255,1)');
-    grad.addColorStop(1, 'rgba(255,255,255,0)');
-    bcx.globalCompositeOperation = 'destination-in';
-    bcx.fillStyle = grad;
-    bcx.beginPath();
-    bcx.arc(0,0,1,0,Math.PI*2);
-    bcx.fill();
-    bcx.restore();
-
-    // 4) 元画像の上に、マスクされたぼかしを重ねる（縁は半透明で自然になじむ）
-    ctx.drawImage(blurredCrop, x, y);
-  }
-
-  // 長方形・多角形用：形に合わせたマスクを作り、フェザー分だけマスク自体をぼかして縁を柔らかくする
-  function applyBlurShaped(ctx, img, box, strength, feather, shape){
-    const {x,y,w,h} = box;
-    if(w<=0||h<=0) return;
-    const bleed = Math.ceil(strength*2);
-
-    const big = document.createElement('canvas');
-    big.width = w + bleed*2; big.height = h + bleed*2;
-    const bctx = big.getContext('2d');
-    bctx.filter = `blur(${strength}px)`;
-    bctx.drawImage(img, x-bleed, y-bleed, w+bleed*2, h+bleed*2, 0, 0, w+bleed*2, h+bleed*2);
-
-    const blurredCrop = document.createElement('canvas');
-    blurredCrop.width = w; blurredCrop.height = h;
-    blurredCrop.getContext('2d').drawImage(big, bleed, bleed, w, h, 0, 0, w, h);
-
-    const featherPx = Math.round(feather * Math.min(w, h) * 0.5);
-    const maskPad = featherPx + 2;
-    const mask = document.createElement('canvas');
-    mask.width = w + maskPad*2; mask.height = h + maskPad*2;
-    const mctx = mask.getContext('2d');
-    mctx.fillStyle = '#fff';
-    mctx.beginPath();
-    if(shape === 'polygon' && box.points && box.points.length >= 3){
-      box.points.forEach((p, i) => {
-        const px = p.x + maskPad, py = p.y + maskPad;
-        if(i === 0) mctx.moveTo(px, py); else mctx.lineTo(px, py);
-      });
-      mctx.closePath();
-    } else {
-      mctx.rect(maskPad, maskPad, w, h);
-    }
-    mctx.fill();
-    if(featherPx > 0){
-      const sharp = document.createElement('canvas');
-      sharp.width = mask.width; sharp.height = mask.height;
-      sharp.getContext('2d').drawImage(mask, 0, 0);
-      mctx.clearRect(0, 0, mask.width, mask.height);
-      mctx.filter = `blur(${featherPx}px)`;
-      mctx.drawImage(sharp, 0, 0);
-      mctx.filter = 'none';
-    }
-
-    const bcx = blurredCrop.getContext('2d');
-    bcx.save();
-    bcx.globalCompositeOperation = 'destination-in';
-    bcx.drawImage(mask, -maskPad, -maskPad);
-    bcx.restore();
-
-    ctx.drawImage(blurredCrop, x, y);
-  }
-
-  // 形状に応じてぼかし処理を振り分ける
-  function applyBlurForBox(ctx, img, box, strength, feather){
-    if(box.shape === 'rect' || box.shape === 'polygon'){
-      applyBlurShaped(ctx, img, box, strength, feather, box.shape);
-    } else {
-      applyBlur(ctx, img, box, strength, feather);
-    }
-  }
-
-  // 枠の輪郭線を形状に応じて描画する
-  function strokeBoxOutline(ctx, b){
-    if(b.shape === 'rect'){
-      ctx.strokeRect(b.x, b.y, b.w, b.h);
-    } else if(b.shape === 'polygon' && b.points && b.points.length >= 3){
-      ctx.beginPath();
-      b.points.forEach((p, i) => {
-        const px = b.x + p.x, py = b.y + p.y;
-        if(i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
-      });
-      ctx.closePath();
-      ctx.stroke();
-    } else {
-      strokeEllipse(ctx, b.x, b.y, b.w, b.h);
-    }
-  }
-
-  // 点がぼかし範囲の内側にあるかを形状に応じて判定する
-  function pointInBox(b, pos){
-    if(b.shape === 'rect'){
-      return pos.x >= b.x && pos.x <= b.x + b.w && pos.y >= b.y && pos.y <= b.y + b.h;
-    }
-    if(b.shape === 'polygon' && b.points && b.points.length >= 3){
-      const lx = pos.x - b.x, ly = pos.y - b.y;
-      let inside = false;
-      const pts = b.points;
-      for(let i = 0, j = pts.length - 1; i < pts.length; j = i++){
-        const xi = pts[i].x, yi = pts[i].y, xj = pts[j].x, yj = pts[j].y;
-        const intersect = ((yi > ly) !== (yj > ly)) && (lx < (xj - xi) * (ly - yi) / (yj - yi) + xi);
-        if(intersect) inside = !inside;
-      }
-      return inside;
-    }
-    const rx = b.w/2, ry = b.h/2;
-    if(rx <= 0 || ry <= 0) return false;
-    const cx = b.x + rx, cy = b.y + ry;
-    const nx = (pos.x - cx) / rx, ny = (pos.y - cy) / ry;
-    return (nx*nx + ny*ny) <= 1;
-  }
-
-  // ---------- 手動追加（楕円／長方形はドラッグ、多角形はクリックで頂点を追加） ----------
-  let manualShape = 'ellipse'; // 'ellipse' | 'rect' | 'polygon'
-  let polygonDraft = null;     // 多角形を描いている途中の頂点配列（画像座標）
-
-  function setManualShape(shape){
-    manualShape = shape;
-    shapeEllipseBtn.classList.toggle('active', shape === 'ellipse');
-    shapeRectBtn.classList.toggle('active', shape === 'rect');
-    shapePolygonBtn.classList.toggle('active', shape === 'polygon');
-    const shapeLabel = shape === 'rect' ? '長方形' : (shape === 'polygon' ? '多角形' : '楕円形');
-    addModeHint.textContent = `キャンバス上をドラッグして四角を描くと、その範囲に${shapeLabel}のぼかしが追加されます。`;
-    addModeHint.style.display = (addMode && shape !== 'polygon') ? 'block' : 'none';
-    polygonHint.style.display = (addMode && shape === 'polygon') ? 'block' : 'none';
-    polygonActionRow.style.display = (addMode && shape === 'polygon') ? 'flex' : 'none';
-    cancelPolygonDraft();
-  }
-  shapeEllipseBtn.addEventListener('click', () => setManualShape('ellipse'));
-  shapeRectBtn.addEventListener('click', () => setManualShape('rect'));
-  shapePolygonBtn.addEventListener('click', () => setManualShape('polygon'));
-
-  function cancelPolygonDraft(){
-    polygonDraft = null;
-    if(getSelected()) drawEditor();
-  }
-  btnPolygonCancel.addEventListener('click', cancelPolygonDraft);
-  btnPolygonFinish.addEventListener('click', finishPolygonDraft);
-
-  function finishPolygonDraft(){
-    const item = getSelected();
-    if(!item || !polygonDraft || polygonDraft.length < 3){ polygonDraft = null; if(item) drawEditor(); return; }
-    const xs = polygonDraft.map(p => p.x), ys = polygonDraft.map(p => p.y);
-    const x = Math.max(0, Math.min.apply(null, xs)), y = Math.max(0, Math.min.apply(null, ys));
-    const x2 = Math.min(item.w, Math.max.apply(null, xs)), y2 = Math.min(item.h, Math.max.apply(null, ys));
-    const w = Math.max(1, x2 - x), h = Math.max(1, y2 - y);
-    const points = polygonDraft.map(p => ({x: p.x - x, y: p.y - y}));
-    pushUndo();
-    item.boxes.push({x, y, w, h, src:'manual', shape:'polygon', points});
-    polygonDraft = null;
-    drawEditor();
-  }
-
-  function drawPolygonDraft(mousePos){
-    if(!polygonDraft || !polygonDraft.length) return;
-    ectx.save();
-    ectx.strokeStyle = '#ff9500';
-    ectx.lineWidth = 2;
-    ectx.setLineDash([6,4]);
-    ectx.beginPath();
-    polygonDraft.forEach((p, i) => { if(i===0) ectx.moveTo(p.x,p.y); else ectx.lineTo(p.x,p.y); });
-    if(mousePos) ectx.lineTo(mousePos.x, mousePos.y);
-    ectx.stroke();
-    ectx.setLineDash([]);
-    polygonDraft.forEach((p, i) => {
-      ectx.fillStyle = i === 0 ? '#2ecc71' : '#ff9500';
-      ectx.beginPath();
-      ectx.arc(p.x, p.y, Math.max(3, editCanvas.width/250), 0, Math.PI*2);
-      ectx.fill();
-    });
-    ectx.restore();
-  }
-
-  let dragStart = null;
-  editCanvas.addEventListener('mousedown', e => {
-    if(!addMode || manualShape === 'polygon') return;
-    const pos = canvasPos(e);
-    dragStart = pos;
-  });
-  editCanvas.addEventListener('mousemove', e => {
-    const item = getSelected(); if(!item) return;
-    if(addMode && manualShape === 'polygon' && polygonDraft && polygonDraft.length){
-      const pos = canvasPos(e);
-      drawEditor();
-      drawPolygonDraft(pos);
-      return;
-    }
-    if(!addMode || !dragStart) return;
-    const pos = canvasPos(e);
-    drawEditor();
-    const x = Math.min(dragStart.x, pos.x), y = Math.min(dragStart.y, pos.y);
-    const w = Math.abs(pos.x - dragStart.x), h = Math.abs(pos.y - dragStart.y);
-    ectx.strokeStyle = '#ff9500';
-    ectx.lineWidth = 2;
-    ectx.setLineDash([6,4]);
-    if(manualShape === 'rect'){
-      ectx.strokeRect(x,y,w,h);
-    } else {
-      strokeEllipse(ectx, x, y, w, h);
-    }
-    ectx.setLineDash([]);
-  });
-  window.addEventListener('mouseup', e => {
-    if(!addMode || manualShape === 'polygon' || !dragStart) return;
-    const item = getSelected();
-    if(item){
-      const pos = canvasPos(e, true);
-      const x = Math.min(dragStart.x, pos.x), y = Math.min(dragStart.y, pos.y);
-      const w = Math.abs(pos.x - dragStart.x), h = Math.abs(pos.y - dragStart.y);
-      if(w > 4 && h > 4){
-        pushUndo();
-        item.boxes.push(clampBox({x,y,w,h,src:'manual',shape:manualShape}, item.w, item.h));
-        drawEditor();
-      } else {
-        drawEditor();
-      }
-    }
-    dragStart = null;
-  });
-
-  // 多角形モード：クリックで頂点を追加し、最初の点の近くをクリックすると多角形を確定する
-  editCanvas.addEventListener('click', e => {
-    if(!addMode || manualShape !== 'polygon') return;
-    const item = getSelected(); if(!item) return;
-    const pos = canvasPos(e);
-    if(!polygonDraft) polygonDraft = [];
-    if(polygonDraft.length >= 3){
-      const first = polygonDraft[0];
-      const dist = Math.hypot(pos.x - first.x, pos.y - first.y);
-      const closeThreshold = Math.max(10, item.w / 60);
-      if(dist <= closeThreshold){
-        finishPolygonDraft();
+  renderGame();
+}
+
+function drawOne(){
+  if(game.deck.length === 0) return null;
+  return game.deck.pop();
+}
+
+function handleMultiPlacement(card, gapIndex, gapEl, sourceEl){
+  if(uiLocked) return;
+  uiLocked = true;
+  var correct = correctGapIndex(game.timeline, card.year);
+  var player = currentPlayer();
+
+  if(gapIndex === correct){
+    showToast('せいかい！', 'ok');
+    player.hand = player.hand.filter(function(c){ return c.id !== card.id; });
+    insertCardWithAnimation(card, correct, sourceEl, function(){
+      if(player.hand.length === 0){
+        uiLocked = false;
+        endMultiGame(player);
         return;
       }
-    }
-    polygonDraft.push(pos);
-    drawEditor();
-    drawPolygonDraft(null);
-  });
-
-  // 指定した座標に当たっているぼかし範囲のインデックスを探す
-  function hitBoxIndexAt(item, pos){
-    for(let i = item.boxes.length - 1; i >= 0; i--){
-      if(pointInBox(item.boxes[i], pos)) return i;
-    }
-    return -1;
-  }
-
-  // ---------- 消しゴム（クリックでぼかしを削除） ----------
-  editCanvas.addEventListener('click', e => {
-    const item = getSelected(); if(!item) return;
-    const pos = canvasPos(e);
-    if(eraseMode){
-      const idx = hitBoxIndexAt(item, pos);
-      if(idx !== -1){
-        pushUndo();
-        item.boxes.splice(idx, 1);
-        drawEditor();
-      }
-      return;
-    }
-  });
-
-  function canvasPos(e, allowOutside){
-    const rect = editCanvas.getBoundingClientRect();
-    const scaleX = editCanvas.width / rect.width;
-    const scaleY = editCanvas.height / rect.height;
-    let x = (e.clientX - rect.left) * scaleX;
-    let y = (e.clientY - rect.top) * scaleY;
-    if(!allowOutside){
-      x = Math.max(0, Math.min(editCanvas.width, x));
-      y = Math.max(0, Math.min(editCanvas.height, y));
-    } else {
-      x = Math.max(0, Math.min(editCanvas.width, x));
-      y = Math.max(0, Math.min(editCanvas.height, y));
-    }
-    return {x,y};
-  }
-
-  // ---------- 一括設定／この画像だけ：スライダーのUIを同期する ----------
-  function refreshSliderUI(){
-    const item = getSelected();
-    const showItemTab = sliderScope === 'item' && item;
-    const src = showItemTab ? {
-      strength: effVal(item,'strength'), feather: effVal(item,'feather'),
-      padding: effVal(item,'padding'), sensitivity: effVal(item,'sensitivity')
-    } : batch;
-
-    strengthEl.value = src.strength; strengthVal.textContent = src.strength;
-    featherEl.value = src.feather; featherVal.textContent = src.feather + '%';
-    paddingEl.value = src.padding; paddingVal.textContent = src.padding + '%';
-    sensitivityEl.value = src.sensitivity; sensVal.textContent = (parseInt(src.sensitivity,10)/100).toFixed(2);
-
-    btnScopeItem.disabled = !item;
-    if(!item && sliderScope === 'item'){ sliderScope = 'batch'; }
-    btnScopeBatch.classList.toggle('active', sliderScope === 'batch');
-    btnScopeItem.classList.toggle('active', sliderScope === 'item');
-    scopeHintBatch.style.display = sliderScope === 'batch' ? 'block' : 'none';
-    scopeHintItem.style.display = sliderScope === 'item' ? 'block' : 'none';
-    btnResetItemOverrides.style.display = (sliderScope === 'item' && hasItemOverrides(item)) ? 'block' : 'none';
-
-    btnAutoAdjust.disabled = !item;
-    btnResetAutoAdjust.style.display = (item && item.adjustedCanvas) ? 'block' : 'none';
-
-    refreshManualAdjustUI();
-  }
-
-  // ---------- 手動調整のUIを選択中の画像に合わせて同期する ----------
-  function refreshManualAdjustUI(){
-    const item = getSelected();
-    const m = (item && item.manualAdjust) || {brightness:100, contrast:100, saturate:100};
-    manualBrightnessEl.value = m.brightness; manualBrightnessVal.textContent = m.brightness + '%';
-    manualContrastEl.value = m.contrast; manualContrastVal.textContent = m.contrast + '%';
-    manualSaturateEl.value = m.saturate; manualSaturateVal.textContent = m.saturate + '%';
-    btnManualAdjust.disabled = !item;
-    btnResetManualAdjust.style.display = hasManualAdjust(item) ? 'block' : 'none';
-  }
-
-  btnScopeBatch.addEventListener('click', () => {
-    sliderScope = 'batch';
-    refreshSliderUI();
-  });
-  btnScopeItem.addEventListener('click', () => {
-    if(!getSelected()) return;
-    sliderScope = 'item';
-    refreshSliderUI();
-  });
-  btnResetItemOverrides.addEventListener('click', () => {
-    const item = getSelected(); if(!item) return;
-    pushUndo();
-    item.overrides = {};
-    refreshSliderUI();
-    drawEditor();
-  });
-
-  // この画像1枚に自動調整を適用する（呼び出し側でpushUndoや読み込み中表示を担当する）
-  function applyAutoAdjustToItem(item){
-    const adj = computeAutoAdjust(item.img, item.w, item.h);
-    item.autoAdjust = adj;
-    item.adjustedCanvas = buildAdjustedCanvas(item.img, item.w, item.h, adj);
-    rebuildManualCanvas(item); // 手動調整も設定済みなら、自動調整後の画像に重ね直す
-    item.adjustVersion = (item.adjustVersion || 0) + 1;
-    processedCache.delete(item.id);
-  }
-  // この画像1枚の自動調整を解除して元画像に戻す（呼び出し側でpushUndoや読み込み中表示を担当する）
-  function resetAutoAdjustForItem(item){
-    item.autoAdjust = null;
-    item.adjustedCanvas = null;
-    rebuildManualCanvas(item); // 手動調整があれば、元画像に重ね直す
-    item.adjustVersion = (item.adjustVersion || 0) + 1;
-    processedCache.delete(item.id);
-  }
-  btnAutoAdjust.addEventListener('click', async () => {
-    const item = getSelected(); if(!item) return;
-    pushUndo();
-    showLoading('この画像の明るさ・色合いを自動調整中…');
-    await nextPaint();
-    try{
-      applyAutoAdjustToItem(item);
-    }catch(err){
-      console.error('auto adjust error', err);
-      alert('自動調整に失敗しました。');
-    }
-    hideLoading();
-    refreshSliderUI();
-    drawEditor();
-    renderThumbs();
-  });
-  btnResetAutoAdjust.addEventListener('click', () => {
-    const item = getSelected(); if(!item) return;
-    pushUndo();
-    resetAutoAdjustForItem(item);
-    refreshSliderUI();
-    drawEditor();
-    renderThumbs();
-  });
-
-  // ---------- 手動調整（明るさ・コントラスト・彩度） ----------
-  btnManualAdjust.addEventListener('click', () => {
-    const showing = manualAdjustPanel.style.display !== 'none';
-    manualAdjustPanel.style.display = showing ? 'none' : 'block';
-    btnManualAdjust.classList.toggle('active', !showing);
-  });
-  function ensureManualAdjust(item){
-    if(!item.manualAdjust) item.manualAdjust = {brightness:100, contrast:100, saturate:100};
-    return item.manualAdjust;
-  }
-  function onManualInput(key, el, valEl){
-    const item = getSelected(); if(!item) return;
-    const v = parseInt(el.value, 10);
-    ensureManualAdjust(item)[key] = v;
-    valEl.textContent = v + '%';
-    rebuildManualCanvas(item);
-    item.adjustVersion = (item.adjustVersion || 0) + 1;
-    processedCache.delete(item.id);
-    btnResetManualAdjust.style.display = 'block';
-    drawEditor();
-  }
-  manualBrightnessEl.addEventListener('input', () => onManualInput('brightness', manualBrightnessEl, manualBrightnessVal));
-  manualContrastEl.addEventListener('input', () => onManualInput('contrast', manualContrastEl, manualContrastVal));
-  manualSaturateEl.addEventListener('input', () => onManualInput('saturate', manualSaturateEl, manualSaturateVal));
-  btnResetManualAdjust.addEventListener('click', () => {
-    const item = getSelected(); if(!item) return;
-    pushUndo();
-    item.manualAdjust = null;
-    item.manualCanvas = null;
-    item.adjustVersion = (item.adjustVersion || 0) + 1;
-    processedCache.delete(item.id);
-    refreshManualAdjustUI();
-    drawEditor();
-    renderThumbs();
-  });
-
-  // ---------- コントロール ----------
-  btnAddMode.addEventListener('click', () => {
-    addMode = !addMode;
-    if(addMode){
-      eraseMode = false;
-      btnEraseMode.classList.remove('active');
-      eraseModeHint.style.display = 'none';
-    } else {
-      cancelPolygonDraft();
-    }
-    btnAddMode.classList.toggle('active', addMode);
-    shapeRow.style.display = addMode ? 'flex' : 'none';
-    setManualShape(manualShape);
-    updateEditCursor();
-    drawEditor();
-  });
-  btnEraseMode.addEventListener('click', () => {
-    eraseMode = !eraseMode;
-    if(eraseMode){
-      addMode = false;
-      btnAddMode.classList.remove('active');
-      addModeHint.style.display = 'none';
-      shapeRow.style.display = 'none';
-      polygonHint.style.display = 'none';
-      polygonActionRow.style.display = 'none';
-      cancelPolygonDraft();
-    }
-    btnEraseMode.classList.toggle('active', eraseMode);
-    eraseModeHint.style.display = eraseMode ? 'block' : 'none';
-    updateEditCursor();
-    drawEditor();
-  });
-  btnClearBoxes.addEventListener('click', () => {
-    const item = getSelected(); if(!item) return;
-    pushUndo();
-    item.boxes = [];
-    drawEditor();
-  });
-  btnRedetect.addEventListener('click', () => {
-    const item = getSelected(); if(!item) return;
-    if(!modelReady){ alert('顔検出モデルがまだ読み込まれていません。'); return; }
-    pushUndo();
-    runDetection(item);
-  });
-
-  function setEffOrBatch(key, value){
-    const item = getSelected();
-    if(sliderScope === 'item' && item){
-      item.overrides = item.overrides || {};
-      item.overrides[key] = value;
-      btnResetItemOverrides.style.display = 'block';
-    } else {
-      batch[key] = value;
-      saveSettings();
-    }
-  }
-  strengthEl.addEventListener('input', () => {
-    const v = parseFloat(strengthEl.value);
-    strengthVal.textContent = strengthEl.value;
-    setEffOrBatch('strength', v);
-    drawEditor();
-  });
-  featherEl.addEventListener('input', () => {
-    const v = parseInt(featherEl.value,10);
-    featherVal.textContent = featherEl.value + '%';
-    setEffOrBatch('feather', v);
-    drawEditor();
-  });
-  paddingEl.addEventListener('input', () => {
-    const v = parseInt(paddingEl.value,10);
-    paddingVal.textContent = paddingEl.value + '%';
-    setEffOrBatch('padding', v);
-  });
-  sensitivityEl.addEventListener('input', () => {
-    const v = parseInt(sensitivityEl.value,10);
-    sensVal.textContent = (v/100).toFixed(2);
-    setEffOrBatch('sensitivity', v);
-  });
-
-  // ---------- STEP切り替え ----------
-  function showStep(n){
-    step1View.style.display = n === 1 ? 'block' : 'none';
-    step2View.style.display = n === 2 ? 'block' : 'none';
-    tabBtn1.classList.toggle('active', n === 1);
-    tabBtn2.classList.toggle('active', n === 2);
-    if(n === 2){ renderThumbs2(); renderCollage(); }
-  }
-  tabBtn1.addEventListener('click', () => showStep(1));
-  tabBtn2.addEventListener('click', () => showStep(2));
-  btnGoStep2.addEventListener('click', () => showStep(2));
-  btnBackStep1.addEventListener('click', () => showStep(1));
-
-  btnDownloadOne.addEventListener('click', () => {
-    const item = getSelected(); if(!item) return;
-    downloadCanvas(editCanvas, (item.name.replace(/\.[^.]+$/,'') || 'image') + '_blurred.png');
-  });
-
-  function downloadCanvas(canvas, filename){
-    canvas.toBlob(blob => {
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url; a.download = filename;
-      document.body.appendChild(a); a.click(); a.remove();
-      setTimeout(()=>URL.revokeObjectURL(url), 3000);
-    }, 'image/png');
-  }
-
-  // ==================== 結合（コラージュ）====================
-
-  // 多角形（斜め・階段状など）のセルを定義するヘルパー。
-  // pointsは0〜1に正規化した頂点（全体キャンバス基準）。バウンディングボックス(x,y,w,h)は自動計算する。
-  function polyCell(points){
-    const xs = points.map(p => p.x), ys = points.map(p => p.y);
-    const x = Math.min(...xs), y = Math.min(...ys);
-    const w = Math.max(...xs) - x, h = Math.max(...ys) - y;
-    return {x, y, w: w || 0.0001, h: h || 0.0001, poly: points};
-  }
-
-  // セルの左右反転／上下反転。斜め・階段状（poly）のセルにも対応する。
-  // 「反転バージョンが必ずある」プリセットを作るために使う。
-  function mirrorCellH(rc){
-    if(rc.poly) return polyCell(rc.poly.map(p => ({x: 1 - p.x, y: p.y})));
-    return {x: 1 - rc.x - rc.w, y: rc.y, w: rc.w, h: rc.h};
-  }
-  function mirrorCellV(rc){
-    if(rc.poly) return polyCell(rc.poly.map(p => ({x: p.x, y: 1 - p.y})));
-    return {x: rc.x, y: 1 - rc.y - rc.h, w: rc.w, h: rc.h};
-  }
-  function mirrorRectsH(rects){ return rects.map(mirrorCellH); }
-  function mirrorRectsV(rects){ return rects.map(mirrorCellV); }
-
-  // 並べ方プリセット定義（0〜1の正規化された矩形。全体をすき間なく分割する）
-  function buildLayoutPresets(){
-    const L = {};
-    // --- 2枚：大小の差をつけた上下・左右分割 ---
-    const rects2hBig = [{x:0,y:0,w:1,h:.65},{x:0,y:.65,w:1,h:.35}];
-    const rects2vBig = [{x:0,y:0,w:.65,h:1},{x:.65,y:0,w:.35,h:1}];
-    // --- 2枚：ナナメ ---
-    const rectsDiagSlant1 = [
-      polyCell([{x:0,y:0},{x:.65,y:0},{x:.35,y:1},{x:0,y:1}]),
-      polyCell([{x:.65,y:0},{x:1,y:0},{x:1,y:1},{x:.35,y:1}])
-    ];
-    const rectsDiagSlant2 = [
-      polyCell([{x:0,y:0},{x:1,y:0},{x:1,y:.35},{x:0,y:.65}]),
-      polyCell([{x:0,y:.65},{x:1,y:.35},{x:1,y:1},{x:0,y:1}])
-    ];
-    L[2] = [
-      {id:'2-h', label:'上下2分割', rects:[{x:0,y:0,w:1,h:.5},{x:0,y:.5,w:1,h:.5}]},
-      {id:'2-v', label:'左右2分割', rects:[{x:0,y:0,w:.5,h:1},{x:.5,y:0,w:.5,h:1}]},
-      {id:'2-h-big-top', label:'上下2分割（上大）', rects:rects2hBig},
-      {id:'2-h-big-bottom', label:'上下2分割（下大）', rects:mirrorRectsV(rects2hBig)},
-      {id:'2-v-big-left', label:'左右2分割（左大）', rects:rects2vBig},
-      {id:'2-v-big-right', label:'左右2分割（右大）', rects:mirrorRectsH(rects2vBig)},
-      {id:'2-diag-tlbr', label:'斜め分割（右上／左下）', rects:[
-        polyCell([{x:0,y:0},{x:1,y:0},{x:1,y:1}]),
-        polyCell([{x:0,y:0},{x:1,y:1},{x:0,y:1}])
-      ]},
-      {id:'2-diag-trbl', label:'斜め分割（左上／右下）', rects:[
-        polyCell([{x:0,y:0},{x:1,y:0},{x:0,y:1}]),
-        polyCell([{x:1,y:0},{x:1,y:1},{x:0,y:1}])
-      ]},
-      {id:'2-diag-slant1', label:'ナナメ分割（縦）', rects:rectsDiagSlant1},
-      {id:'2-diag-slant1-r', label:'ナナメ分割（縦・反転）', rects:mirrorRectsH(rectsDiagSlant1)},
-      {id:'2-diag-slant2', label:'ナナメ分割（横）', rects:rectsDiagSlant2},
-      {id:'2-diag-slant2-r', label:'ナナメ分割（横・反転）', rects:mirrorRectsV(rectsDiagSlant2)}
-    ];
-    // --- 3枚：均等なナナメ3分割（中心を軸に左右対称なので、幅の見た目が均等になる） ---
-    const shear3 = 0.3;
-    const b1top = 1/3 + 0.5*shear3, b1bot = 1/3 - 0.5*shear3;
-    const b2top = 2/3 + 0.5*shear3, b2bot = 2/3 - 0.5*shear3;
-    const rectsDiag3 = [
-      polyCell([{x:0,y:0},{x:b1top,y:0},{x:b1bot,y:1},{x:0,y:1}]),
-      polyCell([{x:b1top,y:0},{x:b2top,y:0},{x:b2bot,y:1},{x:b1bot,y:1}]),
-      polyCell([{x:b2top,y:0},{x:1,y:0},{x:1,y:1},{x:b2bot,y:1}])
-    ];
-    L[3] = [
-      {id:'3-t1b2', label:'上1＋下2', rects:[{x:0,y:0,w:1,h:.5},{x:0,y:.5,w:.5,h:.5},{x:.5,y:.5,w:.5,h:.5}]},
-      {id:'3-b1t2', label:'下1＋上2', rects:[{x:0,y:0,w:.5,h:.5},{x:.5,y:0,w:.5,h:.5},{x:0,y:.5,w:1,h:.5}]},
-      {id:'3-l1r2', label:'左1＋右2', rects:[{x:0,y:0,w:.5,h:1},{x:.5,y:0,w:.5,h:.5},{x:.5,y:.5,w:.5,h:.5}]},
-      {id:'3-r1l2', label:'右1＋左2', rects:[{x:.5,y:0,w:.5,h:1},{x:0,y:0,w:.5,h:.5},{x:0,y:.5,w:.5,h:.5}]},
-      {id:'3-cols', label:'縦3列', rects:[{x:0,y:0,w:1/3,h:1},{x:1/3,y:0,w:1/3,h:1},{x:2/3,y:0,w:1/3,h:1}]},
-      {id:'3-rows', label:'横3段', rects:[{x:0,y:0,w:1,h:1/3},{x:0,y:1/3,w:1,h:1/3},{x:0,y:2/3,w:1,h:1/3}]},
-      {id:'3-tri-fan-top', label:'三角形分割（上大）', rects:[
-        polyCell([{x:0,y:0},{x:1,y:0},{x:.5,y:1}]),
-        polyCell([{x:0,y:0},{x:.5,y:1},{x:0,y:1}]),
-        polyCell([{x:1,y:0},{x:1,y:1},{x:.5,y:1}])
-      ]},
-      {id:'3-tri-fan-bottom', label:'三角形分割（下大）', rects:[
-        polyCell([{x:0,y:1},{x:1,y:1},{x:.5,y:0}]),
-        polyCell([{x:0,y:1},{x:.5,y:0},{x:0,y:0}]),
-        polyCell([{x:1,y:1},{x:1,y:0},{x:.5,y:0}])
-      ]},
-      {id:'3-diag-parallel', label:'ナナメ3分割', rects:rectsDiag3},
-      {id:'3-diag-parallel-r', label:'ナナメ3分割（反転）', rects:mirrorRectsH(rectsDiag3)}
-    ];
-    const rects4l1r3 = [{x:0,y:0,w:.5,h:1},{x:.5,y:0,w:.5,h:1/3},{x:.5,y:1/3,w:.5,h:1/3},{x:.5,y:2/3,w:.5,h:1/3}];
-    L[4] = [
-      {id:'4-grid', label:'2×2グリッド', rects:[{x:0,y:0,w:.5,h:.5},{x:.5,y:0,w:.5,h:.5},{x:0,y:.5,w:.5,h:.5},{x:.5,y:.5,w:.5,h:.5}]},
-      {id:'4-t1b3', label:'上1＋下3列', rects:[{x:0,y:0,w:1,h:.5},{x:0,y:.5,w:1/3,h:.5},{x:1/3,y:.5,w:1/3,h:.5},{x:2/3,y:.5,w:1/3,h:.5}]},
-      {id:'4-b1t3', label:'下1＋上3列', rects:[{x:0,y:0,w:1/3,h:.5},{x:1/3,y:0,w:1/3,h:.5},{x:2/3,y:0,w:1/3,h:.5},{x:0,y:.5,w:1,h:.5}]},
-      {id:'4-l1r3', label:'左1＋右3段', rects:rects4l1r3},
-      {id:'4-r1l3', label:'右1＋左3段', rects:mirrorRectsH(rects4l1r3)},
-      {id:'4-cols', label:'縦4列', rects:[{x:0,y:0,w:.25,h:1},{x:.25,y:0,w:.25,h:1},{x:.5,y:0,w:.25,h:1},{x:.75,y:0,w:.25,h:1}]},
-      {id:'4-rows', label:'横4段', rects:[{x:0,y:0,w:1,h:.25},{x:0,y:.25,w:1,h:.25},{x:0,y:.5,w:1,h:.25},{x:0,y:.75,w:1,h:.25}]},
-      {id:'4-t1m2b1', label:'上1＋中2＋下1', rects:[{x:0,y:0,w:1,h:.25},{x:0,y:.25,w:.5,h:.5},{x:.5,y:.25,w:.5,h:.5},{x:0,y:.75,w:1,h:.25}]},
-      {id:'4-t1m1b2', label:'上1＋中1＋下2', rects:[{x:0,y:0,w:1,h:1/3},{x:0,y:1/3,w:1,h:1/3},{x:0,y:2/3,w:.5,h:1/3},{x:.5,y:2/3,w:.5,h:1/3}]},
-      {id:'4-t2m1b1', label:'上2＋中1＋下1', rects:[{x:0,y:0,w:.5,h:1/3},{x:.5,y:0,w:.5,h:1/3},{x:0,y:1/3,w:1,h:1/3},{x:0,y:2/3,w:1,h:1/3}]},
-      {id:'4-tri-x', label:'十字ナナメ分割', rects:[
-        polyCell([{x:0,y:0},{x:1,y:0},{x:.5,y:.5}]),
-        polyCell([{x:1,y:0},{x:1,y:1},{x:.5,y:.5}]),
-        polyCell([{x:1,y:1},{x:0,y:1},{x:.5,y:.5}]),
-        polyCell([{x:0,y:1},{x:0,y:0},{x:.5,y:.5}])
-      ]}
-    ];
-    const rects5l2r3 = [{x:0,y:0,w:.5,h:.5},{x:0,y:.5,w:.5,h:.5},{x:.5,y:0,w:.5,h:1/3},{x:.5,y:1/3,w:.5,h:1/3},{x:.5,y:2/3,w:.5,h:1/3}];
-    // --- 5枚：大きい1枚＋小さい4枚（四隅それぞれのバージョン） ---
-    const rects5bigTL = [
-      {x:0,y:0,w:.5,h:2/3},
-      {x:0,y:2/3,w:.5,h:1/3},
-      {x:.5,y:0,w:.5,h:1/3},{x:.5,y:1/3,w:.5,h:1/3},{x:.5,y:2/3,w:.5,h:1/3}
-    ];
-    L[5] = [
-      {id:'5-2m2', label:'上2＋中1＋下2', rects:[{x:0,y:0,w:.5,h:1/3},{x:.5,y:0,w:.5,h:1/3},{x:0,y:1/3,w:1,h:1/3},{x:0,y:2/3,w:.5,h:1/3},{x:.5,y:2/3,w:.5,h:1/3}]},
-      {id:'5-t2b3', label:'上2＋下3', rects:[{x:0,y:0,w:.5,h:.5},{x:.5,y:0,w:.5,h:.5},{x:0,y:.5,w:1/3,h:.5},{x:1/3,y:.5,w:1/3,h:.5},{x:2/3,y:.5,w:1/3,h:.5}]},
-      {id:'5-t3b2', label:'上3＋下2', rects:[{x:0,y:0,w:1/3,h:.5},{x:1/3,y:0,w:1/3,h:.5},{x:2/3,y:0,w:1/3,h:.5},{x:0,y:.5,w:.5,h:.5},{x:.5,y:.5,w:.5,h:.5}]},
-      {id:'5-l2r3', label:'左2＋右3', rects:rects5l2r3},
-      {id:'5-r2l3', label:'右2＋左3', rects:mirrorRectsH(rects5l2r3)},
-      {id:'5-cols', label:'縦5列', rects:[0,1,2,3,4].map(i=>({x:i/5,y:0,w:1/5,h:1}))},
-      {id:'5-rows', label:'横5段', rects:[0,1,2,3,4].map(i=>({x:0,y:i/5,w:1,h:1/5}))},
-      {id:'5-big-tl', label:'大1＋小4（左上）', rects:rects5bigTL},
-      {id:'5-big-tr', label:'大1＋小4（右上）', rects:mirrorRectsH(rects5bigTL)},
-      {id:'5-big-bl', label:'大1＋小4（左下）', rects:mirrorRectsV(rects5bigTL)},
-      {id:'5-big-br', label:'大1＋小4（右下）', rects:mirrorRectsH(mirrorRectsV(rects5bigTL))}
-    ];
-    // --- 6枚：大きい1枚＋小さい5枚（四隅それぞれのバージョン） ---
-    const rects6bigTL = [
-      {x:0,y:0,w:.5,h:2/3},
-      {x:0,y:2/3,w:.25,h:1/3},{x:.25,y:2/3,w:.25,h:1/3},
-      {x:.5,y:0,w:.5,h:1/3},{x:.5,y:1/3,w:.5,h:1/3},{x:.5,y:2/3,w:.5,h:1/3}
-    ];
-    // --- 6枚：列ごとに分割数を変える（階段状に密度が変わる） ---
-    const rects6cols3 = [
-      {x:0,y:0,w:1/3,h:1},
-      {x:1/3,y:0,w:1/3,h:.5},{x:1/3,y:.5,w:1/3,h:.5},
-      {x:2/3,y:0,w:1/3,h:1/3},{x:2/3,y:1/3,w:1/3,h:1/3},{x:2/3,y:2/3,w:1/3,h:1/3}
-    ];
-    const rects6rows3 = [
-      {x:0,y:0,w:1,h:1/3},
-      {x:0,y:1/3,w:.5,h:1/3},{x:.5,y:1/3,w:.5,h:1/3},
-      {x:0,y:2/3,w:1/3,h:1/3},{x:1/3,y:2/3,w:1/3,h:1/3},{x:2/3,y:2/3,w:1/3,h:1/3}
-    ];
-    L[6] = [
-      {id:'6-grid23', label:'2列×3段', rects:[0,1,2].flatMap(r=>[0,1].map(c=>({x:c*.5,y:r/3,w:.5,h:1/3})))},
-      {id:'6-grid32', label:'3列×2段', rects:[0,1].flatMap(r=>[0,1,2].map(c=>({x:c/3,y:r*.5,w:1/3,h:.5})))},
-      {id:'6-cols', label:'縦6列', rects:[0,1,2,3,4,5].map(i=>({x:i/6,y:0,w:1/6,h:1}))},
-      {id:'6-rows', label:'横6段', rects:[0,1,2,3,4,5].map(i=>({x:0,y:i/6,w:1,h:1/6}))},
-      {id:'6-big-tl', label:'大1＋小5（左上）', rects:rects6bigTL},
-      {id:'6-big-tr', label:'大1＋小5（右上）', rects:mirrorRectsH(rects6bigTL)},
-      {id:'6-big-bl', label:'大1＋小5（左下）', rects:mirrorRectsV(rects6bigTL)},
-      {id:'6-big-br', label:'大1＋小5（右下）', rects:mirrorRectsH(mirrorRectsV(rects6bigTL))},
-      {id:'6-cols3', label:'列ごとに分割数が変化', rects:rects6cols3},
-      {id:'6-cols3-r', label:'列ごとに分割数が変化（反転）', rects:mirrorRectsH(rects6cols3)},
-      {id:'6-rows3', label:'段ごとに分割数が変化', rects:rects6rows3},
-      {id:'6-rows3-r', label:'段ごとに分割数が変化（反転）', rects:mirrorRectsV(rects6rows3)}
-    ];
-    return L;
-  }
-
-  function collageCanvasSize(){
-    const r = RATIOS[canvasRatioEl.value] || RATIOS['4:3'];
-    if(r.a === r.b) return {w:COLLAGE_LONG, h:COLLAGE_LONG};
-    const short = Math.round(COLLAGE_LONG * r.b / r.a);
-    return orientation === 'portrait' ? {w:short, h:COLLAGE_LONG} : {w:COLLAGE_LONG, h:short};
-  }
-
-  // 矩形セルの4隅を多角形の頂点列に変換する（斜め・階段状のセルと同じ方法で描画するため）
-  function rectToPolyPoints(rc){
-    return [{x:rc.x,y:rc.y},{x:rc.x+rc.w,y:rc.y},{x:rc.x+rc.w,y:rc.y+rc.h},{x:rc.x,y:rc.y+rc.h}];
-  }
-  function renderPresetIcon(rects, ratioBox){
-    const wrap = document.createElement('div');
-    wrap.className = 'preset-icon';
-    wrap.style.aspectRatio = ratioBox.w + ' / ' + ratioBox.h;
-    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-    svg.setAttribute('viewBox', '0 0 100 100');
-    svg.setAttribute('preserveAspectRatio', 'none');
-    svg.style.width = '100%'; svg.style.height = '100%'; svg.style.display = 'block';
-    rects.forEach(rc => {
-      const pts = (rc.poly || rectToPolyPoints(rc)).map(p => (p.x*100)+','+(p.y*100)).join(' ');
-      const el = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
-      el.setAttribute('points', pts);
-      el.setAttribute('fill', '#c9d3ee');
-      el.setAttribute('stroke', '#fff');
-      el.setAttribute('stroke-width', '2');
-      svg.appendChild(el);
+      nextTurnMulti();
+      uiLocked = false;
     });
-    wrap.appendChild(svg);
-    return wrap;
+    return;
   }
 
-  // よく使う順（使用回数の多い順、同数なら元の並び順）にプリセットを並べ替える
-  // ※「よく使う順」がOFFのときは並べ替えず、元の並び順のまま返す
-  function sortedPresetsForCount(n){
-    const presets = (LAYOUTS[n] || []).slice();
-    if(sortByUsage){
-      presets.sort((a,b) => (presetUsage[b.id]||0) - (presetUsage[a.id]||0));
-    }
-    return presets;
-  }
-
-  function renderCountTabs(){
-    countTabs.innerHTML = '';
-    Object.keys(LAYOUTS).forEach(n => {
-      const btn = document.createElement('button');
-      btn.className = 'btn toggle' + (parseInt(n,10) === currentCount ? ' active' : '');
-      btn.textContent = n + '枚';
-      btn.onclick = () => {
-        currentCount = parseInt(n,10);
-        // 枚数を選んだ時点で、そのままよく使うプリセットへ即切り替える
-        const presets = sortedPresetsForCount(currentCount);
-        currentPresetId = presets.length ? presets[0].id : null;
-        renderCountTabs();
-        renderPresetGrid();
-        applyPreset();
-      };
-      countTabs.appendChild(btn);
+  player.misses++;
+  if(settings.rule === 'normal'){
+    showToast('ざんねん…カードを捨てて1枚引いたよ', 'ng');
+    playShakeAndRemove(sourceEl, function(){
+      player.hand = player.hand.filter(function(c){ return c.id !== card.id; });
+      var drawn = drawOne();
+      if(drawn) player.hand.push(drawn);
+      nextTurnMulti();
+      uiLocked = false;
+    });
+  } else {
+    showToast('ざんねん…正しい位置に直されて場に追加されたよ', 'ng');
+    player.hand = player.hand.filter(function(c){ return c.id !== card.id; });
+    var drawn2 = drawOne();
+    if(drawn2) player.hand.push(drawn2);
+    insertCardWithAnimation(card, correct, sourceEl, function(){
+      nextTurnMulti();
+      uiLocked = false;
     });
   }
+}
 
-  function renderPresetGrid(){
-    layoutPresetGrid.innerHTML = '';
-    const size = collageCanvasSize();
-    const presets = sortedPresetsForCount(currentCount);
-    if(!currentPresetId && presets.length) currentPresetId = presets[0].id;
-    presets.forEach(p => {
-      const icon = renderPresetIcon(p.rects, size);
-      icon.title = p.label;
-      if(p.id === currentPresetId) icon.classList.add('active');
-      icon.onclick = () => {
-        currentPresetId = p.id;
-        // 並び順は「ダウンロードした回数」で決まる（選んだだけでは並び替えない。押すたびに並びが変わると見づらいため）
-        applyPreset();
-      };
-      layoutPresetGrid.appendChild(icon);
-    });
+function endMultiGame(winner){
+  document.getElementById('result-title').textContent = winner.name + 'の勝ち！';
+  document.getElementById('result-sub').textContent = '手札をすべて出しきりました';
+  showScreen('result-screen');
+}
+
+function endMultiGameStalemate(){
+  var best = game.players[0];
+  var tie = false;
+  game.players.forEach(function(pl){
+    if(pl.misses < best.misses){ best = pl; tie = false; }
+    else if(pl.misses === best.misses && pl !== best){ tie = true; }
+  });
+  if(tie){
+    document.getElementById('result-title').textContent = '山札切れ・引き分け！';
+  } else {
+    document.getElementById('result-title').textContent = '山札切れ・' + best.name + 'の勝ち！';
   }
+  document.getElementById('result-sub').textContent = 'まちがえた回数がいちばん少ない人が勝ちです';
+  showScreen('result-screen');
+}
 
-  function applyPreset(){
-    const presets = LAYOUTS[currentCount] || [];
-    const preset = presets.find(p => p.id === currentPresetId) || presets[0];
-    if(!preset) return;
-    // 既存の割り当てをできるだけ引き継ぐ
-    const prevItems = slots.map(s => s.item).filter(Boolean);
-    const size = collageCanvasSize();
-    slots = preset.rects.map(rect => ({rect, item:null, zoom:1, offX:0, offY:0}));
-    prevItems.forEach((it, i) => {
-      if(slots[i]){ slots[i].item = it; fitSlotDefault(slots[i], size); }
-    });
-    activeSlot = slots.findIndex(s => !s.item);
-    if(activeSlot === -1) activeSlot = 0;
-    renderPresetGrid();
-    renderThumbs2();
-    renderCollage();
-    updateSlotSidePanel();
+/* ============================================================
+   7. ソロチャレンジモード
+   ============================================================ */
+function initSoloGame(){
+  uiLocked = false;
+  var deck = buildDeck();
+  if(deck.length < 2){
+    showToast('カードが足りません', 'ng');
+    showScreen('setup-solo-screen');
+    return;
   }
+  var timeline = [deck.pop()];
+  var current = deck.pop();
 
-  function resetSlotAssignment(slot){
-    slot.item = null; slot.zoom = 1; slot.offX = 0; slot.offY = 0;
-  }
+  game = {
+    type:'solo',
+    deck: deck,
+    timeline: timeline,
+    current: current,
+    correctCount: 0,
+    missCount: 0,
+    soloType: settings.soloType,
+    timeLeft: 90,
+    timerId: null,
+    ended: false
+  };
 
-  function slotBox(slot, size){
-    // 斜め・階段状などの多角形セルは、実際の見た目の区切りは描画時のクリップ形状が担うため、
-    // ここでは単純にバウンディングボックスを使う（すき間の余白は矩形セルのときだけ適用する）
-    if(slot.rect.poly){
-      return {
-        sx: slot.rect.x*size.w,
-        sy: slot.rect.y*size.h,
-        sw: Math.max(1, slot.rect.w*size.w),
-        sh: Math.max(1, slot.rect.h*size.h)
-      };
-    }
-    const gap = parseInt(gapEl.value,10);
-    return {
-      sx: slot.rect.x*size.w + gap/2,
-      sy: slot.rect.y*size.h + gap/2,
-      sw: Math.max(1, slot.rect.w*size.w - gap),
-      sh: Math.max(1, slot.rect.h*size.h - gap)
-    };
-  }
+  showScreen('game-screen');
+  renderGame();
 
-  function fitSlotDefault(slot, size){
-    const item = slot.item; if(!item) return;
-    const {sw, sh} = slotBox(slot, size);
-    const base = Math.max(sw/item.w, sh/item.h);
-    slot.zoom = 1;
-    slot.baseScale = base;
-    slot.offX = (sw - item.w*base)/2;
-    slot.offY = (sh - item.h*base)/2;
-  }
-
-  function assignItemToSlot(item){
-    if(slots.length === 0) return;
-    let idx = activeSlot;
-    if(idx < 0 || idx >= slots.length) idx = slots.findIndex(s => !s.item);
-    if(idx === -1) idx = 0;
-    pushUndo();
-    const slot = slots[idx];
-    slot.item = item;
-    fitSlotDefault(slot, collageCanvasSize());
-    // 次の空き枠へ自動的に進む
-    const nextEmpty = slots.findIndex(s => !s.item);
-    activeSlot = nextEmpty === -1 ? idx : nextEmpty;
-    renderThumbs2();
-    renderCollage();
-    updateSlotSidePanel();
-  }
-
-  function updateSlotSidePanel(){
-    const slot = slots[activeSlot];
-    if(slot && slot.item){
-      slotZoomEl.disabled = false;
-      slotZoomEl.value = Math.round(slot.zoom*100);
-      slotZoomVal.textContent = Math.round(slot.zoom*100) + '%';
-    } else {
-      slotZoomEl.disabled = true;
-      slotZoomEl.value = 100;
-      slotZoomVal.textContent = '100%';
-    }
-    // 画像が入っていて、かつ位置／拡大が初期値からズレているときだけ「リセット」を押せるようにする
-    const atDefaultPosition = !slot || !slot.item ||
-      (Math.abs(slot.zoom - 1) <= 0.001 && isSlotOffsetAtDefault(slot));
-    btnSlotReset.disabled = atDefaultPosition;
-    btnSlotClear.disabled = !(slot && slot.item);
-  }
-
-  // スロット内の画像が中央寄せの初期位置のままかどうかを調べる
-  function isSlotOffsetAtDefault(slot){
-    const size = collageCanvasSize();
-    const {sw, sh} = slotBox(slot, size);
-    const scale = slot.baseScale;
-    const expectedOffX = (sw - slot.item.w*scale)/2;
-    const expectedOffY = (sh - slot.item.h*scale)/2;
-    return Math.abs(slot.offX - expectedOffX) < 0.5 && Math.abs(slot.offY - expectedOffY) < 0.5;
-  }
-
-  function clampSlotOffset(slot, size){
-    const item = slot.item; if(!item) return;
-    const {sw, sh} = slotBox(slot, size);
-    const scale = slot.baseScale * slot.zoom;
-    const dw = item.w*scale, dh = item.h*scale;
-    const minX = Math.min(0, sw - dw), maxX = 0;
-    const minY = Math.min(0, sh - dh), maxY = 0;
-    slot.offX = Math.max(minX, Math.min(maxX, slot.offX));
-    slot.offY = Math.max(minY, Math.min(maxY, slot.offY));
-  }
-
-  // 選択中の枠の斜線と、区切り線の点線を同じ太さにする
-  const HATCH_LINE_WIDTH = 6;
-  const hatchPatternCache = {};
-  function getHatchPattern(ctx2d, color){
-    if(hatchPatternCache[color]) return hatchPatternCache[color];
-    const tile = document.createElement('canvas');
-    tile.width = 36; tile.height = 36;
-    const tctx = tile.getContext('2d');
-    tctx.strokeStyle = color;
-    tctx.lineWidth = HATCH_LINE_WIDTH;
-    tctx.beginPath();
-    tctx.moveTo(-4, 4); tctx.lineTo(4, -4);
-    tctx.moveTo(0, 36); tctx.lineTo(36, 0);
-    tctx.moveTo(32, 40); tctx.lineTo(40, 32);
-    tctx.stroke();
-    const pattern = ctx2d.createPattern(tile, 'repeat');
-    hatchPatternCache[color] = pattern;
-    return pattern;
-  }
-
-  function renderCollage(){
-    schedulePersistImages();
-    step2View.classList.toggle('orientation-portrait', orientation === 'portrait');
-    const size = collageCanvasSize();
-    collageBaseCanvas.width = size.w; collageBaseCanvas.height = size.h;
-    collageOverlayCanvas.width = size.w; collageOverlayCanvas.height = size.h;
-
-    const bg = bgColorEl.value;
-
-    bctxMain.clearRect(0,0,size.w,size.h);
-    bctxMain.fillStyle = bg;
-    bctxMain.fillRect(0,0,size.w,size.h);
-
-    octx.clearRect(0,0,size.w,size.h);
-
-    // 斜め・階段状セルの区切り線を描く（クリップ形状の輪郭に沿ってパスを作る共通処理）
-    function tracePolyPath(ctx2d, poly){
-      ctx2d.beginPath();
-      poly.forEach((p, idx) => {
-        const px = p.x*size.w, py = p.y*size.h;
-        if(idx === 0) ctx2d.moveTo(px, py); else ctx2d.lineTo(px, py);
-      });
-      ctx2d.closePath();
-    }
-
-    // 区切り線用に境界線をすべて集めて重複を取り除く
-    // （隣り合うセルがそれぞれ自分の境界線を描くと、同じ場所に点線が2本重なって「二重」に見えたり
-    // 　斜めの線がちらついたりするため、境界線ごとに1回だけまとめて描く）
-    const edgeMap = new Map();
-    function addEdge(x1,y1,x2,y2){
-      const p1 = Math.round(x1*4)+','+Math.round(y1*4);
-      const p2 = Math.round(x2*4)+','+Math.round(y2*4);
-      const key = p1 < p2 ? (p1+'|'+p2) : (p2+'|'+p1);
-      if(!edgeMap.has(key)) edgeMap.set(key, [x1,y1,x2,y2]);
-    }
-
-    slots.forEach((slot, i) => {
-      const {sx, sy, sw, sh} = slotBox(slot, size);
-      if(sw <= 0 || sh <= 0) return;
-
-      if(slot.item){
-        const scale = slot.baseScale * slot.zoom;
-        const dw = slot.item.w*scale, dh = slot.item.h*scale;
-        bctxMain.save();
-        if(slot.rect.poly){
-          tracePolyPath(bctxMain, slot.rect.poly);
-        } else {
-          bctxMain.beginPath();
-          bctxMain.rect(sx, sy, sw, sh);
-        }
-        bctxMain.clip();
-        const proc = getProcessedCanvasCached(slot.item);
-        bctxMain.drawImage(proc, sx + slot.offX, sy + slot.offY, dw, dh);
-        bctxMain.restore();
-      }
-
-      // 斜め・階段状セルは画像を境界いっぱいまで描画しているため、矩形セルの「すき間」と同じ見た目になるよう、
-      // 区切り線を背景色で書き出し画像にも焼き込む（矩形セルはsx/sy/sw/shの余白がそのまま区切りになる）
-      if(slot.rect.poly){
-        const gap = parseInt(gapEl.value,10);
-        if(gap > 0){
-          bctxMain.save();
-          bctxMain.strokeStyle = bg;
-          bctxMain.lineWidth = gap;
-          bctxMain.lineJoin = 'round';
-          tracePolyPath(bctxMain, slot.rect.poly);
-          bctxMain.stroke();
-          bctxMain.restore();
-        }
-      }
-
-      // オーバーレイ（選択中の枠の縁取り）
-      const isActive = (i === activeSlot);
-      const isSwap = (i === swapSourceIdx);
-
-      // 区切り線用の境界線を集める（矩形／多角形どちらでも対応）
-      if(slot.rect.poly){
-        const pts = slot.rect.poly.map(p => ({x: p.x*size.w, y: p.y*size.h}));
-        for(let k=0;k<pts.length;k++){
-          const a = pts[k], b = pts[(k+1)%pts.length];
-          addEdge(a.x, a.y, b.x, b.y);
-        }
+  if(game.soloType === 'time'){
+    game.timerId = setInterval(function(){
+      if(!game || game.ended) return;
+      game.timeLeft--;
+      if(game.timeLeft <= 0){
+        game.timeLeft = 0;
+        renderHud();
+        endSoloGame();
       } else {
-        addEdge(sx, sy, sx+sw, sy);
-        addEdge(sx+sw, sy, sx+sw, sy+sh);
-        addEdge(sx+sw, sy+sh, sx, sy+sh);
-        addEdge(sx, sy+sh, sx, sy);
+        renderHud();
+      }
+    }, 1000);
+  }
+}
+
+function finishSoloStep(){
+  if(game.soloType === 'miss' && game.missCount >= 3){
+    endSoloGame();
+    return;
+  }
+  if(game.deck.length === 0){
+    endSoloGame();
+    return;
+  }
+  game.current = game.deck.pop();
+  renderGame();
+}
+
+function handleSoloPlacement(gapIndex, gapEl, sourceEl){
+  if(uiLocked) return;
+  uiLocked = true;
+  var card = game.current;
+  var correct = correctGapIndex(game.timeline, card.year);
+
+  if(gapIndex === correct){
+    showToast('せいかい！', 'ok');
+    game.correctCount++;
+    insertCardWithAnimation(card, correct, sourceEl, function(){
+      finishSoloStep();
+      uiLocked = false;
+    });
+    return;
+  }
+
+  game.missCount++;
+  if(settings.rule === 'advanced'){
+    showToast('ざんねん…正しい位置に直されたよ', 'ng');
+    insertCardWithAnimation(card, correct, sourceEl, function(){
+      finishSoloStep();
+      uiLocked = false;
+    });
+  } else {
+    showToast('ざんねん…', 'ng');
+    playShakeAndRemove(sourceEl, function(){
+      finishSoloStep();
+      uiLocked = false;
+    });
+  }
+}
+
+function endSoloGame(){
+  if(!game || game.ended) return;
+  game.ended = true;
+  if(game.timerId){ clearInterval(game.timerId); game.timerId = null; }
+  document.getElementById('result-title').textContent = 'チャレンジ終了！';
+  var subMsg = '正解 ' + game.correctCount + '枚 ／ ミス ' + game.missCount + '回';
+  document.getElementById('result-sub').textContent = subMsg;
+  showScreen('result-screen');
+}
+
+/* ============================================================
+   8. スタートボタン
+   ============================================================ */
+document.getElementById('start-multi-btn').addEventListener('click', initMultiGame);
+document.getElementById('start-solo-btn').addEventListener('click', initSoloGame);
+
+document.getElementById('retry-btn').addEventListener('click', function(){
+  if(!game) { showScreen('menu-screen'); return; }
+  if(game.type === 'multi') initMultiGame();
+  else initSoloGame();
+});
+
+/* ============================================================
+   9. 描画
+   ============================================================ */
+function cardInnerHtml(c){
+  var img = c.image
+    ? '<img src="' + escapeHtml(c.image) + '" style="width:24px;height:24px;border-radius:50%;object-fit:cover;flex:0 0 auto;" alt="">'
+    : '<div class="img-ph"></div>';
+  return img +
+    '<div class="info">' +
+      '<div class="name">' + escapeHtml(c.name) + '</div>' +
+      '<div class="event">' + escapeHtml(c.achievement) + '</div>' +
+    '</div>' +
+    '<div class="year">' + c.year + '年</div>';
+}
+function handCardInnerHtml(c){
+  var img = c.image
+    ? '<img src="' + escapeHtml(c.image) + '" style="width:40px;height:40px;border-radius:50%;object-fit:cover;margin-bottom:6px;" alt="">'
+    : '<div class="img-ph"></div>';
+  return img +
+    '<div class="name">' + escapeHtml(c.name) + '</div>' +
+    '<div class="event">' + escapeHtml(c.achievement) + '</div>';
+}
+
+function renderHud(){
+  if(!game) return;
+  var turnLabel = document.getElementById('turn-label');
+  var deckCount = document.getElementById('deck-count');
+
+  if(game.type === 'multi'){
+    turnLabel.textContent = currentPlayer().name + 'のばん';
+    deckCount.textContent = '山札:' + game.deck.length + '枚';
+  } else {
+    turnLabel.textContent = '正解 ' + game.correctCount + '枚';
+    var timeStr = game.soloType === 'time' ? ('残り時間:' + game.timeLeft + '秒') : ('ミス:' + game.missCount + '/3');
+    deckCount.textContent = '山札:' + game.deck.length + '枚　' + timeStr;
+  }
+}
+
+function renderTimeline(onGapTap){
+  var wrap = document.getElementById('timeline-wrap');
+  wrap.innerHTML = '';
+
+  var n = game.timeline.length;
+  var grid = document.createElement('div');
+  grid.className = 'tl-grid';
+  var cols = [];
+  for(var i = 0; i < n; i++){ cols.push('var(--gapw)'); cols.push('var(--cardw)'); }
+  cols.push('var(--gapw)');
+  grid.style.gridTemplateColumns = cols.join(' ');
+
+  // 下段：▲マーカー（挿入位置）。カードの間の空きを圧迫しないよう別段に配置。
+  for(var g = 0; g <= n; g++){
+    var cell = document.createElement('div');
+    cell.className = 'tl-marker-cell';
+    cell.style.gridColumn = (2 * g + 1);
+    cell.style.gridRow = 2;
+    var btn = document.createElement('button');
+    btn.className = 'tl-marker-btn pickable';
+    btn.textContent = '▲';
+    btn.dataset.gap = g;
+    btn.addEventListener('click', (function(idx, btnEl){
+      return function(){ onGapTap(idx, btnEl); };
+    })(g, btn));
+    cell.appendChild(btn);
+    grid.appendChild(cell);
+  }
+
+  // 上段：カード本体
+  game.timeline.forEach(function(c, i){
+    var card = document.createElement('div');
+    card.className = 'tl-card';
+    card.dataset.id = c.id;
+    card.style.gridColumn = (2 * (i + 1));
+    card.style.gridRow = 1;
+    card.innerHTML = cardInnerHtml(c);
+    grid.appendChild(card);
+  });
+
+  wrap.appendChild(grid);
+}
+
+function renderHandMulti(){
+  var row = document.getElementById('hand-row');
+  row.innerHTML = '';
+  var player = currentPlayer();
+  if(player.hand.length === 0){
+    row.innerHTML = '<div class="hand-empty-msg">手札がありません</div>';
+    return;
+  }
+  player.hand.forEach(function(c){
+    var el = document.createElement('div');
+    el.className = 'hand-card' + (game.selectedHandCardId === c.id ? ' selected' : '');
+    el.innerHTML = handCardInnerHtml(c);
+    attachCardDrag(el, {
+      onTap: function(){
+        game.selectedHandCardId = (game.selectedHandCardId === c.id) ? null : c.id;
+        renderGame();
+      },
+      onDrop: function(gapIndex, gapEl, srcEl){
+        handleMultiPlacement(c, gapIndex, gapEl, srcEl);
       }
     });
+    row.appendChild(el);
+  });
+}
 
-    // キャンバスの一番外側（黒い枠がすでにある部分）にはオレンジ線を重ねない。内側の区切り線だけ描く
-    function isOuterEdge(x1,y1,x2,y2){
-      const eps = 0.5;
-      if(Math.abs(x1) < eps && Math.abs(x2) < eps) return true;
-      if(Math.abs(x1-size.w) < eps && Math.abs(x2-size.w) < eps) return true;
-      if(Math.abs(y1) < eps && Math.abs(y2) < eps) return true;
-      if(Math.abs(y1-size.h) < eps && Math.abs(y2-size.h) < eps) return true;
-      return false;
+function renderHandSolo(){
+  var row = document.getElementById('hand-row');
+  row.innerHTML = '';
+  if(!game.current) return;
+  var el = document.createElement('div');
+  el.className = 'hand-card selected';
+  el.innerHTML = handCardInnerHtml(game.current);
+  attachCardDrag(el, {
+    onTap: function(){ /* ソロは常に唯一のカードが選択状態なので何もしない */ },
+    onDrop: function(gapIndex, gapEl, srcEl){
+      handleSoloPlacement(gapIndex, gapEl, srcEl);
     }
+  });
+  row.appendChild(el);
+}
 
-    // 区切り線はすべての境界を1本ずつまとめて、黒い点線で一度だけ描く
-    octx.save();
-    octx.lineWidth = HATCH_LINE_WIDTH;
-    octx.strokeStyle = 'rgba(0,0,0,.85)';
-    octx.setLineDash([14,10]);
-    octx.beginPath();
-    edgeMap.forEach(([x1,y1,x2,y2]) => {
-      if(isOuterEdge(x1,y1,x2,y2)) return;
-      octx.moveTo(x1,y1);
-      octx.lineTo(x2,y2);
+/* 手札カードをタップ（選択）／年表の▲マーカーへ指でドラッグして差し込む、両方に対応 */
+function attachCardDrag(el, opts){
+  var st = null;
+  var THRESHOLD = 12;
+
+  /* 手札より上のエリアで指を離したら「年表に放り込んだ」とみなし、
+     横方向でいちばん近い▲（差し込み位置）を選ぶ。
+     小さな▲をぴったり狙わなくても、ずるずる持っていって離すだけで置ける。 */
+  function findMarker(x, y){
+    var handWrap = document.getElementById('hand-wrap');
+    var hintBar = document.getElementById('hint-bar');
+    var limit = null;
+    if(hintBar) limit = hintBar.getBoundingClientRect().bottom;
+    else if(handWrap) limit = handWrap.getBoundingClientRect().top;
+    if(limit !== null && y > limit) return null;     // 手札のあたりで離したら取り消し
+
+    var wrap = document.getElementById('timeline-wrap');
+    var wrapRect = wrap ? wrap.getBoundingClientRect() : null;
+    var markers = document.querySelectorAll('#timeline-wrap .tl-marker-btn');
+    var best = null, bestDist = Infinity;
+    var bestAny = null, bestAnyDist = Infinity;
+    markers.forEach(function(m){
+      var r = m.getBoundingClientRect();
+      if(r.width === 0) return;
+      var cx = r.left + r.width / 2;
+      var d = Math.abs(cx - x);
+      if(d < bestAnyDist){ bestAnyDist = d; bestAny = m; }
+      // 横スクロールで画面外にある差し込み位置は選ばない（見えていない所に入らないように）
+      if(wrapRect && (cx < wrapRect.left - 8 || cx > wrapRect.right + 8)) return;
+      if(d < bestDist){ bestDist = d; best = m; }
     });
-    octx.stroke();
-    octx.restore();
+    return best || bestAny;
+  }
+  function clearMarkerHighlight(){
+    document.querySelectorAll('.tl-marker-btn.drag-over').forEach(function(m){ m.classList.remove('drag-over'); });
+  }
 
-    // 選んでいる枠は、画像の周りをオレンジの太い実線で囲んでわかりやすくする（入れ替え元は緑）
-    slots.forEach((slot, i) => {
-      const isActive = (i === activeSlot);
-      const isSwap = (i === swapSourceIdx);
-      if(!isActive && !isSwap) return;
-      const {sx, sy, sw, sh} = slotBox(slot, size);
-      if(sw <= 0 || sh <= 0) return;
-      octx.save();
-      octx.lineWidth = HATCH_LINE_WIDTH + 2;
-      octx.strokeStyle = isSwap ? '#2ecc71' : '#ff9500';
-      if(slot.rect.poly){
-        tracePolyPath(octx, slot.rect.poly);
-      } else {
-        octx.beginPath();
-        octx.rect(sx, sy, sw, sh);
+  el.addEventListener('pointerdown', function(e){
+    if(e.button !== undefined && e.button !== 0) return;
+    // 前回のドラッグの後片付けが漏れていた場合の保険
+    if(st && st.ghost) st.ghost.remove();
+    document.querySelectorAll('.fly-card.drag-ghost').forEach(function(g){ g.remove(); });
+    st = { id:e.pointerId, sx:e.clientX, sy:e.clientY, moved:false, ghost:null };
+    try{ el.setPointerCapture(e.pointerId); }catch(err){}
+  });
+
+  el.addEventListener('pointermove', function(e){
+    if(!st || st.id !== e.pointerId) return;
+    var dx = e.clientX - st.sx, dy = e.clientY - st.sy;
+    if(!st.moved && Math.sqrt(dx * dx + dy * dy) > THRESHOLD){
+      st.moved = true;
+      st.ghost = document.createElement('div');
+      st.ghost.className = 'fly-card drag-ghost';
+      st.ghost.innerHTML = el.innerHTML;
+      document.body.appendChild(st.ghost);
+      el.style.visibility = 'hidden';
+    }
+    if(st.moved){
+      e.preventDefault();
+      var w = 120, h = 156;
+      st.ghost.style.left = (e.clientX - w / 2) + 'px';
+      st.ghost.style.top = (e.clientY - h / 2) + 'px';
+      st.ghost.style.width = w + 'px';
+      st.ghost.style.height = h + 'px';
+      var marker = findMarker(e.clientX, e.clientY);
+      clearMarkerHighlight();
+      if(marker) marker.classList.add('drag-over');
+    }
+  });
+
+  function endDrag(e){
+    if(!st || st.id !== e.pointerId) return;
+    var wasMoved = st.moved;
+    if(st.ghost) st.ghost.remove();
+    clearMarkerHighlight();
+    el.style.visibility = '';
+    try{ el.releasePointerCapture(e.pointerId); }catch(err){}
+
+    if(wasMoved){
+      var marker = findMarker(e.clientX, e.clientY);
+      if(marker){
+        var gapIndex = parseInt(marker.dataset.gap, 10);
+        opts.onDrop(gapIndex, marker, el);
       }
-      octx.stroke();
-      octx.restore();
-    });
-
-    btnDownloadCombined.disabled = !slots.some(s => s.item);
-  }
-
-  // ぼかし処理済みキャンバスをキャッシュ（毎フレーム再生成しない）
-  const processedCache = new Map();
-  function getProcessedCanvasCached(item){
-    const key = item.id + ':' + effVal(item,'strength') + ':' + effVal(item,'feather') + ':' + (item.adjustVersion||0) + ':' + (blurEnabled?1:0) + ':' + JSON.stringify(item.boxes);
-    const cached = processedCache.get(item.id);
-    if(cached && cached.key === key) return cached.canvas;
-    const canvas = renderProcessedCanvas(item);
-    processedCache.set(item.id, {key, canvas});
-    return canvas;
-  }
-
-  // 各画像の「処理済みキャンバス」を作る（結合用）
-  function renderProcessedCanvas(item){
-    const c = document.createElement('canvas');
-    c.width = item.w; c.height = item.h;
-    const cx = c.getContext('2d');
-    const src = itemSource(item);
-    cx.drawImage(src, 0, 0, item.w, item.h);
-    if(blurEnabled){
-      const strength = effVal(item, 'strength');
-      const feather = effVal(item, 'feather')/100;
-      item.boxes.forEach(b => {
-        applyBlurForBox(cx, src, b, strength, feather);
-      });
-    }
-    return c;
-  }
-
-  // ---------- コラージュ：クリック／ドラッグ操作 ----------
-  function collagePos(e){
-    const rect = collageOverlayCanvas.getBoundingClientRect();
-    const scaleX = collageOverlayCanvas.width / rect.width;
-    const scaleY = collageOverlayCanvas.height / rect.height;
-    return { x:(e.clientX-rect.left)*scaleX, y:(e.clientY-rect.top)*scaleY };
-  }
-  // 多角形（斜め・階段状）セルの当たり判定（レイキャスト法）
-  function pointInPolyNorm(poly, pos, size){
-    let inside = false;
-    for(let i = 0, j = poly.length - 1; i < poly.length; j = i++){
-      const xi = poly[i].x*size.w, yi = poly[i].y*size.h;
-      const xj = poly[j].x*size.w, yj = poly[j].y*size.h;
-      const intersect = ((yi > pos.y) !== (yj > pos.y)) &&
-        (pos.x < (xj - xi) * (pos.y - yi) / (yj - yi) + xi);
-      if(intersect) inside = !inside;
-    }
-    return inside;
-  }
-  function hitSlot(pos, size){
-    for(let i=slots.length-1;i>=0;i--){
-      const s = slots[i];
-      if(s.rect.poly){
-        if(pointInPolyNorm(s.rect.poly, pos, size)) return i;
-        continue;
-      }
-      const x = s.rect.x*size.w, y = s.rect.y*size.h, w = s.rect.w*size.w, h = s.rect.h*size.h;
-      if(pos.x>=x && pos.x<=x+w && pos.y>=y && pos.y<=y+h) return i;
-    }
-    return -1;
-  }
-
-  // サムネイルからのドラッグ＆ドロップで、狙った枠にはめ込む
-  collageOverlayCanvas.addEventListener('dragover', e => {
-    e.preventDefault();
-    e.dataTransfer.dropEffect = 'copy';
-  });
-  collageOverlayCanvas.addEventListener('drop', e => {
-    e.preventDefault();
-    const idStr = e.dataTransfer.getData('text/plain');
-    const item = items.find(it => String(it.id) === idStr);
-    if(!item) return;
-    const size = collageCanvasSize();
-    const pos = collagePos(e);
-    const idx = hitSlot(pos, size);
-    if(idx === -1) return;
-    pushUndo();
-    const slot = slots[idx];
-    slot.item = item;
-    fitSlotDefault(slot, size);
-    activeSlot = idx;
-    renderThumbs2();
-    renderCollage();
-    updateSlotSidePanel();
-  });
-
-  let dragInfo = null; // {slotIndex, startX, startY, startOffX, startOffY, moved, baseline}
-  collageOverlayCanvas.addEventListener('mousedown', e => {
-    const size = collageCanvasSize();
-    const pos = collagePos(e);
-    const idx = hitSlot(pos, size);
-    if(idx === -1) return;
-    dragInfo = { slotIndex: idx, startX: pos.x, startY: pos.y, moved:false, baseline: null };
-    const slot = slots[idx];
-    if(slot.item && !swapMode){
-      dragInfo.startOffX = slot.offX; dragInfo.startOffY = slot.offY;
-      dragInfo.baseline = snapshotState(); // 実際に動かした場合だけ確定してundoに積む
-    }
-    collageOverlayCanvas.classList.add('dragging');
-  });
-  window.addEventListener('mousemove', e => {
-    if(!dragInfo) return;
-    if(swapMode) return; // 入れ替えモード中はドラッグで動かさず、クリックのみ扱う
-    const size = collageCanvasSize();
-    const pos = collagePos(e);
-    const dx = pos.x - dragInfo.startX, dy = pos.y - dragInfo.startY;
-    if(Math.abs(dx) > 3 || Math.abs(dy) > 3) dragInfo.moved = true;
-    const slot = slots[dragInfo.slotIndex];
-    if(dragInfo.moved && slot && slot.item){
-      if(dragInfo.baseline){
-        undoStack.push(dragInfo.baseline);
-        if(undoStack.length > UNDO_LIMIT) undoStack.shift();
-        redoStack = [];
-        updateUndoRedoButtons();
-        dragInfo.baseline = null;
-      }
-      slot.offX = dragInfo.startOffX + dx;
-      slot.offY = dragInfo.startOffY + dy;
-      clampSlotOffset(slot, size);
-      renderCollage();
-    }
-  });
-  window.addEventListener('mouseup', () => {
-    if(!dragInfo){ return; }
-    if(swapMode){
-      trySwapClick(dragInfo.slotIndex);
-    } else if(!dragInfo.moved){
-      activeSlot = dragInfo.slotIndex;
-      renderCollage();
-      updateSlotSidePanel();
     } else {
-      updateSlotSidePanel();
+      opts.onTap();
     }
-    dragInfo = null;
-    collageOverlayCanvas.classList.remove('dragging');
-  });
-
-  function trySwapClick(idx){
-    const slot = slots[idx];
-    if(!slot || !slot.item){
-      swapSourceIdx = -1;
-      renderCollage();
-      return;
-    }
-    if(swapSourceIdx === -1 || swapSourceIdx === idx){
-      swapSourceIdx = (swapSourceIdx === idx) ? -1 : idx;
-      renderCollage();
-      return;
-    }
-    pushUndo();
-    const a = slots[swapSourceIdx], b = slots[idx];
-    const itemA = a.item, itemB = b.item;
-    a.item = itemB; b.item = itemA;
-    const size = collageCanvasSize();
-    if(a.item) fitSlotDefault(a, size);
-    if(b.item) fitSlotDefault(b, size);
-    swapSourceIdx = -1;
-    activeSlot = idx;
-    renderThumbs2();
-    renderCollage();
-    updateSlotSidePanel();
+    st = null;
   }
+  el.addEventListener('pointerup', endDrag);
+  el.addEventListener('pointercancel', function(e){
+    if(st && st.ghost) st.ghost.remove();
+    if(st) el.style.visibility = '';
+    clearMarkerHighlight();
+    st = null;
+  });
+}
 
-  btnSwapMode.addEventListener('click', () => {
-    swapMode = !swapMode;
-    swapSourceIdx = -1;
-    btnSwapMode.classList.toggle('active', swapMode);
-    swapModeHint.style.display = swapMode ? 'block' : 'none';
-    collageOverlayCanvas.classList.toggle('swap-mode', swapMode);
-    renderCollage();
-  });
-  collageOverlayCanvas.addEventListener('wheel', e => {
-    if(activeSlot < 0 || !slots[activeSlot] || !slots[activeSlot].item) return;
-    e.preventDefault();
-    beginWheelUndoGroup();
-    const slot = slots[activeSlot];
-    const delta = e.deltaY < 0 ? 0.08 : -0.08;
-    slot.zoom = Math.max(1, Math.min(3, slot.zoom + delta));
-    clampSlotOffset(slot, collageCanvasSize());
-    renderCollage();
-    updateSlotSidePanel();
-  }, {passive:false});
+function renderGame(){
+  if(!game) return;
+  // ドラッグ演出の分身が万一残っていた場合の保険的クリーンアップ
+  document.querySelectorAll('.fly-card.drag-ghost').forEach(function(g){ g.remove(); });
+  renderHud();
 
-  slotZoomEl.addEventListener('input', () => {
-    const slot = slots[activeSlot];
-    slotZoomVal.textContent = slotZoomEl.value + '%';
-    if(!slot || !slot.item) return;
-    slot.zoom = parseInt(slotZoomEl.value,10)/100;
-    clampSlotOffset(slot, collageCanvasSize());
-    renderCollage();
-  });
-  btnSlotReset.addEventListener('click', () => {
-    const slot = slots[activeSlot];
-    if(!slot || !slot.item) return;
-    pushUndo();
-    fitSlotDefault(slot, collageCanvasSize());
-    renderCollage();
-    updateSlotSidePanel();
-  });
-  btnSlotClear.addEventListener('click', () => {
-    const slot = slots[activeSlot];
-    if(!slot) return;
-    pushUndo();
-    resetSlotAssignment(slot);
-    renderThumbs2();
-    renderCollage();
-    updateSlotSidePanel();
-  });
+  var hint = document.getElementById('hint-bar');
 
-  function refitAllSlots(){
-    const size = collageCanvasSize();
-    slots.forEach(s => { if(s.item) fitSlotDefault(s, size); });
-  }
-  canvasRatioEl.addEventListener('change', () => { refitAllSlots(); renderPresetGrid(); renderCollage(); saveSettings(); });
-  btnOrientPortrait.addEventListener('click', () => {
-    pushUndo();
-    orientation = 'portrait';
-    btnOrientPortrait.classList.add('active'); btnOrientLandscape.classList.remove('active');
-    refitAllSlots(); renderPresetGrid(); renderCollage(); saveSettings();
-  });
-  btnOrientLandscape.addEventListener('click', () => {
-    pushUndo();
-    orientation = 'landscape';
-    btnOrientLandscape.classList.add('active'); btnOrientPortrait.classList.remove('active');
-    refitAllSlots(); renderPresetGrid(); renderCollage(); saveSettings();
-  });
-  gapEl.addEventListener('input', () => { gapVal.textContent = gapEl.value + 'px'; refitAllSlots(); renderCollage(); saveSettings(); });
-  bgColorEl.addEventListener('input', () => { renderCollage(); saveSettings(); });
-
-  btnDownloadCombined.addEventListener('click', () => {
-    // 並び替えは「ダウンロードした回数」で決める（プリセットを選んだだけでは並び替えない）
-    if(currentPresetId){
-      presetUsage[currentPresetId] = (presetUsage[currentPresetId]||0) + 1;
-      saveSettings();
-      renderPresetGrid();
+  if(game.type === 'multi'){
+    var selectedCard = null;
+    if(game.selectedHandCardId != null){
+      selectedCard = currentPlayer().hand.find(function(c){ return c.id === game.selectedHandCardId; });
     }
-    // 選択枠のハイライトを消した状態で書き出すため、オーバーレイなしのベースキャンバスをそのまま書き出す
-    const srcW = collageBaseCanvas.width, srcH = collageBaseCanvas.height;
-    const targetLong = DOWNLOAD_SIZES[downloadSizeKey] || DOWNLOAD_SIZES.large;
-    const currentLong = Math.max(srcW, srcH);
-    const scale = Math.min(1, targetLong / currentLong);
-    if(scale >= 0.999){
-      downloadCanvas(collageBaseCanvas, nextDownloadFilename('png'));
-      if(deleteUsedOnDownload) removeUsedItemsAfterDownload();
-      return;
-    }
-    const outW = Math.max(1, Math.round(srcW * scale));
-    const outH = Math.max(1, Math.round(srcH * scale));
-    const tmp = document.createElement('canvas');
-    tmp.width = outW; tmp.height = outH;
-    tmp.getContext('2d').drawImage(collageBaseCanvas, 0, 0, outW, outH);
-    downloadCanvas(tmp, nextDownloadFilename('png'));
-    if(deleteUsedOnDownload) removeUsedItemsAfterDownload();
-  });
-
-  renderCountTabs();
-  renderPresetGrid();
-  applyPreset();
-
-  // 「画像を保存」がONなら、前回このブラウザに保存されていた画像・編集内容・
-  // STEP2の枠への割り当て（結合の作業状態）・「元に戻す／やり直す」の履歴を復元する
-  if(persistImages){
-    loadItemsFromImgDB().then(() => {
-      if(items.length){
-        renderThumbs();
-        if(!selectedId) selectItem(items[0].id);
-        renderCountTabs();
-        renderPresetGrid();
-        renderThumbs2();
-        renderCollage();
-        updateSlotSidePanel();
-        // 画像が残っている状態で復元できたときは、続きの作業がしやすいようSTEP2から表示する
-        showStep(2);
+    renderTimeline(function(gapIndex, gapEl){
+      if(!selectedCard){
+        showToast('先に手札のカードをえらんでね', 'ng');
+        return;
       }
-      return loadHistoryFromImgDB();
+      var srcEl = document.querySelector('.hand-card.selected');
+      handleMultiPlacement(selectedCard, gapIndex, gapEl, srcEl);
     });
+    renderHandMulti();
+    hint.textContent = selectedCard
+      ? (selectedCard.name + ' を年表のどこに置くか ▲ をタップ／指でドラッグ')
+      : '手札のカードをえらんでね(タップ or ドラッグ)';
+  } else {
+    renderTimeline(function(gapIndex, gapEl){
+      var srcEl = document.querySelector('#hand-row .hand-card');
+      handleSoloPlacement(gapIndex, gapEl, srcEl);
+    });
+    renderHandSolo();
+    hint.textContent = game.current ? (game.current.name + ' を年表のどこに置くか ▲ をタップ／指でドラッグ') : '';
   }
+}
 
 })();
 </script>
