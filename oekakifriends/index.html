@@ -174,7 +174,7 @@
 
         <div class="box" id="modeSelect">
             <h2>なまえを入れてね</h2>
-            <input type="text" id="playerName" placeholder="なまえ" autocomplete="off">
+            <input type="text" id="playerName" placeholder="なまえ" autocomplete="off" maxlength="10">
             <button class="btn btn-orange" id="createBtn" onclick="createRoom()">
                 <svg viewBox="0 0 24 24" fill="none"><path d="M12 12a4.5 4.5 0 1 0 0-9 4.5 4.5 0 0 0 0 9z" fill="currentColor"/><path d="M4 20c0-3.6 3.6-6.5 8-6.5s8 2.9 8 6.5" fill="currentColor"/></svg>
                 部屋を作る（ホスト）
@@ -188,12 +188,12 @@
         <div class="box" id="joinBox" style="display:none;">
             <h2>部屋に入る</h2>
             <div class="name-note" id="joinNameNote"></div>
-            <input type="text" id="roomID" placeholder="部屋番号" inputmode="numeric" autocomplete="off">
+            <input type="text" id="roomID" placeholder="部屋番号" inputmode="numeric" autocomplete="off" maxlength="4">
             <button class="btn btn-cyan" id="joinBtn" onclick="joinRoom()">入室する</button>
             <button class="btn btn-sub" onclick="backToSelect()">もどる</button>
         </div>
 
-        <div class="footer">お絵かきクイズ フレンズ | Ver 1.3 | ota tools</div>
+        <div class="footer">お絵かきクイズ フレンズ | Ver 1.2 | ota tools</div>
     </div>
 
     <script>
@@ -368,7 +368,9 @@
         })();
         document.getElementById('playerName').addEventListener('input', e => saveSavedName(e.target.value.trim()));
 
-        function getPlayerName() { return document.getElementById('playerName').value.trim(); }
+        // maxlength属性はコピー&ペーストなどで回避されることがあるため、念のためJS側でも
+        // 長さを切っておく（room.html側の表示崩れを防ぐための保険）。
+        function getPlayerName() { return document.getElementById('playerName').value.trim().slice(0, 10); }
 
         function backToSelect() {
             joinBox.style.display = 'none';
@@ -402,10 +404,8 @@
             try {
                 await authReady;
 
-                const room = String(Math.floor(1000 + Math.random() * 9000));
                 const uid = makeUid(name);
-
-                await db.ref(`casual_rooms/${room}`).set({
+                const roomPayload = {
                     hostUid: uid,
                     settings: { category: "", roundsPerPerson: 1 },
                     turnOrder: [],
@@ -424,7 +424,27 @@
                     users: {
                         [uid]: { name: name, score: 0, image: "", isCorrect: false, joinedAt: Date.now(), color: pickRandomColor([]) }
                     }
-                });
+                };
+
+                // 部屋番号は1000〜9999のランダムな4桁（9000通り）なので、同じ時間帯に
+                // たくさんのクラスが同時に使うと、まれに既存の部屋と同じ番号を引いてしまう
+                // ことがある。そのままset()すると既存の部屋を丸ごと上書きしてしまうため、
+                // 「今その番号の部屋が本当に存在しないときだけ書き込む」トランザクションを使い、
+                // もし埋まっていたら番号を引き直して何回か試す。
+                let room = null;
+                for (let attempt = 0; attempt < 10; attempt++) {
+                    const candidate = String(Math.floor(1000 + Math.random() * 9000));
+                    const result = await db.ref(`casual_rooms/${candidate}`).transaction(current => {
+                        if (current !== null) return; // すでに部屋がある→書き込まない（アボート）
+                        return roomPayload;
+                    });
+                    if (result.committed) { room = candidate; break; }
+                }
+                if (!room) {
+                    alert('こんでいて部屋番号を作れませんでした。もう一度お試しください。');
+                    btn.disabled = false;
+                    return;
+                }
 
                 sessionStorage.setItem('friends_room', room);
                 sessionStorage.setItem('friends_uid', uid);
@@ -459,13 +479,12 @@
                 const phase = (roomData.state || {}).phase || 'lobby';
 
                 const existingUsers = roomData.users || {};
-                const nameTaken = Object.values(existingUsers).some(u => u && u.name === name);
-                if (nameTaken) {
-                    alert('その名前はもうこの部屋で使われています。別の名前にしてね。');
-                    btn.disabled = false;
-                    return;
-                }
-
+                // 名前からその子のID（uid）を決めているので、「同じ名前を持つ人がいる」ことは
+                // 「自分がもう一度入ろうとしている（＝いったん切れて戻ってきた）」ことと
+                // 見分けがつかない。以前はここで一律にブロックしていたため、通信が切れて
+                // 入りなおそうとした子が、自分の名前なのに「使われています」と弾かれ、
+                // 点数も引き継げなくなっていた（下のscore引き継ぎコードが到達不能だった）。
+                // 今は「自分のuidの席」がすでにあれば、そのまま同じ席に入りなおす扱いにする。
                 uid = makeUid(name);
                 const takenColors = Object.values(existingUsers).map(u => u && u.color).filter(Boolean);
                 await db.ref(`casual_rooms/${room}/users/${uid}`).update({
