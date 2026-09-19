@@ -1573,7 +1573,21 @@ authReady.then(() => {
 
     db.ref(`casual_rooms/${myRoom}`).on('value', snap => {
         const data = snap.val();
-        if (!data) { location.href = 'index.html'; return; }
+        // data.stateが無い場合も「部屋が無い」のと同じあつかいにする。ロビー中に
+        // 更新（リロード）すると、切断のごく一瞬だけ「部屋ごと自動削除」onDisconnectが
+        // 働いてしまい、部屋がまるごと消えることがある。ところが、このタブ自身が
+        // 再接続時に書き込む一部の項目（hostSessionId・users/{uid}/connected・
+        // ホストの設定プレビューpendingSettingsなど）は、それとは無関係に自動で
+        // 書き込まれてしまうため、「stateも設定も無いのに、その3つの項目だけが
+        // ある空っぽの部屋」が残ってしまい、!dataのチェックだけではすり抜けて、
+        // 中身の無いゲーム画面が表示されつづけるおかしな不具合になっていた。
+        if (!data || !data.state) {
+            // 気づいた側で、その空っぽの残骸を片付けてから戻す
+            // （そのままだと、この部屋番号がずっと使えなくなってしまうため）。
+            if (data) { db.ref(`casual_rooms/${myRoom}`).remove().catch(() => {}); }
+            location.href = 'index.html';
+            return;
+        }
 
         const state = data.state || {};
         usersData = data.users || {};
