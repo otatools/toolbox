@@ -140,6 +140,9 @@ body { word-break: keep-all; overflow-wrap: break-word; }
     border-color: #ff8a3d; background: #fff3e8; color: #a34c00;
     box-shadow: 0 0 0 3px rgba(255,138,61,0.25), 0 2px 0 rgba(0,0,0,0.05);
 }
+/* 2人だけの部屋では「対戦」は選べない（1人が描いて1人が当てるだけになってしまうため）ので、
+   ボタンごと薄くして押せないようにする。押せない理由が一目で分かるよう、うっすら文字を添える。 */
+.choice-btn.disabled { opacity: 0.4; pointer-events: none; box-shadow: none; position: relative; }
 .stepper { display: flex; align-items: center; justify-content: center; gap: clamp(8px, 1.4vh, 14px); margin: clamp(2px, 0.6vh, 6px) 0; background: #f7f8fd; border-radius: 10px; min-height: var(--ctrl-h); box-sizing: border-box; padding: 0 clamp(8px, 1.2vw, 14px); }
 .stepper-btn {
     width: var(--ctrl-h); height: var(--ctrl-h); border-radius: 50%; border: none; background: #ff8a3d; color: #fff;
@@ -423,8 +426,8 @@ canvas { touch-action: none; -webkit-user-select: none; user-select: none; }
                 <div class="field" id="modeField">
                     <div class="field-label">あそびかた</div>
                     <div class="choice-group" id="modeGroup">
-                        <button type="button" class="choice-btn" data-value="competitive">対戦</button>
                         <button type="button" class="choice-btn" data-value="coop">協力</button>
+                        <button type="button" class="choice-btn" data-value="competitive">対戦</button>
                     </div>
                     <input type="hidden" id="modeSel" value="competitive">
                 </div>
@@ -1033,7 +1036,7 @@ function broadcastPendingSettings() {
 
 async function hostStartGame() {
     const difficulty = document.getElementById('difficultySel').value;
-    const gameMode = document.getElementById('modeSel').value; // "competitive" | "coop"
+    let gameMode = document.getElementById('modeSel').value; // "competitive" | "coop"
     const endType = document.getElementById('endTypeSel').value; // "rounds" | "time"
     const roundsPerPerson = parseInt(document.getElementById('roundsIn').value) || 1;
     const timeLimitMinutes = parseInt(document.getElementById('timeLimitIn').value) || 5;
@@ -1047,6 +1050,9 @@ async function hostStartGame() {
     }
     const uids = Object.keys(data.users || {});
     if (uids.length < 2) { alert('2人以上あつまってからはじめてね'); return; }
+    // 念のための最終チェック：2人ちょうどなら対戦は成立しないので、画面上のボタンを
+    // 塞み忘れていた・タイミングがずれていた等があっても、ここで確実に協力にする
+    if (uids.length === 2 && gameMode === 'competitive') gameMode = 'coop';
 
     const turnOrder = shuffleArray(uids);
     const gameEndAt = (endType === "time") ? (Date.now() + timeLimitMinutes * 60000) : 0;
@@ -1345,6 +1351,7 @@ function renderLobby(data) {
     if (isHost) {
         document.getElementById('hostControls').style.display = 'block';
         document.getElementById('guestWaitingNote').style.display = 'none';
+        updateModeAvailability(Object.keys(data.users || {}).length);
     } else {
         document.getElementById('hostControls').style.display = 'none';
         document.getElementById('guestWaitingNote').style.display = 'block';
@@ -1356,6 +1363,7 @@ function renderLobby(data) {
 let colorAssignAttempted = false;
 function ensureMyColor(users) {
     if (colorAssignAttempted) return;
+    if (!users[myUid]) return; // 自分の参加情報がまだ（または既に）無いなら、色だけの空の情報を作らない
     if (users[myUid] && users[myUid].color) return;
     colorAssignAttempted = true;
     const taken = Object.entries(users).filter(([uid]) => uid !== myUid).map(([, u]) => u.color).filter(Boolean);
@@ -1478,12 +1486,30 @@ function initChoiceGroup(groupId, hiddenId, defaultValue) {
     }
     group.querySelectorAll('.choice-btn').forEach(b => {
         b.onclick = () => {
+            if (b.classList.contains('disabled')) return; // 例：2人部屋の「対戦」（押せないようにCSSでも塞いである）
             hidden.value = b.dataset.value;
             refresh();
             hidden.dispatchEvent(new Event('change'));
         };
     });
     refresh();
+}
+
+// 「対戦」はふたり以上のチームに分かれてこそ成立する遊びかたで、2人ちょうどだと
+// 「1人が描いて1人が当てるだけ」になってしまう。2人のときは対戦ボタンを押せなくし、
+// もし対戦が選ばれたままだったら自動で協力に切りかえる（ホストの画面でのみ判定・操作する）。
+function updateModeAvailability(userCount) {
+    if (!isHost) return;
+    const competitiveBtn = document.querySelector('#modeGroup .choice-btn[data-value="competitive"]');
+    const modeSel = document.getElementById('modeSel');
+    if (!competitiveBtn || !modeSel) return;
+    const shouldDisable = userCount === 2;
+    competitiveBtn.classList.toggle('disabled', shouldDisable);
+    if (shouldDisable && modeSel.value === 'competitive') {
+        modeSel.value = 'coop';
+        document.querySelectorAll('#modeGroup .choice-btn').forEach(b => b.classList.toggle('selected', b.dataset.value === modeSel.value));
+        modeSel.dispatchEvent(new Event('change'));
+    }
 }
 // 「回数」「時間」も、数字入力の代わりに－／＋の大きなボタンで増減できるようにする。
 function stepSetting(id, delta, min, max) {
@@ -1563,6 +1589,18 @@ authReady.then(() => {
             // 一度は一覧にいたはずの自分が消えている（ホストに出された、または
             // 通信の影響で参加情報が消えてしまった等）。入口の画面にもどす。
             alert('この部屋から出されたか、参加情報が見つからなくなりました。もう一度お試しください。');
+            location.href = 'index.html';
+            return;
+        } else if (!isHost && state.phase === "lobby") {
+            // ゲームが始まる前（ロビー中）に更新（リロード）すると、リロードの一瞬の
+            // 切断で「ロビー中に切れたら自分の参加情報を自動で消す」しくみ
+            // （onDisconnect、上の selfDisconnectArmed のしくみ）が働いてしまい、
+            // 再接続して最初にこのリスナーが呼ばれた時点で、もう自分がusersに
+            // いないことがある。ゲームはまだ始まっていない＝まだ何も失われていない
+            // ので、「出された」という驚かせるアラートは出さず、静かに入口の画面へ
+            // 戻す（ここでこのままrenderLobby()まで進んでしまうと、名前もスコアも
+            // 無い空っぽの自分だけの参加情報がensureMyColor()で作られてしまい、
+            // ロビー画面がおかしな見た目になっていた）。
             location.href = 'index.html';
             return;
         }
