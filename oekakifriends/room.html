@@ -247,6 +247,14 @@ canvas { touch-action: none; -webkit-user-select: none; user-select: none; }
 #oshiiBubble { position: fixed; top: 100px; left: 50%; transform: translateX(-50%) translateY(-6px) scale(0.85); z-index: 3600; background: #ffffff; border: 3px solid #29b36b; border-radius: 20px; padding: 8px 20px; font-weight: 800; font-size: 17px; color: #128a4d; box-shadow: 0 6px 18px rgba(60,50,120,0.22); opacity: 0; pointer-events: none; transition: opacity 0.2s ease, transform 0.2s ease; white-space: nowrap; }
 #oshiiBubble::after { content: ''; position: absolute; top: -12px; left: 50%; transform: translateX(-50%); border-width: 0 10px 12px 10px; border-style: solid; border-color: transparent transparent #29b36b transparent; }
 #oshiiBubble.show { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); }
+/* 「わかった！」（答えている人）と「お題チェンジ！」（描いている人）のふきだしは、
+   #wrongGuessBubble・#oshiiBubbleと同じ形だが、色が押した人ごとに変わる
+   （わかった＝その人自身の色、お題チェンジ＝チェンジボタンと同じ紫）ので、
+   CSS変数(--bubble-color)にしてJS側（showGotItBubble/showOdaiChangeBubble）が
+   表示するたびに指定する形にしておく。 */
+#gotItBubble, #odaiChangeBubble { position: fixed; top: 100px; left: 50%; transform: translateX(-50%) translateY(-6px) scale(0.85); z-index: 3600; background: #ffffff; border: 3px solid var(--bubble-color, #3ed6c6); border-radius: 20px; padding: 8px 20px; font-weight: 800; font-size: 17px; color: var(--bubble-color, #3ed6c6); box-shadow: 0 6px 18px rgba(60,50,120,0.22); opacity: 0; pointer-events: none; transition: opacity 0.2s ease, transform 0.2s ease; white-space: nowrap; }
+#gotItBubble::after, #odaiChangeBubble::after { content: ''; position: absolute; top: -12px; left: 50%; transform: translateX(-50%); border-width: 0 10px 12px 10px; border-style: solid; border-color: transparent transparent var(--bubble-color, #3ed6c6) transparent; }
+#gotItBubble.show, #odaiChangeBubble.show { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); }
 /* パソコンなど横に余裕がある画面では、まちがえた答えをその人の名前タグから吹き出しで出す。
    人数が増えても分かりやすいよう、上下中央ぞろえではなく、左上を起点に上から順に
    ならべる（左に入りきらない人数のときだけ、右側にも上から続けてならべる）。 */
@@ -256,16 +264,18 @@ canvas { touch-action: none; -webkit-user-select: none; user-select: none; }
 .player-tag { position: relative; background: #ffffff; border: 3px solid #ccc; border-radius: 20px; padding: 6px 14px; font-weight: 700; font-size: 14px; box-shadow: 0 3px 10px rgba(60,50,120,0.15); white-space: nowrap; max-width: 30vw; }
 .player-tag-name { display: inline-block; max-width: 90px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: middle; }
 .player-tag.me { box-shadow: 0 0 0 3px rgba(60,50,120,0.22), 0 3px 10px rgba(60,50,120,0.15); }
-.tag-bubble { position: absolute; top: 50%; transform: translateY(-50%) scale(0.85); background: #ffffff; border: 3px solid #ff5c5c; border-radius: 16px; padding: 6px 14px; font-weight: 800; font-size: 14px; color: #d40000; white-space: nowrap; opacity: 0; pointer-events: none; transition: opacity 0.2s ease, transform 0.2s ease; box-shadow: 0 4px 14px rgba(60,50,120,0.2); }
+/* ふきだしの色は、まちがい（赤）・おしい（緑）・わかった（押した人の色）・
+   お題チェンジ（紫）で変わるので、こちらもCSS変数(--tag-bubble-border /
+   --tag-bubble-text)にして、JS側の各show*Bubble関数が表示するたびに指定する。
+   （.oshiiクラスは使わなくなったが、過去にキャッシュされたCSSと混ざらないよう
+   念のため互換の意味あいで扱いは変えていない＝もう参照されていない） */
+.tag-bubble { position: absolute; top: 50%; transform: translateY(-50%) scale(0.85); background: #ffffff; border: 3px solid var(--tag-bubble-border, #ff5c5c); border-radius: 16px; padding: 6px 14px; font-weight: 800; font-size: 14px; color: var(--tag-bubble-text, #d40000); white-space: nowrap; opacity: 0; pointer-events: none; transition: opacity 0.2s ease, transform 0.2s ease; box-shadow: 0 4px 14px rgba(60,50,120,0.2); }
 .player-sidebar.left .tag-bubble { left: calc(100% + 12px); }
 .player-sidebar.right .tag-bubble { right: calc(100% + 12px); }
 .tag-bubble.show { opacity: 1; transform: translateY(-50%) scale(1); }
 .tag-bubble::after { content: ''; position: absolute; top: 50%; transform: translateY(-50%); border-width: 8px; border-style: solid; }
-.player-sidebar.left .tag-bubble::after { left: -16px; border-color: transparent #ff5c5c transparent transparent; }
-.player-sidebar.right .tag-bubble::after { right: -16px; border-color: transparent transparent transparent #ff5c5c; }
-.tag-bubble.oshii { border-color: #29b36b; color: #128a4d; }
-.player-sidebar.left .tag-bubble.oshii::after { border-color: transparent #29b36b transparent transparent; }
-.player-sidebar.right .tag-bubble.oshii::after { border-color: transparent transparent transparent #29b36b; }
+.player-sidebar.left .tag-bubble::after { left: -16px; border-color: transparent var(--tag-bubble-border, #ff5c5c) transparent transparent; }
+.player-sidebar.right .tag-bubble::after { right: -16px; border-color: transparent transparent transparent var(--tag-bubble-border, #ff5c5c); }
 @media (max-width: 900px) { .player-sidebar { display: none; } }
 #kbdWrapper { position: fixed; bottom: 0; left: 0; width: 100%; background: rgba(255,255,255,0.72); backdrop-filter: blur(3px); z-index: 5000; display: none; flex-direction: column; padding: 5px 0 env(safe-area-inset-bottom) 0; border-top: 3px solid #3ed6c6; box-shadow: 0 -4px 20px rgba(60,50,120,0.12); }
 .input-display { display: flex; width: 95%; margin: 5px auto; gap: 8px; align-items: center; position: relative; }
@@ -305,6 +315,14 @@ canvas { touch-action: none; -webkit-user-select: none; user-select: none; }
 @media (min-width: 901px) {
     #kbdWrapper { left: 150px; width: calc(100% - 300px); border-radius: 20px 20px 0 0; }
     #drawTools { left: 150px; width: calc(100% - 300px); border-radius: 20px 20px 0 0; }
+    /* パソコン版は画面が横に広いぶん、canvasBox（4:3）も縦方向に大きく表示されやすく、
+       スマホ版と同じキーボードの不透明度・ぼかしだと、描いている絵の半分以上が
+       隠れてしまっていた（スマホ版は縦長の画面でキャンバスの下に余白ができやすく、
+       隠れる範囲がもともと少ない）。パソコン版のときだけ、キーボードの背景とキーの
+       背景をもっと透かして、答えを入力しながら絵を見えるようにする。 */
+    #kbdWrapper { background: rgba(255,255,255,0.32); backdrop-filter: blur(1px); }
+    .k-key { background: rgba(238,241,251,0.5); }
+    .k-key:active { background: rgba(223,227,247,0.75); }
 }
 .tool-panel { display: flex; flex-direction: column; align-items: center; gap: 10px; }
 .tool-divider { display: none; }
@@ -492,6 +510,8 @@ canvas { touch-action: none; -webkit-user-select: none; user-select: none; }
     <div id="judgeEffect"></div>
     <div id="wrongGuessBubble"></div>
     <div id="oshiiBubble"></div>
+    <div id="gotItBubble"></div>
+    <div id="odaiChangeBubble"></div>
     <div class="player-sidebar left" id="sidebarLeft"></div>
     <div class="player-sidebar right" id="sidebarRight"></div>
     <div id="stage">
@@ -557,7 +577,17 @@ canvas { touch-action: none; -webkit-user-select: none; user-select: none; }
             </div>
         </div>
     </div>
-    <button id="toggleKbd" onclick="toggleKeyboard()" style="display:none; position: fixed; bottom: 15px; right: 15px; z-index: 4500; padding: 12px 24px; border-radius: 30px; background: #ffcc00; font-weight: bold; border: 2px solid #fff;">答えを入力</button>
+    <!-- パソコン版でキーボードを出している間は「答えを入力」として使う意味がもうないので、
+         キーボード側の「決定」ボタン（左）ともう1つ、右にも「決定」を出して、
+         マウスをあまり動かさずに押せるようにする（updateToggleKbdBtn()で切りかえる）。 -->
+    <!-- 「答えを入力」と「決定」で文字数がちがうので、widthを固定して中身だけ
+         入れかえる（固定しないと、切りかわるたびにボタンの大きさが変わってしまう）。 -->
+    <button id="toggleKbd" onclick="onToggleKbdBtnClick()" style="display:none; position: fixed; bottom: 15px; right: 15px; z-index: 4500; width: 128px; box-sizing: border-box; padding: 12px 8px; border-radius: 30px; background: #ffcc00; font-weight: bold; border: 2px solid #fff; text-align: center;">答えを入力</button>
+    <!-- 答えている人（描いている人以外）が、まだ正解が言えなくても「もう見当がついた」
+         ときに押すボタン。押すと、押した人の名前タグ（せまい画面では画面上の吹き出し）に
+         その人自身の色で「わかった！」と出て、みんな（特に描いている人）に伝わる。
+         これを見れば、描いている人はお題をむやみにチェンジしなくてよいと判断できる。 -->
+    <button id="gotItBtn" onclick="sendGotIt()" style="display:none; position: fixed; bottom: 15px; left: 15px; z-index: 4500; padding: 12px 24px; border-radius: 30px; background: #3ed6c6; color: #fff; font-weight: bold; border: 2px solid #fff;">わかった！</button>
     <div id="kbdWrapper">
         <div class="input-display">
             <button class="k-close-x" onclick="toggleKeyboard()">×</button>
@@ -933,6 +963,34 @@ function updateStageLayout() {
     stage.style.paddingTop = topReserve + 'px';
     stage.style.paddingBottom = bottomReserve + 'px';
     resize();
+    updateToggleKbdBtn();
+}
+// パソコン版（画面幅が広く、キーボードを出したままでも絵が透けて見えるようになったため）は、
+// キーボードを出している間、右下の「答えを入力」ボタンを「決定」に切りかえる。
+// キーボード内の「決定」（左）と合わせて2か所から押せるようにして、マウスの移動を減らす。
+// スマホ版は画面が狭くキーボードを閉じてから確認する流れのままなので、変えない。
+function updateToggleKbdBtn() {
+    const btn = document.getElementById('toggleKbd');
+    if (!btn || getComputedStyle(btn).display === 'none') return;
+    const kbdOpen = document.getElementById('kbdWrapper').style.display === 'flex';
+    if (window.innerWidth > 900 && kbdOpen) {
+        btn.innerText = '決定';
+        btn.style.background = '#3ed6c6'; // キーボード側の「決定」ボタンと同じ色にする
+    } else {
+        btn.innerText = '答えを入力';
+        btn.style.background = '#ffcc00';
+    }
+}
+// 右下のボタンは、キーボードを開く前は「答えを入力」（開く）、パソコン版でキーボードを
+// 開いたあとは「決定」（送信）として働く。どちらの動作かは、その時点の画面幅と
+// キーボードの開閉状態から毎回判定する（固定のonclickを2種類作って差しかえるより単純）。
+function onToggleKbdBtnClick() {
+    const kbdOpen = document.getElementById('kbdWrapper').style.display === 'flex';
+    if (window.innerWidth > 900 && kbdOpen) {
+        checkAnswer();
+    } else {
+        toggleKeyboard();
+    }
 }
 // #drawTools などの表示/非表示を切り替えた直後は、切り替え1フレーム目だけ
 // offsetHeightが正しい値より小さく返ることがある（レイアウトの確定が1テンポ遅れるため）。
@@ -1019,6 +1077,11 @@ async function changeOdai() {
 
     const updates = { usedWords: usedWords, 'state/correctAnswer': nextWord, 'state/correctCount': 0 };
     Object.keys(data.users || {}).forEach(uid => { updates[`users/${uid}/isCorrect`] = false; });
+    // 「お題チェンジ！」を自分（描いている人）の名前タグから伝える。
+    updates['state/odaiChange'] = { ts: Date.now() };
+    // お題が変わったので、それまでの「わかった！」表示はいったん役目を終えたことにする
+    // （前のお題への「わかった」が、新しいお題にも当てはまるとは限らないため）。
+    updates['state/gotIt'] = null;
 
     canvasGen++;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -1802,6 +1865,34 @@ authReady.then(() => {
             showOshiiBubble(state.currentDrawer, og.name);
         }
 
+        // 答えている人が「わかった！」ボタンを押したら、その人の名前タグからふきだしを出す。
+        // oshii/wrongGuessは「最後の1件だけ」を覚える単一の値だが、こちらは複数人がほぼ
+        // 同時に押しても互いを消し合わないよう、押した人ごと（uidをキーに）に記録・比較する。
+        const gi = state.gotIt || {};
+        if (!gotItInitialized) {
+            gotItInitialized = true;
+            Object.keys(gi).forEach(uid => { lastGotItTs[uid] = gi[uid] ? gi[uid].ts : 0; });
+        } else if (currentIsPlaying) {
+            Object.keys(gi).forEach(uid => {
+                const entry = gi[uid];
+                if (entry && entry.ts > (lastGotItTs[uid] || 0)) {
+                    lastGotItTs[uid] = entry.ts;
+                    showGotItBubble(uid, entry.name);
+                }
+            });
+        }
+
+        // 描いている人が「お題をチェンジ」したら、その人の名前タグから「お題チェンジ！」の
+        // ふきだしを出す（answerCountがリセットされたことに気づきやすくするため）。
+        const oc = state.odaiChange;
+        if (!odaiChangeInitialized) {
+            odaiChangeInitialized = true;
+            lastOdaiChangeTs = oc ? oc.ts : 0;
+        } else if (currentIsPlaying && oc && oc.ts > lastOdaiChangeTs) {
+            lastOdaiChangeTs = oc.ts;
+            showOdaiChangeBubble(state.currentDrawer);
+        }
+
         if (state.phase !== lastStatePhase) {
             if (state.phase !== "playing") {
                 closeKeyboard();
@@ -1892,7 +1983,11 @@ authReady.then(() => {
         }
 
         document.getElementById('drawTools').style.display = (isDrawer && currentIsPlaying) ? 'flex' : 'none';
-        document.getElementById('toggleKbd').style.display = (currentIsPlaying && !isDrawer && !(usersData[myUid] && usersData[myUid].isCorrect)) ? 'block' : 'none';
+        // 答えている人（描いている人以外・まだ正解していない人）だけに見える2つのボタン。
+        const isGuessingNow = currentIsPlaying && !isDrawer && !(usersData[myUid] && usersData[myUid].isCorrect);
+        document.getElementById('toggleKbd').style.display = isGuessingNow ? 'block' : 'none';
+        document.getElementById('gotItBtn').style.display = isGuessingNow ? 'block' : 'none';
+        updateToggleKbdBtn();
         // 「おしい！」ボタンは#drawTools（描いている人のツール一式）の中に置いてあるので、
         // drawTools自体の表示・非表示（isDrawer && currentIsPlayingで切り替え）に
         // そのままついてくる。答えを入力する人ではなく、絵を描いている人だけに見える。
@@ -1916,8 +2011,11 @@ authReady.then(() => {
 
         const hintBox = document.getElementById('hintDisplay'); hintBox.innerHTML = "";
         const showHint = currentIsPlaying && state.timeLeft <= 40 && state.correctAnswer;
-        // 残り20秒からは最初の1文字だけ実際の文字を見せる（それ以外は引き続き点のまま）
-        const showFirstChar = state.timeLeft <= 20;
+        // 残り20秒からは最初の1文字だけ実際の文字を見せる（それ以外は引き続き点のまま）。
+        // ただし答えが1〜2文字しかないときは、1文字見せるとほぼ答えを教えてしまうのと
+        // 同じになるので、文字数の丸だけにして、最初の文字は最後まで見せない。
+        const answerLen = state.correctAnswer ? [...state.correctAnswer].length : 0;
+        const showFirstChar = state.timeLeft <= 20 && answerLen >= 3;
         hintBox.style.display = showHint ? 'flex' : 'none'; // 中身が空でも枠(丸っぽい形)だけ表示されてしまうのを防ぐ
         if (showHint) {
             const label = document.createElement('div'); label.id = "hintLabel"; label.innerText = "ヒント："; hintBox.appendChild(label);
@@ -2225,12 +2323,20 @@ const wideScreenQuery = window.matchMedia('(min-width: 901px)');
 // まちがえた答え・「おしい！」のふきだしは、以前は2.5秒で消えていたが、
 // ヒントとして活用しやすいよう、もう少し長めに表示しておく。
 const GUESS_BUBBLE_DISPLAY_MS = 8000;
+// 名前タグから出すふきだし（#tagBubble-{uid}）の色を、種類ごとに指定する
+// （CSS変数--tag-bubble-border/--tag-bubble-textを、表示するたびにここで設定しなおす。
+// 表示のたびに毎回両方指定しておけば、前に別の種類のふきだしを出していた色が
+// 残ってしまう心配がない）。
+function setTagBubbleColor(tagBubble, borderColor, textColor) {
+    tagBubble.style.setProperty('--tag-bubble-border', borderColor);
+    tagBubble.style.setProperty('--tag-bubble-text', textColor);
+}
 function showWrongGuessBubble(uid, name, text) {
     // パソコンなど横に余裕がある画面では、その人の名前タグから吹き出しを出す。
     // 名前タグが見つからない・スマホ表示のときは、これまでどおり画面上部に出す。
     const tagBubble = document.getElementById(`tagBubble-${uid}`);
     if (wideScreenQuery.matches && tagBubble) {
-        tagBubble.classList.remove('oshii');
+        setTagBubbleColor(tagBubble, '#ff5c5c', '#d40000');
         tagBubble.innerText = `× ${text}`;
         tagBubble.classList.add('show');
         clearTimeout(tagBubble._hideTimer);
@@ -2259,7 +2365,7 @@ let oshiiHideTimer = null;
 function showOshiiBubble(drawerUid, senderName) {
     const tagBubble = document.getElementById(`tagBubble-${drawerUid}`);
     if (wideScreenQuery.matches && tagBubble) {
-        tagBubble.classList.add('oshii');
+        setTagBubbleColor(tagBubble, '#29b36b', '#128a4d');
         tagBubble.innerText = 'おしい！';
         tagBubble.classList.add('show');
         clearTimeout(tagBubble._hideTimer);
@@ -2271,6 +2377,61 @@ function showOshiiBubble(drawerUid, senderName) {
     el.classList.add('show');
     clearTimeout(oshiiHideTimer);
     oshiiHideTimer = setTimeout(() => { el.classList.remove('show'); }, GUESS_BUBBLE_DISPLAY_MS);
+}
+
+// 「わかった！」ボタン：答えている人（描いている人以外）が、まだ正解と入力していなくても
+// 「もう見当がついた」ときに押すと、自分の名前タグ（せまい画面では画面上の吹き出し）に
+// 自分の色で「わかった！」と出る。これを見た描いている人は、お題をチェンジしなくて
+// よいと判断できる（答えそのものは見えないので、ネタバレにはならない）。
+function sendGotIt() {
+    if (isDrawer || !currentIsPlaying) return;
+    if (usersData[myUid] && usersData[myUid].isCorrect) return; // もう正解した人には不要
+    db.ref(`casual_rooms/${myRoom}/state/gotIt/${myUid}`).set({ name: myName, ts: Date.now() });
+}
+let lastGotItTs = {}; // uid -> このタブで最後に表示した時刻（oshii/wrongGuessと違い、押した人ごとに覚えておく）
+let gotItInitialized = false;
+let gotItHideTimer = null;
+function showGotItBubble(uid, name) {
+    const color = (usersData[uid] && usersData[uid].color) || '#3ed6c6';
+    const tagBubble = document.getElementById(`tagBubble-${uid}`);
+    if (wideScreenQuery.matches && tagBubble) {
+        setTagBubbleColor(tagBubble, color, color);
+        tagBubble.innerText = 'わかった！';
+        tagBubble.classList.add('show');
+        clearTimeout(tagBubble._hideTimer);
+        tagBubble._hideTimer = setTimeout(() => { tagBubble.classList.remove('show'); }, GUESS_BUBBLE_DISPLAY_MS);
+        return;
+    }
+    const el = document.getElementById('gotItBubble');
+    el.style.setProperty('--bubble-color', color);
+    el.innerText = `${name ? name + 'さん' : 'だれか'}： わかった！`;
+    el.classList.add('show');
+    clearTimeout(gotItHideTimer);
+    gotItHideTimer = setTimeout(() => { el.classList.remove('show'); }, GUESS_BUBBLE_DISPLAY_MS);
+}
+
+// 「お題をチェンジ」したときに、描いている人自身の名前タグから「お題チェンジ！」と
+// 出す（changeOdaiBtnと同じ紫を使う。changeOdai()側でstate.odaiChangeを書きこむ）。
+let lastOdaiChangeTs = 0;
+let odaiChangeInitialized = false;
+let odaiChangeHideTimer = null;
+const ODAI_CHANGE_COLOR = '#7c6bff';
+function showOdaiChangeBubble(drawerUid) {
+    const tagBubble = document.getElementById(`tagBubble-${drawerUid}`);
+    if (wideScreenQuery.matches && tagBubble) {
+        setTagBubbleColor(tagBubble, ODAI_CHANGE_COLOR, ODAI_CHANGE_COLOR);
+        tagBubble.innerText = 'お題チェンジ！';
+        tagBubble.classList.add('show');
+        clearTimeout(tagBubble._hideTimer);
+        tagBubble._hideTimer = setTimeout(() => { tagBubble.classList.remove('show'); }, GUESS_BUBBLE_DISPLAY_MS);
+        return;
+    }
+    const el = document.getElementById('odaiChangeBubble');
+    el.style.setProperty('--bubble-color', ODAI_CHANGE_COLOR);
+    el.innerText = 'お題チェンジ！';
+    el.classList.add('show');
+    clearTimeout(odaiChangeHideTimer);
+    odaiChangeHideTimer = setTimeout(() => { el.classList.remove('show'); }, GUESS_BUBBLE_DISPLAY_MS);
 }
 
 /* ===== キーボード（student.htmlと同じ） ===== */
