@@ -50,7 +50,11 @@ h1,h2,h3{ margin:0 0 8px; }
 h1{ font-size:1.5rem; text-align:center; letter-spacing:.05em; }
 /* ---- ゲーム画面 ---- */
 #game-screen{ padding:10px 0 0; }
-.hud{ display:flex; justify-content:space-between; align-items:center; padding:0 12px 8px; flex:0 0 auto; }
+.hud{
+  display:flex; justify-content:space-between; align-items:center;
+  padding:0 12px 8px; flex:0 0 auto;
+  width:100%; max-width:1100px; margin:0 auto;
+}
 .hud .turn-label{ font-weight:700; font-size:.95rem; }
 .hud .deck-count{ font-size:.75rem; color:#6b5c42; }
 
@@ -63,6 +67,7 @@ h1{ font-size:1.5rem; text-align:center; letter-spacing:.05em; }
   --gapw: 10px; --cardw: 96px;
   display:grid; grid-template-rows:148px 34px; row-gap:3px; align-items:center; justify-items:center;
   padding:4px 4px 8px;
+  margin:auto;            /* 中央ぞろえ。カードが増えて横に収まらなくなったら自動で左端から並ぶ */
 }
 .tl-card{
   width:100%; height:100%; box-sizing:border-box;
@@ -90,19 +95,36 @@ h1{ font-size:1.5rem; text-align:center; letter-spacing:.05em; }
 .tl-marker-btn.drag-over{ background:#ffe08a; transform:scale(1.35); box-shadow:0 0 0 4px rgba(184,134,11,.25); }
 
 #hand-wrap{ flex:0 0 auto; padding:10px 12px 16px; }
-.hand-row{ display:flex; gap:12px; overflow-x:auto; overflow-y:hidden; padding:34px 4px 10px; align-items:flex-end; }
+/* 手札の幅(--handw)は、手札の枚数と画面の幅から JS が計算して入れる。
+   カードの中身はすべて --handw からの比率で作ってあるので、縮んでも見た目の比率は変わらない。 */
+.hand-row{
+  display:flex; gap:var(--handgap, 12px); overflow-x:auto; overflow-y:hidden;
+  padding:34px 4px 10px; align-items:flex-end;
+}
+.hand-row > *:first-child{ margin-left:auto; }   /* 中央ぞろえ（はみ出すときは 0 になる） */
+.hand-row > *:last-child{ margin-right:auto; }
 .hand-card{
-  flex:0 0 auto; width:132px; height:182px; border-radius:16px; border:2px solid var(--line);
+  flex:0 0 auto;
+  width:var(--handw, 132px);
+  height:max(calc(var(--handw, 132px) * 1.379), 104px);   /* 細いカードでも中身が入る高さを確保 */
+  overflow:hidden;
+  border-radius:calc(var(--handw, 132px) * .121); border:2px solid var(--line);
   background:var(--card); display:flex; flex-direction:column; align-items:center; justify-content:center;
-  padding:10px 8px; text-align:center; font-size:.72rem; position:relative;
+  padding:calc(var(--handw, 132px) * .076) calc(var(--handw, 132px) * .061);
+  text-align:center; position:relative;
+  font-size:max(9px, calc(var(--handw, 132px) * .0873));
   box-shadow:0 2px 4px rgba(0,0,0,.08);
   transition:transform .18s ease, box-shadow .18s ease, margin .18s ease;
   touch-action:none;
 }
-.hand-card .img-ph{ width:48px; height:48px; border-radius:50%; background:#eadfc4; margin-bottom:8px; flex:0 0 auto; }
-.hand-card .name{ font-weight:700; font-size:.86rem; line-height:1.25; }
+.hand-card .img-ph{
+  width:calc(var(--handw, 132px) * .364); height:calc(var(--handw, 132px) * .364);
+  border-radius:50%; background:#eadfc4; margin-bottom:calc(var(--handw, 132px) * .061); flex:0 0 auto;
+}
+.hand-row.hand-compact .hand-card .img-ph{ display:none; }   /* 細いときは丸を省く */
+.hand-card .name{ font-weight:700; font-size:1.19em; line-height:1.25; }
 .hand-card .event{
-  font-size:.68rem; color:#6b5c42; line-height:1.25; margin-top:6px;
+  font-size:.945em; color:#6b5c42; line-height:1.25; margin-top:.5em;
   display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden;
 }
 .hand-card.selected{
@@ -156,7 +178,7 @@ h1{ font-size:1.5rem; text-align:center; letter-spacing:.05em; }
 
 /* トースト（誤答・正解フィードバック） */
 #toast{
-  position:fixed; left:50%; top:14px; transform:translate(-50%,-140%);
+  position:fixed; left:50%; top:46px; transform:translate(-50%,-220%);   /* 上部の表示と重ならない高さ */
   background:rgba(0,0,0,.82); color:#fff; padding:10px 18px; border-radius:999px;
   font-size:.85rem; font-weight:700; z-index:50; pointer-events:none;
   white-space:nowrap;
@@ -550,8 +572,12 @@ function setAppHeight(){
   if(h > 0) document.documentElement.style.setProperty('--app-h', Math.round(h) + 'px');
 }
 setAppHeight();
-['resize','pageshow'].forEach(function(t){ window.addEventListener(t, setAppHeight); });
-window.addEventListener('orientationchange', function(){ setTimeout(setAppHeight,250); });
+['resize','pageshow'].forEach(function(t){
+  window.addEventListener(t, function(){ setAppHeight(); fitHandCards(); });
+});
+window.addEventListener('orientationchange', function(){
+  setTimeout(function(){ setAppHeight(); fitHandCards(); }, 250);
+});
 if(window.visualViewport){
   visualViewport.addEventListener('resize', setAppHeight);
   visualViewport.addEventListener('scroll', setAppHeight);
@@ -898,21 +924,44 @@ function correctGapIndex(timeline, year){
 /* ============================================================
    5.5 カードを飛ばす演出
    ============================================================ */
-/* ▲マーカーの位置(横方向)を基準に、実際にカードが現れる「上段（カード行）」の
-   位置・サイズを算出する。既存カードの実測サイズを使うので、カードデザインを
-   変えてもここを直す必要がない。 */
-function computeInsertTargetRect(markerEl){
-  var gapRect = markerEl.getBoundingClientRect();
-  var refCard = document.querySelector('#timeline-wrap .tl-card');
-  var w, h, top;
-  if(refCard){
-    var r = refCard.getBoundingClientRect();
-    w = r.width; h = r.height; top = r.top;
-  } else {
-    w = 96; h = 148; top = gapRect.top - (h + 12);
+/* 年表にカードを差し込むときの演出。
+   「まわりのカードが間を空ける動き」と「手札のカードが飛んでいく動き」を同時に始め、
+   カードが着地したときには、まわりのカードの動きが終わっているようにする。
+   先に年表を確定させてしまい、置き場所の実測値に向かって飛ばすので、
+   着地位置がずれることもない。 */
+function insertCardWithAnimation(card, insertIndex, sourceEl, onLanded){
+  var oldRects = captureTimelineRects();        // 動く前の位置を記録
+  game.timeline.splice(insertIndex, 0, card);   // 年表を先に確定させる
+  renderTimeline(function(){});                 // 年表だけ描き直す（手札はそのまま残す）
+
+  var newEl = document.querySelector('#timeline-wrap .tl-card[data-id="' + card.id + '"]');
+
+  /* スマホなど年表が横にはみ出す画面では、置き場所が画面の外にあることがある。
+     そのままだとカードが画面外へ飛んでいってしまうので、先に見える位置まで寄せておく。
+     （この寄せぶんも含めてFLIPで動くので、年表がスッと横に流れて見える） */
+  var wrap = document.getElementById('timeline-wrap');
+  if(wrap && newEl){
+    var wr = wrap.getBoundingClientRect();
+    var nr = newEl.getBoundingClientRect();
+    var margin = Math.min(28, wr.width * 0.12);
+    if(nr.left < wr.left + margin){
+      wrap.scrollLeft += nr.left - (wr.left + margin);
+    } else if(nr.right > wr.right - margin){
+      wrap.scrollLeft += nr.right - (wr.right - margin);
+    }
   }
-  var centerX = gapRect.left + gapRect.width / 2;
-  return { left: centerX - w / 2, top: top, width: w, height: h };
+
+  var target = null;
+  if(newEl){
+    target = newEl.getBoundingClientRect();     // 寄せたあとの確定位置
+    newEl.style.visibility = 'hidden';          // 飛んできたカードが着くまで隠しておく
+  }
+
+  playTimelineFlip(oldRects);                   // まわりのカードが間を空ける（.32秒）
+  playFlyAnimation(sourceEl, target, function(){ // 同時に手札から飛ばす（.45秒）
+    if(newEl) newEl.style.visibility = '';
+    onLanded();
+  });
 }
 
 /* 手札のカードを一回り大きくポップさせてから、年表上の着地位置(target)へ
@@ -928,7 +977,8 @@ function playFlyAnimation(sourceEl, target, onDone){
   clone.innerHTML = sourceEl.innerHTML;
   document.body.appendChild(clone);
 
-  var bigW = 132, bigH = 168;
+  var bigW = Math.round(sRect.width || 132);
+  var bigH = Math.round((sRect.height || 182) * .92);
   clone.style.left = (sRect.left + sRect.width / 2 - bigW / 2) + 'px';
   clone.style.top = (sRect.top + sRect.height / 2 - bigH / 2) + 'px';
   clone.style.width = bigW + 'px';
@@ -997,7 +1047,7 @@ function playTimelineFlip(oldRects){
   requestAnimationFrame(function(){
     requestAnimationFrame(function(){
       toAnimate.forEach(function(el){
-        el.style.transition = 'transform .38s cubic-bezier(.4,0,.2,1)';
+        el.style.transition = 'transform .32s cubic-bezier(.4,0,.2,1)';
         el.style.transform = '';
       });
     });
@@ -1068,17 +1118,14 @@ function handleMultiPlacement(card, gapIndex, gapEl, sourceEl){
 
   if(gapIndex === correct){
     showToast('せいかい！', 'ok');
-    playFlyAnimation(sourceEl, computeInsertTargetRect(gapEl), function(){
-      var oldRects = captureTimelineRects();
-      game.timeline.splice(correct, 0, card);
-      player.hand = player.hand.filter(function(c){ return c.id !== card.id; });
+    player.hand = player.hand.filter(function(c){ return c.id !== card.id; });
+    insertCardWithAnimation(card, correct, sourceEl, function(){
       if(player.hand.length === 0){
         uiLocked = false;
         endMultiGame(player);
         return;
       }
       nextTurnMulti();
-      playTimelineFlip(oldRects);
       uiLocked = false;
     });
     return;
@@ -1096,16 +1143,11 @@ function handleMultiPlacement(card, gapIndex, gapEl, sourceEl){
     });
   } else {
     showToast('ざんねん…正しい位置に直されて場に追加されたよ', 'ng');
-    var gaps = document.querySelectorAll('#timeline-wrap .tl-marker-btn');
-    var correctGapEl = gaps[correct];
-    playFlyAnimation(sourceEl, computeInsertTargetRect(correctGapEl), function(){
-      var oldRects = captureTimelineRects();
-      game.timeline.splice(correct, 0, card);
-      player.hand = player.hand.filter(function(c){ return c.id !== card.id; });
-      var drawn2 = drawOne();
-      if(drawn2) player.hand.push(drawn2);
+    player.hand = player.hand.filter(function(c){ return c.id !== card.id; });
+    var drawn2 = drawOne();
+    if(drawn2) player.hand.push(drawn2);
+    insertCardWithAnimation(card, correct, sourceEl, function(){
       nextTurnMulti();
-      playTimelineFlip(oldRects);
       uiLocked = false;
     });
   }
@@ -1199,12 +1241,9 @@ function handleSoloPlacement(gapIndex, gapEl, sourceEl){
 
   if(gapIndex === correct){
     showToast('せいかい！', 'ok');
-    playFlyAnimation(sourceEl, computeInsertTargetRect(gapEl), function(){
-      var oldRects = captureTimelineRects();
-      game.timeline.splice(correct, 0, card);
-      game.correctCount++;
+    game.correctCount++;
+    insertCardWithAnimation(card, correct, sourceEl, function(){
       finishSoloStep();
-      if(!game.ended){ playTimelineFlip(oldRects); }
       uiLocked = false;
     });
     return;
@@ -1213,13 +1252,8 @@ function handleSoloPlacement(gapIndex, gapEl, sourceEl){
   game.missCount++;
   if(settings.rule === 'advanced'){
     showToast('ざんねん…正しい位置に直されたよ', 'ng');
-    var gaps = document.querySelectorAll('#timeline-wrap .tl-marker-btn');
-    var correctGapEl = gaps[correct];
-    playFlyAnimation(sourceEl, computeInsertTargetRect(correctGapEl), function(){
-      var oldRects = captureTimelineRects();
-      game.timeline.splice(correct, 0, card);
+    insertCardWithAnimation(card, correct, sourceEl, function(){
       finishSoloStep();
-      if(!game.ended){ playTimelineFlip(oldRects); }
       uiLocked = false;
     });
   } else {
@@ -1293,6 +1327,7 @@ function renderHud(){
 
 function renderTimeline(onGapTap){
   var wrap = document.getElementById('timeline-wrap');
+  var keepScroll = wrap.scrollLeft;   // 描き直すと先頭に戻ってしまうので覚えておく
   wrap.innerHTML = '';
 
   var n = game.timeline.length;
@@ -1332,6 +1367,30 @@ function renderTimeline(onGapTap){
   });
 
   wrap.appendChild(grid);
+  wrap.scrollLeft = keepScroll;       // 見ていた位置に戻す
+}
+
+/* 手札が画面の幅に収まるように、カードの大きさを実測して決める。
+   これをしないと、スマホで4〜5枚のときに右端がはみ出して左寄せになってしまう。 */
+function fitHandCards(){
+  var row = document.getElementById('hand-row');
+  if(!row) return;
+  var n = row.querySelectorAll('.hand-card').length;
+  if(n === 0){
+    row.style.removeProperty('--handw');
+    row.style.removeProperty('--handgap');
+    row.classList.remove('hand-compact');
+    return;
+  }
+  var avail = row.clientWidth - 8;                    // 左右のパディングぶん
+  var gap = (n >= 5) ? 8 : 12;
+  var w = Math.floor((avail - gap * (n - 1)) / n);
+  if(w < 78 && gap > 8){ gap = 8;  w = Math.floor((avail - gap * (n - 1)) / n); }
+  if(w < 68 && gap > 6){ gap = 6;  w = Math.floor((avail - gap * (n - 1)) / n); }
+  w = Math.max(52, Math.min(132, w));                 // 小さすぎても大きすぎてもだめ
+  row.style.setProperty('--handw', w + 'px');
+  row.style.setProperty('--handgap', gap + 'px');
+  row.classList.toggle('hand-compact', w < 72);
 }
 
 function renderHandMulti(){
@@ -1357,6 +1416,7 @@ function renderHandMulti(){
     });
     row.appendChild(el);
   });
+  fitHandCards();
 }
 
 function renderHandSolo(){
@@ -1373,6 +1433,7 @@ function renderHandSolo(){
     }
   });
   row.appendChild(el);
+  fitHandCards();
 }
 
 /* 手札カードをタップ（選択）／年表の▲マーカーへ指でドラッグして差し込む、両方に対応 */
@@ -1380,9 +1441,33 @@ function attachCardDrag(el, opts){
   var st = null;
   var THRESHOLD = 12;
 
+  /* 手札より上のエリアで指を離したら「年表に放り込んだ」とみなし、
+     横方向でいちばん近い▲（差し込み位置）を選ぶ。
+     小さな▲をぴったり狙わなくても、ずるずる持っていって離すだけで置ける。 */
   function findMarker(x, y){
-    var under = document.elementFromPoint(x, y);
-    return under ? under.closest('.tl-marker-btn') : null;
+    var handWrap = document.getElementById('hand-wrap');
+    var hintBar = document.getElementById('hint-bar');
+    var limit = null;
+    if(hintBar) limit = hintBar.getBoundingClientRect().bottom;
+    else if(handWrap) limit = handWrap.getBoundingClientRect().top;
+    if(limit !== null && y > limit) return null;     // 手札のあたりで離したら取り消し
+
+    var wrap = document.getElementById('timeline-wrap');
+    var wrapRect = wrap ? wrap.getBoundingClientRect() : null;
+    var markers = document.querySelectorAll('#timeline-wrap .tl-marker-btn');
+    var best = null, bestDist = Infinity;
+    var bestAny = null, bestAnyDist = Infinity;
+    markers.forEach(function(m){
+      var r = m.getBoundingClientRect();
+      if(r.width === 0) return;
+      var cx = r.left + r.width / 2;
+      var d = Math.abs(cx - x);
+      if(d < bestAnyDist){ bestAnyDist = d; bestAny = m; }
+      // 横スクロールで画面外にある差し込み位置は選ばない（見えていない所に入らないように）
+      if(wrapRect && (cx < wrapRect.left - 8 || cx > wrapRect.right + 8)) return;
+      if(d < bestDist){ bestDist = d; best = m; }
+    });
+    return best || bestAny;
   }
   function clearMarkerHighlight(){
     document.querySelectorAll('.tl-marker-btn.drag-over').forEach(function(m){ m.classList.remove('drag-over'); });
@@ -1410,7 +1495,9 @@ function attachCardDrag(el, opts){
     }
     if(st.moved){
       e.preventDefault();
-      var w = 120, h = 156;
+      var cardRect = el.getBoundingClientRect();
+      var w = Math.round((cardRect.width || 132) * .92);
+      var h = Math.round((cardRect.height || 182) * .92);
       st.ghost.style.left = (e.clientX - w / 2) + 'px';
       st.ghost.style.top = (e.clientY - h / 2) + 'px';
       st.ghost.style.width = w + 'px';
