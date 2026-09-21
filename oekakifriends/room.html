@@ -11,7 +11,7 @@
 </script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>お絵かきクイズ フレンズ - 部屋</title>
+<title>お絵かきクイズ フレンズ｜部屋</title>
 <!-- 部屋の画面はその場かぎりの内容（人によって中身が変わる）なので、検索結果には出さない -->
 <meta name="robots" content="noindex, nofollow">
 <meta name="theme-color" content="#ff8a3d">
@@ -119,9 +119,10 @@ body { word-break: keep-all; overflow-wrap: break-word; }
    サイズはvhのclampで画面の高さに応じてなめらかに拡大縮小し、
    余裕がある画面ではより大きく、低い画面では自動で小さくなって必ず収まる。 */
 .choice-group { display: flex; flex-wrap: wrap; gap: 6px; margin: clamp(2px, 0.6vh, 6px) 0; }
-/* 「むずかしさ」は4択なので、幅にあまらせて3個+1個の中とはにせず、
-   2×2で必ずきれいにそろえる（他の2択の項目はflexのままで1段でおさまる）。 */
-#difficultyGroup { display: grid; grid-template-columns: repeat(2, 1fr); flex-wrap: initial; }
+/* 「むずかしさ」はボタン数が増えても（都道府県を足したときなど）ボタン1個ぶんの
+   幅を下回らない範囲で、入る数だけ自動で列を増やす。個数が変わっても、また
+   ウィンドウの横幅が変わっても、そのつど収まりよく並べ直される。 */
+#difficultyGroup { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(112px, 100%), 1fr)); flex-wrap: initial; }
 /* 「とてもむずかしい」など長めの文字が2×2の幅の中で折り返して読みにくくならないよう、
    このグループだけ少し文字を小さくして、なるべく1行におさまるようにする。 */
 #difficultyGroup .choice-btn { font-size: clamp(11px, 1.7vh, 14px); padding-left: clamp(4px, 1vw, 10px); padding-right: clamp(4px, 1vw, 10px); }
@@ -169,6 +170,28 @@ body { word-break: keep-all; overflow-wrap: break-word; }
     #endTypeField { grid-area: endtype; }
     #roundsField, #timeField { grid-area: rounds; }
     .choice-btn { min-width: 110px; white-space: nowrap; }
+}
+/* ウィンドウを縦に小さくしたとき（ブラウザの高さそのものが低いとき）は、
+   vhベースのclampだけでは足りずに部屋づくり画面がスクロール必須になることがある
+   ので、高さのメディアクエリで余白・文字・ボタンの高さをさらに詰める。
+   （横幅は十分あるのに縦だけ低い＝ウィンドウを小さくしたときを想定） */
+@media (max-height: 620px) {
+    .lobby-box { padding: clamp(8px, 2vh, 18px) clamp(16px, 3.2vw, 30px); margin: auto 0; }
+    .lobby-box h2 { font-size: clamp(11px, 1.6vh, 14px); margin: 2px 0; }
+    .room-code-big { font-size: clamp(20px, 4.6vh, 38px); margin: 0; letter-spacing: clamp(2px, 0.6vh, 5px); }
+    .lobby-list { padding: clamp(3px, 0.8vh, 8px); margin: clamp(2px, 0.7vh, 6px) 0; max-height: clamp(34px, 7vh, 80px); }
+    .color-swatch { width: calc(clamp(18px, 2.8vh, 28px) * var(--sizeAdj)); height: calc(clamp(18px, 2.8vh, 28px) * var(--sizeAdj)); }
+    .lobby-host-controls { margin-top: clamp(2px, 0.8vh, 8px); padding-top: clamp(2px, 0.8vh, 8px); }
+    .field { margin-bottom: clamp(2px, 0.6vh, 6px); }
+    .field-label { font-size: clamp(10px, 1.4vh, 13px); margin-top: clamp(1px, 0.3vh, 4px); }
+    :root { --ctrl-h: clamp(26px, 4.4vh, 38px); }
+    .choice-btn { font-size: clamp(10px, 1.7vh, 14px); padding: clamp(3px, 0.9vh, 8px) clamp(6px, 1vw, 10px); }
+    #difficultyGroup .choice-btn { font-size: clamp(9.5px, 1.5vh, 12px); }
+}
+/* さらに低いときは、見出しなど無くても困らないものから省いてスペースを作る */
+@media (max-height: 460px) {
+    .lobby-box h2 { display: none; }
+    .color-picker .field-label { display: none; }
 }
 .btn {
     padding: 15px; border: none; border-radius: 12px; font-weight: 700; cursor: pointer; font-size: 16px;
@@ -2010,12 +2033,17 @@ authReady.then(() => {
         document.getElementById('odaiGhost').innerText = (isDrawer && currentIsPlaying) ? `お題： 「 ${state.correctAnswer} 」` : "";
 
         const hintBox = document.getElementById('hintDisplay'); hintBox.innerHTML = "";
-        const showHint = currentIsPlaying && state.timeLeft <= 40 && state.correctAnswer;
+        // 「都道府県」のお題だけは、最初の文字ヒントを出さないぶん、
+        // 文字数の丸ヒントを少し早め（残り20秒）から出す。それ以外はこれまで通り残り40秒から。
+        const hintStartSec = roomSettings.difficulty === "都道府県" ? 20 : 40;
+        const showHint = currentIsPlaying && state.timeLeft <= hintStartSec && state.correctAnswer;
         // 残り20秒からは最初の1文字だけ実際の文字を見せる（それ以外は引き続き点のまま）。
         // ただし答えが1〜2文字しかないときは、1文字見せるとほぼ答えを教えてしまうのと
         // 同じになるので、文字数の丸だけにして、最初の文字は最後まで見せない。
         const answerLen = state.correctAnswer ? [...state.correctAnswer].length : 0;
-        const showFirstChar = state.timeLeft <= 20 && answerLen >= 3;
+        // 「都道府県」のお題だけは、最初の文字が答えとほぼ同じ意味になってしまう
+        // （都道府県名は最初の文字だけでほぼ絞りこめるため）ので、ヒントで文字を見せない。
+        const showFirstChar = state.timeLeft <= 20 && answerLen >= 3 && roomSettings.difficulty !== "都道府県";
         hintBox.style.display = showHint ? 'flex' : 'none'; // 中身が空でも枠(丸っぽい形)だけ表示されてしまうのを防ぐ
         if (showHint) {
             const label = document.createElement('div'); label.id = "hintLabel"; label.innerText = "ヒント："; hintBox.appendChild(label);

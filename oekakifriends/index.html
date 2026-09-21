@@ -11,7 +11,7 @@
 </script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>お絵かきクイズ フレンズ｜みんなで遊べる無料お絵かき当てっこゲーム</title>
+    <title>教育アプリ｜お絵かきクイズ フレンズ｜みんなで遊べる無料お絵かき当てっこゲーム</title>
     <meta name="description" content="お絵かきクイズ フレンズは、お題を絵にして仲間に当ててもらう無料のオンラインお絵かきゲームです。スマホやパソコンから部屋を作ってすぐに遊べます。小学校の先生が作った学習・あそびアプリ「ota tools」のひとつです。">
     <meta name="robots" content="index, follow">
     <link rel="canonical" href="https://otatools.github.io/toolbox/oekakifriends/">
@@ -153,6 +153,28 @@
         .footer { margin-top: 22px; font-size: 12px; color: #9497c2; z-index: 2; font-weight: 500; letter-spacing: 1px; }
         .name-note { font-size: 14px; color: #6b6f9a; margin-bottom: 10px; font-weight: 500; }
         .name-note .name-value { color: #ff8a3d; font-weight: 700; }
+
+        /* ウィンドウを縦に小さくしたとき（ブラウザの高さそのものが低いとき）用の
+           調整（room.htmlの部屋づくり画面と同じ考え方）。タイトルや余白がvw基準の
+           clampだけだと、横幅は十分あるのに縦だけ低いウィンドウでは大きいまま
+           収まりきらず、スクロールしないと「部屋を作る」ボタンまで見えないことが
+           あったため、高さのメディアクエリでさらに詰める。 */
+        @media (max-height: 620px) {
+            .title-wrap { margin-bottom: 10px; }
+            .title-wrap h1 { font-size: clamp(24px, 6vh, 40px); line-height: 1.15; }
+            .title-underline { margin: 4px auto 0; width: 120px; }
+            .title-wrap .sub { font-size: 12px; margin-top: 4px; }
+            .box { padding: 16px; }
+            .box h2 { font-size: 15px; margin: 0 0 4px; }
+            input { padding: 10px; margin: 6px 0; font-size: 15px; }
+            .btn { padding: 10px; margin: 5px 0; font-size: 14px; }
+            .footer { margin-top: 10px; }
+        }
+        /* さらに低いときは、見出しなど無くても困らないものから省いてスペースを作る */
+        @media (max-height: 420px) {
+            .title-wrap .sub { display: none; }
+            .footer { display: none; }
+        }
     </style>
 </head>
 <body>
@@ -536,5 +558,49 @@
             location.href = 'room.html';
         }
     </script>
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+    import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+    import { getFirestore, doc, setDoc, updateDoc, increment, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+    const firebaseConfig = {
+        apiKey: "AIzaSyB4fpt6ffIuTBDJo_9g37kYr6KOWNgIcEY",
+        authDomain: "otatoolssite.firebaseapp.com",
+        projectId: "otatoolssite",
+        storageBucket: "otatoolssite.firebasestorage.app",
+        messagingSenderId: "20522292752",
+        appId: "1:20522292752:web:22fba7fecb61736593dc95"
+    };
+
+    // アプリ固有のID
+    const THIS_APP_ID = "33"; 
+    
+    const PORTAL_APP_ID = "otatoolssite-v1";
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+    const auth = getAuth(app);
+    signInAnonymously(auth).then(async () => {
+        const todayStr = new Date().toISOString().split('T')[0];
+        const storageKey = `ota_visited_${THIS_APP_ID}`;
+        
+        if (localStorage.getItem(storageKey) === todayStr) {
+            return;
+        }
+        const docRef = doc(db, 'artifacts', PORTAL_APP_ID, 'public', 'data', 'app_views', THIS_APP_ID);
+                try {
+            const docSnap = await getDoc(docRef);
+            if (docSnap.exists()) {
+                await updateDoc(docRef, { count: increment(1) });
+            } else {
+                await setDoc(docRef, { count: 1 }); 
+            }
+            localStorage.setItem(storageKey, todayStr);
+        } catch (e) { 
+            console.error("閲覧数のカウントに失敗しました:", e); 
+        }
+    }).catch((error) => {
+        console.error("Firebase認証エラー:", error);
+    });
+</script>
 </body>
 </html>
