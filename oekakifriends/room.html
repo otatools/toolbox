@@ -11,7 +11,7 @@
 </script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>お絵かきクイズ フレンズ｜部屋</title>
+<title>お絵かきクイズ フレンズ - 部屋</title>
 <!-- 部屋の画面はその場かぎりの内容（人によって中身が変わる）なので、検索結果には出さない -->
 <meta name="robots" content="noindex, nofollow">
 <meta name="theme-color" content="#ff8a3d">
@@ -278,6 +278,13 @@ canvas { touch-action: none; -webkit-user-select: none; user-select: none; }
 #gotItBubble, #odaiChangeBubble { position: fixed; top: 100px; left: 50%; transform: translateX(-50%) translateY(-6px) scale(0.85); z-index: 3600; background: #ffffff; border: 3px solid var(--bubble-color, #3ed6c6); border-radius: 20px; padding: 8px 20px; font-weight: 800; font-size: 17px; color: var(--bubble-color, #3ed6c6); box-shadow: 0 6px 18px rgba(60,50,120,0.22); opacity: 0; pointer-events: none; transition: opacity 0.2s ease, transform 0.2s ease; white-space: nowrap; }
 #gotItBubble::after, #odaiChangeBubble::after { content: ''; position: absolute; top: -12px; left: 50%; transform: translateX(-50%); border-width: 0 10px 12px 10px; border-style: solid; border-color: transparent transparent var(--bubble-color, #3ed6c6) transparent; }
 #gotItBubble.show, #odaiChangeBubble.show { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); }
+/* 通信のとぎれ（タブがバックグラウンドになった時など）で、自分だけ「正解発表」画面を
+   見のがしたまま次のお題に進んでしまった時の救済表示。小さいふきだしだと気づきにくいので、
+   answerOverlay（正解発表）と同じ「画面いっぱいのカード」の形で、ちゃんと気づけるように出す。 */
+#missedResultOverlay { z-index: 25000; background: rgba(122, 90, 0, 0.4); }
+#missedResultCard { position: relative; max-width: 92vw; box-sizing: border-box; background: rgba(255,255,255,0.96); border: 4px solid #ffcc00; border-radius: 24px; padding: 26px 34px; box-shadow: 0 8px 30px rgba(0,0,0,0.25); color: #2a1500; }
+#missedResultTitle { font-size: 22px; font-weight: 900; color: #b8860b; margin-bottom: 10px; }
+#missedResultText { font-size: 26px; font-weight: 800; }
 /* パソコンなど横に余裕がある画面では、まちがえた答えをその人の名前タグから吹き出しで出す。
    人数が増えても分かりやすいよう、上下中央ぞろえではなく、左上を起点に上から順に
    ならべる（左に入りきらない人数のときだけ、右側にも上から続けてならべる）。 */
@@ -641,6 +648,13 @@ canvas { touch-action: none; -webkit-user-select: none; user-select: none; }
             <img id="resultImg" style="display:none; max-width:min(88vw, 640px); max-height:min(54vh, 520px); width:auto; height:auto; border-radius:8px; border:4px solid #fff; box-shadow:0 4px 16px rgba(0,0,0,0.2); margin-top:14px; background:#fff; object-fit:contain;">
         </div>
     </div>
+    <!-- 通信のとぎれなどで「正解発表」画面を見のがしてしまった人だけに、あとから出す救済画面 -->
+    <div id="missedResultOverlay" class="overlay">
+        <div id="missedResultCard">
+            <div id="missedResultTitle">見のがしちゃったかも…</div>
+            <div id="missedResultText"></div>
+        </div>
+    </div>
 </div>
 
 <!-- 最終ランキング画面 -->
@@ -900,6 +914,8 @@ function trackWordPassed(word) {
 const canvas = document.getElementById('canvas'), ctx = canvas.getContext('2d');
 let drawing = false, penColor = "#000000", penSize = 12, isDrawer = false, isEraserMode = false, isFillMode = false;
 let lastX = 0, lastY = 0, kbdType = 'hira', lastStatePhase = "", currentIsPlaying = false;
+let lastResultInitialized = false, lastShownResultTs = 0, missedResultHideTimer = null;
+const MISSED_RESULT_DISPLAY_MS = 3500;
 let hostTimerInterval = null;
 let gameStarted = false;
 let finalAnimPlayed = false;
@@ -1254,7 +1270,17 @@ async function hostFinishRound() {
     if (roundFinishing) return;
     roundFinishing = true;
     const resultEndAt = Date.now() + 3000;
-    await db.ref(`casual_rooms/${myRoom}/state`).update({ phase: "result", active: false, resultEndAt });
+    // 正解発表の内容（答え・だれが描いていたか）を lastResult として残しておく。
+    // 「result」フェーズ自体は次のラウンドが始まるとstateごと上書きされて消えてしまうが、
+    // タブがバックグラウンド化するなどで結果発表画面を見のがした人がいても、この
+    // lastResultだけは次のラウンドのstateにも引き継いで（hostAdvanceRound参照）残すことで、
+    // あとから「さっきの正解は〇〇でした」と気づけるようにするため。
+    const curSnap = await db.ref(`casual_rooms/${myRoom}/state`).once('value');
+    const curState = curSnap.val() || {};
+    await db.ref(`casual_rooms/${myRoom}/state`).update({
+        phase: "result", active: false, resultEndAt,
+        lastResult: { answer: curState.correctAnswer || "", drawerName: curState.drawerName || "", ts: Date.now() }
+    });
     resultTimeout = setTimeout(() => {
         resultTimeout = null;
         roundFinishing = false;
@@ -1314,10 +1340,16 @@ async function hostAdvanceRound() {
         }
     }
 
+    // 直前のラウンドのlastResult（正解発表の内容）は、次のstateにもそのまま引き継いでおく。
+    // これが無いと、結果発表画面を見のがした人が次のラウンドのstateを受け取った時点で
+    // すでにlastResultが消えてしまい、「さっきの正解は〇〇でした」に気づけなくなる。
+    const carriedLastResult = data.state && data.state.lastResult;
+
     if (isTimeUp || !nextDrawer) {
         resetUpdates['state'] = {
             phase: "final", currentDrawer: "", drawerName: "", correctAnswer: "",
-            countdown: 0, timeLeft: 0, correctCount: 0, active: false
+            countdown: 0, timeLeft: 0, correctCount: 0, active: false,
+            lastResult: carriedLastResult || null
         };
         await db.ref(`casual_rooms/${myRoom}`).update(resetUpdates);
         return;
@@ -1339,7 +1371,8 @@ async function hostAdvanceRound() {
         countdown: 3,
         timeLeft: ROUND_SECONDS,
         correctCount: 0,
-        active: false
+        active: false,
+        lastResult: carriedLastResult || null
     };
     await db.ref(`casual_rooms/${myRoom}`).update(resetUpdates);
     hostRunCountdown();
@@ -1916,12 +1949,29 @@ authReady.then(() => {
             showOdaiChangeBubble(state.currentDrawer);
         }
 
+        // タブがバックグラウンド化するなどして通信が一瞬とぎれると、Firebaseの
+        // リアルタイム更新は「その間の全部の変化」ではなく「再接続した時点の最新状態」
+        // だけを届けるため、result（正解発表）フェーズがほんの3秒しか続かないぶん、
+        // そのままごっそり見のがして次のお題に進んでしまうことがある。lastResultを
+        // 見て、「resultフェーズを経由せずに次に進んでしまっていないか」をチェックし、
+        // もし見のがしていたら、さっきの正解をあとからでも知らせてあげる。
+        const lr = state.lastResult;
+        if (!lastResultInitialized) {
+            lastResultInitialized = true;
+            lastShownResultTs = lr ? lr.ts : 0;
+        } else if (lr && lr.ts > lastShownResultTs) {
+            lastShownResultTs = lr.ts;
+            if (lastStatePhase !== "result" && lastStatePhase !== "") {
+                showMissedResultOverlay(lr.answer, lr.drawerName);
+            }
+        }
+
         if (state.phase !== lastStatePhase) {
             if (state.phase !== "playing") {
                 closeKeyboard();
                 document.getElementById('answerInput').value = "";
             }
-            if (state.phase === "countdown") { canvasGen++; ctx.clearRect(0, 0, canvas.width, canvas.height); }
+            if (state.phase === "countdown") { canvasGen++; ctx.clearRect(0, 0, canvas.width, canvas.height); resetDrawToolsToDefault(); }
             if (state.phase === "result") { document.getElementById('judgeEffect').style.display = "none"; }
             lastStatePhase = state.phase;
         }
@@ -2443,7 +2493,20 @@ function showGotItBubble(uid, name) {
 let lastOdaiChangeTs = 0;
 let odaiChangeInitialized = false;
 let odaiChangeHideTimer = null;
+// resultフェーズを見のがしてしまった人だけに出る救済画面。answerOverlayと同じ
+// 「画面いっぱいのカード」の形で、小さいふきだしより確実に気づけるようにする。
+// 短い時間だけ出したら、下の通常の画面表示（countdown/playingなど）にもどす。
+function showMissedResultOverlay(answer, drawerName) {
+    document.getElementById('missedResultText').innerText =
+        `${drawerName ? drawerName + 'さんの' : ''}正解は「${answer}」でした！`;
+    const el = document.getElementById('missedResultOverlay');
+    el.style.display = 'flex';
+    clearTimeout(missedResultHideTimer);
+    missedResultHideTimer = setTimeout(() => { el.style.display = 'none'; }, MISSED_RESULT_DISPLAY_MS);
+}
 const ODAI_CHANGE_COLOR = '#7c6bff';
+// 「お題チェンジ！」は一瞬わかればじゅうぶんなので、他のふきだし（8秒）より短めに出す。
+const ODAI_CHANGE_BUBBLE_DISPLAY_MS = 2000;
 function showOdaiChangeBubble(drawerUid) {
     const tagBubble = document.getElementById(`tagBubble-${drawerUid}`);
     if (wideScreenQuery.matches && tagBubble) {
@@ -2451,7 +2514,7 @@ function showOdaiChangeBubble(drawerUid) {
         tagBubble.innerText = 'お題チェンジ！';
         tagBubble.classList.add('show');
         clearTimeout(tagBubble._hideTimer);
-        tagBubble._hideTimer = setTimeout(() => { tagBubble.classList.remove('show'); }, GUESS_BUBBLE_DISPLAY_MS);
+        tagBubble._hideTimer = setTimeout(() => { tagBubble.classList.remove('show'); }, ODAI_CHANGE_BUBBLE_DISPLAY_MS);
         return;
     }
     const el = document.getElementById('odaiChangeBubble');
@@ -2459,7 +2522,7 @@ function showOdaiChangeBubble(drawerUid) {
     el.innerText = 'お題チェンジ！';
     el.classList.add('show');
     clearTimeout(odaiChangeHideTimer);
-    odaiChangeHideTimer = setTimeout(() => { el.classList.remove('show'); }, GUESS_BUBBLE_DISPLAY_MS);
+    odaiChangeHideTimer = setTimeout(() => { el.classList.remove('show'); }, ODAI_CHANGE_BUBBLE_DISPLAY_MS);
 }
 
 /* ===== キーボード（student.htmlと同じ） ===== */
@@ -2576,6 +2639,14 @@ function updateActiveColor() {
 }
 function changeSize(s, id) { penSize = s; document.querySelectorAll('.size-dot-wrap').forEach(b => b.classList.remove('active')); document.getElementById(id).classList.add('active'); }
 function setEraser() { isEraserMode = true; isFillMode = false; penSize = 28; document.querySelectorAll('.size-dot-wrap').forEach(b => b.classList.remove('active')); document.getElementById('wrap3').classList.add('active'); updateActiveColor(); }
+// ラウンドが新しく始まるたびに、ペンの太さ・消しゴム・塗りつぶしを毎回「ふつうのペン」
+// に戻す。前の人（または自分の前のターン）が太いペンや消しゴム、塗りつぶしのまま
+// 終わっていても、次に描く番になったときにいちいち手動で戻さなくていいようにするため。
+function resetDrawToolsToDefault() {
+    isEraserMode = false; isFillMode = false;
+    changeSize(4, 'wrap1');
+    updateActiveColor();
+}
 function clearCanvas(){ if(confirm('ぜんぶ消す？')){ canvasGen++; ctx.clearRect(0,0,canvas.width,canvas.height); upload(); } }
 
 // 塗りつぶし（バケツ）ツール本体：タップした場所と「近い色」でひとつながりの部分を、
