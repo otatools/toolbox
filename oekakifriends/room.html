@@ -278,13 +278,6 @@ canvas { touch-action: none; -webkit-user-select: none; user-select: none; }
 #gotItBubble, #odaiChangeBubble { position: fixed; top: 100px; left: 50%; transform: translateX(-50%) translateY(-6px) scale(0.85); z-index: 3600; background: #ffffff; border: 3px solid var(--bubble-color, #3ed6c6); border-radius: 20px; padding: 8px 20px; font-weight: 800; font-size: 17px; color: var(--bubble-color, #3ed6c6); box-shadow: 0 6px 18px rgba(60,50,120,0.22); opacity: 0; pointer-events: none; transition: opacity 0.2s ease, transform 0.2s ease; white-space: nowrap; }
 #gotItBubble::after, #odaiChangeBubble::after { content: ''; position: absolute; top: -12px; left: 50%; transform: translateX(-50%); border-width: 0 10px 12px 10px; border-style: solid; border-color: transparent transparent var(--bubble-color, #3ed6c6) transparent; }
 #gotItBubble.show, #odaiChangeBubble.show { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); }
-/* 通信のとぎれ（タブがバックグラウンドになった時など）で、自分だけ「正解発表」画面を
-   見のがしたまま次のお題に進んでしまった時の救済表示。小さいふきだしだと気づきにくいので、
-   answerOverlay（正解発表）と同じ「画面いっぱいのカード」の形で、ちゃんと気づけるように出す。 */
-#missedResultOverlay { z-index: 25000; background: rgba(122, 90, 0, 0.4); }
-#missedResultCard { position: relative; max-width: 92vw; box-sizing: border-box; background: rgba(255,255,255,0.96); border: 4px solid #ffcc00; border-radius: 24px; padding: 26px 34px; box-shadow: 0 8px 30px rgba(0,0,0,0.25); color: #2a1500; }
-#missedResultTitle { font-size: 22px; font-weight: 900; color: #b8860b; margin-bottom: 10px; }
-#missedResultText { font-size: 26px; font-weight: 800; }
 /* パソコンなど横に余裕がある画面では、まちがえた答えをその人の名前タグから吹き出しで出す。
    人数が増えても分かりやすいよう、上下中央ぞろえではなく、左上を起点に上から順に
    ならべる（左に入りきらない人数のときだけ、右側にも上から続けてならべる）。 */
@@ -648,13 +641,6 @@ canvas { touch-action: none; -webkit-user-select: none; user-select: none; }
             <img id="resultImg" style="display:none; max-width:min(88vw, 640px); max-height:min(54vh, 520px); width:auto; height:auto; border-radius:8px; border:4px solid #fff; box-shadow:0 4px 16px rgba(0,0,0,0.2); margin-top:14px; background:#fff; object-fit:contain;">
         </div>
     </div>
-    <!-- 通信のとぎれなどで「正解発表」画面を見のがしてしまった人だけに、あとから出す救済画面 -->
-    <div id="missedResultOverlay" class="overlay">
-        <div id="missedResultCard">
-            <div id="missedResultTitle">見のがしちゃったかも…</div>
-            <div id="missedResultText"></div>
-        </div>
-    </div>
 </div>
 
 <!-- 最終ランキング画面 -->
@@ -914,8 +900,9 @@ function trackWordPassed(word) {
 const canvas = document.getElementById('canvas'), ctx = canvas.getContext('2d');
 let drawing = false, penColor = "#000000", penSize = 12, isDrawer = false, isEraserMode = false, isFillMode = false;
 let lastX = 0, lastY = 0, kbdType = 'hira', lastStatePhase = "", currentIsPlaying = false;
-let lastResultInitialized = false, lastShownResultTs = 0, missedResultHideTimer = null;
-const MISSED_RESULT_DISPLAY_MS = 3500;
+let lastResultInitialized = false, lastShownResultTs = 0, missedResultHideTimer = null, missedResultActive = false;
+// 「短くさっと」出すだけでよい（もう次のお題に進んでいる最中の、あとからの救済表示なので）。
+const MISSED_RESULT_DISPLAY_MS = 1800;
 let hostTimerInterval = null;
 let gameStarted = false;
 let finalAnimPlayed = false;
@@ -1270,16 +1257,23 @@ async function hostFinishRound() {
     if (roundFinishing) return;
     roundFinishing = true;
     const resultEndAt = Date.now() + 3000;
-    // 正解発表の内容（答え・だれが描いていたか）を lastResult として残しておく。
+    // 正解発表の内容（答え・正解した人・描いていた絵）を lastResult として残しておく。
     // 「result」フェーズ自体は次のラウンドが始まるとstateごと上書きされて消えてしまうが、
     // タブがバックグラウンド化するなどで結果発表画面を見のがした人がいても、この
     // lastResultだけは次のラウンドのstateにも引き継いで（hostAdvanceRound参照）残すことで、
-    // あとから「さっきの正解は〇〇でした」と気づけるようにするため。
-    const curSnap = await db.ref(`casual_rooms/${myRoom}/state`).once('value');
-    const curState = curSnap.val() || {};
+    // あとから、みんなが見たのと同じ正解発表の画面を（renderAnswerOverlay経由で）
+    // 出しなおしてあげられるようにするため。
+    const curSnap = await db.ref(`casual_rooms/${myRoom}`).once('value');
+    const curData = curSnap.val() || {};
+    const curState = curData.state || {};
+    const curUsers = curData.users || {};
+    const curDrawnUser = curUsers[curState.currentDrawer] || {};
+    const curRoundNumber = (curData.progress && curData.progress.roundNumber) || 0;
+    const winners = Object.values(curUsers).filter(u => u.isCorrect).map(u => ({ name: u.name || "", color: u.color || null }));
+    const drawnSrc = (curDrawnUser.image && curDrawnUser.imageRound === curRoundNumber) ? curDrawnUser.image : "";
     await db.ref(`casual_rooms/${myRoom}/state`).update({
         phase: "result", active: false, resultEndAt,
-        lastResult: { answer: curState.correctAnswer || "", drawerName: curState.drawerName || "", ts: Date.now() }
+        lastResult: { answer: curState.correctAnswer || "", drawerName: curState.drawerName || "", winners, image: drawnSrc, ts: Date.now() }
     });
     resultTimeout = setTimeout(() => {
         resultTimeout = null;
@@ -1541,6 +1535,70 @@ function fitTextOneLine(el, containerEl, sizes) {
 function hexToRgba(hex, alpha) {
     const r = parseInt(hex.slice(1, 3), 16), g = parseInt(hex.slice(3, 5), 16), b = parseInt(hex.slice(5, 7), 16);
     return `rgba(${r},${g},${b},${alpha})`;
+}
+// 「正解発表」画面（#answerOverlay）の中身を組み立てる。ふだんのresultフェーズの表示と、
+// 見のがした人への救済表示（showMissedResultOverlay）の両方から、同じ見た目になるように
+// これ1つを共通で使う。resultData = { answer, winners:[{name,color}], image }
+function renderAnswerOverlay(resultData) {
+    const answerContentEl = document.getElementById('answerContent');
+    const winners = resultData.winners || [];
+    const winnerNames = winners.map(w => w.name + "さん");
+
+    // 正解・不正解がぱっと見てわかるよう、「〇〇さんが正解！」（いなければ
+    // 「全員不正解」）をいちばん大きく最初に出す。答えそのものは、その下に
+    // ひとまわり小さく添える形にする。
+    const winnerAnnounceEl = document.getElementById('winnerAnnounce');
+    winnerAnnounceEl.innerText = winnerNames.length > 0 ? (winnerNames.join('、') + 'が正解！') : '全員不正解...';
+    // 正解者が1人だけなら、その人の色で表示して「だれが正解したか」を直感的に
+    // わかるようにする（複数人・0人のときは、色の割りあてがあいまいになるので、
+    // アプリの基本の差し色／控えめな色にしておく）。
+    winnerAnnounceEl.style.color = winnerNames.length === 1 ? (winners[0].color || '#ff8a3d')
+        : (winnerNames.length > 1 ? '#ff8a3d' : '#8a7a6a');
+
+    const finalAnswerEl = document.getElementById('finalAnswer');
+    finalAnswerEl.innerText = resultData.answer || "？";
+
+    // 以前は文字数だけを見て3段階でフォントサイズを決めていたが、濁点・拗音
+    // （「ょ」「っ」等）を含む文字は数えかたによって見た目の横幅が変わるため、
+    // 「ほっきょく」（5文字）は70pxのままだと一行に収まりきらず折り返すのに、
+    // 「オオサンショウウオ」（9文字）は42pxで一行に収まる、という逆転が起きていた。
+    // 文字数の目安ではなく、実際に今の画面幅で一行に収まるかどうかを測りながら、
+    // 収まる最大のフォントサイズを大きい方から順にさがす（word-break:break-allは
+    // CSS側に残してあるので、どのサイズでも収まらないくらい長いお題・名前は、
+    // これまでどおり折り返して表示される）。「〇〇さんが正解！」の行も、名前の
+    // 長さや人数で幅が変わるので、同じしくみでサイズを決める。
+    fitTextOneLine(finalAnswerEl, answerContentEl, [54, 48, 42, 38, 34, 30, 27, 24]);
+    fitTextOneLine(winnerAnnounceEl, answerContentEl, [44, 40, 36, 32, 28, 25, 22]);
+
+    // 完全に同時のタイミングで複数人が正解したときは、みんな正解あつかいにして、
+    // 画面の背景をその人数ぶんに等分し、それぞれの色でぬり分ける
+    // （例：黒のAさんと赤のBさんが同時なら、画面を左右半分ずつ黒と赤にする）。
+    // 正解した人がいなければ、だれかの色とまぎらわしくならないよう白のままにする。
+    const bgSplit = document.getElementById('answerBgSplit');
+    bgSplit.innerHTML = '';
+    if (winners.length === 0) {
+        const band = document.createElement('div');
+        band.style.flex = '1';
+        band.style.background = 'rgba(255,255,255,0.6)';
+        bgSplit.appendChild(band);
+    } else {
+        winners.forEach(w => {
+            const band = document.createElement('div');
+            band.style.flex = '1';
+            band.style.background = hexToRgba(w.color || '#ffffff', 0.9);
+            bgSplit.appendChild(band);
+        });
+    }
+
+    const resultImg = document.getElementById('resultImg');
+    const drawnSrc = resultData.image || "";
+    if (drawnSrc) {
+        if (resultImg.src !== drawnSrc) resultImg.src = drawnSrc;
+        resultImg.style.display = 'block';
+    } else {
+        resultImg.removeAttribute('src');
+        resultImg.style.display = 'none';
+    }
 }
 function pickReadableTextColor(hex) {
     const r = parseInt(hex.slice(1, 3), 16), g = parseInt(hex.slice(3, 5), 16), b = parseInt(hex.slice(5, 7), 16);
@@ -1962,7 +2020,7 @@ authReady.then(() => {
         } else if (lr && lr.ts > lastShownResultTs) {
             lastShownResultTs = lr.ts;
             if (lastStatePhase !== "result" && lastStatePhase !== "") {
-                showMissedResultOverlay(lr.answer, lr.drawerName);
+                showMissedResultOverlay(lr);
             }
         }
 
@@ -1978,7 +2036,9 @@ authReady.then(() => {
 
         document.getElementById('drawerNameSpan').innerText = state.drawerName ? state.drawerName + "さん" : "---";
 
-        document.getElementById('countdownOverlay').style.display = (state.phase === "countdown") ? 'flex' : 'none';
+        // missedResultActive中（見のがし救済の表示中）は、次のお題のカウントダウンより
+        // 救済表示（正解発表の画面）を優先して見せたいので、カウントダウンは一時的に隠す。
+        document.getElementById('countdownOverlay').style.display = (state.phase === "countdown" && !missedResultActive) ? 'flex' : 'none';
         if (state.phase === "countdown") {
             const cdNameEl = document.getElementById('cdName');
             // ゲームの最初の1回目だけは「次は」ではなく「最初は」にする（まだ前の順番がないため）
@@ -1988,71 +2048,20 @@ authReady.then(() => {
             cdNameEl.style.color = (usersData[state.currentDrawer] && usersData[state.currentDrawer].color) || '#d98a00';
         }
 
-        document.getElementById('answerOverlay').style.display = (state.phase === "result") ? 'flex' : 'none';
+        // missedResultActive中は、実際のフェーズに関わらず救済表示のほうを出し続ける
+        // （renderAnswerOverlay自体はshowMissedResultOverlay側ですでに呼んである）。
+        document.getElementById('answerOverlay').style.display = (state.phase === "result" || missedResultActive) ? 'flex' : 'none';
         if (state.phase === "result") {
-            const answerContentEl = document.getElementById('answerContent');
             const winnerUsers = Object.values(usersData).filter(u => u.isCorrect);
-            const winners = winnerUsers.map(u => u.name + "さん");
-
-            // 正解・不正解がぱっと見てわかるよう、「〇〇さんが正解！」（いなければ
-            // 「全員不正解」）をいちばん大きく最初に出す。答えそのものは、その下に
-            // ひとまわり小さく添える形にする。
-            const winnerAnnounceEl = document.getElementById('winnerAnnounce');
-            winnerAnnounceEl.innerText = winners.length > 0 ? (winners.join('、') + 'が正解！') : '全員不正解...';
-            // 正解者が1人だけなら、その人の色で表示して「だれが正解したか」を直感的に
-            // わかるようにする（複数人・0人のときは、色の割りあてがあいまいになるので、
-            // アプリの基本の差し色／控えめな色にしておく）。
-            winnerAnnounceEl.style.color = winners.length === 1 ? (winnerUsers[0].color || '#ff8a3d')
-                : (winners.length > 1 ? '#ff8a3d' : '#8a7a6a');
-
-            const finalAnswerEl = document.getElementById('finalAnswer');
-            const answerText = state.correctAnswer || "？";
-            finalAnswerEl.innerText = answerText;
-
-            // 以前は文字数だけを見て3段階でフォントサイズを決めていたが、濁点・拗音
-            // （「ょ」「っ」等）を含む文字は数えかたによって見た目の横幅が変わるため、
-            // 「ほっきょく」（5文字）は70pxのままだと一行に収まりきらず折り返すのに、
-            // 「オオサンショウウオ」（9文字）は42pxで一行に収まる、という逆転が起きていた。
-            // 文字数の目安ではなく、実際に今の画面幅で一行に収まるかどうかを測りながら、
-            // 収まる最大のフォントサイズを大きい方から順にさがす（word-break:break-allは
-            // CSS側に残してあるので、どのサイズでも収まらないくらい長いお題・名前は、
-            // これまでどおり折り返して表示される）。「〇〇さんが正解！」の行も、名前の
-            // 長さや人数で幅が変わるので、同じしくみでサイズを決める。
-            fitTextOneLine(finalAnswerEl, answerContentEl, [54, 48, 42, 38, 34, 30, 27, 24]);
-            fitTextOneLine(winnerAnnounceEl, answerContentEl, [44, 40, 36, 32, 28, 25, 22]);
-
-            // 完全に同時のタイミングで複数人が正解したときは、みんな正解あつかいにして、
-            // 画面の背景をその人数ぶんに等分し、それぞれの色でぬり分ける
-            // （例：黒のAさんと赤のBさんが同時なら、画面を左右半分ずつ黒と赤にする）。
-            // 正解した人がいなければ、だれかの色とまぎらわしくならないよう白のままにする。
-            const bgSplit = document.getElementById('answerBgSplit');
-            bgSplit.innerHTML = '';
-            if (winnerUsers.length === 0) {
-                const band = document.createElement('div');
-                band.style.flex = '1';
-                band.style.background = 'rgba(255,255,255,0.6)';
-                bgSplit.appendChild(band);
-            } else {
-                winnerUsers.forEach(u => {
-                    const band = document.createElement('div');
-                    band.style.flex = '1';
-                    band.style.background = hexToRgba(u.color || '#ffffff', 0.9);
-                    bgSplit.appendChild(band);
-                });
-            }
-
-            const resultImg = document.getElementById('resultImg');
             const drawnUser = usersData[state.currentDrawer] || {};
             // imageRoundが今のラウンド番号と一致する画像だけを信用する（回線が遅いと、
             // 前のラウンドの最後の描き戻しが、ラウンド交代のリセットより後に届くことがあるため）。
             const drawnSrc = (drawnUser.image && drawnUser.imageRound === currentProgressRoundNumber) ? drawnUser.image : "";
-            if (drawnSrc) {
-                if (resultImg.src !== drawnSrc) resultImg.src = drawnSrc;
-                resultImg.style.display = 'block';
-            } else {
-                resultImg.removeAttribute('src');
-                resultImg.style.display = 'none';
-            }
+            renderAnswerOverlay({
+                answer: state.correctAnswer || "？",
+                winners: winnerUsers.map(u => ({ name: u.name, color: u.color })),
+                image: drawnSrc
+            });
         }
 
         document.getElementById('drawTools').style.display = (isDrawer && currentIsPlaying) ? 'flex' : 'none';
@@ -2493,16 +2502,27 @@ function showGotItBubble(uid, name) {
 let lastOdaiChangeTs = 0;
 let odaiChangeInitialized = false;
 let odaiChangeHideTimer = null;
-// resultフェーズを見のがしてしまった人だけに出る救済画面。answerOverlayと同じ
-// 「画面いっぱいのカード」の形で、小さいふきだしより確実に気づけるようにする。
-// 短い時間だけ出したら、下の通常の画面表示（countdown/playingなど）にもどす。
-function showMissedResultOverlay(answer, drawerName) {
-    document.getElementById('missedResultText').innerText =
-        `${drawerName ? drawerName + 'さんの' : ''}正解は「${answer}」でした！`;
-    const el = document.getElementById('missedResultOverlay');
-    el.style.display = 'flex';
+// resultフェーズを見のがしてしまった人だけに出る救済表示。小さいふきだしだと気づき
+// にくいので、他のみんなが実際に見たのと同じ「正解発表」画面（#answerOverlay、
+// renderAnswerOverlay）をそのまま使い、短い時間だけさっと出してから元の画面
+// （次のお題のカウントダウンなど）にもどす。
+function showMissedResultOverlay(lr) {
+    renderAnswerOverlay({
+        answer: lr.answer,
+        winners: lr.winners || [],
+        image: lr.image || ""
+    });
+    missedResultActive = true;
+    document.getElementById('answerOverlay').style.display = 'flex';
+    document.getElementById('countdownOverlay').style.display = 'none';
     clearTimeout(missedResultHideTimer);
-    missedResultHideTimer = setTimeout(() => { el.style.display = 'none'; }, MISSED_RESULT_DISPLAY_MS);
+    missedResultHideTimer = setTimeout(() => {
+        missedResultActive = false;
+        // タイムアウトの時点でもう新しいsnapshotが来ていないかもしれないので、
+        // 直近に覚えている本当のフェーズ（lastStatePhase）にもとづいて出し直す。
+        document.getElementById('answerOverlay').style.display = (lastStatePhase === "result") ? 'flex' : 'none';
+        document.getElementById('countdownOverlay').style.display = (lastStatePhase === "countdown") ? 'flex' : 'none';
+    }, MISSED_RESULT_DISPLAY_MS);
 }
 const ODAI_CHANGE_COLOR = '#7c6bff';
 // 「お題チェンジ！」は一瞬わかればじゅうぶんなので、他のふきだし（8秒）より短めに出す。
