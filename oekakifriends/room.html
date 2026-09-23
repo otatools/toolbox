@@ -212,7 +212,17 @@ body { word-break: keep-all; overflow-wrap: break-word; }
    #stageはflex-direction:columnなので、縦位置の起点はjustify-contentで決まる。 */
 #stage.kbd-open { justify-content: flex-start; }
 #canvasBox { position: relative; max-width: 100%; max-height: 100%; aspect-ratio: 4 / 3; background: white; box-shadow: 0 4px 24px rgba(60,50,120,0.25); border-radius: 6px; overflow: hidden; }
-canvas, #viewer img { position: absolute; top:0; left:0; width: 100%; height: 100%; object-fit: contain; image-rendering: pixelated; }
+canvas, #viewer img { position: absolute; top:0; left:0; width: 100%; height: 100%; object-fit: contain; }
+/* 自分の描画キャンバスは、内部解像度が表示サイズとほぼ同じ（resize()参照）なので
+   pixelatedでも見た目はほぼ変わらない。一方#viewer img（#sharedImg＝他の人が描いて
+   いる様子をリアルタイムで見る画像）は、通信量をおさえるために小さく縮めて送った
+   ものを大きく引きのばして表示しているので、pixelatedのままだとカクカクのブロック
+   状に見えてしまう。ここをブラウザ標準のなめらかな拡大（image-rendering: auto、
+   バイリニア補間）にゆだねることで、送る側をより小さく・軽くしても、見る側は
+   「きれいに復元された」ように見える（AIで復元しているわけではなく、拡大時の
+   補間をなめらかにしているだけだが、体感の効果は近い）。 */
+canvas { image-rendering: pixelated; }
+#viewer img { image-rendering: auto; }
 canvas { touch-action: none; -webkit-user-select: none; user-select: none; }
 #sharedImg:not([src]), #sharedImg[src=""] { opacity: 0; }
 /* 問題ごとのカウントダウン（#limitTimer）は、左右の中身の量に関係なく常にバーの
@@ -901,6 +911,11 @@ const canvas = document.getElementById('canvas'), ctx = canvas.getContext('2d');
 let drawing = false, penColor = "#000000", penSize = 12, isDrawer = false, isEraserMode = false, isFillMode = false;
 let lastX = 0, lastY = 0, kbdType = 'hira', lastStatePhase = "", currentIsPlaying = false;
 let lastResultInitialized = false, lastShownResultTs = 0, missedResultHideTimer = null, missedResultActive = false;
+// 「このラウンド番号ではもうuploadFinal()ずみ」を覚えておく鍵。Firebaseへの書きこみ
+// 自体が「部屋まるごと」のvalueリスナーを再び呼びうるので、lastStatePhaseの前後関係
+// だけに頼らず、ラウンド番号ごとに1回だけしか送らないよう二重に防いでおく
+// （通信のタイミング次第で連続アップロードが走ってしまう事故を避けるため）。
+let finalUploadedForRound = -1;
 // 「短くさっと」出すだけでよい（もう次のお題に進んでいる最中の、あとからの救済表示なので）。
 const MISSED_RESULT_DISPLAY_MS = 1800;
 let hostTimerInterval = null;
@@ -1081,8 +1096,38 @@ if (window.visualViewport) {
 }
 document.addEventListener('gestureend', () => setTimeout(resetZoomIfNeeded, 50), { passive: true });
 let uploadTimeout = null;
-function throttleUpload() { if (!uploadTimeout) { uploadTimeout = setTimeout(() => { upload(); uploadTimeout = null; }, 120); } }
-function upload() { const temp = document.createElement('canvas'); temp.width = 800; temp.height = 600; temp.getContext('2d').drawImage(canvas, 0, 0, 800, 600); db.ref(`casual_rooms/${myRoom}/users/${myUid}`).update({ image: temp.toDataURL('image/webp', 0.8), imageRound: currentProgressRoundNumber }); }
+// 描いている絵を、他のみんなにリアルタイムで見せるためにFirebaseへ送る間隔とサイズ。
+// これまでは120ms間隔・800x600・画質0.8で送っていたが、部屋にいる全員がRealtime
+// Databaseの「部屋まるごと」を購読しているしくみ上、1回送るたびに「その画像ぶんの
+// データ量 × 部屋の人数」がまるごとダウンロード量としてカウントされてしまい、
+// 描いている間ずっと（1ラウンド最大60秒×0.12秒ごと）これが積み重なった結果、
+// 無料枠（月10GB）をあっという間に使い切ってしまった。
+//
+// 「送る方を小さくしても、受け取る方できれいに復元できないか」という発想で、
+// 2段がまえにした。
+//   1. 描いている最中（何十回も送る）は、小さく・軽い画質でどんどん送る。
+//      見る側（#viewer img、CSS側でimage-rendering:autoに変更ずみ）は、ブラウザが
+//      標準でなめらかに拡大（バイリニア補間）して表示するので、多少小さく送っても
+//      カクカクのブロック状には見えない。
+//   2. 描き終わった瞬間（resultフェーズに入った瞬間）だけ、描いていた本人の画面から
+//      もとの高画質サイズで1回だけ送り直す（uploadFinal）。「正解発表」でみんなが
+//      じっくり見る絵はこちらに差し替わるので、そこだけは今までどおりきれいに見える。
+//      1ラウンドに1回だけの送信なので、通信量への影響はごくわずか。
+const UPLOAD_INTERVAL_MS = 400;
+const UPLOAD_CANVAS_W = 400, UPLOAD_CANVAS_H = 300;
+const UPLOAD_WEBP_QUALITY = 0.45;
+const UPLOAD_FINAL_CANVAS_W = 800, UPLOAD_FINAL_CANVAS_H = 600;
+const UPLOAD_FINAL_WEBP_QUALITY = 0.8;
+function throttleUpload() { if (!uploadTimeout) { uploadTimeout = setTimeout(() => { upload(); uploadTimeout = null; }, UPLOAD_INTERVAL_MS); } }
+function upload() { uploadAt(UPLOAD_CANVAS_W, UPLOAD_CANVAS_H, UPLOAD_WEBP_QUALITY); }
+// 描き終わった瞬間に1回だけ呼ぶ、きれいな最終版のアップロード。
+function uploadFinal() { uploadAt(UPLOAD_FINAL_CANVAS_W, UPLOAD_FINAL_CANVAS_H, UPLOAD_FINAL_WEBP_QUALITY); }
+function uploadAt(w, h, quality) {
+    const temp = document.createElement('canvas');
+    temp.width = w; temp.height = h;
+    temp.getContext('2d').drawImage(canvas, 0, 0, w, h);
+    db.ref(`casual_rooms/${myRoom}/users/${myUid}`).update({ image: temp.toDataURL('image/webp', quality), imageRound: currentProgressRoundNumber });
+}
 
 // 描いている人が「このお題はむずかしい」と思ったときに、べつのお題に変えられる機能。
 // ホストがロビーで「できる」に設定したときだけボタンが出る。
@@ -2030,7 +2075,16 @@ authReady.then(() => {
                 document.getElementById('answerInput').value = "";
             }
             if (state.phase === "countdown") { canvasGen++; ctx.clearRect(0, 0, canvas.width, canvas.height); resetDrawToolsToDefault(); }
-            if (state.phase === "result") { document.getElementById('judgeEffect').style.display = "none"; }
+            if (state.phase === "result") {
+                document.getElementById('judgeEffect').style.display = "none";
+                // 描いていた本人だけ、この瞬間に1回だけきれいな画質で送り直す
+                // （「正解発表」でみんなが見る絵をきれいにするため。uploadAt参照）。
+                // 同じラウンドで2回以上呼ばれないよう、ラウンド番号で1回だけに制限する。
+                if (isDrawer && finalUploadedForRound !== currentProgressRoundNumber) {
+                    finalUploadedForRound = currentProgressRoundNumber;
+                    uploadFinal();
+                }
+            }
             lastStatePhase = state.phase;
         }
 
