@@ -69,13 +69,21 @@ body { word-break: keep-all; overflow-wrap: break-word; }
    見えなくなってしまう（はみ出した分が上下にちぎれ、下側しか読めない）。
    align-items:flex-start にして子要素側で margin:auto 縦センタリングすると、
    入りきる時は中央、入りきらない時は上からきちんとスクロールして見える。 */
-#lobbyScreen { position: fixed; inset: 0; display: flex; align-items: flex-start; justify-content: center; overflow-y: auto; z-index: 1; }
+#lobbyScreen { position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; overflow-y: auto; z-index: 1; }
+/* 白い箱＋バージョン表示をまとめて縦に並べつつ、入りきる時は中央・入りきらない時は
+   上からスクロールして見えるように、このラッパーに margin:auto 0 を持たせる
+   （以前は .lobby-box 自身が持っていたが、フッターを箱の外に出したのでこちらに移した）。 */
+.lobby-box-wrap { display: flex; flex-direction: column; align-items: center; width: 90%; max-width: 420px; margin: auto 0; }
 .lobby-box {
     background: #ffffff;
-    padding: clamp(14px, 3.2vh, 32px) clamp(20px, 4vw, 36px); border-radius: 18px; width: 90%; max-width: 420px; text-align: center; box-sizing: border-box; margin: auto 0;
+    padding: clamp(14px, 3.2vh, 32px) clamp(20px, 4vw, 36px); border-radius: 18px; width: 100%; text-align: center; box-sizing: border-box;
     border: 1px solid rgba(60,50,120,0.08); box-shadow: 0 10px 30px rgba(60,50,120,0.12);
 }
 .lobby-box h2 { font-weight: 700; font-size: clamp(14px, 2vh, 17px); letter-spacing: 1px; margin: clamp(2px, 0.6vh, 4px) 0; }
+/* index.htmlのフッターと同じバージョン表示。ロビー画面（#lobbyScreen）の中にだけ
+   置くので、ゲームが始まってプレイ画面（#gameStage）に切りかわると自動的に隠れる
+   （プレイ中の画面には出したくない、という要望のため）。 */
+.lobby-version-footer { margin-top: clamp(8px, 1.6vh, 16px); font-size: 12px; color: #9497c2; font-weight: 500; letter-spacing: 1px; }
 .room-code-big { font-size: clamp(28px, 6vh, 54px); font-weight: 900; color: #ff8a3d; letter-spacing: clamp(3px, 0.9vh, 7px); margin: clamp(0px, 0.4vh, 4px) 0; }
 .lobby-list { display: flex; flex-wrap: wrap; align-content: flex-start; gap: 6px; text-align: left; background: #f7f8fd; border-radius: 10px; padding: clamp(5px, 1vh, 10px); margin: clamp(4px, 1vh, 10px) 0; max-height: clamp(46px, 10vh, 130px); overflow-y: auto; }
 .lobby-list .user-chip { display: flex; align-items: center; gap: 6px; padding: 4px 8px 4px 12px; background: #ffffff; border: 2px solid rgba(60,50,120,0.12); border-radius: 20px; font-weight: 600; font-size: 14px; }
@@ -154,7 +162,7 @@ body { word-break: keep-all; overflow-wrap: break-word; }
 .stepper-value { font-size: clamp(15px, 2.6vh, 28px); font-weight: 900; min-width: clamp(36px, 5.8vh, 76px); text-align: center; }
 /* パソコンなど横幅にゆとりがある画面では、項目を2列にならべて縦長になりすぎないようにする */
 @media (min-width: 640px) {
-    .lobby-box { max-width: 680px; }
+    .lobby-box-wrap { max-width: 680px; }
     /* むずかしさ（2段）の右にあそびかた・お題チェンジを詰め、
        終わりかたとひとり何回描く？／何分で終了？は同じ行の高さにそろえる。 */
     .host-controls-grid {
@@ -176,7 +184,7 @@ body { word-break: keep-all; overflow-wrap: break-word; }
    ので、高さのメディアクエリで余白・文字・ボタンの高さをさらに詰める。
    （横幅は十分あるのに縦だけ低い＝ウィンドウを小さくしたときを想定） */
 @media (max-height: 620px) {
-    .lobby-box { padding: clamp(8px, 2vh, 18px) clamp(16px, 3.2vw, 30px); margin: auto 0; }
+    .lobby-box { padding: clamp(8px, 2vh, 18px) clamp(16px, 3.2vw, 30px); }
     .lobby-box h2 { font-size: clamp(11px, 1.6vh, 14px); margin: 2px 0; }
     .room-code-big { font-size: clamp(20px, 4.6vh, 38px); margin: 0; letter-spacing: clamp(2px, 0.6vh, 5px); }
     .lobby-list { padding: clamp(3px, 0.8vh, 8px); margin: clamp(2px, 0.7vh, 6px) 0; max-height: clamp(34px, 7vh, 80px); }
@@ -187,11 +195,13 @@ body { word-break: keep-all; overflow-wrap: break-word; }
     :root { --ctrl-h: clamp(26px, 4.4vh, 38px); }
     .choice-btn { font-size: clamp(10px, 1.7vh, 14px); padding: clamp(3px, 0.9vh, 8px) clamp(6px, 1vw, 10px); }
     #difficultyGroup .choice-btn { font-size: clamp(9.5px, 1.5vh, 12px); }
+    .lobby-version-footer { margin-top: clamp(4px, 0.8vh, 8px); }
 }
 /* さらに低いときは、見出しなど無くても困らないものから省いてスペースを作る */
 @media (max-height: 460px) {
     .lobby-box h2 { display: none; }
     .color-picker .field-label { display: none; }
+    .lobby-version-footer { display: none; }
 }
 .btn {
     padding: 15px; border: none; border-radius: 12px; font-weight: 700; cursor: pointer; font-size: 16px;
@@ -447,6 +457,7 @@ canvas { touch-action: none; -webkit-user-select: none; user-select: none; }
 
 <!-- ロビー画面 -->
 <div id="lobbyScreen">
+    <div class="lobby-box-wrap">
     <div class="lobby-box">
         <h2 style="margin-top:0">部屋番号</h2>
         <div class="room-code-big" id="lobbyRoomCode">----</div>
@@ -520,6 +531,8 @@ canvas { touch-action: none; -webkit-user-select: none; user-select: none; }
             <div id="guestSettingsPreview" style="margin-top:10px; font-size:14px; color:#4d5085; line-height:1.8; white-space:pre-line;"></div>
         </div>
         <button type="button" class="btn btn-sub" style="margin-top:10px;" onclick="leaveRoomToMenu()">メインメニューへもどる</button>
+    </div>
+    <div class="lobby-version-footer">お絵かきクイズ フレンズ | Ver 1.5 | ota tools</div>
     </div>
 </div>
 
@@ -685,11 +698,11 @@ window.addEventListener('pageshow', (event) => {
 });
 
 const config = {
-    apiKey: "AIzaSyCo4uq1uJBRcgU-c7mWemukU25MrX635m0",
-    authDomain: "oekaki-quiz-23ab5.firebaseapp.com",
-    databaseURL: "https://oekaki-quiz-23ab5-default-rtdb.asia-southeast1.firebasedatabase.app",
-    projectId: "oekaki-quiz-23ab5",
-    appId: "1:61801325910:web:330fa68a1701dbbc9822f7"
+    apiKey: "AIzaSyBc9bPH4N_wa_NkEI3kpTYERTTP1ThByNw",
+    authDomain: "ondoku-c48a9.firebaseapp.com",
+    databaseURL: "https://ondoku-c48a9-default-rtdb.asia-southeast1.firebasedatabase.app",
+    projectId: "ondoku-c48a9",
+    appId: "1:508376944479:web:7d38bc7a02399cd0bd70ea"
 };
 firebase.initializeApp(config);
 const db = firebase.database();
@@ -1900,13 +1913,20 @@ authReady.then(() => {
         }
 
         // ホストの「部屋ごと自動削除」も、参加者の上のしくみとまったく同じ理由・同じ形で
-        // ロビー中だけ有効にする。ゲームが始まったら解除し、「同じ部屋でもう一度あそぶ」で
-        // ロビーに戻ったら、あらためて有効にする。
+        // 有効・無効を切りかえる。ただし「ロビー中」だけでなく「最終結果（final、ゲーム
+        // 終了後のランキング画面）」でも有効にする。finalまで来たら、その先はもう誰も
+        // 途中復帰する必要がない（遊び終わっている）ので、そのままホストがタブを閉じたり
+        // アプリを閉じたりしたときに、部屋がずっと残ってしまわないようにするため。
+        // （以前はfinalの間もこれが無効のままだったため、遊び終わったあと「部屋を閉じる」
+        // ボタンを押さずにそのままタブを閉じると、部屋が永久に残ってしまっていた。）
+        // countdown/playing/resultの間（実際にゲームが進んでいる最中）は、これまでどおり
+        // 無効のまま＝一瞬の回線切れくらいでは部屋ごと消えないように保護する。
         if (isHost) {
-            if (state.phase === "lobby" && !hostDisconnectArmed) {
+            const isSafeToAutoDeleteRoom = (state.phase === "lobby" || state.phase === "final");
+            if (isSafeToAutoDeleteRoom && !hostDisconnectArmed) {
                 hostDisconnectArmed = true;
                 db.ref(`casual_rooms/${myRoom}`).onDisconnect().remove();
-            } else if (state.phase !== "lobby" && hostDisconnectArmed) {
+            } else if (!isSafeToAutoDeleteRoom && hostDisconnectArmed) {
                 hostDisconnectArmed = false;
                 db.ref(`casual_rooms/${myRoom}`).onDisconnect().cancel();
             }
