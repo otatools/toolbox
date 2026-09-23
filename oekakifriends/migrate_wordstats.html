@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex, nofollow">
+<title>wordStats 移行ツール（1回だけ使う）</title>
+<style>
+  body { font-family: 'Hiragino Sans', 'Yu Gothic', sans-serif; max-width: 640px; margin: 30px auto; padding: 0 16px; color: #2c2a4a; line-height: 1.7; }
+  h1 { font-size: 20px; }
+  .panel { background: #f7f8fd; border-radius: 14px; padding: 16px 18px; margin: 14px 0; }
+  .panel b { color: #4d5085; }
+  button { font-size: 15px; font-weight: 700; padding: 12px 20px; border-radius: 10px; border: none; cursor: pointer; margin-top: 8px; }
+  #runBtn { background: #ff8a3d; color: #fff; }
+  #runBtn:disabled { background: #ccc; cursor: not-allowed; }
+  #log { white-space: pre-wrap; background: #fff; border: 1px solid #e0e0ee; border-radius: 10px; padding: 12px 14px; font-size: 13px; margin-top: 10px; min-height: 40px; }
+  .warn { color: #c0392b; font-weight: 700; }
+  .ok { color: #1a8a4a; font-weight: 700; }
+</style>
+</head>
+<body>
+<h1>wordStats 移行ツール（1回だけ使うためのツールです）</h1>
+<p>前のFirebaseプロジェクト（oekaki-quiz-23ab5）に残っている「お題の出題数・チェンジ数」の集計データ（wordStats）を、
+今使っている新しいプロジェクト（ondoku-c48a9）へ足し合わせます。前のデータは消しません（コピーするだけ）。</p>
+
+<div class="panel" id="statusPanel">読み込み中…</div>
+
+<button id="runBtn" disabled>統計データを移行する</button>
+<div id="log"></div>
+
+<p style="margin-top:24px; font-size:12px; color:#9497c2;">
+※このファイルは移行専用です。移行が終わったら、このファイル（migrate_wordstats.html）は削除してかまいません。
+</p>
+
+<script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-database-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-auth-compat.js"></script>
+<script>
+const OLD_CONFIG = {
+    apiKey: "AIzaSyCo4uq1uJBRcgU-c7mWemukU25MrX635m0",
+    authDomain: "oekaki-quiz-23ab5.firebaseapp.com",
+    databaseURL: "https://oekaki-quiz-23ab5-default-rtdb.asia-southeast1.firebasedatabase.app",
+    projectId: "oekaki-quiz-23ab5",
+    appId: "1:61801325910:web:330fa68a1701dbbc9822f7"
+};
+const NEW_CONFIG = {
+    apiKey: "AIzaSyBc9bPH4N_wa_NkEI3kpTYERTTP1ThByNw",
+    authDomain: "ondoku-c48a9.firebaseapp.com",
+    databaseURL: "https://ondoku-c48a9-default-rtdb.asia-southeast1.firebasedatabase.app",
+    projectId: "ondoku-c48a9",
+    appId: "1:508376944479:web:7d38bc7a02399cd0bd70ea"
+};
+
+const oldApp = firebase.initializeApp(OLD_CONFIG, "oldApp");
+const newApp = firebase.initializeApp(NEW_CONFIG, "newApp");
+const oldDb = oldApp.database();
+const newDb = newApp.database();
+
+function log(msg) {
+    document.getElementById('log').textContent += msg + "\n";
+}
+function authReadyFor(app) {
+    return new Promise((resolve, reject) => {
+        app.auth().onAuthStateChanged(user => {
+            if (user) { resolve(user); return; }
+            app.auth().signInAnonymously().catch(reject);
+        }, reject);
+    });
+}
+
+function sumStats(stats) {
+    let words = 0, shown = 0, passed = 0;
+    Object.values(stats || {}).forEach(s => { words++; shown += (s.shown || 0); passed += (s.passed || 0); });
+    return { words, shown, passed };
+}
+
+let oldStats = {}, newStats = {}, alreadyDone = null;
+
+async function init() {
+    try {
+        await Promise.all([authReadyFor(oldApp), authReadyFor(newApp)]);
+
+        const migSnap = await newDb.ref('_wordStatsMigration').once('value');
+        alreadyDone = migSnap.val();
+
+        const [oldSnap, newSnap] = await Promise.all([
+            oldDb.ref('wordStats').once('value'),
+            newDb.ref('wordStats').once('value'),
+        ]);
+        oldStats = oldSnap.val() || {};
+        newStats = newSnap.val() || {};
+
+        const oldSum = sumStats(oldStats);
+        const newSum = sumStats(newStats);
+
+        let html = `<b>前のプロジェクト（oekaki-quiz-23ab5）</b>：お題 ${oldSum.words}件／出題 ${oldSum.shown}回／チェンジ ${oldSum.passed}回<br>`;
+        html += `<b>新しいプロジェクト（ondoku-c48a9）</b>：お題 ${newSum.words}件／出題 ${newSum.shown}回／チェンジ ${newSum.passed}回`;
+
+        if (alreadyDone) {
+            html += `<br><br><span class="warn">⚠ このツールは ${new Date(alreadyDone.ts).toLocaleString('ja-JP')} に一度実行ずみです。もう一度実行すると数が二重に足されてしまうので、必要なければ実行しないでください。</span>`;
+        }
+        document.getElementById('statusPanel').innerHTML = html;
+        document.getElementById('runBtn').disabled = false;
+    } catch (e) {
+        document.getElementById('statusPanel').innerHTML = '<span class="warn">読み込みに失敗しました：' + (e && e.message ? e.message : e) + '</span>';
+        console.error(e);
+    }
+}
+
+document.getElementById('runBtn').onclick = async () => {
+    if (alreadyDone && !confirm('すでに一度移行ずみです。もう一度実行すると数字が二重になります。本当に続けますか？')) return;
+    if (!confirm('前のプロジェクトの集計データを、新しいプロジェクトに足し合わせます。よろしいですか？')) return;
+
+    document.getElementById('runBtn').disabled = true;
+    log('移行を開始します…');
+
+    try {
+        const updates = {};
+        let mergedWords = 0;
+        Object.keys(oldStats).forEach(word => {
+            const o = oldStats[word] || {};
+            const n = newStats[word] || {};
+            updates[`wordStats/${word}/shown`] = (n.shown || 0) + (o.shown || 0);
+            updates[`wordStats/${word}/passed`] = (n.passed || 0) + (o.passed || 0);
+            mergedWords++;
+        });
+
+        await newDb.ref().update(updates);
+        await newDb.ref('_wordStatsMigration').set({ ts: Date.now(), mergedWords });
+
+        log(`完了しました。${mergedWords}件のお題データを新しいプロジェクトに足しました。`);
+        log('wordstats.html を開いて数字が増えているか確認してください。');
+        document.getElementById('statusPanel').innerHTML += '<br><br><span class="ok">✔ 移行が完了しました</span>';
+    } catch (e) {
+        log('エラーが発生しました：' + (e && e.message ? e.message : e));
+        document.getElementById('runBtn').disabled = false;
+    }
+};
+
+init();
+</script>
+</body>
+</html>
