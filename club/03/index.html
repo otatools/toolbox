@@ -83,15 +83,6 @@
             filter: drop-shadow(0 0 8px #f59e0b) drop-shadow(1px 2px 2px rgba(0,0,0,0.35));
         }
 
-        /* 近づいているターゲットをやさしく光らせて「もうすぐ！」を伝える */
-        .silhouette-target.target-glow {
-            animation: targetPulse 0.7s ease-in-out infinite;
-        }
-        @keyframes targetPulse {
-            0%, 100% { filter: drop-shadow(0 0 0px rgba(251,191,36,0)); }
-            50% { filter: drop-shadow(0 0 16px rgba(251,191,36,0.85)); }
-        }
-
         /* 回転・操作ハンドル
            注意：この要素自体には位置決め用のtransform属性(translate)が乗っているので、
            ここにCSSのtransform(:hoverなど)を使うと位置が上書きされて中心にワープしてしまう。
@@ -137,7 +128,25 @@
         }
     </style>
 </head>
-<body class="w-screen overflow-hidden flex flex-col items-center justify-between p-2 md:p-4 text-amber-100 select-none">
+<body class="w-screen overflow-hidden text-amber-100 select-none">
+
+    <!-- ============ ホーム画面（メインメニュー） ============ -->
+    <div id="screen-home" class="w-screen h-[var(--app-h)] flex flex-col items-center p-2 md:p-4">
+        <header class="w-full max-w-4xl grid grid-cols-[1fr_auto_1fr] items-center gap-2 bg-amber-950/85 backdrop-blur border border-amber-800/60 rounded-2xl p-3 px-5 shadow-xl z-10">
+            <div></div>
+            <h1 class="text-xl md:text-3xl font-black text-amber-200 text-center tracking-wide whitespace-nowrap">🧩 合成図形パズル</h1>
+            <button id="btn-howto" class="justify-self-end btn-secondary text-xs md:text-sm font-bold px-3 py-2 rounded-xl text-white flex items-center gap-1 whitespace-nowrap">
+                ❓ <span>あそび方</span>
+            </button>
+        </header>
+
+        <main class="relative w-full max-w-4xl flex-1 my-2 min-h-0 wood-board rounded-3xl p-4 md:p-6 overflow-y-auto">
+            <div id="home-stage-grid" class="grid gap-3 md:gap-4" style="grid-template-columns: repeat(auto-fill, minmax(64px, 1fr));"></div>
+        </main>
+    </div>
+
+    <!-- ============ ゲーム画面 ============ -->
+    <div id="screen-game" class="hidden w-screen h-[var(--app-h)] flex flex-col items-center justify-between p-2 md:p-4">
 
     <header class="w-full max-w-4xl flex items-center justify-between bg-amber-950/85 backdrop-blur border border-amber-800/60 rounded-2xl p-3 px-5 shadow-xl z-10">
         <div class="flex items-center space-x-3">
@@ -149,14 +158,11 @@
         </div>
 
         <div class="flex items-center space-x-2">
-            <button id="btn-hint" class="btn-secondary text-xs md:text-sm font-bold px-3 py-2 rounded-xl text-white flex items-center gap-1">
-                💡 <span>ヒント</span>
-            </button>
             <button id="btn-reset" class="btn-secondary text-xs md:text-sm font-bold px-3 py-2 rounded-xl text-white flex items-center gap-1">
                 🔄 <span>やり直し</span>
             </button>
-            <button id="btn-stages" class="btn-wood text-xs md:text-sm font-bold px-3 py-2 rounded-xl text-white flex items-center gap-1">
-                🗺️ <span>ステージ</span>
+            <button id="btn-home" class="btn-wood text-xs md:text-sm font-bold px-3 py-2 rounded-xl text-white flex items-center gap-1">
+                🏠 <span>ホーム</span>
             </button>
         </div>
     </header>
@@ -193,9 +199,6 @@
                 <!-- 単一の影シルエット -->
                 <g id="target-silhouette-group"></g>
 
-                <!-- ヒント用ガイド線 -->
-                <g id="hint-group" opacity="0" class="transition-opacity duration-300 pointer-events-none"></g>
-
                 <!-- タングラムピース -->
                 <g id="pieces-group"></g>
 
@@ -223,14 +226,20 @@
         </div>
     </footer>
 
+    </div><!-- /#screen-game -->
+
     <!-- モーダル各種 -->
-    <div id="modal-stages" class="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50 hidden">
-        <div class="bg-amber-950 border-4 border-amber-700 rounded-3xl p-6 max-w-lg w-full text-center shadow-2xl">
-            <h2 class="text-2xl font-black text-amber-200 mb-4">ステージを選択</h2>
-            <div id="stage-grid" class="grid grid-cols-3 sm:grid-cols-4 gap-3 max-h-[60vh] overflow-y-auto p-2"></div>
-            <button id="btn-close-stages" class="mt-6 btn-secondary font-bold px-6 py-2.5 rounded-xl text-white">
-                閉じる
-            </button>
+    <div id="modal-howto" class="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50 hidden">
+        <div class="bg-amber-950 border-4 border-amber-700 rounded-3xl p-6 max-w-lg w-full shadow-2xl text-sm leading-relaxed">
+            <h2 class="text-xl font-black text-amber-200 mb-3">あそびかた</h2>
+            <ol class="list-decimal list-inside space-y-2 text-amber-100">
+                <li>すきなステージをタップしてはじめる</li>
+                <li>下にあるピースをドラッグして、黒いへこみの場所にぴったりはめこもう</li>
+                <li>回転させたいときは、ピースを選んで出てくる丸いハンドルをドラッグする（軽くタップするだけでも45度ずつ回る）</li>
+                <li>青いボタンがあるピースは裏返すこともできる</li>
+                <li>すべてのピースがぴったりはまったらステージクリア！</li>
+            </ol>
+            <button id="btn-close-howto" class="mt-5 btn-secondary font-bold px-6 py-2.5 rounded-xl text-white w-full">閉じた</button>
         </div>
     </div>
 
@@ -239,9 +248,17 @@
             <div class="text-6xl mb-3 animate-bounce">🎉</div>
             <h2 class="text-3xl font-black text-amber-200 mb-2">STAGE CLEAR!</h2>
             <p class="text-amber-300 mb-6 font-semibold">素晴らしい！ぴったり形を作れました！</p>
-            <button id="btn-next-stage" class="btn-wood text-lg font-bold px-8 py-3 rounded-2xl text-white shadow-lg animate-pulse">
-                次のステージへ ➔
-            </button>
+            <div class="flex flex-col gap-3">
+                <button id="btn-next-stage" class="btn-wood text-lg font-bold px-8 py-3 rounded-2xl text-white shadow-lg animate-pulse">
+                    次のステージへ ➔
+                </button>
+                <button id="btn-home-from-clear" class="btn-secondary font-bold px-6 py-3 rounded-2xl text-white">
+                    🏠 ホームに戻る
+                </button>
+                <button id="btn-view-solution" class="text-amber-300 underline text-sm font-bold mt-1">
+                    👀 できあがったパズルを見る
+                </button>
+            </div>
         </div>
     </div>
 
@@ -418,52 +435,138 @@
                     [
                         { type: 'LARGE_TRIANGLE', x: 366.67, y: 216.67, rotation: 0, flip: false },
                         { type: 'LARGE_TRIANGLE', x: 433.33, y: 283.33, rotation: 180, flip: false }
-                    ],
-                    [
-                        { type: 'LARGE_TRIANGLE', x: 433.33, y: 216.67, rotation: 90, flip: false },
-                        { type: 'LARGE_TRIANGLE', x: 366.67, y: 283.33, rotation: 270, flip: false }
                     ]
                 ],
                 spawnPieces: [
-                    { shape: 'TRIANGLE_LARGE_1', x: 220, y: 480, rotation: 90, flip: false },
-                    { shape: 'TRIANGLE_LARGE_2', x: 580, y: 480, rotation: 270, flip: false }
+                    { shape: 'TRIANGLE_LARGE_1', x: 100, y: 480, rotation: 0, flip: false },
+                    { shape: 'TRIANGLE_LARGE_2', x: 700, y: 480, rotation: 45, flip: false }
                 ]
             },
             {
                 targetSolutions: [
                     [
-                        { type: 'LARGE_TRIANGLE', x: 366.67, y: 166.67, rotation: 0, flip: false },
-                        { type: 'SQUARE', x: 350, y: 350, rotation: 0, flip: false }
-                    ],
-                    [
-                        { type: 'LARGE_TRIANGLE', x: 333.33, y: 166.67, rotation: 90, flip: false },
-                        { type: 'SQUARE', x: 350, y: 350, rotation: 0, flip: false }
+                        { type: 'SMALL_TRIANGLE', x: 383.33, y: 233.33, rotation: 0, flip: false },
+                        { type: 'SMALL_TRIANGLE', x: 416.67, y: 266.67, rotation: 180, flip: false }
                     ]
                 ],
                 spawnPieces: [
-                    { shape: 'SQUARE', x: 250, y: 480, rotation: 45, flip: false },
-                    { shape: 'TRIANGLE_LARGE_1', x: 550, y: 480, rotation: 180, flip: false }
+                    { shape: 'TRIANGLE_SMALL_1', x: 100, y: 480, rotation: 0, flip: false },
+                    { shape: 'TRIANGLE_SMALL_2', x: 700, y: 480, rotation: 45, flip: false }
                 ]
             },
             {
-                // 大三角2枚で正方形を作り、その右側に中三角をぴったり付けた「旗」の形
-                // (辺と辺がすべてぴったり接していて、重なりはありません)
                 targetSolutions: [
                     [
-                        { type: 'LARGE_TRIANGLE', x: 316.67, y: 216.67, rotation: 0, flip: false },
-                        { type: 'LARGE_TRIANGLE', x: 383.33, y: 283.33, rotation: 180, flip: false },
-                        { type: 'MEDIUM_TRIANGLE', x: 483.33, y: 250, rotation: 135, flip: false }
+                        { type: 'LARGE_TRIANGLE', x: 433.34, y: 238.89, rotation: 0, flip: false },
+                        { type: 'MEDIUM_TRIANGLE', x: 333.34, y: 272.22, rotation: 315, flip: false }
                     ]
                 ],
                 spawnPieces: [
-                    { shape: 'TRIANGLE_LARGE_1', x: 180, y: 480, rotation: 45, flip: false },
-                    { shape: 'TRIANGLE_LARGE_2', x: 400, y: 480, rotation: 135, flip: false },
-                    { shape: 'TRIANGLE_MEDIUM', x: 620, y: 480, rotation: 0, flip: false }
+                    { shape: 'TRIANGLE_LARGE_1', x: 100, y: 480, rotation: 0, flip: false },
+                    { shape: 'TRIANGLE_MEDIUM', x: 700, y: 480, rotation: 45, flip: false }
                 ]
             },
             {
-                // 全7ピースを使う形。すべての辺がぴったり接するように1枚ずつ組み上げてあり、
-                // 重なりがないことをプログラムで検証済みです。
+                targetSolutions: [
+                    [
+                        { type: 'MEDIUM_TRIANGLE', x: 400.0, y: 233.33, rotation: 225, flip: false },
+                        { type: 'SMALL_TRIANGLE', x: 333.33, y: 266.67, rotation: 270, flip: false },
+                        { type: 'SMALL_TRIANGLE', x: 466.67, y: 266.67, rotation: 90, flip: true }
+                    ]
+                ],
+                spawnPieces: [
+                    { shape: 'TRIANGLE_MEDIUM', x: 100, y: 480, rotation: 0, flip: false },
+                    { shape: 'TRIANGLE_SMALL_1', x: 400, y: 480, rotation: 45, flip: false },
+                    { shape: 'TRIANGLE_SMALL_2', x: 700, y: 480, rotation: 90, flip: false }
+                ]
+            },
+            {
+                targetSolutions: [
+                    [
+                        { type: 'LARGE_TRIANGLE', x: 340.0, y: 216.67, rotation: 0, flip: false },
+                        { type: 'LARGE_TRIANGLE', x: 406.66, y: 283.33, rotation: 180, flip: false },
+                        { type: 'MEDIUM_TRIANGLE', x: 506.66, y: 250.0, rotation: 45, flip: true }
+                    ]
+                ],
+                spawnPieces: [
+                    { shape: 'TRIANGLE_LARGE_1', x: 100, y: 480, rotation: 0, flip: false },
+                    { shape: 'TRIANGLE_LARGE_2', x: 400, y: 480, rotation: 45, flip: false },
+                    { shape: 'TRIANGLE_MEDIUM', x: 700, y: 480, rotation: 90, flip: false }
+                ]
+            },
+            {
+                targetSolutions: [
+                    [
+                        { type: 'LARGE_TRIANGLE', x: 393.34, y: 216.67, rotation: 0, flip: false },
+                        { type: 'LARGE_TRIANGLE', x: 460.0, y: 283.33, rotation: 180, flip: false },
+                        { type: 'SMALL_TRIANGLE', x: 293.34, y: 183.33, rotation: 90, flip: false },
+                        { type: 'SMALL_TRIANGLE', x: 293.34, y: 316.67, rotation: 90, flip: true }
+                    ]
+                ],
+                spawnPieces: [
+                    { shape: 'TRIANGLE_LARGE_1', x: 100, y: 480, rotation: 0, flip: false },
+                    { shape: 'TRIANGLE_LARGE_2', x: 300, y: 480, rotation: 45, flip: false },
+                    { shape: 'TRIANGLE_SMALL_1', x: 500, y: 480, rotation: 90, flip: false },
+                    { shape: 'TRIANGLE_SMALL_2', x: 700, y: 480, rotation: 135, flip: false }
+                ]
+            },
+            {
+                targetSolutions: [
+                    [
+                        { type: 'LARGE_TRIANGLE', x: 366.67, y: 213.89, rotation: 0, flip: false },
+                        { type: 'LARGE_TRIANGLE', x: 433.33, y: 280.55, rotation: 180, flip: false },
+                        { type: 'SMALL_TRIANGLE', x: 266.67, y: 113.89, rotation: 180, flip: false },
+                        { type: 'SMALL_TRIANGLE', x: 533.33, y: 113.89, rotation: 180, flip: true },
+                        { type: 'SQUARE', x: 400.0, y: 397.22, rotation: 0, flip: false }
+                    ]
+                ],
+                spawnPieces: [
+                    { shape: 'TRIANGLE_LARGE_1', x: 100, y: 480, rotation: 0, flip: false },
+                    { shape: 'TRIANGLE_LARGE_2', x: 250, y: 480, rotation: 45, flip: false },
+                    { shape: 'TRIANGLE_SMALL_1', x: 400, y: 480, rotation: 90, flip: false },
+                    { shape: 'TRIANGLE_SMALL_2', x: 550, y: 480, rotation: 135, flip: false },
+                    { shape: 'SQUARE', x: 700, y: 480, rotation: 180, flip: false }
+                ]
+            },
+            {
+                targetSolutions: [
+                    [
+                        { type: 'LARGE_TRIANGLE', x: 344.45, y: 241.67, rotation: 0, flip: false },
+                        { type: 'LARGE_TRIANGLE', x: 411.11, y: 308.33, rotation: 180, flip: false },
+                        { type: 'MEDIUM_TRIANGLE', x: 511.11, y: 275.0, rotation: 45, flip: true },
+                        { type: 'SQUARE', x: 377.78, y: 125.0, rotation: 0, flip: false }
+                    ]
+                ],
+                spawnPieces: [
+                    { shape: 'TRIANGLE_LARGE_1', x: 100, y: 480, rotation: 0, flip: false },
+                    { shape: 'TRIANGLE_LARGE_2', x: 300, y: 480, rotation: 45, flip: false },
+                    { shape: 'TRIANGLE_MEDIUM', x: 500, y: 480, rotation: 90, flip: false },
+                    { shape: 'SQUARE', x: 700, y: 480, rotation: 135, flip: false }
+                ]
+            },
+            {
+                targetSolutions: [
+                    [
+                        { type: 'LARGE_TRIANGLE', x: 505.0, y: 228.34, rotation: 0, flip: true },
+                        { type: 'LARGE_TRIANGLE', x: 438.34, y: 295.0, rotation: 180, flip: true },
+                        { type: 'MEDIUM_TRIANGLE', x: 338.34, y: 261.67, rotation: 225, flip: true },
+                        { type: 'SMALL_TRIANGLE', x: 305.0, y: 328.34, rotation: 180, flip: true },
+                        { type: 'SMALL_TRIANGLE', x: 305.0, y: 195.0, rotation: 270, flip: true },
+                        { type: 'SQUARE', x: 321.67, y: 111.67, rotation: 0, flip: true },
+                        { type: 'PARALLELOGRAM', x: 296.67, y: 386.67, rotation: 0, flip: true }
+                    ]
+                ],
+                spawnPieces: [
+                    { shape: 'TRIANGLE_LARGE_1', x: 100, y: 480, rotation: 0, flip: false },
+                    { shape: 'TRIANGLE_LARGE_2', x: 200, y: 480, rotation: 45, flip: false },
+                    { shape: 'TRIANGLE_MEDIUM', x: 300, y: 480, rotation: 90, flip: false },
+                    { shape: 'TRIANGLE_SMALL_1', x: 400, y: 480, rotation: 135, flip: false },
+                    { shape: 'TRIANGLE_SMALL_2', x: 500, y: 480, rotation: 180, flip: false },
+                    { shape: 'SQUARE', x: 600, y: 480, rotation: 225, flip: false },
+                    { shape: 'PARALLELOGRAM', x: 700, y: 480, rotation: 270, flip: false }
+                ]
+            },
+            {
                 targetSolutions: [
                     [
                         { type: 'LARGE_TRIANGLE', x: 291.67, y: 256.67, rotation: 0, flip: false },
@@ -476,13 +579,13 @@
                     ]
                 ],
                 spawnPieces: [
-                    { shape: 'TRIANGLE_LARGE_1', x: 100, y: 480, rotation: 90, flip: false },
-                    { shape: 'TRIANGLE_LARGE_2', x: 210, y: 480, rotation: 270, flip: false },
-                    { shape: 'TRIANGLE_MEDIUM', x: 320, y: 480, rotation: 0, flip: false },
-                    { shape: 'SQUARE', x: 420, y: 480, rotation: 0, flip: false },
-                    { shape: 'PARALLELOGRAM', x: 520, y: 480, rotation: 0, flip: false },
-                    { shape: 'TRIANGLE_SMALL_1', x: 630, y: 480, rotation: 45, flip: false },
-                    { shape: 'TRIANGLE_SMALL_2', x: 720, y: 480, rotation: 135, flip: false }
+                    { shape: 'TRIANGLE_LARGE_1', x: 100, y: 480, rotation: 0, flip: false },
+                    { shape: 'TRIANGLE_LARGE_2', x: 200, y: 480, rotation: 45, flip: false },
+                    { shape: 'TRIANGLE_MEDIUM', x: 300, y: 480, rotation: 90, flip: false },
+                    { shape: 'TRIANGLE_SMALL_1', x: 400, y: 480, rotation: 135, flip: false },
+                    { shape: 'TRIANGLE_SMALL_2', x: 500, y: 480, rotation: 180, flip: false },
+                    { shape: 'SQUARE', x: 600, y: 480, rotation: 225, flip: false },
+                    { shape: 'PARALLELOGRAM', x: 700, y: 480, rotation: 270, flip: false }
                 ]
             }
         ];
@@ -505,18 +608,51 @@
                 this.lastTickAngle = 0;
 
                 this.isCleared = false;
-                this.showHint = false;
 
                 this.svg = document.getElementById('game-svg');
                 this.targetGroup = document.getElementById('target-silhouette-group');
-                this.hintGroup = document.getElementById('hint-group');
                 this.piecesGroup = document.getElementById('pieces-group');
                 this.controlsGroup = document.getElementById('controls-group');
                 this.particleGroup = document.getElementById('particle-group');
 
                 this.initEvents();
-                this.loadStage(0);
-                this.renderStageGrid();
+                this.renderHomeStageGrid();
+                this.showHomeScreen();
+            }
+
+            // ---- 画面切り替え（ホーム画面 ⇔ ゲーム画面） ----
+            showHomeScreen() {
+                document.getElementById('screen-home').classList.remove('hidden');
+                document.getElementById('screen-game').classList.add('hidden');
+                this.renderHomeStageGrid();
+            }
+
+            showGameScreen() {
+                document.getElementById('screen-home').classList.add('hidden');
+                document.getElementById('screen-game').classList.remove('hidden');
+            }
+
+            goToStage(index) {
+                this.loadStage(index);
+                this.showGameScreen();
+            }
+
+            // ホーム画面のステージ一覧を描画する。1〜2〜3…と左上から並び、
+            // 画面幅に収まらなければ自動的に折り返す（追加したステージ分だけ自然に伸びる）
+            renderHomeStageGrid() {
+                const grid = document.getElementById('home-stage-grid');
+                grid.innerHTML = '';
+
+                STAGES.forEach((s, idx) => {
+                    const btn = document.createElement('button');
+                    btn.className = 'btn-wood aspect-square rounded-2xl font-black text-white flex items-center justify-center text-xl md:text-2xl shadow-lg';
+                    btn.textContent = idx + 1;
+                    btn.addEventListener('click', () => {
+                        audio.playWoodClick();
+                        this.goToStage(idx);
+                    });
+                    grid.appendChild(btn);
+                });
             }
 
             loadStage(index) {
@@ -526,8 +662,6 @@
                 document.getElementById('level-title').innerText = `ステージ ${index + 1} / ${STAGES.length}`;
                 this.isCleared = false;
                 this.selectedPieceId = null;
-                this.showHint = false;
-                this.hintGroup.setAttribute('opacity', '0');
 
                 // 第1の解法ターゲットをデフォルト影として使用
                 this.activeTargets = stage.targetSolutions[0];
@@ -579,7 +713,6 @@
             render() {
                 // 1. 合体シルエット（彫り込み影）の描画
                 this.targetGroup.innerHTML = '';
-                this.hintGroup.innerHTML = '';
 
                 // 各ターゲットの実際の輪郭（ワールド座標）と辺を先に計算しておく。
                 // 複数のピース分のシルエットが隣り合っている「内側の辺」を見分けて、
@@ -591,20 +724,25 @@
                     return { sampleKey, pts, edges };
                 });
 
+                // 彫り込みの「底」を、すべてのターゲット片をまとめたひとつの<path>として描画する。
+                // 別々の<polygon>を隣り合わせに並べると、色が同じでもSVGの描画上アンチエイリアスの
+                // 継ぎ目（細い線）が内側の辺に見えてしまうことがあるため、ひとつのパスにまとめて
+                // 継ぎ目そのものが発生しないようにしている。
+                const combinedD = targetGeoms.map(({ pts }) =>
+                    'M' + pts.map(p => p.join(',')).join('L') + 'Z'
+                ).join(' ');
+                const basePath = document.createElementNS(SVG_NS, 'path');
+                basePath.setAttribute('d', combinedD);
+                basePath.setAttribute('fill', 'url(#holeRecess)');
+                basePath.setAttribute('fill-rule', 'nonzero');
+                basePath.setAttribute('class', 'silhouette-target');
+                this.targetGroup.appendChild(basePath);
+
                 this.activeTargets.forEach((t, ti) => {
-                    const { sampleKey, pts, edges } = targetGeoms[ti];
+                    const { edges } = targetGeoms[ti];
 
                     const g = document.createElementNS(SVG_NS, 'g');
-                    g.setAttribute('class', 'silhouette-target' + (this.isNearTarget(t) ? ' target-glow' : ''));
-
-                    // 彫り込みの「底」。他のターゲット片と重なる内側の辺も同じ色で塗るので、
-                    // 継ぎ目が見えずひとつながりの凹みに見える
-                    const poly = document.createElementNS(SVG_NS, 'polygon');
-                    poly.setAttribute('points', pts.map(p => p.join(',')).join(' '));
-                    poly.setAttribute('fill', 'url(#holeRecess)');
-                    // ふちは付けない（内側の辺にも同じ線が乗ると継ぎ目が見えてしまうため）。
-                    // 立体感は下のグラデーションと、外側の辺だけに描くハイライト/影の線で出す。
-                    g.appendChild(poly);
+                    g.setAttribute('class', 'silhouette-target');
 
                     // 外側の輪郭（他のピースと接していない辺）だけに、彫り込みのふちの
                     // 明るいハイライトを描いて「へこみ」の立体感を出す
@@ -636,16 +774,6 @@
                     });
 
                     this.targetGroup.appendChild(g);
-
-                    // ヒント（内側破線ガイド）
-                    const hintPoly = document.createElementNS(SVG_NS, 'polygon');
-                    hintPoly.setAttribute('points', this.getPolygonPoints(sampleKey));
-                    hintPoly.setAttribute('fill', 'rgba(245, 158, 11, 0.18)');
-                    hintPoly.setAttribute('stroke', '#f59e0b');
-                    hintPoly.setAttribute('stroke-width', '2.5');
-                    hintPoly.setAttribute('stroke-dasharray', '5 4');
-                    hintPoly.setAttribute('transform', this.getTransformString(t.x, t.y, t.rotation, t.flip, t.scale || 1));
-                    this.hintGroup.appendChild(hintPoly);
                 });
 
                 // 2. ピースの描画
@@ -716,20 +844,6 @@
                 return diff;
             }
 
-            isNearTarget(target) {
-                const NEAR_DIST = 60;
-                const symmetryDeg = this.getSymmetryDeg(target.type);
-                return this.pieces.some(p => {
-                    if (p.type !== target.type) return false;
-                    if (p.flip !== (target.flip || false)) return false;
-                    if (!this.scalesMatch(p.scale, target.scale)) return false;
-                    const rotDiff = this.rotationDiff(p.rotation, target.rotation, symmetryDeg);
-                    if (rotDiff > 25) return false;
-                    const dist = Math.hypot(p.x - target.x, p.y - target.y);
-                    return dist > 8 && dist < NEAR_DIST;
-                });
-            }
-
             // ピースが今どれかの正解位置にちゃんとはまっているか（影の付け方を「浮いている」→「はまっている」に
             // 切り替えるための判定。どのtargetSolutionの一部でも良い）
             isPieceSeated(piece) {
@@ -770,6 +884,64 @@
                         }
                     }
                 }
+                return best;
+            }
+
+            // ピースの現在位置でのワールド座標の辺一覧を返す
+            getPieceWorldEdges(piece) {
+                const pts = this.getShapeWorldPoints(piece.shapeKey, piece.x, piece.y, piece.rotation, piece.flip, piece.scale || 1);
+                return pts.map((p1, i) => ({ p1, p2: pts[(i + 1) % pts.length] }));
+            }
+
+            // ドラッグ中のピースの辺が、他の置かれているピースやへこみの縁の辺と
+            // ぴったり向き合う位置にないか探す（用意された解答例に限らず、辺と辺が合えば
+            // 磁石のようにくっつくようにするため）。見つかればその辺の中点同士を合わせる
+            // 移動量 {dx, dy} を返す。
+            findEdgeSnap(piece) {
+                const EDGE_MAGNET_RANGE = 40;
+                const ANGLE_TOL_DEG = 8;
+                const LEN_TOL = 6;
+
+                const pieceEdges = this.getPieceWorldEdges(piece);
+
+                const anchorEdges = [];
+                this.pieces.forEach(other => {
+                    if (other.id === piece.id) return;
+                    this.getPieceWorldEdges(other).forEach(e => anchorEdges.push(e));
+                });
+                this.activeTargets.forEach(t => {
+                    const sampleKey = Object.keys(TANGRAM_SHAPES).find(k => TANGRAM_SHAPES[k].type === t.type);
+                    const pts = this.getShapeWorldPoints(sampleKey, t.x, t.y, t.rotation, t.flip, t.scale || 1);
+                    pts.forEach((p1, i) => anchorEdges.push({ p1, p2: pts[(i + 1) % pts.length] }));
+                });
+
+                let best = null;
+                let bestDist = Infinity;
+
+                pieceEdges.forEach(pe => {
+                    const peLen = Math.hypot(pe.p2[0] - pe.p1[0], pe.p2[1] - pe.p1[1]);
+                    const peAngle = Math.atan2(pe.p2[1] - pe.p1[1], pe.p2[0] - pe.p1[0]);
+                    const peMid = [(pe.p1[0] + pe.p2[0]) / 2, (pe.p1[1] + pe.p2[1]) / 2];
+
+                    anchorEdges.forEach(ae => {
+                        const aeLen = Math.hypot(ae.p2[0] - ae.p1[0], ae.p2[1] - ae.p1[1]);
+                        if (Math.abs(peLen - aeLen) > LEN_TOL) return;
+
+                        const aeAngle = Math.atan2(ae.p2[1] - ae.p1[1], ae.p2[0] - ae.p1[0]);
+                        // 辺同士が逆向きに平行(向き合っている)かどうかを調べる
+                        let diff = (peAngle - (aeAngle + Math.PI)) * 180 / Math.PI;
+                        diff = ((diff + 180) % 360 + 360) % 360 - 180;
+                        if (Math.abs(diff) > ANGLE_TOL_DEG) return;
+
+                        const aeMid = [(ae.p1[0] + ae.p2[0]) / 2, (ae.p1[1] + ae.p2[1]) / 2];
+                        const dist = Math.hypot(peMid[0] - aeMid[0], peMid[1] - aeMid[1]);
+                        if (dist < EDGE_MAGNET_RANGE && dist < bestDist) {
+                            bestDist = dist;
+                            best = { dx: aeMid[0] - peMid[0], dy: aeMid[1] - peMid[1] };
+                        }
+                    });
+                });
+
                 return best;
             }
 
@@ -886,30 +1058,40 @@
                     this.loadStage(this.currentStageIndex);
                 });
 
-                document.getElementById('btn-hint').addEventListener('click', () => {
+                document.getElementById('btn-home').addEventListener('click', () => {
                     audio.playWoodClick();
-                    this.showHint = !this.showHint;
-                    this.hintGroup.setAttribute('opacity', this.showHint ? '1' : '0');
+                    this.showHomeScreen();
                 });
 
-                document.getElementById('btn-stages').addEventListener('click', () => {
+                document.getElementById('btn-howto').addEventListener('click', () => {
                     audio.playWoodClick();
-                    document.getElementById('modal-stages').classList.remove('hidden');
+                    document.getElementById('modal-howto').classList.remove('hidden');
                 });
 
-                document.getElementById('btn-close-stages').addEventListener('click', () => {
+                document.getElementById('btn-close-howto').addEventListener('click', () => {
                     audio.playWoodClick();
-                    document.getElementById('modal-stages').classList.add('hidden');
+                    document.getElementById('modal-howto').classList.add('hidden');
                 });
 
                 document.getElementById('btn-next-stage').addEventListener('click', () => {
                     audio.playWoodClick();
                     document.getElementById('modal-clear').classList.add('hidden');
                     if (this.currentStageIndex + 1 < STAGES.length) {
-                        this.loadStage(this.currentStageIndex + 1);
+                        this.goToStage(this.currentStageIndex + 1);
                     } else {
-                        this.loadStage(0);
+                        this.showHomeScreen();
                     }
+                });
+
+                document.getElementById('btn-home-from-clear').addEventListener('click', () => {
+                    audio.playWoodClick();
+                    document.getElementById('modal-clear').classList.add('hidden');
+                    this.showHomeScreen();
+                });
+
+                document.getElementById('btn-view-solution').addEventListener('click', () => {
+                    audio.playWoodClick();
+                    document.getElementById('modal-clear').classList.add('hidden');
                 });
 
                 this.svg.addEventListener('pointerdown', (e) => {
@@ -1002,6 +1184,16 @@
                         const pull = 0.4;
                         piece.x = nx + (magnet.x - nx) * pull;
                         piece.y = ny + (magnet.y - ny) * pull;
+                    } else {
+                        // 用意された解答例に一致しなくても、他のピースやへこみの縁と
+                        // 辺同士がぴったり向き合っていれば、そちらにも磁石のように吸い寄せる
+                        // （組み方の向きが違っても、見た目が正しければ組めるようにするため）
+                        const edgeSnap = this.findEdgeSnap(piece);
+                        if (edgeSnap) {
+                            const pull = 0.4;
+                            piece.x = nx + edgeSnap.dx * pull;
+                            piece.y = ny + edgeSnap.dy * pull;
+                        }
                     }
                     this.render();
                 }
@@ -1105,6 +1297,25 @@
                     }
                     if (snapped) break;
                 }
+
+                // 用意された解答例のどれにも一致しなくても、他のピースやへこみの縁と
+                // 辺同士がぴったり向き合っていれば、そこでカチッとくっつける
+                // （組み方の向きが違っても、辺が合っていれば組めるようにするため）
+                if (!snapped) {
+                    const edgeSnap = this.findEdgeSnap(piece);
+                    const EDGE_SNAP_LOCK_DIST = 20;
+                    if (edgeSnap && Math.hypot(edgeSnap.dx, edgeSnap.dy) < EDGE_SNAP_LOCK_DIST) {
+                        piece.x += edgeSnap.dx;
+                        piece.y += edgeSnap.dy;
+                        piece.isJustSnapped = true;
+
+                        audio.playSnap();
+                        this.spawnSnapParticles(piece.x, piece.y);
+                        if (navigator.vibrate) {
+                            try { navigator.vibrate(18); } catch (e) {}
+                        }
+                    }
+                }
             }
 
             // スナップの瞬間に散る木くず風パーティクル
@@ -1131,23 +1342,79 @@
                 }
             }
 
-            // 見た目が合っていればどの解法パターンでもクリア判定
-            checkLevelComplete() {
-                const stage = STAGES[this.currentStageIndex];
+            // キャンバスでの「見た目のシルエット一致」判定。
+            // あらかじめ用意した解答パターン(targetSolutions)に頼らず、実際に置かれたピース全体の
+            // 塗りつぶし形状を、彫り込みシルエット全体の塗りつぶし形状とピクセル単位で比較する。
+            // これにより、想定していなかった別の正しい組み方(向き違いの組み合わせなど)でも、
+            // 見た目がぴったり合っていれば必ずクリアと認識できる。
+            computeCoverageMatch() {
+                const CW = 400, CH = 300; // 800x600の盤面を縮小してチェック(十分な精度で高速)
+                const scale = CW / 800;
 
-                const isClearedAny = stage.targetSolutions.some(solution => {
-                    return solution.every(target => {
-                        const symmetryDeg = this.getSymmetryDeg(target.type);
-                        return this.pieces.some(piece =>
-                            piece.type === target.type &&
-                            Math.abs(piece.x - target.x) < 10 &&
-                            Math.abs(piece.y - target.y) < 10 &&
-                            this.rotationDiff(piece.rotation, target.rotation, symmetryDeg) < 10 &&
-                            (piece.flip === (target.flip || false)) &&
-                            this.scalesMatch(piece.scale, target.scale)
-                        );
+                if (!this._coverageCanvasA) {
+                    this._coverageCanvasA = document.createElement('canvas');
+                    this._coverageCanvasA.width = CW; this._coverageCanvasA.height = CH;
+                    this._coverageCanvasB = document.createElement('canvas');
+                    this._coverageCanvasB.width = CW; this._coverageCanvasB.height = CH;
+                }
+                const ctxA = this._coverageCanvasA.getContext('2d', { willReadFrequently: true });
+                const ctxB = this._coverageCanvasB.getContext('2d', { willReadFrequently: true });
+                ctxA.clearRect(0, 0, CW, CH);
+                ctxB.clearRect(0, 0, CW, CH);
+                ctxA.fillStyle = '#000';
+                ctxB.fillStyle = '#000';
+
+                const drawPoly = (ctx, pts) => {
+                    ctx.beginPath();
+                    pts.forEach(([x, y], i) => {
+                        const sx = x * scale, sy = y * scale;
+                        if (i === 0) ctx.moveTo(sx, sy); else ctx.lineTo(sx, sy);
                     });
+                    ctx.closePath();
+                    ctx.fill();
+                };
+
+                // ターゲット(へこみ全体)を描く
+                this.activeTargets.forEach(t => {
+                    const sampleKey = Object.keys(TANGRAM_SHAPES).find(k => TANGRAM_SHAPES[k].type === t.type);
+                    const pts = this.getShapeWorldPoints(sampleKey, t.x, t.y, t.rotation, t.flip, t.scale || 1);
+                    drawPoly(ctxA, pts);
                 });
+
+                // 現在のピース配置を描く(向きや組み合わせが解答例と違っていても、見た目が同じならOKにするため)
+                this.pieces.forEach(p => {
+                    const pts = this.getShapeWorldPoints(p.shapeKey, p.x, p.y, p.rotation, p.flip, p.scale || 1);
+                    drawPoly(ctxB, pts);
+                });
+
+                const dataA = ctxA.getImageData(0, 0, CW, CH).data;
+                const dataB = ctxB.getImageData(0, 0, CW, CH).data;
+
+                let targetCount = 0, matchCount = 0, extraCount = 0;
+                for (let i = 3; i < dataA.length; i += 4) {
+                    const aFilled = dataA[i] > 128;
+                    const bFilled = dataB[i] > 128;
+                    if (aFilled) {
+                        targetCount++;
+                        if (bFilled) matchCount++;
+                    } else if (bFilled) {
+                        extraCount++;
+                    }
+                }
+
+                if (targetCount === 0) return false;
+                const missingRatio = (targetCount - matchCount) / targetCount;
+                const extraRatio = extraCount / targetCount;
+
+                // 縁のアンチエイリアスによる誤差を許容しつつ、隙間やはみ出しがあれば不合格にする
+                return missingRatio < 0.02 && extraRatio < 0.02;
+            }
+
+            // 見た目が合っていればクリア判定(特定の解答パターンに限定しない)
+            checkLevelComplete() {
+                if (this.isCleared) return;
+
+                const isClearedAny = this.computeCoverageMatch();
 
                 if (isClearedAny && !this.isCleared) {
                     this.isCleared = true;
@@ -1161,28 +1428,6 @@
                 }
             }
 
-            renderStageGrid() {
-                const grid = document.getElementById('stage-grid');
-                grid.innerHTML = '';
-
-                STAGES.forEach((s, idx) => {
-                    const btn = document.createElement('button');
-                    btn.className = `p-3 rounded-2xl font-black text-sm border-2 transition ${
-                        idx === this.currentStageIndex
-                            ? 'bg-amber-600 border-amber-300 text-white shadow-lg'
-                            : 'bg-amber-900 border-amber-800 text-amber-200 hover:bg-amber-800'
-                    }`;
-                    btn.innerHTML = `<div class="text-[10px] font-bold text-amber-400">STAGE</div>${idx + 1}`;
-
-                    btn.addEventListener('click', () => {
-                        audio.playWoodClick();
-                        document.getElementById('modal-stages').classList.add('hidden');
-                        this.loadStage(idx);
-                    });
-
-                    grid.appendChild(btn);
-                });
-            }
         }
 
         window.addEventListener('load', () => {
