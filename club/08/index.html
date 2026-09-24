@@ -1,0 +1,991 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <!-- Google tag (gtag.js) -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-YTH979WTKL"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+      gtag('config', 'G-YTH979WTKL');
+    </script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>ぼくらの町</title>
+    <meta name="description" content="12×12マスに道路やお店、学校などを置いて人口を増やす、小学生向けの街づくりシミュレーションゲーム。">
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%8F%99%EF%B8%8F%3C/text%3E%3C/svg%3E">
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Tone.js (効果音用) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+    <!-- Google Fonts (Pop style font) -->
+    <link href="https://fonts.googleapis.com/css2?family=Kiwi+Maru:wght@400;500;700&display=swap" rel="stylesheet">
+
+    <style>
+        * {
+            touch-action: manipulation;
+            -webkit-touch-callout: none;
+        }
+        body {
+            font-family: 'Kiwi Maru', sans-serif;
+            background-color: #e0f2fe;
+            user-select: none;
+        }
+
+        /* 12x12 グリッドスタイリング */
+        .grid-container {
+            display: grid;
+            grid-template-columns: repeat(12, 1fr);
+            gap: 2px;
+            background-color: #86efac;
+            padding: 6px;
+            border-radius: 16px;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.15), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+        }
+
+        .grid-cell {
+            aspect-ratio: 1 / 1;
+            background-color: #bbf7d0;
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.15s ease;
+            position: relative;
+            font-size: clamp(0.6rem, 3.4vw, 1.25rem);
+            min-width: 0;
+            min-height: 0;
+        }
+
+        .grid-cell:hover {
+            transform: scale(1.05);
+            z-index: 10;
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.2);
+            filter: brightness(1.1);
+        }
+
+        /* 建物アイコンのアニメーション */
+        .building-pop {
+            animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        @keyframes popIn {
+            0% { transform: scale(0); opacity: 0; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+
+        /* 道路アニメーション */
+        .road-bg {
+            background-color: #64748b !important;
+            border: 1px dashed #94a3b8;
+            overflow: hidden;
+            position: relative;
+        }
+
+        /* 車のアニメーション演出用 (ぶーんと走る) */
+        @keyframes carMoveRight {
+            0% { transform: translateX(-160%) scaleX(-1); opacity: 0; }
+            15% { opacity: 1; }
+            85% { opacity: 1; }
+            100% { transform: translateX(160%) scaleX(-1); opacity: 0; }
+        }
+        @keyframes carMoveLeft {
+            0% { transform: translateX(160%) scaleX(1); opacity: 0; }
+            15% { opacity: 1; }
+            85% { opacity: 1; }
+            100% { transform: translateX(-160%) scaleX(1); opacity: 0; }
+        }
+
+        .has-car-right::after {
+            content: var(--car-emoji, '🚗');
+            position: absolute;
+            font-size: 0.6em;
+            top: 15%;
+            left: 20%;
+            animation: carMoveRight var(--car-speed, 2s) infinite linear;
+            pointer-events: none;
+        }
+
+        .has-car-left::after {
+            content: var(--car-emoji, '🚗');
+            position: absolute;
+            font-size: 0.6em;
+            bottom: 15%;
+            left: 20%;
+            animation: carMoveLeft var(--car-speed, 2.2s) infinite linear;
+            pointer-events: none;
+        }
+
+        /* ゴミ警告アイコン */
+        .trash-alert::before {
+            content: '🗑️';
+            position: absolute;
+            top: -2px;
+            left: -2px;
+            font-size: 0.65em;
+            animation: bounce 1s infinite;
+        }
+
+        /* 電気・道路切れ警告 */
+        .no-road-alert::before {
+            content: '⚠️';
+            position: absolute;
+            top: -2px;
+            right: -2px;
+            font-size: 0.6em;
+        }
+
+        @keyframes bounce {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-3px); }
+        }
+
+        /* カスタムスクロールバー */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f1f5f9;
+            border-radius: 8px;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #3b82f6;
+            border-radius: 8px;
+        }
+    </style>
+</head>
+<body class="min-h-screen text-slate-800 pb-10">
+
+    <!-- Top Header -->
+    <header class="bg-gradient-to-r from-blue-500 via-indigo-500 to-purple-500 text-white p-4 shadow-lg mb-4">
+        <div class="max-w-6xl mx-auto flex flex-col md:flex-row justify-between items-center gap-3">
+            <div class="flex items-center gap-3">
+                <span class="text-3xl">🏙️</span>
+                <div>
+                    <h1 class="text-2xl font-bold tracking-wide">ぼくらの町</h1>
+                    <p class="text-xs text-blue-100">めざせ！１０００にんの大とし！</p>
+                </div>
+            </div>
+
+            <!-- 音声切り替え & ショップ & ミニゲームボタン -->
+            <div class="flex items-center gap-2 flex-wrap justify-center">
+                <button onclick="openShop()" class="bg-amber-400 hover:bg-amber-300 text-amber-950 font-black px-4 py-1.5 rounded-full text-xs shadow-md transition transform hover:scale-105 flex items-center gap-1 border-2 border-amber-200">
+                    🛒 ショップでお買いもの
+                </button>
+                <button id="bgmBtn" onclick="toggleAudio()" class="bg-white/20 hover:bg-white/30 text-white font-bold px-3 py-1.5 rounded-full text-xs flex items-center gap-1 transition">
+                    🔊 おと: ON
+                </button>
+                <button onclick="openMinigame()" class="bg-emerald-400 hover:bg-emerald-300 text-emerald-950 font-bold px-4 py-1.5 rounded-full text-xs shadow-md transition transform hover:scale-105 flex items-center gap-1">
+                    🪙 おかねをかせぐ！
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Container -->
+    <main class="max-w-5xl mx-auto px-3 flex flex-col gap-5">
+
+        <!-- Status Bar Panel -->
+        <div class="bg-white rounded-2xl p-4 shadow-md border-2 border-blue-200 grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
+            <div class="bg-amber-50 p-2.5 rounded-xl border border-amber-200">
+                <div class="text-xs text-amber-700 font-bold">💰 しょじきん</div>
+                <div id="moneyDisplay" class="text-lg sm:text-xl font-black text-amber-600">100,000,000 B</div>
+            </div>
+            <div class="bg-emerald-50 p-2.5 rounded-xl border border-emerald-200">
+                <div class="text-xs text-emerald-700 font-bold">👨‍👩‍👧‍👦 まちのじんこう</div>
+                <div id="popDisplay" class="text-lg sm:text-xl font-black text-emerald-600">0 人</div>
+            </div>
+            <div class="bg-sky-50 p-2.5 rounded-xl border border-sky-200">
+                <div class="text-xs text-sky-700 font-bold">🅿️ ちゅうしゃじょう</div>
+                <div id="parkingDisplay" class="text-xs sm:text-sm font-bold text-sky-600 mt-1">0/0 だい (0%)</div>
+            </div>
+            <div class="bg-rose-50 p-2.5 rounded-xl border border-rose-200">
+                <div class="text-xs text-rose-700 font-bold">👮 ちあん / ゴミ</div>
+                <div id="safetyDisplay" class="text-xs sm:text-sm font-bold text-rose-600 mt-1">ちあん: 100%</div>
+            </div>
+        </div>
+
+        <!-- Center Map Area -->
+        <div class="flex flex-col items-center w-full">
+            
+            <!-- Grid Wrapper -->
+            <div class="w-full bg-white p-3 sm:p-4 rounded-2xl shadow-lg border-2 border-emerald-200">
+                <div class="flex justify-between items-center mb-2 px-1">
+                    <span class="text-xs font-bold text-emerald-800">12 × 12 マップ</span>
+                    <button onclick="clearMapConfirm()" class="text-xs bg-rose-100 hover:bg-rose-200 text-rose-700 px-3 py-1 rounded-lg transition font-bold">
+                        💥 ぜんぶやりなおす
+                    </button>
+                </div>
+
+                <!-- 12x12 Grid Container -->
+                <div id="gridMap" class="grid-container w-full max-w-[550px] mx-auto">
+                    <!-- Dynamic JS rendering for 144 cells -->
+                </div>
+
+                <!-- ★ マスのすぐ下：いま持っているアイテムの案内 ＆ クイックアイコンバー ★ -->
+                <div class="mt-4 pt-3 border-t-2 border-slate-100">
+                    <!-- 現在選択中表示 -->
+                    <div id="selectedToolDisplay" class="p-2.5 bg-indigo-50 border-2 border-indigo-300 rounded-xl flex items-center justify-between mb-3 shadow-sm">
+                        <div class="flex items-center gap-3">
+                            <span id="selectedIcon" class="text-3xl bg-white p-1.5 rounded-xl shadow-sm border border-indigo-100">🛣️</span>
+                            <div>
+                                <div class="flex items-center gap-2">
+                                    <span class="text-xs font-bold text-indigo-500">いまもっているもの:</span>
+                                    <span id="selectedName" class="font-bold text-sm text-indigo-950">どうろ</span>
+                                </div>
+                                <div id="selectedDesc" class="text-[11px] text-indigo-700">車や人が通る道。マップをタップして配置！</div>
+                            </div>
+                        </div>
+                        <button onclick="openShop()" class="hidden sm:flex bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-500 hover:to-amber-600 text-amber-950 font-bold text-xs px-3 py-2 rounded-xl shadow-sm transition items-center gap-1 shrink-0">
+                            🛒 もっと買う
+                        </button>
+                    </div>
+
+                    <!-- アイコン一発選択ツールバー -->
+                    <div class="text-[11px] font-bold text-slate-500 mb-1.5 px-1 flex justify-between items-center">
+                        <span>👇 アイコンをタップしてすぐ切り替えできるよ！</span>
+                        <span class="text-indigo-600 hover:underline cursor-pointer" onclick="openShop()">🛒 ショップを開く</span>
+                    </div>
+
+                    <div id="quickToolbar" class="flex items-center gap-1.5 overflow-x-auto pb-2 pt-1 px-1 no-scrollbar">
+                        <!-- Dynamic Quick Buttons rendered in JS -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- 市長のアドバイス（アドバイザー） -->
+            <div class="mt-4 w-full bg-gradient-to-br from-indigo-50 to-purple-50 p-4 rounded-2xl shadow-md border-2 border-indigo-200 flex items-center gap-3">
+                <div class="text-3xl bg-white p-2 rounded-2xl shadow-sm border border-indigo-100 shrink-0">👨‍💼</div>
+                <div>
+                    <h3 class="font-bold text-sm text-indigo-950">しちょうのアドバイス</h3>
+                    <p id="advisorText" class="text-xs text-indigo-800 mt-1 leading-relaxed">
+                        マスの下のアイコンを押すか、上にある「ショップ」でおかいものして色々な建物を置いてみよう！
+                    </p>
+                </div>
+            </div>
+
+        </div>
+
+    </main>
+
+    <!-- Shop Modal -->
+    <div id="shopModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm hidden items-center justify-center z-50 p-4">
+        <div class="bg-white rounded-3xl max-w-lg w-full p-5 sm:p-6 text-center shadow-2xl border-4 border-indigo-400 relative flex flex-col max-h-[85vh]">
+            <button onclick="closeShop()" class="absolute top-3 right-4 text-slate-400 hover:text-slate-600 font-bold text-2xl">✕</button>
+            
+            <div class="flex items-center justify-center gap-2 mb-1">
+                <span class="text-2xl">🛒</span>
+                <h2 class="text-xl font-bold text-indigo-900">まちづくりショップ</h2>
+            </div>
+            <p class="text-xs text-slate-500 mb-3">買いたいものを選んで「こうにゅう」を押してね！</p>
+
+            <div class="bg-amber-50 p-2 rounded-xl border border-amber-200 mb-3 flex justify-between items-center px-4 shrink-0">
+                <span class="text-xs font-bold text-amber-800">💰 いまのしょじきん:</span>
+                <span id="shopMoneyDisplay" class="text-base font-black text-amber-600">100,000,000 B</span>
+            </div>
+
+            <!-- Shop Items List (Scrollable) -->
+            <div id="shopItemList" class="grid grid-cols-1 gap-2.5 overflow-y-auto pr-1 text-left flex-1">
+                <!-- Dynamically populated JS -->
+            </div>
+
+            <button onclick="closeShop()" class="mt-4 w-full bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold py-2.5 rounded-2xl transition text-sm shrink-0">
+                とじる
+            </button>
+        </div>
+    </div>
+
+    <!-- Minigame Modal -->
+    <div id="minigameModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm hidden items-center justify-center z-50 p-4">
+        <div class="bg-white rounded-3xl max-w-md w-full p-6 text-center shadow-2xl border-4 border-yellow-400 relative animate-bounce-short">
+            <button onclick="closeMinigame()" class="absolute top-3 right-3 text-slate-400 hover:text-slate-600 font-bold text-xl">✕</button>
+            
+            <h2 class="text-xl font-bold text-yellow-600 mb-1">🪙 コインゲットゲーム！</h2>
+            <p class="text-xs text-slate-600 mb-4">うかんでくるコインをタップしておかねをかせごう！</p>
+
+            <!-- Minigame Play Area -->
+            <div id="coinArea" class="w-full h-64 bg-sky-100 rounded-2xl relative overflow-hidden border-2 border-sky-300 cursor-pointer mb-4">
+                <div id="coinInstructions" class="absolute inset-0 flex items-center justify-center text-sky-500 font-bold text-sm pointer-events-none">
+                    「スタート」をおしてね！
+                </div>
+            </div>
+
+            <div class="flex justify-between items-center bg-yellow-50 p-3 rounded-xl border border-yellow-200 mb-4">
+                <div class="text-xs text-yellow-800 font-bold">かくとくコイン:</div>
+                <div id="minigameScore" class="text-lg font-black text-yellow-600">+0 B</div>
+            </div>
+
+            <button id="startCoinGameBtn" onclick="startCoinGame()" class="w-full bg-gradient-to-r from-yellow-400 to-amber-500 text-white font-bold py-3 rounded-2xl shadow-lg hover:brightness-105 transition text-base">
+                🎮 ゲームスタート！（10秒間）
+            </button>
+        </div>
+    </div>
+
+    <!-- Custom Dialog Modal -->
+    <div id="customDialog" class="fixed inset-0 bg-black/50 hidden items-center justify-center z-50 p-4">
+        <div class="bg-white rounded-2xl max-w-xs w-full p-5 text-center shadow-2xl border-2 border-indigo-200">
+            <div id="dialogIcon" class="text-4xl mb-2">💡</div>
+            <p id="dialogMessage" class="text-sm font-bold text-slate-700 mb-4">メッセージ</p>
+            <div class="flex justify-center gap-2" id="dialogButtons">
+                <button onclick="closeDialog()" class="bg-indigo-500 text-white font-bold text-xs px-5 py-2 rounded-xl hover:bg-indigo-600 transition">
+                    OK
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ピンチ拡大を止める(Safari独自のgestureイベント)
+        ['gesturestart', 'gesturechange', 'gestureend'].forEach(type => {
+            document.addEventListener(type, (e) => e.preventDefault(), { passive: false });
+        });
+
+        // 拡大されたまま戻らなくなった時の保険（自己修復）
+        function resetZoomIfNeeded() {
+            if (!window.visualViewport || window.visualViewport.scale <= 1.02) return;
+            const meta = document.querySelector('meta[name="viewport"]');
+            if (!meta) return;
+            const original = meta.getAttribute('content');
+            meta.setAttribute('content', original + ', maximum-scale=1.0');
+            requestAnimationFrame(() => meta.setAttribute('content', original));
+        }
+        if (window.visualViewport) {
+            window.visualViewport.addEventListener('resize', resetZoomIfNeeded);
+            window.visualViewport.addEventListener('scroll', resetZoomIfNeeded);
+        }
+        document.addEventListener('gestureend', () => setTimeout(resetZoomIfNeeded, 50), { passive: true });
+
+        const GRID_SIZE = 12;
+        let money = 100000000; // 初期資金 1億 B
+        let population = 0;
+        let selectedTool = 'road';
+        let audioEnabled = true;
+
+        // 12x12のマップ状態管理 [row][col]
+        let gridData = Array(GRID_SIZE).fill(null).map(() => 
+            Array(GRID_SIZE).fill(null).map(() => ({
+                type: 'none',
+                isMaster: true,
+                masterPos: null,
+                hasTrash: false
+            }))
+        );
+
+        const BUILDINGS = {
+            road: {
+                name: 'どうろ',
+                icon: '🛣️',
+                cost: 100000,
+                width: 1, height: 1,
+                desc: '車や人が通る道。たてもののとなりに作ろう！',
+                pop: 0, parkingCapacity: 0, parkingDemand: 0,
+                category: 'インフラ'
+            },
+            parking: {
+                name: 'ちゅうしゃじょう',
+                icon: '🅿️',
+                cost: 2000000,
+                width: 1, height: 1,
+                desc: '車を止める場所。ないと人が降りられない！',
+                pop: 0, parkingCapacity: 15, parkingDemand: 0,
+                category: 'インフラ'
+            },
+            house: {
+                name: 'じゅうたく',
+                icon: '🏠',
+                cost: 5000000,
+                width: 1, height: 1,
+                desc: '人が住むおうち。どうろと駐車場が必要！',
+                pop: 10, parkingCapacity: 0, parkingDemand: 3,
+                category: 'せいかつ'
+            },
+            shop: {
+                name: 'おみせ',
+                icon: '🏪',
+                cost: 10000000,
+                width: 1, height: 1,
+                desc: '買いものができる場所。たくさんの人が集まるよ。',
+                pop: 25, parkingCapacity: 0, parkingDemand: 8,
+                category: 'せいかつ'
+            },
+            police: {
+                name: 'こうばん',
+                icon: '👮',
+                cost: 10000000,
+                width: 1, height: 1,
+                desc: 'まちのちあんを守る。ゴミが散らかるのを防ぐよ！',
+                pop: 0, parkingCapacity: 0, parkingDemand: 2,
+                category: '公共'
+            },
+            school: {
+                name: 'がっこう',
+                icon: '🏫',
+                cost: 20000000,
+                width: 2, height: 1,
+                desc: 'こどもたちが通う学校。人気のまちになる！',
+                pop: 50, parkingCapacity: 0, parkingDemand: 10,
+                category: '公共'
+            },
+            park: {
+                name: 'こうえん',
+                icon: '🌳',
+                cost: 3000000,
+                width: 1, height: 1,
+                desc: 'みんなの憩いの場。満足度がアップするよ。',
+                pop: 5, parkingCapacity: 0, parkingDemand: 0,
+                category: '公共'
+            },
+            airport: {
+                name: 'くうこう',
+                icon: '✈️',
+                cost: 50000000,
+                width: 2, height: 2,
+                desc: '超でっかい空港！たくさんの観光客を呼びこむ！',
+                pop: 200, parkingCapacity: 0, parkingDemand: 30,
+                category: '大型'
+            },
+            eraser: {
+                name: 'とりけし・そうじ',
+                icon: '🧹',
+                cost: 0,
+                width: 1, height: 1,
+                desc: 'まちの建物をきれいにかたづけるよ。',
+                pop: 0, parkingCapacity: 0, parkingDemand: 0,
+                category: 'ツール'
+            }
+        };
+
+        let synth;
+        function initAudio() {
+            try {
+                synth = new Tone.Synth().toDestination();
+                synth.volume.value = -12;
+            } catch(e) { console.log('Audio init skipped'); }
+        }
+
+        function playSound(type) {
+            if (!audioEnabled || !synth) return;
+            try {
+                Tone.start();
+                if (type === 'build') synth.triggerAttackRelease('C5', '8n');
+                else if (type === 'clear') synth.triggerAttackRelease('G3', '8n');
+                else if (type === 'error') synth.triggerAttackRelease('C3', '4n');
+                else if (type === 'coin') synth.triggerAttackRelease('E6', '16n');
+                else if (type === 'shop') synth.triggerAttackRelease('G5', '8n');
+            } catch(e){}
+        }
+
+        function toggleAudio() {
+            audioEnabled = !audioEnabled;
+            document.getElementById('bgmBtn').innerText = audioEnabled ? '🔊 おと: ON' : '🔇 おと: OFF';
+        }
+
+        function initApp() {
+            initAudio();
+            renderQuickToolbar();
+            updateSelectedToolUI();
+            refreshTown();
+            if (!window.gameLoopInterval) {
+                window.gameLoopInterval = setInterval(refreshTown, 2000);
+            }
+        }
+
+        if (document.readyState === 'complete' || document.readyState === 'interactive') {
+            setTimeout(initApp, 10);
+        } else {
+            window.addEventListener('DOMContentLoaded', initApp);
+            window.addEventListener('load', initApp);
+        }
+
+        function renderQuickToolbar() {
+            const container = document.getElementById('quickToolbar');
+            if (!container) return;
+            container.innerHTML = '';
+
+            Object.keys(BUILDINGS).forEach(key => {
+                const b = BUILDINGS[key];
+                const btn = document.createElement('button');
+                btn.id = `quick-btn-${key}`;
+                btn.onclick = () => selectTool(key);
+                
+                const isSelected = selectedTool === key;
+                btn.className = `flex flex-col items-center justify-center p-2 rounded-2xl transition transform active:scale-90 shrink-0 min-w-[58px] border-2 ${
+                    isSelected 
+                        ? 'bg-indigo-500 text-white border-indigo-600 shadow-md scale-105' 
+                        : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+                }`;
+
+                btn.innerHTML = `
+                    <span class="text-2xl">${b.icon}</span>
+                    <span class="text-[10px] font-bold mt-0.5 whitespace-nowrap">${b.name}</span>
+                `;
+                container.appendChild(btn);
+            });
+
+            const shopBtn = document.createElement('button');
+            shopBtn.onclick = openShop;
+            shopBtn.className = 'flex flex-col items-center justify-center p-2 rounded-2xl transition transform active:scale-90 shrink-0 min-w-[58px] border-2 bg-amber-100 text-amber-900 border-amber-300 hover:bg-amber-200';
+            shopBtn.innerHTML = `
+                <span class="text-2xl">🛒</span>
+                <span class="text-[10px] font-bold mt-0.5 whitespace-nowrap">ショップ</span>
+            `;
+            container.appendChild(shopBtn);
+        }
+
+        function selectTool(key) {
+            selectedTool = key;
+            playSound('build');
+            updateSelectedToolUI();
+            renderQuickToolbar();
+        }
+
+        function updateSelectedToolUI() {
+            const b = BUILDINGS[selectedTool];
+            if (!b) return;
+
+            document.getElementById('selectedIcon').innerText = b.icon;
+            document.getElementById('selectedName').innerText = b.name;
+
+            if (selectedTool === 'eraser') {
+                document.getElementById('selectedDesc').innerText = 'マップ上の建物をけすよ（無料）';
+            } else {
+                const costStr = `${(b.cost / 10000).toLocaleString()}万 B`;
+                document.getElementById('selectedDesc').innerText = `${b.desc} (ひよう: ${costStr})`;
+            }
+        }
+
+        function renderGrid() {
+            const gridEl = document.getElementById('gridMap');
+            if (!gridEl) return;
+            gridEl.innerHTML = '';
+
+            for (let r = 0; r < GRID_SIZE; r++) {
+                for (let c = 0; c < GRID_SIZE; c++) {
+                    const cellData = gridData[r][c];
+                    const cell = document.createElement('div');
+                    cell.className = 'grid-cell';
+                    cell.dataset.r = r;
+                    cell.dataset.c = c;
+
+                    cell.onclick = () => handleCellClick(r, c);
+                    cell.onmouseenter = () => highlightArea(r, c, true);
+                    cell.onmouseleave = () => highlightArea(r, c, false);
+
+                    if (cellData.type === 'road') {
+                        cell.classList.add('road-bg');
+                        cell.innerText = ''; // 道路アイコン(🛣️)を消して灰色の道路だけに！
+
+                        // 確率で車（乗用車、タクシー、トラック、バス、スポーツカー）を「ぶーん」と走らせる
+                        if (Math.random() < 0.45) {
+                            const isRight = Math.random() < 0.5;
+                            const cars = ['🚗', '🚕', '🚚', '🚌', '🏎️'];
+                            const carEmoji = cars[Math.floor(Math.random() * cars.length)];
+                            const speed = (1.2 + Math.random() * 1.3).toFixed(1) + 's';
+                            
+                            cell.classList.add(isRight ? 'has-car-right' : 'has-car-left');
+                            cell.style.setProperty('--car-emoji', `'${carEmoji}'`);
+                            cell.style.setProperty('--car-speed', speed);
+                        }
+                    } else if (cellData.type !== 'none') {
+                        const bInfo = BUILDINGS[cellData.type];
+                        if (cellData.isMaster) {
+                            cell.innerText = bInfo ? bInfo.icon : '';
+                            cell.classList.add('building-pop');
+                            if (cellData.hasTrash) cell.classList.add('trash-alert');
+                        } else {
+                            cell.style.backgroundColor = '#a7f3d0';
+                            cell.style.opacity = '0.7';
+                        }
+                    }
+
+                    gridEl.appendChild(cell);
+                }
+            }
+        }
+
+        // 建物の変化（配置・撤去・クリア）のたびに呼ぶ：先に統計を計算してから盤面を描き直す
+        function refreshTown() {
+            updateGameLoop();
+            renderGrid();
+        }
+
+        function handleCellClick(r, c) {
+            const tool = BUILDINGS[selectedTool];
+
+            if (selectedTool === 'eraser') {
+                removeBuilding(r, c);
+                playSound('clear');
+                refreshTown();
+                return;
+            }
+
+            if (money < tool.cost) {
+                showAlert('💰 おかね(B)が たりないよ！ミニゲームでかせごう！', '💰');
+                playSound('error');
+                return;
+            }
+
+            if (!canPlaceBuilding(r, c, tool.width, tool.height)) {
+                showAlert('⚠️ ここには おけないよ！（他の建物と重なっているか、マップの外です）', '⚠️');
+                playSound('error');
+                return;
+            }
+
+            money -= tool.cost;
+            playSound('build');
+
+            for (let dr = 0; dr < tool.height; dr++) {
+                for (let dc = 0; dc < tool.width; dc++) {
+                    const nr = r + dr;
+                    const nc = c + dc;
+                    gridData[nr][nc] = {
+                        type: selectedTool,
+                        isMaster: (dr === 0 && dc === 0),
+                        masterPos: { r, c },
+                        hasTrash: false
+                    };
+                }
+            }
+
+            refreshTown();
+        }
+
+        function canPlaceBuilding(r, c, w, h) {
+            if (r + h > GRID_SIZE || c + w > GRID_SIZE) return false;
+            for (let dr = 0; dr < h; dr++) {
+                for (let dc = 0; dc < w; dc++) {
+                    if (gridData[r + dr][c + dc].type !== 'none') return false;
+                }
+            }
+            return true;
+        }
+
+        function removeBuilding(r, c) {
+            const target = gridData[r][c];
+            if (target.type === 'none') return;
+
+            const master = target.isMaster ? { r, c } : target.masterPos;
+            if (!master) return;
+
+            const masterCell = gridData[master.r][master.c];
+            const bInfo = BUILDINGS[masterCell.type];
+            const w = bInfo ? bInfo.width : 1;
+            const h = bInfo ? bInfo.height : 1;
+
+            for (let dr = 0; dr < h; dr++) {
+                for (let dc = 0; dc < w; dc++) {
+                    const nr = master.r + dr;
+                    const nc = master.c + dc;
+                    if (nr < GRID_SIZE && nc < GRID_SIZE) {
+                        gridData[nr][nc] = { type: 'none', isMaster: true, masterPos: null, hasTrash: false };
+                    }
+                }
+            }
+        }
+
+        function highlightArea(r, c, isHover) {
+            if (selectedTool === 'eraser') return;
+            const tool = BUILDINGS[selectedTool];
+            
+            for (let dr = 0; dr < tool.height; dr++) {
+                for (let dc = 0; dc < tool.width; dc++) {
+                    const nr = r + dr;
+                    const nc = c + dc;
+                    if (nr < GRID_SIZE && nc < GRID_SIZE) {
+                        const idx = nr * GRID_SIZE + nc;
+                        const cellEl = document.getElementById('gridMap').children[idx];
+                        if (cellEl) {
+                            if (isHover) {
+                                cellEl.classList.add('ring-2', 'ring-indigo-500', 'bg-indigo-200');
+                            } else {
+                                cellEl.classList.remove('ring-2', 'ring-indigo-500', 'bg-indigo-200');
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        function openShop() {
+            renderShopList();
+            document.getElementById('shopMoneyDisplay').innerText = `${money.toLocaleString()} B`;
+            document.getElementById('shopModal').classList.remove('hidden');
+            document.getElementById('shopModal').classList.add('flex');
+            playSound('shop');
+        }
+
+        function closeShop() {
+            document.getElementById('shopModal').classList.add('hidden');
+            document.getElementById('shopModal').classList.remove('flex');
+        }
+
+        function renderShopList() {
+            const listEl = document.getElementById('shopItemList');
+            if (!listEl) return;
+            listEl.innerHTML = '';
+
+            Object.keys(BUILDINGS).forEach(key => {
+                if (key === 'eraser') return;
+                const b = BUILDINGS[key];
+                const card = document.createElement('div');
+                card.className = 'bg-slate-50 border-2 border-slate-200 p-3 rounded-2xl flex items-center justify-between gap-2 hover:border-indigo-300 transition';
+                const costText = `${(b.cost / 10000).toLocaleString()}万 B`;
+                card.innerHTML = `
+                    <div class="flex items-center gap-3">
+                        <span class="text-3xl bg-white p-2 rounded-xl border border-slate-200 shadow-sm">${b.icon}</span>
+                        <div>
+                            <div class="font-bold text-sm text-slate-800 flex items-center gap-1">
+                                <span>${b.name}</span>
+                                <span class="text-[10px] bg-indigo-100 text-indigo-700 font-normal px-1.5 py-0.5 rounded-md">${b.category}</span>
+                            </div>
+                            <div class="text-[11px] text-slate-500">${b.desc}</div>
+                            <div class="text-xs font-black text-amber-600 mt-0.5">ひよう: ${costText} (${b.width}x${b.height}マス)</div>
+                        </div>
+                    </div>
+                    <button onclick="buyFromShop('${key}')" class="bg-indigo-500 hover:bg-indigo-600 text-white font-bold text-xs px-3.5 py-2 rounded-xl shrink-0 shadow transition active:scale-95">
+                        こうにゅう
+                    </button>
+                `;
+                listEl.appendChild(card);
+            });
+        }
+
+        function buyFromShop(key) {
+            selectTool(key);
+            closeShop();
+        }
+
+        function updateGameLoop() {
+            let totalCap = 0;
+            let totalDemand = 0;
+            let policeCount = 0;
+            let rawPop = 0;
+            let roadConnectedPop = 0;
+            let hasRoad = false;
+
+            for (let r = 0; r < GRID_SIZE; r++) {
+                for (let c = 0; c < GRID_SIZE; c++) {
+                    const cell = gridData[r][c];
+                    if (cell.type === 'road') hasRoad = true;
+                    if (cell.isMaster) {
+                        const b = BUILDINGS[cell.type];
+                        if (b) {
+                            totalCap += b.parkingCapacity;
+                            totalDemand += b.parkingDemand;
+                            if (cell.type === 'police') policeCount++;
+                        }
+                    }
+                }
+            }
+
+            let trashCount = 0;
+            for (let r = 0; r < GRID_SIZE; r++) {
+                for (let c = 0; c < GRID_SIZE; c++) {
+                    const cell = gridData[r][c];
+                    if (cell.isMaster && cell.type !== 'none' && cell.type !== 'road') {
+                        if (policeCount === 0 && Math.random() < 0.15) {
+                            cell.hasTrash = true;
+                        } else if (policeCount > 0) {
+                            cell.hasTrash = false;
+                        }
+                        if (cell.hasTrash) trashCount++;
+                    }
+                }
+            }
+
+            for (let r = 0; r < GRID_SIZE; r++) {
+                for (let c = 0; c < GRID_SIZE; c++) {
+                    const cell = gridData[r][c];
+                    if (cell.isMaster && cell.type !== 'none' && cell.type !== 'road') {
+                        const b = BUILDINGS[cell.type];
+                        if (b && b.pop > 0) {
+                            rawPop += b.pop;
+                            if (checkAdjacentRoad(r, c, b.width, b.height)) {
+                                roadConnectedPop += b.pop;
+                            }
+                        }
+                    }
+                }
+            }
+
+            let parkingRatio = totalDemand > 0 ? Math.min(1.0, totalCap / totalDemand) : 1.0;
+            if (totalDemand > 0 && totalCap === 0) parkingRatio = 0.2;
+
+            let safetyRatio = trashCount > 0 ? Math.max(0.3, 1 - (trashCount * 0.1)) : 1.0;
+
+            population = Math.floor(roadConnectedPop * parkingRatio * safetyRatio);
+
+            updateAdvisor(hasRoad, totalDemand, totalCap, policeCount, trashCount, roadConnectedPop, rawPop);
+            updateUI(totalCap, totalDemand, safetyRatio);
+        }
+
+        function checkAdjacentRoad(r, c, w, h) {
+            for (let dr = -1; dr <= h; dr++) {
+                for (let dc = -1; dc <= w; dc++) {
+                    if (dr >= 0 && dr < h && dc >= 0 && dc < w) continue;
+                    const nr = r + dr;
+                    const nc = c + dc;
+                    if (nr >= 0 && nr < GRID_SIZE && nc >= 0 && nc < GRID_SIZE) {
+                        if (gridData[nr][nc].type === 'road') return true;
+                    }
+                }
+            }
+            return false;
+        }
+
+        function updateAdvisor(hasRoad, demand, cap, police, trash, connectedPop, rawPop) {
+            const advisor = document.getElementById('advisorText');
+            if (!advisor) return;
+
+            if (!hasRoad) {
+                advisor.innerText = 'まずは「ショップ」でどうろを買って敷こう！道路がないと車も人も来ないよ。';
+            } else if (rawPop > 0 && connectedPop < rawPop) {
+                advisor.innerText = '⚠️ 道路に繋がっていない建物があるよ！道路のとなりにつくろう。';
+            } else if (demand > 0 && cap < demand) {
+                advisor.innerText = '🅿️ 車をとめる「ちゅうしゃじょう」が足りないよ！人が下りられないよ。';
+            } else if (trash > 0 || police === 0) {
+                advisor.innerText = '👮「こうばん」がないとゴミが増えて治安が悪くなっちゃうよ！交番をたてよう。';
+            } else if (population > 200) {
+                advisor.innerText = '✨ すごい！「ぼくらの町」が大都市になってきたね！「くうこう」をたてて超発展させよう！';
+            } else {
+                advisor.innerText = '👍 いい感じの街だね！ショップで住宅やおみせを増やして人を呼ぼう！';
+            }
+        }
+
+        function updateUI(totalCap = 0, totalDemand = 0, safetyRatio = 1.0) {
+            const moneyEl = document.getElementById('moneyDisplay');
+            if (moneyEl) moneyEl.innerText = `${money.toLocaleString()} B`;
+            
+            const popEl = document.getElementById('popDisplay');
+            if (popEl) popEl.innerText = `${population} 人`;
+
+            const parkingPct = totalDemand > 0 ? Math.floor((totalCap / totalDemand) * 100) : 100;
+            const parkingEl = document.getElementById('parkingDisplay');
+            if (parkingEl) parkingEl.innerText = `${totalCap}/${totalDemand} 台 (${parkingPct}%)`;
+
+            const safetyPct = Math.floor(safetyRatio * 100);
+            const safetyEl = document.getElementById('safetyDisplay');
+            if (safetyEl) safetyEl.innerText = `ちあん: ${safetyPct}%`;
+        }
+
+        let coinGameTimer = null;
+        let coinGameScore = 0;
+
+        function openMinigame() {
+            document.getElementById('minigameModal').classList.remove('hidden');
+            document.getElementById('minigameModal').classList.add('flex');
+            document.getElementById('minigameScore').innerText = '+0 B';
+            document.getElementById('coinArea').innerHTML = `
+                <div id="coinInstructions" class="absolute inset-0 flex items-center justify-center text-sky-500 font-bold text-sm pointer-events-none">
+                    「スタート」をおしてね！
+                </div>`;
+        }
+
+        function closeMinigame() {
+            if (coinGameTimer) clearInterval(coinGameTimer);
+            document.getElementById('minigameModal').classList.add('hidden');
+            document.getElementById('minigameModal').classList.remove('flex');
+        }
+
+        function startCoinGame() {
+            const btn = document.getElementById('startCoinGameBtn');
+            btn.disabled = true;
+            btn.classList.add('opacity-50');
+            coinGameScore = 0;
+            document.getElementById('minigameScore').innerText = '+0 B';
+
+            const area = document.getElementById('coinArea');
+            area.innerHTML = '';
+
+            let timeLeft = 10;
+
+            coinGameTimer = setInterval(() => {
+                timeLeft -= 0.5;
+                if (timeLeft <= 0) {
+                    clearInterval(coinGameTimer);
+                    money += coinGameScore;
+                    playSound('coin');
+                    showAlert(`🎉 タイムアップ！ ${coinGameScore.toLocaleString()} B ゲットしたよ！`, '🎉');
+                    refreshTown();
+                    btn.disabled = false;
+                    btn.classList.remove('opacity-50');
+                    return;
+                }
+                spawnCoin(area);
+            }, 400);
+        }
+
+        function spawnCoin(area) {
+            const coin = document.createElement('div');
+            coin.className = 'absolute text-3xl cursor-pointer select-none transition transform active:scale-125';
+            coin.innerText = Math.random() < 0.2 ? '💎' : '🪙';
+            const value = coin.innerText === '💎' ? 5000000 : 1000000;
+
+            const x = Math.random() * (area.clientWidth - 40);
+            const y = Math.random() * (area.clientHeight - 40);
+            coin.style.left = `${x}px`;
+            coin.style.top = `${y}px`;
+
+            coin.onclick = () => {
+                coinGameScore += value;
+                playSound('coin');
+                document.getElementById('minigameScore').innerText = `+${coinGameScore.toLocaleString()} B`;
+                coin.remove();
+            };
+
+            area.appendChild(coin);
+            setTimeout(() => { if (coin.parentNode) coin.remove(); }, 1500);
+        }
+
+        function showAlert(msg, icon = '💡') {
+            document.getElementById('dialogIcon').innerText = icon;
+            document.getElementById('dialogMessage').innerText = msg;
+            document.getElementById('dialogButtons').innerHTML = `
+                <button onclick="closeDialog()" class="bg-indigo-500 text-white font-bold text-xs px-5 py-2 rounded-xl hover:bg-indigo-600 transition">
+                    OK
+                </button>
+            `;
+            document.getElementById('customDialog').classList.remove('hidden');
+            document.getElementById('customDialog').classList.add('flex');
+        }
+
+        function showConfirm(msg, onConfirm, icon = '⚠️') {
+            document.getElementById('dialogIcon').innerText = icon;
+            document.getElementById('dialogMessage').innerText = msg;
+            document.getElementById('dialogButtons').innerHTML = `
+                <button onclick="closeDialog()" class="bg-slate-200 text-slate-700 font-bold text-xs px-4 py-2 rounded-xl hover:bg-slate-300 transition">
+                    キャンセル
+                </button>
+                <button id="confirmOkBtn" class="bg-rose-500 text-white font-bold text-xs px-4 py-2 rounded-xl hover:bg-rose-600 transition">
+                    実行する
+                </button>
+            `;
+            document.getElementById('confirmOkBtn').onclick = () => {
+                closeDialog();
+                onConfirm();
+            };
+            document.getElementById('customDialog').classList.remove('hidden');
+            document.getElementById('customDialog').classList.add('flex');
+        }
+
+        function closeDialog() {
+            document.getElementById('customDialog').classList.add('hidden');
+            document.getElementById('customDialog').classList.remove('flex');
+        }
+
+        function clearMapConfirm() {
+            showConfirm('ほんとうに まちを ぜんぶやりなおす？', () => {
+                gridData = Array(GRID_SIZE).fill(null).map(() => 
+                    Array(GRID_SIZE).fill(null).map(() => ({
+                        type: 'none', isMaster: true, masterPos: null, hasTrash: false
+                    }))
+                );
+                money = 100000000;
+                refreshTown();
+                playSound('clear');
+            }, '💥');
+        }
+    </script>
+</body>
+</html>
