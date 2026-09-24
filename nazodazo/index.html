@@ -1,6 +1,14 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
+    <!-- Google tag (gtag.js) -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-YTH979WTKL"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+      gtag('config', 'G-YTH979WTKL');
+    </script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ナゾダゾ - たのしい なぞなぞ あぷり</title>
@@ -11,6 +19,12 @@
     <!-- Google Fonts for Friendly Look -->
     <link href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@400;700;900&display=swap" rel="stylesheet">
     <style>
+        /* §1 ダブルタップ拡大・長押し選択ルーペ防止 */
+        * {
+            touch-action: manipulation;
+            -webkit-touch-callout: none;
+        }
+
         body {
             font-family: 'M PLUS Rounded 1c', sans-serif;
             background-color: #f0fdf4;
@@ -223,10 +237,10 @@
                     <!-- 縦向き電池 -->
                     <div class="battery-container">
                         <div class="battery-top"></div>
-                        <div id="cell-4" class="battery-cell"></div>
-                        <div id="cell-3" class="battery-cell"></div>
-                        <div id="cell-2" class="battery-cell"></div>
                         <div id="cell-1" class="battery-cell"></div>
+                        <div id="cell-2" class="battery-cell"></div>
+                        <div id="cell-3" class="battery-cell"></div>
+                        <div id="cell-4" class="battery-cell"></div>
                     </div>
 
                     <!-- 電池ステータス -->
@@ -340,15 +354,38 @@
         /* -------------------------------------------------------------
            1. サウンドエフェクト (Web Audio API)
         ------------------------------------------------------------- */
+        /* §18 音ON/OFF設定をlocalStorageから復元 */
         let soundEnabled = true;
+        try {
+            const saved = localStorage.getItem('nazonazo.sound');
+            if (saved !== null) soundEnabled = (saved === 'true');
+        } catch(e) {}
+
         const AudioContext = window.AudioContext || window.webkitAudioContext;
         let audioCtx = null;
+        let audioUnlocked = false;
 
         function initAudio() {
             if (!audioCtx) {
                 audioCtx = new AudioContext();
             }
+            /* §17 iOS: 無音バッファを1回再生して音声出力を有効化 */
+            if (!audioUnlocked && audioCtx.state === 'running') {
+                try {
+                    const b = audioCtx.createBuffer(1, 1, audioCtx.sampleRate);
+                    const s = audioCtx.createBufferSource();
+                    s.buffer = b; s.connect(audioCtx.destination); s.start(0);
+                    audioUnlocked = true;
+                } catch(e) {}
+            }
         }
+
+        /* §17 アプリ復帰時にAudioContextを再開 */
+        document.addEventListener('visibilitychange', () => {
+            if (!document.hidden && audioCtx && audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+        });
 
         function playSound(type) {
             if (!soundEnabled) return;
@@ -422,6 +459,8 @@
         function toggleSound() {
             soundEnabled = !soundEnabled;
             document.getElementById('sound-toggle').innerText = soundEnabled ? '🔊 おと: ON' : '🔇 おと: OFF';
+            /* §18 設定をlocalStorageに保存 */
+            try { localStorage.setItem('nazonazo.sound', String(soundEnabled)); } catch(e) {}
         }
 
         /* -------------------------------------------------------------
@@ -432,9 +471,9 @@
                 {
                     q: "おなかの まんなかに あるものは なあに？",
                     type: "3choice",
-                    choices: ["へそ", "おなか", "せなか"],
-                    answer: "へそ",
-                    explain: "「おなか」の もじの まんなかは「な」だけど、体にあるのは「おへそ」だね！"
+                    choices: ["な", "か", "へそ"],
+                    answer: "か",
+                    explain: "「お・な・か」の まんなかの もじは「か」だよ！もじの なぞなぞだったんだね！"
                 },
                 {
                     q: "こたえは かんたん！ あしたの てんきは なあに？",
@@ -529,7 +568,7 @@
         let energyCount = 0; // 電池エネルギー (0〜4)
         let questions = [];
 
-        // 50音キーボード配置用データ
+        // 50音キーボード配置用データ（「ー」を追加）
         const KANA_GRID = [
             ['あ','い','う','え','お'],
             ['か','き','く','け','こ'],
@@ -539,7 +578,8 @@
             ['は','ひ','ふ','へ','ほ'],
             ['ま','み','む','め','も'],
             ['や','ゆ','よ','わ','ん'],
-            ['ら','り','る','れ','ろ']
+            ['ら','り','る','れ','ろ'],
+            ['ー']
         ];
 
         /* -------------------------------------------------------------
@@ -852,6 +892,28 @@
                 });
             }
         }
+        /* §1 ピンチ拡大を止める（Safari独自のgestureイベント） */
+        ['gesturestart', 'gesturechange', 'gestureend'].forEach(type => {
+            document.addEventListener(type, (e) => e.preventDefault(), { passive: false });
+        });
+
+        /* §1 ピンチ拡大の自己修復（最後の保険） */
+        function resetZoomIfNeeded() {
+            if (!window.visualViewport || window.visualViewport.scale <= 1.02) return;
+            const meta = document.querySelector('meta[name="viewport"]');
+            if (!meta) return;
+            const original = meta.getAttribute('content');
+            meta.setAttribute('content', original + ', maximum-scale=1.0');
+            requestAnimationFrame(() => meta.setAttribute('content', original));
+        }
+        if (window.visualViewport) {
+            window.visualViewport.addEventListener('resize', resetZoomIfNeeded);
+            window.visualViewport.addEventListener('scroll', resetZoomIfNeeded);
+        }
+        document.addEventListener('gestureend', () => setTimeout(resetZoomIfNeeded, 50), { passive: true });
+
+        /* §18 起動時に音ボタンの表示をlocalStorageの設定に合わせる */
+        document.getElementById('sound-toggle').innerText = soundEnabled ? '🔊 おと: ON' : '🔇 おと: OFF';
     </script>
 </body>
 </html>
