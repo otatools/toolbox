@@ -1,0 +1,857 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ナゾダゾ - たのしい なぞなぞ あぷり</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Canvas Confetti CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    <!-- Google Fonts for Friendly Look -->
+    <link href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@400;700;900&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'M PLUS Rounded 1c', sans-serif;
+            background-color: #f0fdf4;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        /* 電池のビジュアルスタイル */
+        .battery-container {
+            position: relative;
+            width: 70px;
+            height: 180px;
+            background: #1e293b;
+            border: 4px solid #334155;
+            border-radius: 16px;
+            padding: 6px;
+            display: flex;
+            flex-direction: column-reverse;
+            gap: 6px;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.3), inset 0 2px 4px rgba(255, 255, 255, 0.1);
+        }
+
+        /* 電池の凸部分 */
+        .battery-top {
+            position: absolute;
+            top: -14px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 28px;
+            height: 12px;
+            background: #475569;
+            border-top-left-radius: 6px;
+            border-top-right-radius: 6px;
+            border: 3px solid #334155;
+            border-bottom: none;
+        }
+
+        /* 電池の各セル (4分割) */
+        .battery-cell {
+            flex: 1;
+            border-radius: 6px;
+            background: #334155;
+            transition: all 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .battery-cell.filled {
+            background: linear-gradient(135deg, #4ade80, #22c55e);
+            box-shadow: 0 0 12px #22c55e;
+        }
+
+        .battery-cell.filled.supercharged {
+            background: linear-gradient(135deg, #fef08a, #facc15, #f97316);
+            animation: pulse-gold 0.8s infinite alternate;
+            box-shadow: 0 0 15px #facc15;
+        }
+
+        @keyframes pulse-gold {
+            0% { filter: brightness(1); transform: scale(1); }
+            100% { filter: brightness(1.25); transform: scale(1.02); }
+        }
+
+        /* チャージ光沢エフェクト */
+        .battery-cell.filled::after {
+            content: '';
+            position: absolute;
+            top: 0; left: -100%;
+            width: 100%; height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.6), transparent);
+            animation: shine 1.5s infinite;
+        }
+
+        @keyframes shine {
+            100% { left: 100%; }
+        }
+
+        /* ポップアップアニメーション */
+        .pop-in {
+            animation: popIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+        }
+
+        @keyframes popIn {
+            0% { opacity: 0; transform: scale(0.8) translateY(20px); }
+            100% { opacity: 1; transform: scale(1) translateY(0); }
+        }
+
+        /* 50音キーボードスタイル */
+        .kana-key {
+            transition: all 0.1s ease;
+            box-shadow: 0 4px 0 #cbd5e1;
+        }
+        .kana-key:active {
+            transform: translateY(3px);
+            box-shadow: 0 1px 0 #cbd5e1;
+        }
+
+        .btn-action {
+            transition: all 0.15s ease;
+            box-shadow: 0 6px 0 rgba(0,0,0,0.15);
+        }
+        .btn-action:active {
+            transform: translateY(4px);
+            box-shadow: 0 2px 0 rgba(0,0,0,0.15);
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col justify-between items-center p-3 md:p-6 text-slate-800 bg-emerald-50">
+
+    <!-- ヘッダーバー -->
+    <header class="w-full max-w-3xl flex justify-between items-center mb-4 bg-white px-5 py-3 rounded-2xl shadow-md border-2 border-emerald-200">
+        <div class="flex items-center gap-2 cursor-pointer" onclick="showScreen('screen-title')">
+            <span class="text-3xl">⚡</span>
+            <h1 class="text-2xl md:text-3xl font-black text-emerald-600 tracking-wider">ナゾダゾ</h1>
+        </div>
+        <div class="flex items-center gap-3">
+            <button id="sound-toggle" onclick="toggleSound()" class="p-2 bg-emerald-100 hover:bg-emerald-200 rounded-xl text-xl font-bold text-emerald-700 transition">
+                🔊 おと: ON
+            </button>
+        </div>
+    </header>
+
+    <!-- メインコンテンツエリア -->
+    <main class="w-full max-w-3xl flex-1 flex flex-col justify-center items-center">
+
+        <!-- 1. タイトル画面（難易度選択） -->
+        <div id="screen-title" class="w-full bg-white p-6 md:p-8 rounded-3xl shadow-xl border-4 border-emerald-300 text-center pop-in">
+            <div class="inline-block bg-amber-100 text-amber-800 text-sm md:text-base font-bold px-4 py-1.5 rounded-full mb-3 border border-amber-300">
+                しょうがくせいむけ なぞなぞゲーム！
+            </div>
+            <h2 class="text-3xl md:text-5xl font-black text-slate-800 mb-2">
+                ナゾダゾ <span class="text-emerald-500">⚡</span>
+            </h2>
+            <p class="text-slate-600 font-bold mb-8 text-sm md:text-base">
+                せいかいして でんちに エネルギ～を ためよう！<br>
+                たんたいになると <span class="text-amber-500 font-extrabold text-lg">てんすが 2ばい</span> になるよ！
+            </p>
+
+            <div class="space-y-4 max-w-md mx-auto">
+                <!-- やさしい -->
+                <button onclick="startGame('easy')" class="btn-action w-full bg-gradient-to-r from-emerald-400 to-green-500 hover:from-emerald-500 hover:to-green-600 text-white font-extrabold text-xl md:text-2xl py-4 px-6 rounded-2xl border-b-4 border-green-700 flex items-center justify-between">
+                    <span class="flex items-center gap-2">🌱 やさしい</span>
+                    <span class="text-sm bg-white/30 px-3 py-1 rounded-full">3たくクイズ</span>
+                </button>
+
+                <!-- ふつう -->
+                <button onclick="startGame('normal')" class="btn-action w-full bg-gradient-to-r from-amber-400 to-orange-500 hover:from-amber-500 hover:to-orange-600 text-white font-extrabold text-xl md:text-2xl py-4 px-6 rounded-2xl border-b-4 border-orange-700 flex items-center justify-between">
+                    <span class="flex items-center gap-2">⭐ ふつう</span>
+                    <span class="text-sm bg-white/30 px-3 py-1 rounded-full">にゅうりょく</span>
+                </button>
+
+                <!-- むずかしい -->
+                <button onclick="startGame('hard')" class="btn-action w-full bg-gradient-to-r from-rose-400 to-red-500 hover:from-rose-500 hover:to-red-600 text-white font-extrabold text-xl md:text-2xl py-4 px-6 rounded-2xl border-b-4 border-red-700 flex items-center justify-between">
+                    <span class="flex items-center gap-2">🔥 むずかしい</span>
+                    <span class="text-sm bg-white/30 px-3 py-1 rounded-full">にゅうりょく</span>
+                </button>
+            </div>
+
+            <!-- あそびかたヒント -->
+            <div class="mt-8 pt-6 border-t border-slate-100 text-xs md:text-sm text-slate-500 flex justify-around">
+                <div>全4もん</div>
+                <div>1もん 5てん</div>
+                <div>でんち満タンで 2倍！</div>
+            </div>
+        </div>
+
+        <!-- 2. プレイ画面 -->
+        <div id="screen-play" class="w-full bg-white p-4 md:p-6 rounded-3xl shadow-xl border-4 border-emerald-300 hidden">
+            
+            <!-- プレイ情報ヘッダー -->
+            <div class="flex justify-between items-center mb-4 pb-3 border-b-2 border-slate-100">
+                <div class="flex items-center gap-2">
+                    <span id="diff-badge" class="px-3 py-1 bg-emerald-100 text-emerald-800 rounded-full font-black text-sm">
+                        やさしい
+                    </span>
+                    <span class="text-slate-500 font-bold text-sm md:text-base">
+                        だい <span id="q-num" class="text-2xl text-emerald-600 font-black">1</span> / 4 もん
+                    </span>
+                </div>
+                <div class="text-right">
+                    <div class="text-xs text-slate-400 font-bold">現在のスコア</div>
+                    <div class="text-2xl font-black text-amber-500"><span id="current-score">0</span> <span class="text-xs">てん</span></div>
+                </div>
+            </div>
+
+            <!-- メインコンテンツ：問題＆電池イラスト -->
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-4 items-center mb-6">
+                
+                <!-- 問題表示エリア (左〜中央: 3列分) -->
+                <div class="md:col-span-3 bg-slate-50 p-5 md:p-6 rounded-2xl border-2 border-slate-200 min-h-[160px] flex flex-col justify-between">
+                    <div>
+                        <div class="text-xs font-bold text-emerald-600 mb-1">【 もんだい 】</div>
+                        <p id="question-text" class="text-lg md:text-2xl font-black text-slate-800 leading-relaxed">
+                            おなかの まんなかに あるものは？
+                        </p>
+                    </div>
+
+                    <!-- ヒント（ふつう・むずかしい用） -->
+                    <div id="hint-box" class="mt-3 text-xs md:text-sm text-amber-700 bg-amber-50 p-2 rounded-lg hidden">
+                        💡 <strong>ひんと:</strong> <span id="hint-text"></span>
+                    </div>
+                </div>
+
+                <!-- 電池エリア (右: 1列分) -->
+                <div class="flex flex-col items-center justify-center p-3 bg-slate-800 rounded-2xl text-white shadow-inner">
+                    <div class="text-xs font-bold mb-2 text-amber-300 text-center flex items-center gap-1">
+                        ⚡ でんち
+                    </div>
+
+                    <!-- 縦向き電池 -->
+                    <div class="battery-container">
+                        <div class="battery-top"></div>
+                        <div id="cell-4" class="battery-cell"></div>
+                        <div id="cell-3" class="battery-cell"></div>
+                        <div id="cell-2" class="battery-cell"></div>
+                        <div id="cell-1" class="battery-cell"></div>
+                    </div>
+
+                    <!-- 電池ステータス -->
+                    <div id="battery-status" class="mt-3 text-xs font-extrabold text-slate-300 text-center">
+                        エネルギー: <span id="energy-count" class="text-amber-400 text-sm">0</span>/4
+                    </div>
+                </div>
+            </div>
+
+            <!-- 解答エリア：やさしい（3たく） -->
+            <div id="input-section-easy" class="space-y-3">
+                <div class="text-sm font-bold text-slate-500 mb-2">答えを１つえらんでね！</div>
+                <div id="choices-container" class="grid grid-cols-1 gap-3">
+                    <!-- JSで選択肢ボタンを動的に挿入 -->
+                </div>
+            </div>
+
+            <!-- 解答エリア：ふつう・むずかしい（タイピング ＆ 50音表タッチ） -->
+            <div id="input-section-text" class="hidden space-y-4">
+                <!-- 入力フォーム display & 送信 -->
+                <div class="flex gap-2">
+                    <input type="text" id="answer-input" readonly placeholder="ここを タッチ または キーボードで にゅうりょく" 
+                           class="flex-1 bg-slate-100 border-2 border-emerald-400 rounded-2xl px-4 py-3 text-xl font-bold text-slate-800 text-center focus:outline-none focus:bg-white focus:border-emerald-600 transition">
+                    <button onclick="deleteChar()" class="btn-action bg-slate-300 hover:bg-slate-400 text-slate-700 font-extrabold px-4 rounded-2xl">
+                        けす
+                    </button>
+                    <button onclick="submitTextAnswer()" class="btn-action bg-emerald-500 hover:bg-emerald-600 text-white font-extrabold px-6 text-lg rounded-2xl">
+                        けってい！
+                    </button>
+                </div>
+
+                <!-- 50音表キーボード (トグル/表示) -->
+                <div class="bg-slate-100 p-3 rounded-2xl border border-slate-200">
+                    <div class="flex justify-between items-center mb-2 px-1">
+                        <span class="text-xs font-bold text-slate-600">50おんひょう から えらぶ</span>
+                        <div class="flex gap-1">
+                            <button onclick="toggleDakuten('dakuten')" class="text-xs bg-amber-200 hover:bg-amber-300 px-2 py-1 rounded font-bold">゛(だくてん)</button>
+                            <button onclick="toggleDakuten('handakuten')" class="text-xs bg-amber-200 hover:bg-amber-300 px-2 py-1 rounded font-bold">゜(はんだくてん)</button>
+                            <button onclick="toggleSmall()" class="text-xs bg-indigo-200 hover:bg-indigo-300 px-2 py-1 rounded font-bold">ぁぃぅぇぉ(ちいさい)</button>
+                        </div>
+                    </div>
+                    <!-- 50音キーボードグリッド -->
+                    <div id="kana-keyboard" class="grid grid-cols-10 gap-1 md:gap-1.5 text-center text-sm font-bold">
+                        <!-- JSで50音キーを生成 -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- 正解・不正解モーダル・フィードバック表示 -->
+            <div id="feedback-overlay" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 hidden">
+                <div class="bg-white rounded-3xl p-6 md:p-8 max-w-md w-full text-center shadow-2xl border-4 border-emerald-400 pop-in">
+                    <div id="feedback-icon" class="text-6xl mb-2">🎉</div>
+                    <h3 id="feedback-title" class="text-3xl font-black mb-2 text-emerald-600">せいかい！</h3>
+                    <p id="feedback-msg" class="text-slate-600 font-bold mb-4">エネルギーが 1つ たまったよ！</p>
+                    
+                    <div id="explanation-box" class="bg-emerald-50 p-4 rounded-2xl text-left text-xs md:text-sm text-emerald-900 font-bold mb-6 border border-emerald-200">
+                        <!-- 解説テキスト -->
+                    </div>
+
+                    <button id="next-btn" onclick="nextQuestion()" class="btn-action w-full bg-emerald-500 hover:bg-emerald-600 text-white font-extrabold py-3.5 px-6 rounded-2xl text-xl">
+                        つぎの問題へ ➔
+                    </button>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- 3. 結果（リザルト）画面 -->
+        <div id="screen-result" class="w-full bg-white p-6 md:p-8 rounded-3xl shadow-xl border-4 border-emerald-300 text-center hidden pop-in">
+            <div id="result-badge" class="inline-block bg-amber-400 text-slate-900 text-sm font-black px-4 py-1.5 rounded-full mb-3">
+                ゲームクリア！
+            </div>
+            
+            <h2 class="text-3xl md:text-4xl font-black text-slate-800 mb-4">けっか はっぴょう！</h2>
+
+            <!-- スコアカード -->
+            <div class="bg-gradient-to-br from-amber-50 to-orange-50 p-6 rounded-3xl border-2 border-amber-200 mb-6 relative overflow-hidden">
+                <div class="text-slate-500 font-bold text-sm mb-1">ゲットした てんすう</div>
+                <div class="text-5xl md:text-6xl font-black text-amber-500 my-2">
+                    <span id="final-score">0</span> <span class="text-2xl">てん</span>
+                </div>
+                
+                <!-- 倍率ボーナス表示 -->
+                <div id="bonus-banner" class="hidden mt-3 inline-flex items-center gap-2 bg-gradient-to-r from-red-500 to-amber-500 text-white px-4 py-1.5 rounded-full font-black text-xs md:text-sm animate-bounce shadow-md">
+                    ⚡ でんち満タン！てんすう 2ばい ボーナス発動！ ⚡
+                </div>
+
+                <div id="rank-title" class="mt-4 text-xl md:text-2xl font-black text-emerald-600">
+                    なぞなぞ はかせ級！
+                </div>
+            </div>
+
+            <!-- ボタン -->
+            <div class="flex flex-col sm:flex-row gap-3">
+                <button onclick="showScreen('screen-title')" class="btn-action flex-1 bg-slate-200 hover:bg-slate-300 text-slate-700 font-extrabold py-3.5 rounded-2xl text-lg">
+                    🏠 タイトルへ
+                </button>
+                <button onclick="restartGame()" class="btn-action flex-1 bg-emerald-500 hover:bg-emerald-600 text-white font-extrabold py-3.5 rounded-2xl text-lg">
+                    🔄 もう一度あそぶ
+                </button>
+            </div>
+        </div>
+
+    </main>
+
+    <footer class="w-full max-w-3xl text-center text-xs text-slate-400 font-bold mt-4">
+        © ナゾダゾ - たのしいなぞなぞアプリ
+    </footer>
+
+    <script>
+        /* -------------------------------------------------------------
+           1. サウンドエフェクト (Web Audio API)
+        ------------------------------------------------------------- */
+        let soundEnabled = true;
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        let audioCtx = null;
+
+        function initAudio() {
+            if (!audioCtx) {
+                audioCtx = new AudioContext();
+            }
+        }
+
+        function playSound(type) {
+            if (!soundEnabled) return;
+            initAudio();
+
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+
+            const now = audioCtx.currentTime;
+
+            if (type === 'click') {
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(400, now);
+                osc.frequency.exponentialRampToValueAtTime(800, now + 0.08);
+                gain.gain.setValueAtTime(0.15, now);
+                gain.gain.linearRampToValueAtTime(0.01, now + 0.08);
+                osc.start(now);
+                osc.stop(now + 0.08);
+            } else if (type === 'correct') {
+                // 正解チャイム (ド・ミ・ソ)
+                const notes = [523.25, 659.25, 783.99, 1046.50];
+                notes.forEach((freq, idx) => {
+                    const o = audioCtx.createOscillator();
+                    const g = audioCtx.createGain();
+                    o.connect(g);
+                    g.connect(audioCtx.destination);
+                    o.type = 'triangle';
+                    o.frequency.setValueAtTime(freq, now + idx * 0.08);
+                    g.gain.setValueAtTime(0.2, now + idx * 0.08);
+                    g.gain.linearRampToValueAtTime(0.01, now + idx * 0.08 + 0.2);
+                    o.start(now + idx * 0.08);
+                    o.stop(now + idx * 0.08 + 0.2);
+                });
+            } else if (type === 'wrong') {
+                // 不正解ブザー
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(150, now);
+                osc.frequency.setValueAtTime(120, now + 0.15);
+                gain.gain.setValueAtTime(0.2, now);
+                gain.gain.linearRampToValueAtTime(0.01, now + 0.3);
+                osc.start(now);
+                osc.stop(now + 0.3);
+            } else if (type === 'charge') {
+                // エネルギー充填音
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(300, now);
+                osc.frequency.exponentialRampToValueAtTime(1200, now + 0.3);
+                gain.gain.setValueAtTime(0.2, now);
+                gain.gain.linearRampToValueAtTime(0.01, now + 0.3);
+                osc.start(now);
+                osc.stop(now + 0.3);
+            } else if (type === 'fever') {
+                // 満タンファンファーレ
+                [440, 554.37, 659.25, 880].forEach((freq, idx) => {
+                    const o = audioCtx.createOscillator();
+                    const g = audioCtx.createGain();
+                    o.connect(g);
+                    g.connect(audioCtx.destination);
+                    o.type = 'square';
+                    o.frequency.setValueAtTime(freq, now + idx * 0.1);
+                    g.gain.setValueAtTime(0.15, now + idx * 0.1);
+                    g.gain.linearRampToValueAtTime(0.01, now + idx * 0.1 + 0.3);
+                    o.start(now + idx * 0.1);
+                    o.stop(now + idx * 0.1 + 0.3);
+                });
+            }
+        }
+
+        function toggleSound() {
+            soundEnabled = !soundEnabled;
+            document.getElementById('sound-toggle').innerText = soundEnabled ? '🔊 おと: ON' : '🔇 おと: OFF';
+        }
+
+        /* -------------------------------------------------------------
+           2. 問題データ (やさしい・ふつう・むずかしい 各4問)
+        ------------------------------------------------------------- */
+        const QUESTION_BANK = {
+            easy: [
+                {
+                    q: "おなかの まんなかに あるものは なあに？",
+                    type: "3choice",
+                    choices: ["へそ", "おなか", "せなか"],
+                    answer: "へそ",
+                    explain: "「おなか」の もじの まんなかは「な」だけど、体にあるのは「おへそ」だね！"
+                },
+                {
+                    q: "こたえは かんたん！ あしたの てんきは なあに？",
+                    type: "3choice",
+                    choices: ["かんたん", "はれ", "あめ"],
+                    answer: "かんたん",
+                    explain: "「答えは『簡単』」と言っているから、答えは「かんたん」なんだよ！"
+                },
+                {
+                    q: "からだに 「くび」は いくつ ある？",
+                    type: "3choice",
+                    choices: ["3つ", "5つ", "7つ"],
+                    answer: "7つ",
+                    explain: "「首」1つ＋「手首」2つ（左右）＋「足首」2つ（左右）＋「乳首」2つ（左右）＝ぜんぶで7つだよ！"
+                },
+                {
+                    q: "「しょうがっこう」と「おとな」、どっちが おおきい？",
+                    type: "3choice",
+                    choices: ["しょうがっこう", "おとな", "おなじ"],
+                    answer: "しょうがっこう",
+                    explain: "「おとな（大人）」は人のことだけど、「しょうがっこう」は大きな建物のこと！建物のほうがずっと大きいよね！"
+                }
+            ],
+            normal: [
+                {
+                    q: "まんいんでんしゃでも まいにち かならず すわれるのは なぜ？",
+                    type: "input",
+                    answers: ["うんてんし", "うんてんしさん", "うんてんしゅ", "運転士", "運転手"],
+                    hint: "電車の一番前で操縦（そうじゅう）している人だよ！",
+                    explain: "電車の運転士さんは、いつでも自分専用の運転席（うんてんせき）に座れるね！"
+                },
+                {
+                    q: "たろうくんが かじの いえに いたのは なぜ？",
+                    type: "input",
+                    answers: ["しょうぼうし", "消防士", "しょうぼうしさん", "しょうぼうしだから"],
+                    hint: "火事（かじ）のとき かけつけてくれる ひとは だれ？",
+                    explain: "「火事（かじ）の家」に来ているのは「消防士（しょうぼうし）」さん！火を消すのが おしごとだからね！"
+                },
+                {
+                    q: "いちにちじゅう くるくる まわっているのに つかれないのは なぜ？",
+                    type: "input",
+                    answers: ["とけい", "時計", "とけいのはり"],
+                    hint: "お部屋の壁や腕についていて、時間を教えてくれるもの！",
+                    explain: "時計（とけい）の針はずっとくるくる回り続けているよ！止まったら大変だから、疲れずに動き続けているんだね！"
+                },
+                {
+                    q: "いちまいの かみを きらずに 10まいにするには どうする？",
+                    type: "input",
+                    answers: ["じゅうまいとかく", "10まいとかく", "じゅうまい", "10まい", "文字でかく", "かく", "書く"],
+                    hint: "紙にえんぴつで「文字」を書くんだよ！",
+                    explain: "紙に「10枚（じゅうまい）」と文字を書けば、切らなくても10枚になるね！"
+                }
+            ],
+            hard: [
+                {
+                    q: "チョコレート、プリン、ドーナツ。3じのおやつの ときに でてきたのは？",
+                    type: "input",
+                    answers: ["プリン", "ぷりん"],
+                    hint: "「3じ」には「3もじ」という いみも あるよ！3つの おかしを かぞえてみて！",
+                    explain: "「3じ（＝3文字）」のおやつは「プリン（ぷ・り・ん）」だけ！チョコレートは6文字、ドーナツは4文字だね！"
+                },
+                {
+                    q: "にんじんを 10ほん しゅうかくしようと 3ほん とったら、手元にあるのは あと いくつ？",
+                    type: "input",
+                    answers: ["3ほん", "3", "さんほん", "3本", "さん"],
+                    hint: "自分が実際に「取った（手に入れた）」本数をかぞえてね！",
+                    explain: "自分が収穫して手に持っているのは、取った「3本」だけだね！"
+                },
+                {
+                    q: "よるも ねずにはたらいているのに なぜ げんき？",
+                    type: "input",
+                    answers: ["ねずみ", "ネズミ", "ねずみだから", "ネズミだから"],
+                    hint: "動物の名前が入っているよ！「ねず・に」",
+                    explain: "寝ていない（ねずに）のではなくて、動物の「ネズミ」が働いているからなんだね！"
+                },
+                {
+                    q: "かいがいりょこうに いけなかった むしは なあに？",
+                    type: "input",
+                    answers: ["か", "蚊", "かのむし"],
+                    hint: "「かいがい」を もじって みよう！「か・いがい」",
+                    explain: "「海外（かいがい）」は「か・いがい」＝「か（蚊）」以外！だから「か（蚊）」だけ海外に行けなかったんだね！"
+                }
+            ]
+        };
+
+        /* -------------------------------------------------------------
+           3. アプリケーション状態変数
+        ------------------------------------------------------------- */
+        let currentDifficulty = 'easy';
+        let currentQuestionIdx = 0;
+        let score = 0;
+        let energyCount = 0; // 電池エネルギー (0〜4)
+        let questions = [];
+
+        // 50音キーボード配置用データ
+        const KANA_GRID = [
+            ['あ','い','う','え','お'],
+            ['か','き','く','け','こ'],
+            ['さ','し','す','せ','そ'],
+            ['た','ち','つ','て','と'],
+            ['な','に','ぬ','ね','の'],
+            ['は','ひ','ふ','へ','ほ'],
+            ['ま','み','む','め','も'],
+            ['や','ゆ','よ','わ','ん'],
+            ['ら','り','る','れ','ろ']
+        ];
+
+        /* -------------------------------------------------------------
+           4. 画面遷移 & ゲーム初期化
+        ------------------------------------------------------------- */
+        function showScreen(screenId) {
+            ['screen-title', 'screen-play', 'screen-result'].forEach(id => {
+                document.getElementById(id).classList.add('hidden');
+            });
+            document.getElementById(screenId).classList.remove('hidden');
+            playSound('click');
+        }
+
+        function startGame(difficulty) {
+            initAudio();
+            currentDifficulty = difficulty;
+            currentQuestionIdx = 0;
+            score = 0;
+            energyCount = 0;
+            questions = [...QUESTION_BANK[difficulty]];
+
+            // UIバッジ更新
+            const diffNames = { easy: '🌱 やさしい', normal: '⭐ ふつう', hard: '🔥 むずかしい' };
+            document.getElementById('diff-badge').innerText = diffNames[difficulty];
+
+            updateBatteryUI();
+            updateScoreUI();
+            buildKanaKeyboard();
+            showScreen('screen-play');
+            loadQuestion();
+        }
+
+        function restartGame() {
+            startGame(currentDifficulty);
+        }
+
+        /* -------------------------------------------------------------
+           5. 50音キーボードの生成 & 入力処理
+        ------------------------------------------------------------- */
+        function buildKanaKeyboard() {
+            const container = document.getElementById('kana-keyboard');
+            container.innerHTML = '';
+
+            KANA_GRID.forEach(row => {
+                row.forEach(char => {
+                    const btn = document.createElement('button');
+                    btn.className = 'kana-key bg-white hover:bg-emerald-100 text-slate-800 p-2 md:p-2.5 rounded-xl border border-slate-300 font-bold text-sm md:text-base';
+                    btn.innerText = char;
+                    btn.onclick = () => {
+                        playSound('click');
+                        appendChar(char);
+                    };
+                    container.appendChild(btn);
+                });
+            });
+        }
+
+        function appendChar(char) {
+            const input = document.getElementById('answer-input');
+            input.value += char;
+        }
+
+        function deleteChar() {
+            playSound('click');
+            const input = document.getElementById('answer-input');
+            input.value = input.value.slice(0, -1);
+        }
+
+        // 濁点・半濁点・小文字変換マップ
+        const DAKUTEN_MAP = {
+            'か':'が','き':'ぎ','く':'ぐ','け':'げ','こ':'ご',
+            'さ':'ざ','し':'じ','す':'ず','せ':'ぜ','そ':'ぞ',
+            'た':'だ','ち':'ぢ','つ':'づ','て':'で','と':'ど',
+            'は':'ば','ひ':'び','ふ':'ぶ','へ':'べ','ほ':'ぼ'
+        };
+        const HANDAKUTEN_MAP = {
+            'は':'ぱ','ひ':'ぴ','ふ':'ぷ','へ':'ぺ','ほ':'ぽ'
+        };
+        const SMALL_MAP = {
+            'あ':'ぁ','い':'ぃ','う':'ぅ','え':'ぇ','お':'ぉ',
+            'や':'ゃ','ゆ':'ゅ','よ':'ょ','つ':'っ',
+            'ア':'ァ','イ':'ィ','ウ':'ゥ','エ':'ェ','オ':'ォ',
+            'ヤ':'ャ','ユ':'ュ','ヨ':'ョ','ツ':'ッ'
+        };
+
+        function toggleDakuten(type) {
+            playSound('click');
+            const input = document.getElementById('answer-input');
+            let text = input.value;
+            if (!text) return;
+            const lastChar = text.slice(-1);
+            
+            const map = (type === 'dakuten') ? DAKUTEN_MAP : HANDAKUTEN_MAP;
+            if (map[lastChar]) {
+                input.value = text.slice(0, -1) + map[lastChar];
+            }
+        }
+
+        function toggleSmall() {
+            playSound('click');
+            const input = document.getElementById('answer-input');
+            let text = input.value;
+            if (!text) return;
+            const lastChar = text.slice(-1);
+
+            if (SMALL_MAP[lastChar]) {
+                input.value = text.slice(0, -1) + SMALL_MAP[lastChar];
+            }
+        }
+
+        // PCの物理キーボード入力対応
+        document.addEventListener('keydown', (e) => {
+            const screenPlay = document.getElementById('screen-play');
+            if (screenPlay.classList.contains('hidden')) return;
+            if (currentDifficulty === 'easy') return; // やさしいコースは入力不要
+
+            const input = document.getElementById('answer-input');
+            if (e.key === 'Enter') {
+                submitTextAnswer();
+            } else if (e.key === 'Backspace') {
+                deleteChar();
+            } else if (e.key.length === 1 && !e.ctrlKey && !e.metaKey) {
+                // 通常の文字入力
+                input.value += e.key;
+            }
+        });
+
+        /* -------------------------------------------------------------
+           6. 問題読み込み & 解答判定
+        ------------------------------------------------------------- */
+        function loadQuestion() {
+            const q = questions[currentQuestionIdx];
+            document.getElementById('q-num').innerText = currentQuestionIdx + 1;
+            document.getElementById('question-text').innerText = q.q;
+
+            // ヒントの処理
+            const hintBox = document.getElementById('hint-box');
+            if (q.hint) {
+                document.getElementById('hint-text').innerText = q.hint;
+                hintBox.classList.remove('hidden');
+            } else {
+                hintBox.classList.add('hidden');
+            }
+
+            // 入力エリアの切り替え
+            const easySection = document.getElementById('input-section-easy');
+            const textSection = document.getElementById('input-section-text');
+
+            if (q.type === '3choice') {
+                easySection.classList.remove('hidden');
+                textSection.classList.add('hidden');
+                renderChoices(q.choices);
+            } else {
+                easySection.classList.add('hidden');
+                textSection.classList.remove('hidden');
+                document.getElementById('answer-input').value = '';
+            }
+        }
+
+        function renderChoices(choices) {
+            const container = document.getElementById('choices-container');
+            container.innerHTML = '';
+
+            choices.forEach((choice, idx) => {
+                const btn = document.createElement('button');
+                btn.className = 'btn-action w-full bg-emerald-100 hover:bg-emerald-200 text-emerald-900 border-2 border-emerald-300 font-extrabold text-xl py-3.5 px-4 rounded-2xl text-left flex items-center justify-between';
+                btn.innerHTML = `
+                    <span>${idx + 1}. ${choice}</span>
+                    <span class="text-sm bg-emerald-200 px-3 py-1 rounded-full text-emerald-800">えらぶ</span>
+                `;
+                btn.onclick = () => checkChoiceAnswer(choice);
+                container.appendChild(btn);
+            });
+        }
+
+        function checkChoiceAnswer(selected) {
+            const q = questions[currentQuestionIdx];
+            const isCorrect = (selected === q.answer);
+            handleAnswerResult(isCorrect, q);
+        }
+
+        function submitTextAnswer() {
+            const input = document.getElementById('answer-input').value.trim();
+            if (!input) return;
+
+            const q = questions[currentQuestionIdx];
+            // 入力の正規化（ひらがな/カタカナ全半角をゆるく比較）
+            const isCorrect = q.answers.some(ans => {
+                return input.includes(ans) || ans.includes(input);
+            });
+
+            handleAnswerResult(isCorrect, q);
+        }
+
+        /* -------------------------------------------------------------
+           7. 正否判定 ＆ 電池エネルギーチャージ
+        ------------------------------------------------------------- */
+        function handleAnswerResult(isCorrect, q) {
+            const modal = document.getElementById('feedback-overlay');
+            const title = document.getElementById('feedback-title');
+            const icon = document.getElementById('feedback-icon');
+            const msg = document.getElementById('feedback-msg');
+            const explain = document.getElementById('explanation-box');
+
+            explain.innerText = "【解説】" + q.explain;
+
+            if (isCorrect) {
+                playSound('correct');
+                score += 5; // 基本点 1問5点
+                energyCount++;
+                
+                icon.innerText = "🎉";
+                title.innerText = "せいかい！";
+                title.className = "text-3xl font-black mb-2 text-emerald-600";
+                msg.innerText = "エネルギーが 1つ たまったよ！ (+5てん)";
+
+                setTimeout(() => {
+                    playSound('charge');
+                    updateBatteryUI();
+                }, 300);
+
+            } else {
+                playSound('wrong');
+                icon.innerText = "😅";
+                title.innerText = "ざんねん！";
+                title.className = "text-3xl font-black mb-2 text-rose-500";
+                msg.innerText = "もうすこし だったね！";
+            }
+
+            updateScoreUI();
+            modal.classList.remove('hidden');
+        }
+
+        function updateBatteryUI() {
+            document.getElementById('energy-count').innerText = energyCount;
+
+            for (let i = 1; i <= 4; i++) {
+                const cell = document.getElementById(`cell-${i}`);
+                if (i <= energyCount) {
+                    cell.classList.add('filled');
+                    if (energyCount === 4) {
+                        cell.classList.add('supercharged');
+                    }
+                } else {
+                    cell.classList.remove('filled', 'supercharged');
+                }
+            }
+
+            // でんち満タン演出
+            if (energyCount === 4) {
+                setTimeout(() => {
+                    playSound('fever');
+                    confetti({ particleCount: 80, spread: 60, origin: { y: 0.7 } });
+                }, 400);
+            }
+        }
+
+        function updateScoreUI() {
+            document.getElementById('current-score').innerText = score;
+        }
+
+        function nextQuestion() {
+            document.getElementById('feedback-overlay').classList.add('hidden');
+            currentQuestionIdx++;
+
+            if (currentQuestionIdx < questions.length) {
+                loadQuestion();
+            } else {
+                showResultScreen();
+            }
+        }
+
+        /* -------------------------------------------------------------
+           8. リザルト画面 & フィーバーボーナス計算
+        ------------------------------------------------------------- */
+        function showResultScreen() {
+            let finalScore = score;
+            const bonusBanner = document.getElementById('bonus-banner');
+
+            // 電池が満タン(4つ)なら点数が2倍に！
+            if (energyCount === 4) {
+                finalScore = score * 2;
+                bonusBanner.classList.remove('hidden');
+            } else {
+                bonusBanner.classList.add('hidden');
+            }
+
+            document.getElementById('final-score').innerText = finalScore;
+
+            // ランク付け
+            const rankTitle = document.getElementById('rank-title');
+            if (finalScore >= 40) {
+                rankTitle.innerText = "👑 でんせつの なぞなぞはかせ！";
+            } else if (finalScore >= 20) {
+                rankTitle.innerText = "⭐ なぞなぞ めいじん！";
+            } else if (finalScore >= 10) {
+                rankTitle.innerText = "🌱 なぞなぞ 物知りさん！";
+            } else {
+                rankTitle.innerText = "🐣 つぎは がんばろう！";
+            }
+
+            showScreen('screen-result');
+
+            // 紙吹雪演出
+            if (finalScore >= 20) {
+                confetti({
+                    particleCount: 120,
+                    spread: 80,
+                    origin: { y: 0.6 }
+                });
+            }
+        }
+    </script>
+</body>
+</html>
