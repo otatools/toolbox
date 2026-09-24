@@ -107,6 +107,20 @@
         }
         html.fonts-ready .page-content { opacity: 1; }
 
+        /* 「もどる」で読み直しになったときなど、ページが真っ白・固まって見える瞬間に
+           ちゃんと読み込み中だと分かるようにするための全画面オーバーレイ。
+           表示中の中身（.page-content）と入れかわりに、フォント確定と同じ
+           タイミングで消える。 */
+        #pageLoadingOverlay {
+            position: fixed; inset: 0; z-index: 999;
+            display: flex; align-items: center; justify-content: center;
+            background: radial-gradient(circle at 20% 15%, #fffaf0 0%, #eef6ff 55%, #e3f7f2 100%);
+            font-family: 'Zen Maru Gothic', sans-serif; font-weight: 700;
+            font-size: clamp(16px, 4vw, 20px); color: #6a6d99;
+            opacity: 1; transition: opacity 0.2s ease;
+        }
+        html.fonts-ready #pageLoadingOverlay { opacity: 0; pointer-events: none; }
+
         .bg-shapes { position: fixed; inset: 0; z-index: 0; pointer-events: none; opacity: 0.7; }
 
         .title-wrap { text-align: center; margin-bottom: 22px; z-index: 2; }
@@ -178,6 +192,7 @@
     </style>
 </head>
 <body>
+    <div id="pageLoadingOverlay">よみこみちゅう…</div>
     <svg class="bg-shapes" viewBox="0 0 400 800" preserveAspectRatio="xMidYMid slice">
         <circle cx="40" cy="90" r="70" fill="#ff8a3d" opacity="0.10"/>
         <circle cx="370" cy="650" r="110" fill="#3ed6c6" opacity="0.10"/>
@@ -241,6 +256,12 @@
         window.addEventListener('pageshow', (event) => {
             if (event.persisted) { location.reload(); }
         });
+        // 上のpageshowでの読み直しは「一度bfcacheに入ってしまったページが復元された後」の
+        // 保険。それだけだと、復元された瞬間（読み直しが始まるまでのごく短い間）に押された
+        // ボタンの反応が失われることがある。そこで、そもそもこのページをbfcacheの対象から
+        // 外してしまい（unloadイベントを1つでも登録すると、多くのブラウザはそのページを
+        // bfcacheに入れなくなる）、「もどる」のたびに必ず最初から読み直すようにしておく。
+        window.addEventListener('unload', () => {});
 
         // iOS Safariはmaximum-scale/user-scalable=noを無視してピンチ拡大してしまうことが
         // あり、ここで拡大されたまま次のroom.htmlに進むと、そちらでも拡大されたままの
@@ -313,6 +334,46 @@
                 }
             });
         });
+
+        // このページ（メイン画面）は、部屋を作る／入るのボタンを押すまでは特に
+        // つながりっぱなしにしておく必要がない（この画面自体には、リアルタイムに
+        // 更新され続けるような表示は無いため）。それなのに、タブを開いたままにして
+        // 他のことをしている・休み時間で放置されている、という間もFirebaseとの接続を
+        // ずっと保ち続けてしまい、Firebase無料プランの「同時接続数」を無駄に消費して
+        // しまう。そこで、しばらく操作が無い・タブが見えなくなったときは、いったん
+        // 接続を切っておく（db.goOffline）。ボタンを押した瞬間には必ずdb.goOnline()を
+        // 呼んでから使うので、実際の操作には影響しない（つながり直しはほぼ一瞬）。
+        let idleDisconnectTimer = null;
+        let dbIsOffline = false;
+        const IDLE_DISCONNECT_MS = 3 * 60 * 1000;      // 操作が無いまま3分で切断
+        const HIDDEN_DISCONNECT_MS = 40 * 1000;        // タブが見えなくなって40秒で切断
+        function disconnectIfIdle() {
+            if (dbIsOffline) return;
+            dbIsOffline = true;
+            try { db.goOffline(); } catch (e) {}
+        }
+        function ensureDbOnline() {
+            if (!dbIsOffline) return;
+            dbIsOffline = false;
+            try { db.goOnline(); } catch (e) {}
+        }
+        function resetIdleDisconnectTimer(ms) {
+            ensureDbOnline();
+            if (idleDisconnectTimer) clearTimeout(idleDisconnectTimer);
+            idleDisconnectTimer = setTimeout(disconnectIfIdle, ms);
+        }
+        ['click', 'touchstart', 'keydown'].forEach(evt => {
+            document.addEventListener(evt, () => resetIdleDisconnectTimer(IDLE_DISCONNECT_MS), { passive: true });
+        });
+        document.addEventListener('visibilitychange', () => {
+            if (document.hidden) {
+                if (idleDisconnectTimer) clearTimeout(idleDisconnectTimer);
+                idleDisconnectTimer = setTimeout(disconnectIfIdle, HIDDEN_DISCONNECT_MS);
+            } else {
+                resetIdleDisconnectTimer(IDLE_DISCONNECT_MS);
+            }
+        });
+        resetIdleDisconnectTimer(IDLE_DISCONNECT_MS);
 
         function toHalfWidthDigits(str) {
             return String(str).replace(/[０-９]/g, ch => String.fromCharCode(ch.charCodeAt(0) - 0xFEE0));
@@ -447,6 +508,7 @@
             saveSavedName(name);
             const btn = document.getElementById('createBtn');
             btn.disabled = true;
+            ensureDbOnline(); // しばらく放置されて接続が切れていた場合に備え、念のため先につなぎ直す
             try {
                 await authReady;
                 cleanupStaleFinishedRooms();
@@ -513,6 +575,7 @@
             saveSavedName(name);
             const btn = document.getElementById('joinBtn');
             btn.disabled = true;
+            ensureDbOnline(); // しばらく放置されて接続が切れていた場合に備え、念のため先につなぎ直す
             let uid;
             try {
                 await authReady;
@@ -534,6 +597,18 @@
                 // 点数も引き継げなくなっていた（下のscore引き継ぎコードが到達不能だった）。
                 // 今は「自分のuidの席」がすでにあれば、そのまま同じ席に入りなおす扱いにする。
                 uid = makeUid(name);
+                // 「切れて入りなおす」は許すが、「今まさに別の子が同じ名前でつながっている」
+                // ときだけは弾く。すでにいる同じ名前の子が今も接続中（connected: true、
+                // room.htmlが接続のたびに正確に保っている値）なら、それは別の子が同じ
+                // 名前を使おうとしているということなので、はじいて別の名前を促す。
+                // 接続が切れている（connected: falseまたは未設定）なら、本人が戻ってきた
+                // ものとして、これまでどおりそのまま同じ席に入りなおせるようにする。
+                if (existingUsers[uid] && existingUsers[uid].connected === true) {
+                    alert('その名前はすでに使われています。別の名前を入れてね。');
+                    btn.disabled = false;
+                    backToSelect(); // 名前を変える必要があるので、なまえ入力からやり直す最初の画面へ
+                    return;
+                }
                 const takenColors = Object.values(existingUsers).map(u => u && u.color).filter(Boolean);
                 await db.ref(`casual_rooms/${room}/users/${uid}`).update({
                     name: name,
