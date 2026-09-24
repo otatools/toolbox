@@ -97,6 +97,9 @@
                     <i class="fa-solid me-1 fa-trophy text-amber-400"></i>
                     <span>ハイスコア: <strong id="header-highscore" class="text-amber-300">0</strong></span>
                 </div>
+                <button onclick="openCollection()" id="btn-collection" class="p-2 bg-amber-800 hover:bg-amber-700 rounded-full w-9 h-9 flex items-center justify-center transition" title="コレクション">
+                    <i class="fa-solid fa-images"></i>
+                </button>
                 <button onclick="toggleAudio()" id="btn-audio" class="p-2 bg-amber-800 hover:bg-amber-700 rounded-full w-9 h-9 flex items-center justify-center transition">
                     <i class="fa-solid fa-volume-high"></i>
                 </button>
@@ -150,9 +153,11 @@
                     <h4 class="font-bold text-slate-800 text-sm flex items-center gap-1">
                         <i class="fa-solid fa-circle-info text-blue-500"></i> ゲームのルール
                     </h4>
-                    <p>⏱️ **基本制限時間は30秒**！文字を書くと自動で判定。</p>
-                    <p>💮 **綺麗に書くとタイムが伸びる**（最大+5秒ボーナス）。</p>
-                    <p>🎁 **全問正解（5問達成）**すると特別なアイテムをゲット！</p>
+                    <p>⏱️ **基本制限時間は60秒**！文字を書くと自動で判定。</p>
+                    <p>💮 **かすっていればOKのやさしい判定**、綺麗に書くとタイムが伸びる（最大+5秒ボーナス）。</p>
+                    <p>🎯 **10問クリアするとボーナス問題**（むずかしい漢字・制限時間30秒）が出現！</p>
+                    <p>🎁 **ボーナスのむずかしい漢字を書けたら**アイテムを2個ゲット！</p>
+                    <p>📚 **書いた文字はコレクションに記録**され、ベストスコアを集められる。</p>
                 </div>
             </div>
         </section>
@@ -168,7 +173,10 @@
                         小学1年生
                     </span>
                     <span id="game-progress-text" class="text-xs md:text-sm font-bold text-slate-600">
-                        第 <span id="current-q-num" class="text-amber-800 text-base">1</span> / 5 問
+                        第 <span id="current-q-num" class="text-amber-800 text-base">1</span> / 10 問
+                    </span>
+                    <span id="bonus-badge" class="hidden bg-gradient-to-r from-pink-600 to-red-600 text-white text-xs font-bold px-2.5 py-1 rounded-md animate-pulse">
+                        <i class="fa-solid fa-star me-1"></i>ボーナス！むずかしい漢字
                     </span>
                 </div>
 
@@ -280,14 +288,18 @@
                         <span class="text-sm font-bold text-red-500">点</span>
                     </div>
                     
-                    <div class="grid grid-cols-2 gap-2 pt-2 border-t border-amber-200/80 text-xs text-slate-700">
+                    <div class="grid grid-cols-3 gap-2 pt-2 border-t border-amber-200/80 text-xs text-slate-700">
                         <div class="bg-white p-2 rounded-lg border border-amber-100">
                             <span class="block text-slate-400">クリア問題数</span>
-                            <strong id="result-cleared-count" class="text-base text-slate-800">5 / 5</strong>
+                            <strong id="result-cleared-count" class="text-base text-slate-800">10 / 10</strong>
                         </div>
                         <div class="bg-white p-2 rounded-lg border border-amber-100">
                             <span class="block text-slate-400">平均美しさ精度</span>
                             <strong id="result-accuracy" class="text-base text-slate-800">88%</strong>
+                        </div>
+                        <div class="bg-white p-2 rounded-lg border border-amber-100">
+                            <span class="block text-slate-400">ボーナス漢字</span>
+                            <strong id="result-bonus-status" class="text-base text-slate-800">-</strong>
                         </div>
                     </div>
                 </div>
@@ -311,6 +323,22 @@
                         <i class="fa-solid fa-house"></i> トップに戻る
                     </button>
                 </div>
+            </div>
+        </section>
+
+        <!-- ==================== COLLECTION SCREEN ==================== -->
+        <section id="screen-collection" class="hidden flex-col gap-4 animate-fade-in">
+            <div class="bg-white rounded-2xl p-4 md:p-6 shadow-xl border-2 border-amber-200/80">
+                <div class="flex items-center justify-between mb-4 border-b pb-2">
+                    <h3 class="text-lg font-bold text-slate-800 flex items-center gap-2">
+                        <i class="fa-solid fa-images text-amber-600"></i> 文字コレクション
+                    </h3>
+                    <button onclick="goHome()" class="text-xs md:text-sm font-bold text-slate-600 hover:text-slate-900 flex items-center gap-1">
+                        <i class="fa-solid fa-house"></i> トップに戻る
+                    </button>
+                </div>
+                <p id="collection-empty-msg" class="hidden text-sm text-slate-500 text-center py-8">まだコレクションがありません。ゲームで文字を書いて集めよう！</p>
+                <div id="collection-grid" class="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-3"></div>
             </div>
         </section>
 
@@ -346,7 +374,9 @@
                 { kanji: "空", reading: "クウ・そら・あく", hint: "青いおおぞらです" },
                 { kanji: "雨", reading: "ウ・あめ", hint: "空から降るあめです" },
                 { kanji: "風", reading: "フウ・かぜ", hint: "吹きぬけるかぜです" },
-                { kanji: "話", reading: "ワ・はなす・はなし", hint: "おしゃべりすることです" }
+                { kanji: "話", reading: "ワ・はなす・はなし", hint: "おしゃべりすることです" },
+                { kanji: "雪", reading: "セツ・ゆき", hint: "空から降る白いゆきです" },
+                { kanji: "星", reading: "セイ・ショウ・ほし", hint: "夜空に光るほしです" }
             ],
             3: [
                 { kanji: "旅", reading: "リョ・たび", hint: "旅行にでかける旅です" },
@@ -354,30 +384,59 @@
                 { kanji: "運", reading: "ウン・はこぶ", hint: "運搬や運気のことです" },
                 { kanji: "薬", reading: "ヤク・くすり", hint: "体をなおすくすりです" },
                 { kanji: "意", reading: "イ", hint: "おもいや意味のことです" },
-                { kanji: "感", reading: "カン", hint: "感じること・感謝です" }
+                { kanji: "感", reading: "カン", hint: "感じること・感謝です" },
+                { kanji: "進", reading: "シン・すすむ", hint: "前にすすむことです" },
+                { kanji: "悲", reading: "ヒ・かなしい", hint: "かなしい気持ちのことです" },
+                { kanji: "面", reading: "メン・おも・つら", hint: "顔・めんのことです" },
+                { kanji: "由", reading: "ユ・ユウ・ユイ", hint: "理由・自由のゆです" }
             ],
             4: [
                 { kanji: "勇", reading: "ユウ・いさむ", hint: "勇気のことです" },
                 { kanji: "願", reading: "ガン・ねがう", hint: "おねがいすることです" },
                 { kanji: "照", reading: "ショウ・てる・てらす", hint: "光で照らすことです" },
                 { kanji: "愛", reading: "アイ", hint: "大切にする愛です" },
-                { kanji: "覚", reading: "カク・おぼえる・さめる", hint: "暗記・覚えることです" }
+                { kanji: "覚", reading: "カク・おぼえる・さめる", hint: "暗記・覚えることです" },
+                { kanji: "節", reading: "セツ・ふし", hint: "季節や、ふしめのことです" },
+                { kanji: "察", reading: "サツ", hint: "察することのさつです" },
+                { kanji: "共", reading: "キョウ・とも", hint: "いっしょに、ともにです" },
+                { kanji: "巣", reading: "ソウ・す", hint: "鳥や虫がつくるすです" },
+                { kanji: "積", reading: "セキ・つむ", hint: "積みかさねることです" }
             ],
             5: [
                 { kanji: "桜", reading: "オウ・さくら", hint: "春に咲く綺麗な花です" },
                 { kanji: "鏡", reading: "キョウ・かがみ", hint: "姿をうつすかがみです" },
                 { kanji: "厳", reading: "ゲン・きびしい", hint: "厳格できびしいことです" },
                 { kanji: "燃", reading: "ネン・もえる", hint: "火がもえることです" },
-                { kanji: "築", reading: "チク・きずく", hint: "建物をたてることです" }
+                { kanji: "築", reading: "チク・きずく", hint: "建物をたてることです" },
+                { kanji: "快", reading: "カイ・こころよい", hint: "気持ちがよいことです" },
+                { kanji: "志", reading: "シ・こころざす", hint: "こころざし・目標のことです" },
+                { kanji: "準", reading: "ジュン", hint: "準備のじゅんです" },
+                { kanji: "布", reading: "フ・ぬの", hint: "服の材料になるぬのです" },
+                { kanji: "仮", reading: "カ・かり", hint: "仮のもの、かりのことです" }
             ],
             6: [
                 { kanji: "潮", reading: "チョウ・しお", hint: "海のしおの流れです" },
                 { kanji: "激", reading: "ゲキ・はげしい", hint: "勢いが激しいことです" },
                 { kanji: "警", reading: "ケイ", hint: "警戒・警察のことです" },
                 { kanji: "蔵", reading: "ゾウ・くら", hint: "宝ものをしまうくらです" },
-                { kanji: "創", reading: "ソウ・つく・はじめる", hint: "新しく作ることです" }
+                { kanji: "創", reading: "ソウ・つく・はじめる", hint: "新しく作ることです" },
+                { kanji: "危", reading: "キ・あぶない", hint: "あぶないことです" },
+                { kanji: "権", reading: "ケン・ゴン", hint: "権利のけんです" },
+                { kanji: "純", reading: "ジュン", hint: "純粋のじゅんです" },
+                { kanji: "誠", reading: "セイ・まこと", hint: "誠実、まことのことです" },
+                { kanji: "庁", reading: "チョウ", hint: "都道府県庁などのちょうです" }
             ]
         };
+
+        /* 全問クリア後のボーナス問題専用（学年をこえたむずかしい漢字） */
+        const ADVANCED_KANJI = [
+            { kanji: "龍", reading: "リュウ・たつ", hint: "伝説の生きもの、龍です" },
+            { kanji: "鷹", reading: "ヨウ・たか", hint: "空を飛ぶ猛禽類のたかです" },
+            { kanji: "蘭", reading: "ラン", hint: "美しいランの花です" },
+            { kanji: "響", reading: "キョウ・ひびく", hint: "音がひびくことです" },
+            { kanji: "麗", reading: "レイ・うるわしい", hint: "美しく、うるわしいことです" },
+            { kanji: "鷲", reading: "シュウ・わし", hint: "大きな鳥のわしです" }
+        ];
 
         /* ===================================================================
            2. ITEMS DEFINITION (アイテム仕様)
@@ -431,21 +490,33 @@
         /* ===================================================================
            3. GLOBAL STATE & SOUND EFFECTS
            =================================================================== */
+        const QUESTIONS_PER_GAME = 10;
+        const BASE_TIME = 60.0;      // 基本の制限時間（秒）
+        const BONUS_TIME = 30.0;     // ボーナス（むずかしい漢字）の制限時間（秒）
+
         const state = {
             grade: 1,
             questions: [],
             currentQIndex: 0,
             score: 0,
             highScore: parseInt(safeGetItem('kanji_master_highscore', '0'), 10),
-            timeLeft: 30.0,
-            maxTime: 30.0,
+            timeLeft: BASE_TIME,
+            maxTime: BASE_TIME,
             isFrozen: false,
             isAnswering: false,
+            isBonusRound: false,      // 全問正解後の「むずかしい漢字」ボーナス中かどうか
+            bonusQuestion: null,
+            bonusCompleted: false,    // ボーナスの漢字を時間内に書けたか
             scoreMultiplier: 1,
             accuracyHistory: [],
             inventory: (() => {
                 try { return JSON.parse(safeGetItem('kanji_master_items', '["time_add"]')); }
                 catch (e) { return ['time_add']; }
+            })(),
+            // 書いた文字のコレクション：{ "漢字": { score, reading, grade } }
+            collection: (() => {
+                try { return JSON.parse(safeGetItem('kanji_master_collection', '{}')); }
+                catch (e) { return {}; }
             })(),
             timerInterval: null,
             freezeTimer: null
@@ -627,7 +698,8 @@
             refCtx.fillStyle = '#000000';
             refCtx.strokeStyle = '#000000';
             // 手書きペンの太さに合わせた判定の許容幅（太さ）を持たせて判定を優しくマイルドに
-            refCtx.lineWidth = 16;
+            // 「かすっていたらOK」にするため、さらに太めにして当たり判定を広げる
+            refCtx.lineWidth = 24;
             refCtx.lineJoin = 'round';
             refCtx.font = "600 220px 'Klee One', 'UD Digital Kyokasho NK-R', 'HG教科書体', 'BIZ UDPMincho', serif";
             refCtx.textAlign = 'center';
@@ -646,9 +718,10 @@
             let userTotal = 0;      // ユーザー描画の総ピクセル数
 
             // 16ピクセル飛ばしで軽量かつ均等サンプリング
+            // かすった程度の薄い線もヒットとして拾えるよう判定を甘くする（30→10）
             for (let i = 3; i < userImgData.length; i += 16) {
-                const userAlpha = userImgData[i] > 30 ? 1 : 0;
-                const refAlpha = refImgData[i] > 30 ? 1 : 0;
+                const userAlpha = userImgData[i] > 10 ? 1 : 0;
+                const refAlpha = refImgData[i] > 10 ? 1 : 0;
 
                 if (refAlpha) refTotal++;
                 if (userAlpha) userTotal++;
@@ -661,9 +734,9 @@
             const coverageRatio = intersection / refTotal; // お手本をどれだけカバーできているか
             const overflowRatio = Math.max(0, userTotal - intersection) / userTotal; // はみ出し率
 
-            // スコア算出（手書きのブレを優しくカバー）
-            let score = (coverageRatio * 110) - (overflowRatio * 15);
-            score = Math.min(100, Math.max(0, Math.round(score * 1.15)));
+            // スコア算出：きれいに書けたら90点前後、少しかすった程度でも合格になるよう調整
+            let score = (coverageRatio * 135) - (overflowRatio * 8);
+            score = Math.min(100, Math.max(0, Math.round(score)));
 
             return score;
         }
@@ -707,13 +780,16 @@
         function startGame(grade) {
             state.grade = grade;
             state.isAnswering = false;
-            // 該当学年の漢字からランダムに5問をピックアップ
+            state.isBonusRound = false;
+            state.bonusQuestion = null;
+            state.bonusCompleted = false;
+            // 該当学年の漢字からランダムに10問をピックアップ
             const kanjiList = shuffleArray([...KANJI_DATABASE[grade]]);
-            state.questions = kanjiList.slice(0, 5);
+            state.questions = kanjiList.slice(0, QUESTIONS_PER_GAME);
             state.currentQIndex = 0;
             state.score = 0;
-            state.timeLeft = 30.0;
-            state.maxTime = 30.0;
+            state.timeLeft = BASE_TIME;
+            state.maxTime = BASE_TIME;
             state.isFrozen = false;
             state.scoreMultiplier = 1;
             state.accuracyHistory = [];
@@ -728,12 +804,28 @@
             renderGameInventory();
         }
 
+        // 現在出題中の問題（通常問題 or ボーナスのむずかしい漢字）を返す
+        function getCurrentQuestion() {
+            return state.isBonusRound ? state.bonusQuestion : state.questions[state.currentQIndex];
+        }
+
         function loadQuestion() {
             clearCanvas();
             hideGuide();
 
-            const q = state.questions[state.currentQIndex];
-            document.getElementById('current-q-num').innerText = state.currentQIndex + 1;
+            const q = getCurrentQuestion();
+            const progressText = document.getElementById('game-progress-text');
+            const bonusBadge = document.getElementById('bonus-badge');
+
+            if (state.isBonusRound) {
+                progressText.classList.add('hidden');
+                bonusBadge.classList.remove('hidden');
+            } else {
+                progressText.classList.remove('hidden');
+                bonusBadge.classList.add('hidden');
+                document.getElementById('current-q-num').innerText = state.currentQIndex + 1;
+            }
+
             document.getElementById('target-kanji-display').innerText = q.kanji;
             document.getElementById('target-kanji-reading').innerText = q.reading;
             document.getElementById('game-score').innerText = state.score;
@@ -757,7 +849,10 @@
                 state.timeLeft -= 0.1;
                 if (state.timeLeft <= 0) {
                     state.timeLeft = 0;
-                    endGame(false); // タイムアップ
+                    // 通常問題の途中でタイムアップ→負け。ボーナス（むずかしい漢字）の
+                    // 途中でタイムアップした場合は、10問クリア自体は達成済みなので
+                    // isAllCleared=trueで終了しつつ、ボーナス未達成として扱う
+                    endGame(state.isBonusRound ? true : false);
                 }
 
                 if (state.timeLeft <= 5.0 && Math.floor(state.timeLeft * 10) % 10 === 0) {
@@ -778,24 +873,35 @@
             const submitBtn = document.getElementById('btn-submit');
             if (submitBtn) submitBtn.disabled = true;
 
-            const currentQ = state.questions[state.currentQIndex];
+            const currentQ = getCurrentQuestion();
             const accuracy = evaluateDrawing(currentQ.kanji);
             state.accuracyHistory.push(accuracy);
+
+            // 書いた文字をコレクションに記録（自己ベストのスコアだけ更新）
+            const existing = state.collection[currentQ.kanji];
+            if (!existing || accuracy > existing.score) {
+                state.collection[currentQ.kanji] = {
+                    score: accuracy,
+                    reading: currentQ.reading,
+                    grade: state.isBonusRound ? 'bonus' : state.grade
+                };
+                safeSetItem('kanji_master_collection', JSON.stringify(state.collection));
+            }
 
             let bonusTime = 0;
             let earnedScore = 0;
             let stampType = 'good'; // 'excellent', 'great', 'good', 'miss'
 
-            // マイルドで気持ちよくプレイできる判定閾値に調整
-            if (accuracy >= 75) {
+            // 「かすっていたらOK」なマイルドな判定閾値
+            if (accuracy >= 70) {
                 stampType = 'excellent';
                 bonusTime = 5.0;
                 earnedScore = 150;
-            } else if (accuracy >= 55) {
+            } else if (accuracy >= 45) {
                 stampType = 'great';
                 bonusTime = 3.0;
                 earnedScore = 100;
-            } else if (accuracy >= 35) {
+            } else if (accuracy >= 15) {
                 stampType = 'good';
                 bonusTime = 1.0;
                 earnedScore = 50;
@@ -817,15 +923,28 @@
 
             // 判定スタンプ演出を表示
             showJudgmentStamp(stampType, accuracy, bonusTime);
-            audio.playSuccess(accuracy >= 55);
+            audio.playSuccess(accuracy >= 45);
 
             // 次の問題へ（少し溜めて進む）
             setTimeout(() => {
                 state.isAnswering = false;
                 if (submitBtn) submitBtn.disabled = false;
+
+                if (state.isBonusRound) {
+                    // むずかしい漢字を時間内に書けた！アイテムを2個もらえる
+                    state.bonusCompleted = true;
+                    endGame(true);
+                    return;
+                }
+
                 state.currentQIndex++;
                 if (state.currentQIndex >= state.questions.length) {
-                    endGame(true); // 全問達成クリア！
+                    // 10問全問正解！ボーナスの「むずかしい漢字」へ突入
+                    state.isBonusRound = true;
+                    state.bonusQuestion = ADVANCED_KANJI[Math.floor(Math.random() * ADVANCED_KANJI.length)];
+                    state.timeLeft = BONUS_TIME;
+                    state.maxTime = BONUS_TIME;
+                    loadQuestion();
                 } else {
                     loadQuestion();
                 }
@@ -984,32 +1103,44 @@
                 : 0;
 
             document.getElementById('result-score').innerText = state.score;
-            document.getElementById('result-cleared-count').innerText = `${state.currentQIndex} / 5`;
+            document.getElementById('result-cleared-count').innerText = `${Math.min(state.currentQIndex, QUESTIONS_PER_GAME)} / ${QUESTIONS_PER_GAME}`;
             document.getElementById('result-accuracy').innerText = `${avgAccuracy}%`;
 
             const rewardSection = document.getElementById('reward-section');
+            const bonusStatusEl = document.getElementById('result-bonus-status');
 
-            if (isAllCleared) {
-                document.getElementById('result-title').innerText = "🌸 全問正解マスター！ 💮";
-                document.getElementById('result-subtitle').innerText = "お題の文字を見事に完璧に再現しました！";
+            if (isAllCleared && state.bonusCompleted) {
+                document.getElementById('result-title').innerText = "🌸 全問正解＋むずかしい漢字も達成！ 💮";
+                document.getElementById('result-subtitle').innerText = `ボーナスの「${state.bonusQuestion ? state.bonusQuestion.kanji : ''}」まで書き切りました！`;
+                bonusStatusEl.innerText = "達成！";
 
-                // 全問正解時のランダム報酬プレゼント
+                // むずかしい漢字を書けたらアイテムを2個プレゼント
                 const rewardKeys = Object.keys(ITEM_TYPES);
-                const randomItemKey = rewardKeys[Math.floor(Math.random() * rewardKeys.length)];
-                state.inventory.push(randomItemKey);
+                const gotItems = [
+                    rewardKeys[Math.floor(Math.random() * rewardKeys.length)],
+                    rewardKeys[Math.floor(Math.random() * rewardKeys.length)]
+                ];
+                gotItems.forEach(k => state.inventory.push(k));
                 safeSetItem('kanji_master_items', JSON.stringify(state.inventory));
 
-                const rewardItem = ITEM_TYPES[randomItemKey];
-                document.getElementById('reward-item-display').innerHTML = `
-                    <div class="px-3 py-1.5 ${rewardItem.color} text-white font-bold text-xs rounded-xl flex items-center gap-2 shadow">
-                        <i class="fa-solid ${rewardItem.icon}"></i>
-                        <span>${rewardItem.name} を獲得！</span>
-                    </div>
-                `;
+                document.getElementById('reward-item-display').innerHTML = gotItems.map(k => {
+                    const item = ITEM_TYPES[k];
+                    return `
+                    <div class="px-3 py-1.5 ${item.color} text-white font-bold text-xs rounded-xl flex items-center gap-2 shadow">
+                        <i class="fa-solid ${item.icon}"></i>
+                        <span>${item.name} を獲得！</span>
+                    </div>`;
+                }).join('');
                 rewardSection.classList.remove('hidden');
+            } else if (isAllCleared) {
+                document.getElementById('result-title').innerText = "10問クリア！";
+                document.getElementById('result-subtitle').innerText = "でもボーナスのむずかしい漢字は時間切れ…また挑戦してね！";
+                bonusStatusEl.innerText = "失敗…";
+                rewardSection.classList.add('hidden');
             } else {
                 document.getElementById('result-title').innerText = "⏱️ タイムアップ！";
                 document.getElementById('result-subtitle').innerText = "形を意識して素早く書く練習をしてみよう！";
+                bonusStatusEl.innerText = "挑戦せず";
                 rewardSection.classList.add('hidden');
             }
 
@@ -1033,15 +1164,52 @@
         }
 
         function switchScreen(screenId) {
-            document.getElementById('screen-home').classList.add('hidden');
-            document.getElementById('screen-game').classList.add('hidden');
-            document.getElementById('screen-result').classList.add('hidden');
+            ['screen-home', 'screen-game', 'screen-result', 'screen-collection'].forEach(id => {
+                document.getElementById(id).classList.add('hidden');
+            });
 
             const target = document.getElementById(screenId);
             target.classList.remove('hidden');
-            if (screenId === 'screen-game') {
+            if (screenId === 'screen-game' || screenId === 'screen-collection') {
                 target.classList.add('flex');
             }
+        }
+
+        /* ===================================================================
+           9-2. コレクション画面
+           =================================================================== */
+        function openCollection() {
+            clearInterval(state.timerInterval);
+            renderCollectionScreen();
+            switchScreen('screen-collection');
+        }
+
+        function renderCollectionScreen() {
+            const grid = document.getElementById('collection-grid');
+            const emptyMsg = document.getElementById('collection-empty-msg');
+            const entries = Object.entries(state.collection); // [kanji, {score, reading, grade}]
+
+            if (entries.length === 0) {
+                grid.innerHTML = '';
+                emptyMsg.classList.remove('hidden');
+                return;
+            }
+            emptyMsg.classList.add('hidden');
+
+            // スコアの高い順に並べる
+            entries.sort((a, b) => b[1].score - a[1].score);
+
+            grid.innerHTML = entries.map(([kanji, data]) => {
+                const badgeColor = data.score >= 70 ? 'bg-red-600' : data.score >= 45 ? 'bg-pink-600' : data.score >= 15 ? 'bg-blue-600' : 'bg-slate-400';
+                const gradeLabel = data.grade === 'bonus' ? 'ボーナス' : `${data.grade}年`;
+                return `
+                    <div class="relative bg-amber-50/60 border border-amber-200 rounded-xl p-2 flex flex-col items-center justify-center aspect-square shadow-sm">
+                        <span class="absolute top-1 left-1 text-[9px] bg-slate-700/80 text-white px-1.5 py-0.5 rounded-full">${gradeLabel}</span>
+                        <span class="font-kyokasho text-3xl sm:text-4xl text-slate-900">${kanji}</span>
+                        <span class="mt-1 text-[10px] ${badgeColor} text-white font-bold px-2 py-0.5 rounded-full">${data.score}点</span>
+                    </div>
+                `;
+            }).join('');
         }
 
         /* ===================================================================
