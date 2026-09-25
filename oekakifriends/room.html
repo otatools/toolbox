@@ -1154,13 +1154,16 @@ let uploadTimeout = null;
 //      もとの高画質サイズで1回だけ送り直す（uploadFinal）。「正解発表」でみんなが
 //      じっくり見る絵はこちらに差し替わるので、そこだけは今までどおりきれいに見える。
 //      1ラウンドに1回だけの送信なので、通信量への影響はごくわずか。
-const UPLOAD_INTERVAL_MS = 400;
+// 0.4秒だと1秒間に2.5回送っていたが、0.6秒（1秒間に1.67回）に伸ばすことで、
+// 見た目のなめらかさをほとんど損なわずに、この経路の通信量を約3割減らせる。
+const UPLOAD_INTERVAL_MS = 600;
 const UPLOAD_CANVAS_W = 400, UPLOAD_CANVAS_H = 300;
-// 0.45だと、線が細い部分が圧縮で欠けたり、線の周りがザラついて見えることがあった。
-// 0.7まで上げると、データ量は1枚あたり2割弱増えるだけで、線の欠け・ザラつきが
-// かなり目立たなくなる（実測ずみ）。解像度（400×300）は変えていないので、
-// 増える通信量はわずか。
-const UPLOAD_WEBP_QUALITY = 0.7;
+// 線が薄く・欠けて見える一番の原因は、実は画質設定よりも「線の太さ」だった
+// （実測ずみ：縮小後、太さ4pxの線は画質を上げても薄いままだったが、6pxに太くしたら
+// 画質を下げても線がちゃんと残った）。基本ペンを6pxに太くした（changeSize参照）ので、
+// 画質は45%まで戻して大丈夫（実際に試して問題なかった）。もともとの45%と同じ設定に
+// 戻ることになるが、太さのおかげで見え方は前とはっきり変わっている。
+const UPLOAD_WEBP_QUALITY = 0.45;
 const UPLOAD_FINAL_CANVAS_W = 800, UPLOAD_FINAL_CANVAS_H = 600;
 const UPLOAD_FINAL_WEBP_QUALITY = 0.8;
 function throttleUpload() { if (!uploadTimeout) { uploadTimeout = setTimeout(() => { upload(); uploadTimeout = null; }, UPLOAD_INTERVAL_MS); } }
