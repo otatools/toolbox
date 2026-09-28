@@ -12,17 +12,23 @@
 </script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>卒業文集清書ツール v8.5.3</title>
+    <title>卒業文集清書ツール v9.0</title>
+    <link rel="stylesheet" crossorigin="anonymous" href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700&family=Noto+Serif+JP:wght@400;700&family=Kosugi+Maru&display=swap">
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700&display=swap');
         @page { size: A4 landscape; margin: 0; }
-        body { background: #f0f0f0; font-family: 'Noto Sans JP', sans-serif; display: flex; flex-direction: column; align-items: center; padding: 20px; margin: 0; }
+        body { background: #f0f0f0; font-family: 'Noto Sans JP', sans-serif; display: flex; flex-direction: column; align-items: center; padding: 20px 20px 0 20px; margin: 0; }
+        body.locked-mode { padding-top: 0; }
         
         .no-print { width: 95%; max-width: 850px; background: white; padding: 25px; border-radius: 12px; margin-bottom: 20px; box-shadow: 0 4px 20px rgba(0,0,0,0.15); }
         .header-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
         h3 { margin: 0; color: #1976D2; border-left: 5px solid #1976D2; padding-left: 10px; }
-        
-        #save-status { display: none; }
+
+        .header-ctrl { height: 32px; box-sizing: border-box; font-size: 0.85rem; padding: 0 10px; border: 1px solid #ddd; border-radius: 6px; font-family: inherit; }
+        .font-select-inline { width: auto; min-width: 120px; }
+        .header-controls { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+        button.header-share-btn { flex: none; width: auto; min-width: 0; padding: 0 10px; border: none; }
+        .header-margin-label { height: 32px; box-sizing: border-box; margin-bottom: 0; font-weight: normal; font-size: 0.85rem; color: #444; display: flex; align-items: center; gap: 4px; white-space: nowrap; }
+        .margin-input-inline { width: 50px; padding: 0 8px; }
 
         .mode-selector { display: flex; background: #eee; padding: 5px; border-radius: 8px; margin-bottom: 20px; }
         .mode-btn { flex: 1; padding: 10px; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; background: transparent; transition: 0.3s; }
@@ -39,34 +45,55 @@
         .btn { padding: 12px; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; color: white; flex: 1; min-width: 100px; text-align: center; text-decoration: none; }
         .btn-save { background: #4CAF50; }
         .btn-load { background: #FF9800; }
-        .btn-print { background: #2196F3; flex: 2; font-size: 1.1em; }
+        .btn-image { background: #2196F3; flex: 2; font-size: 1.1em; }
+        .btn-share { background: #673AB7; }
         .btn-reset { background: #f44336; flex: 0.5; font-size: 0.8em; }
         .btn-auto-save { background: #9e9e9e; flex: 0.8; font-size: 0.85em; }
         .btn-auto-save.on { background: #4CAF50; }
 
-        .footer-info { margin-top: 20px; font-size: 12px; color: #888; text-align: center; }
+        /* 共有URLで開いたときは「レイアウト設定」だけ隠す。入力欄と保存系ボタンは残す */
+        body.locked-mode .mode-selector,
+        body.locked-mode .config-panel,
+        body.locked-mode #fontSelect,
+        body.locked-mode #paperSizeSelect,
+        body.locked-mode .header-margin-label,
+        body.locked-mode .btn-share {
+            display: none !important;
+        }
 
-        /* 原稿用紙設定 */
-        .paper { background: white; width: 297mm; height: 210mm; padding: 15mm 20mm; box-shadow: 0 0 15px rgba(0,0,0,0.2); display: flex; flex-direction: row-reverse; box-sizing: border-box; margin-bottom: 20px; position: relative; }
+        .footer-info { margin-top: 20px; margin-bottom: 40px; font-size: 12px; color: #888; text-align: center; }
+
+        /* 原稿用紙設定：画面上のマス目は常にA4サイズのまま（用紙サイズ選択は保存画像にのみ反映） */
+        .paper { background: white; width: 297mm; height: 210mm; padding: 15mm 20mm; box-shadow: 0 0 15px rgba(0,0,0,0.2); display: flex; flex-direction: row-reverse; box-sizing: border-box; position: relative; font-family: 'Noto Sans JP', sans-serif; }
+        .paper:not(:last-child) { margin-bottom: 20px; }
+        .paper.font-mincho { font-family: 'Noto Serif JP', serif; }
+        .paper.font-maru { font-family: 'Kosugi Maru', 'Noto Sans JP', sans-serif; }
         .line { display: flex; flex-direction: column; height: 100%; position: relative; }
         .cell { border: 0.5px solid #ff8e8e; display: flex; align-items: center; justify-content: center; box-sizing: border-box; writing-mode: vertical-rl; -webkit-writing-mode: vertical-rl; text-orientation: upright; position: relative; }
-        
-        .extra-cell { position: absolute; left: 0; width: 100%; display: flex; align-items: center; justify-content: center; writing-mode: vertical-rl; text-orientation: upright; pointer-events: none; }
-        .pos-23 { top: 100%; border-top: none; }
-        .pos-24 { top: calc(100% + (100% / 22)); border-top: none; }
+
+        .extra-cell { position: absolute; left: 0; width: 100%; display: flex; align-items: center; justify-content: center; writing-mode: vertical-rl; text-orientation: upright; pointer-events: none; border-top: none; }
+
+        /* 罫線「無」：画面上は水色の目安線、保存画像には出さない */
+        .paper.rule-off .cell, .paper.rule-off .extra-cell { border-color: #90CAF9; }
+        .paper.exporting.rule-off .cell, .paper.exporting.rule-off .extra-cell { border-color: transparent; }
 
         .force-rotate { display: inline-block !important; transform: rotate(90deg); line-height: 1; }
         .zenkaku-bracket { display: inline-block; transform: none !important; text-orientation: mixed; }
         .tcy { text-combine-upright: all; -webkit-text-combine: horizontal; }
+        /* 句読点（。、）は縦書きのマス目内で右上寄りに書くのが原稿用紙の慣習 */
+        /* 画面上の表示は元の中央寄せに戻す（右上寄せは保存画像の側だけで行う） */
+        .kuten { display: inline-block; }
 
         /* コンテナの調整 */
+        #output-wrapper { width: 100%; display: flex; justify-content: center; overflow: hidden; }
         #output-container { transition: transform 0.1s ease-out; }
 
-        @media print { 
-            .no-print, .footer-info { display: none !important; } 
-            body { background: white; padding: 0; } 
-            .paper { box-shadow: none; margin: 0 !important; border: none; page-break-after: always; } 
-            #output-container { transform: none !important; margin: 0 !important; } 
+        @media print {
+            .no-print, .footer-info { display: none !important; }
+            body { background: white; padding: 0; }
+            .paper { box-shadow: none; margin: 0 !important; border: none; page-break-after: always; }
+            #output-wrapper { height: auto !important; overflow: visible !important; }
+            #output-container { transform: none !important; margin: 0 !important; }
         }
     </style>
 </head>
@@ -75,9 +102,23 @@
 <div class="no-print">
     <div class="header-row">
         <h3>卒業文集清書ツール</h3>
-        <span id="save-status"></span>
+        <div class="header-controls">
+            <select id="fontSelect" onchange="updateAll()" class="header-ctrl font-select-inline">
+                <option value="gothic">ゴシック体</option>
+                <option value="mincho">明朝体</option>
+                <option value="maru">丸ゴシック</option>
+            </select>
+            <select id="paperSizeSelect" onchange="updateAll()" class="header-ctrl font-select-inline">
+                <option value="a4">A4</option>
+                <option value="b5" selected>B5</option>
+            </select>
+            <label class="header-margin-label" title="保存画像のまわりの最低限の余白の大きさ（マスは正方形を保つため、実際の余白がこれより大きくなることがあります）">
+                余白<input type="number" id="marginInput" value="5" min="0" max="50" step="1" onchange="updateAll()" class="header-ctrl margin-input-inline">
+            </label>
+            <button onclick="createShareUrl()" class="btn btn-share header-ctrl header-share-btn">児童用URL作成</button>
+        </div>
     </div>
-    
+
     <div class="mode-selector">
         <button id="btn-fix" class="mode-btn active" onclick="switchMode('fix')">野田小用（固定設定）</button>
         <button id="btn-custom" class="mode-btn" onclick="switchMode('custom')">カスタム（自由設定）</button>
@@ -104,6 +145,25 @@
                 <label>名前の下の空きマス</label>
                 <input type="number" id="namePaddingInput" value="1" min="0" oninput="updateAll()">
             </div>
+            <div class="config-group">
+                <label>題名の上の空きマス</label>
+                <input type="number" id="titleOffsetInput" value="0" min="0" oninput="updateAll()">
+            </div>
+            <div class="config-group">
+                <label>上部を空ける列数（右から）</label>
+                <input type="number" id="topBlankColsInput" value="0" min="0" oninput="updateAll()">
+            </div>
+            <div class="config-group">
+                <label>空ける行数（上から）</label>
+                <input type="number" id="topBlankRowsInput" value="0" min="0" oninput="updateAll()">
+            </div>
+            <div class="config-group">
+                <label>罫線</label>
+                <select id="ruledLinesInput" onchange="updateAll()">
+                    <option value="on">有（画像にも表示）</option>
+                    <option value="off">無（画像で保存時）</option>
+                </select>
+            </div>
         </div>
     </div>
 
@@ -124,41 +184,188 @@
         <button onclick="saveToFile()" class="btn btn-save">ファイル保存</button>
         <button onclick="document.getElementById('fileInput').click()" class="btn btn-load">ファイル読込</button>
         <input type="file" id="fileInput" style="display:none" accept=".txt" onchange="loadFromFile(event)">
-        <button onclick="window.print()" class="btn btn-print">印刷 / PDF保存</button>
+        <button onclick="saveAsImage()" id="btnSaveImage" class="btn btn-image">画像で保存（JPEG）</button>
         <button id="btnAutoSave" onclick="toggleAutoSave()" class="btn btn-auto-save">自動保存：OFF</button>
         <button onclick="resetData()" class="btn btn-reset">リセット</button>
     </div>
 </div>
 
-<div id="output-container"></div>
-
 <div class="footer-info">
-    卒業文集清書ツール ｜ v8.5.3 ｜ ota tools
+    卒業文集清書ツール ｜ v9.0 ｜ ota tools
+</div>
+
+<div id="output-wrapper">
+<div id="output-container"></div>
 </div>
 
 <script>
     let currentMode = 'fix';
     let isAutoSaveOn = false;
-    const KEY = 'bungyu_draft_data_v851';
+    const KEY = 'bungyu_draft_data_v853';
+    const OLD_KEYS = ['bungyu_draft_data_v851'];
+    // 共有URL（#v=... など）で開いたときはリンクごとに専用のキーへ保存し、
+    // 閲覧者自身の（このリンクと無関係な）下書きを上書きしないようにする
+    let activeStorageKey = KEY;
+    // 画像保存用：generatePaper()が最後に組み立てたレイアウトデータ（画面表示と完全に同じもの）
+    let lastRenderData = null;
     const AUTO_SAVE_KEY = 'bungyu_auto_save_enabled';
-    const DEFAULTS = { 
-        title: "題名", 
-        name: "野田　太郎", 
-        body: "　ここに本文を入力してください。全角で数字を打てば１マスずつ（２０）、半角で数字を打てば１マス（20）に入力できます。" 
+    const DEFAULTS = {
+        title: "題名",
+        name: "野田　太郎",
+        body: "　ここに本文を入力してください。全角で数字を打てば１マスずつ（２０）、半角で数字を打てば１マス（20）に入力できます。"
     };
+    // カスタム（自由設定）モードでは「野田小」に固有の名前ではなく、汎用の伏せ字を初期表示する
+    const CUSTOM_NAME_DEFAULT = "〇〇　〇〇";
+    function nameDefaultFor(mode) { return mode === 'custom' ? CUSTOM_NAME_DEFAULT : DEFAULTS.name; }
 
     function clearIfDefault(el, key) {
-        if (el.value === DEFAULTS[key]) { el.value = ''; updateAll(); }
+        const defaultVal = key === 'name' ? nameDefaultFor(currentMode) : DEFAULTS[key];
+        if (el.value === defaultVal) { el.value = ''; updateAll(); }
     }
 
-    window.onload = () => {
+    // 共有URLを短くするための処理：初期設定との「差分」だけを短いキー名で持たせ、
+    // さらにgzip圧縮してbase64url化する。共有URLには「設定」だけを載せ、
+    // 題名・名前・本文は入れない（児童が自分で入力するので、開いたときは初期テンプレートの文言を表示する）。
+    const SHARE_DEFAULTS = { rows: '22', cols: '28', startCol: '3', namePadding: '1', titleOffset: '0', topBlankCols: '0', topBlankRows: '0', ruled: 'on', font: 'gothic', paperSize: 'b5', margin: '5' };
+    const SHARE_SHORT_KEYS = { rows: 'r', cols: 'c', startCol: 's', namePadding: 'p', titleOffset: 'to', topBlankCols: 'tc', topBlankRows: 'tr', ruled: 'ru', font: 'f', paperSize: 'sz', margin: 'mg' };
+    // フォント・用紙サイズ・余白はモードに関係ない共通設定。それ以外は「カスタム」のときだけ意味を持つ
+    const SHARE_SHARED_KEYS = ['font', 'paperSize', 'margin'];
+    const SHARE_CUSTOM_ONLY_KEYS = ['rows', 'cols', 'startCol', 'namePadding', 'titleOffset', 'topBlankCols', 'topBlankRows', 'ruled'];
+
+    function packShareData(data) {
+        const out = { m: data.mode };
+        const keys = data.mode === 'custom' ? SHARE_CUSTOM_ONLY_KEYS.concat(SHARE_SHARED_KEYS) : SHARE_SHARED_KEYS;
+        for (const key of keys) {
+            if (String(data[key]) !== SHARE_DEFAULTS[key]) out[SHARE_SHORT_KEYS[key]] = data[key];
+        }
+        return out;
+    }
+
+    function unpackShareData(obj) {
+        // 旧形式（フルネームキー、'mode'を持つ）ならそのまま返す
+        if ('mode' in obj) return obj;
+        const mode = obj.m === 'custom' ? 'custom' : 'fix';
+        const result = { mode };
+        for (const key in SHARE_DEFAULTS) {
+            const shortKey = SHARE_SHORT_KEYS[key];
+            result[key] = (shortKey in obj) ? obj[shortKey] : SHARE_DEFAULTS[key];
+        }
+        return result;
+    }
+
+    function bytesToBase64url(bytes) {
+        let binary = '';
+        for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+        return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+    }
+
+    function base64urlToBytes(b64url) {
+        let base64 = b64url.replace(/-/g, '+').replace(/_/g, '/');
+        while (base64.length % 4) base64 += '=';
+        const binary = atob(base64);
+        const bytes = new Uint8Array(binary.length);
+        for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+        return bytes;
+    }
+
+    async function compressToBase64url(text) {
+        const stream = new Blob([text]).stream().pipeThrough(new CompressionStream('gzip'));
+        const buffer = await new Response(stream).arrayBuffer();
+        return bytesToBase64url(new Uint8Array(buffer));
+    }
+
+    async function decompressFromBase64url(b64url) {
+        const stream = new Blob([base64urlToBytes(b64url)]).stream().pipeThrough(new DecompressionStream('gzip'));
+        return await new Response(stream).text();
+    }
+
+    // 共有URL（#v=... など）で開かれた場合は、設定を復元した上で編集UIを隠す。
+    // 題名・名前・本文はURLに含まれないので、初期テンプレートの文言を表示する
+    // （このリンクで児童が前に入力・保存した下書きがあれば、そちらを優先する＝呼び出し元でdataに含めて渡す）
+    function applySharedData(data) {
+        currentMode = data.mode === 'custom' ? 'custom' : 'fix';
+        document.getElementById('titleInput').value = data.title ?? DEFAULTS.title;
+        document.getElementById('nameInput').value = data.name ?? nameDefaultFor(currentMode);
+        document.getElementById('textInput').value = data.body ?? DEFAULTS.body;
+        document.getElementById('rowsInput').value = data.rows || 22;
+        document.getElementById('colsInput').value = data.cols || 28;
+        document.getElementById('startColInput').value = data.startCol || 3;
+        document.getElementById('namePaddingInput').value = data.namePadding ?? 1;
+        document.getElementById('titleOffsetInput').value = data.titleOffset ?? 0;
+        document.getElementById('topBlankColsInput').value = data.topBlankCols ?? 0;
+        document.getElementById('topBlankRowsInput').value = data.topBlankRows ?? 0;
+        document.getElementById('ruledLinesInput').value = data.ruled || 'on';
+        document.getElementById('fontSelect').value = data.font || 'gothic';
+        document.getElementById('paperSizeSelect').value = data.paperSize || 'b5';
+        document.getElementById('marginInput').value = data.margin ?? 5;
+        document.getElementById('btn-fix').className = currentMode === 'fix' ? 'mode-btn active' : 'mode-btn';
+        document.getElementById('btn-custom').className = currentMode === 'custom' ? 'mode-btn active' : 'mode-btn';
+        document.getElementById('titleLabel').innerText = currentMode === 'fix' ? '題名（8マス目から）' : '題名';
+    }
+
+    // 共有パラメータは #v=/#view=（ハッシュ）でも ?v=/?view=（クエリ）でも読めるようにする
+    function getSharedEncoded() {
+        if (location.hash.startsWith('#v=')) return location.hash.slice(3);
+        if (location.hash.startsWith('#view=')) return location.hash.slice(6);
+        const params = new URLSearchParams(location.search);
+        if (params.has('v')) return params.get('v');
+        if (params.has('view')) return params.get('view');
+        return null;
+    }
+
+    async function tryLoadSharedView() {
+        const encoded = getSharedEncoded();
+        if (encoded === null) return false;
+        try {
+            activeStorageKey = 'bungyu_shared_v2_' + encoded;
+            let json;
+            const marker = encoded[0];
+            if (marker === 'z') {
+                json = await decompressFromBase64url(encoded.slice(1));
+            } else if (marker === 'j') {
+                json = new TextDecoder().decode(base64urlToBytes(encoded.slice(1)));
+            } else {
+                // マーカーの無い旧形式（無圧縮・フルネームキーのbase64）
+                json = decodeURIComponent(escape(atob(encoded)));
+            }
+            const sharedData = unpackShareData(JSON.parse(json));
+            // このリンクで前に入力・保存した下書きがあれば、それを優先して復元する
+            const savedDraft = localStorage.getItem(activeStorageKey);
+            applySharedData(savedDraft ? JSON.parse(savedDraft) : sharedData);
+            document.body.classList.add('locked-mode');
+            return true;
+        } catch (e) {
+            console.error('共有URLの読み込みに失敗しました:', e);
+            return false;
+        }
+    }
+
+    window.onload = async () => {
+        // 自動保存は初期状態ではON。明示的にOFFにしたことがある場合のみOFFのままにする
+        if (await tryLoadSharedView()) {
+            const autoSavePref = localStorage.getItem(AUTO_SAVE_KEY);
+            if (autoSavePref !== 'false') {
+                isAutoSaveOn = true;
+                document.getElementById('btnAutoSave').innerText = '自動保存：ON';
+                document.getElementById('btnAutoSave').classList.add('on');
+            }
+            updateAll();
+            return;
+        }
+
         const autoSavePref = localStorage.getItem(AUTO_SAVE_KEY);
-        if (autoSavePref === 'true') {
+        if (autoSavePref !== 'false') {
             isAutoSaveOn = true;
             document.getElementById('btnAutoSave').innerText = '自動保存：ON';
             document.getElementById('btnAutoSave').classList.add('on');
         }
-        const saved = localStorage.getItem(KEY);
+        let saved = localStorage.getItem(KEY);
+        if (!saved) {
+            for (const oldKey of OLD_KEYS) {
+                const oldData = localStorage.getItem(oldKey);
+                if (oldData) { saved = oldData; localStorage.setItem(KEY, oldData); localStorage.removeItem(oldKey); break; }
+            }
+        }
         if (saved) {
             const data = JSON.parse(saved);
             document.getElementById('titleInput').value = data.title || '';
@@ -168,6 +375,13 @@
             document.getElementById('colsInput').value = data.cols || 28;
             document.getElementById('startColInput').value = data.startCol || 3;
             document.getElementById('namePaddingInput').value = data.namePadding ?? 1;
+            document.getElementById('titleOffsetInput').value = data.titleOffset ?? 0;
+            document.getElementById('topBlankColsInput').value = data.topBlankCols ?? 0;
+            document.getElementById('topBlankRowsInput').value = data.topBlankRows ?? 0;
+            document.getElementById('ruledLinesInput').value = data.ruled || 'on';
+            document.getElementById('fontSelect').value = data.font || 'gothic';
+            document.getElementById('paperSizeSelect').value = data.paperSize || 'b5';
+            document.getElementById('marginInput').value = data.margin ?? 5;
             if (data.mode) switchMode(data.mode);
         } else {
             document.getElementById('titleInput').value = DEFAULTS.title;
@@ -187,7 +401,7 @@
         } else {
             btn.innerText = '自動保存：OFF'; btn.classList.remove('on');
             localStorage.setItem(AUTO_SAVE_KEY, 'false');
-            localStorage.removeItem(KEY);
+            localStorage.removeItem(activeStorageKey);
         }
     }
 
@@ -206,14 +420,24 @@
             rows: document.getElementById('rowsInput').value,
             cols: document.getElementById('colsInput').value,
             startCol: document.getElementById('startColInput').value,
-            namePadding: document.getElementById('namePaddingInput').value
+            namePadding: document.getElementById('namePaddingInput').value,
+            titleOffset: document.getElementById('titleOffsetInput').value,
+            topBlankCols: document.getElementById('topBlankColsInput').value,
+            topBlankRows: document.getElementById('topBlankRowsInput').value,
+            ruled: document.getElementById('ruledLinesInput').value,
+            font: document.getElementById('fontSelect').value,
+            paperSize: document.getElementById('paperSizeSelect').value,
+            margin: document.getElementById('marginInput').value
         };
-        localStorage.setItem(KEY, JSON.stringify(data));
+        localStorage.setItem(activeStorageKey, JSON.stringify(data));
     }
 
-    function resetData() { if (confirm("リセットしますか？")) { localStorage.removeItem(KEY); location.reload(); } }
+    function resetData() { if (confirm("リセットしますか？")) { localStorage.removeItem(activeStorageKey); location.reload(); } }
 
     function switchMode(mode) {
+        // 名前欄がまだ切替前モードの初期表示のままなら、新しいモードの初期表示に置き換える
+        const nameEl = document.getElementById('nameInput');
+        if (nameEl.value === nameDefaultFor(currentMode)) nameEl.value = nameDefaultFor(mode);
         currentMode = mode;
         document.getElementById('btn-fix').className = mode === 'fix' ? 'mode-btn active' : 'mode-btn';
         document.getElementById('btn-custom').className = mode === 'custom' ? 'mode-btn active' : 'mode-btn';
@@ -227,56 +451,86 @@
         return map[char] || char;
     }
 
+    // マスの中での文字の向き・位置を決める（数字の詰め文字/括弧の回転/句読点の右上寄せ）
+    function charClass(raw) {
+        if (/^[0-9]+$/.test(raw)) return 'tcy';
+        if (/[（）]/.test(raw)) return 'zenkaku-bracket';
+        if (/[()]/.test(raw)) return 'force-rotate';
+        if (/[。、]/.test(raw)) return 'kuten';
+        return '';
+    }
+
     function generatePaper() {
-        const title = document.getElementById('titleInput').value;
-        const name = document.getElementById('nameInput').value;
+        const titleEl = document.getElementById('titleInput');
+        const nameEl = document.getElementById('nameInput');
+        const title = titleEl.value;
+        const name = nameEl.value;
         const bodyText = document.getElementById('textInput').value;
-        
+
         const ROWS = currentMode === 'fix' ? 22 : (parseInt(document.getElementById('rowsInput').value) || 22);
         const COLS = currentMode === 'fix' ? 28 : (parseInt(document.getElementById('colsInput').value) || 28);
         const startCol = currentMode === 'fix' ? 3 : parseInt(document.getElementById('startColInput').value);
         const namePadding = currentMode === 'fix' ? 1 : parseInt(document.getElementById('namePaddingInput').value);
+        const topBlankCols = currentMode === 'fix' ? 2 : Math.max(0, parseInt(document.getElementById('topBlankColsInput').value) || 0);
+        const topBlankRows = currentMode === 'fix' ? 6 : Math.min(Math.max(0, parseInt(document.getElementById('topBlankRowsInput').value) || 0), ROWS - 1);
+        const ruled = currentMode === 'fix' ? 'on' : document.getElementById('ruledLinesInput').value;
+        const font = document.getElementById('fontSelect').value;
+        const fontClass = font === 'mincho' ? 'font-mincho' : (font === 'maru' ? 'font-maru' : '');
+        const fontFamily = font === 'mincho' ? "'Noto Serif JP', serif" : (font === 'maru' ? "'Kosugi Maru', sans-serif" : "'Noto Sans JP', sans-serif");
+        // 用紙サイズ・余白の選択は保存画像にのみ反映する（画面上のマス目のサイズは変えない）
+        const paperSize = document.getElementById('paperSizeSelect').value === 'a4' ? 'a4' : 'b5';
+        const parsedMargin = parseInt(document.getElementById('marginInput').value);
+        const marginMm = Math.min(50, Math.max(0, isNaN(parsedMargin) ? 5 : parsedMargin));
 
         const out = document.getElementById('output-container');
         out.innerHTML = '';
-        
+
         let colData = [];
-        for(let i=0; i<COLS * 50; i++) colData.push({ cells: Array(ROWS).fill(''), extra: [] });
+        const ensureCol = (idx) => {
+            while (colData.length <= idx) colData.push({ cells: Array(ROWS).fill(''), extra: [] });
+            return colData[idx];
+        };
 
-        let tOffset = currentMode === 'fix' ? 7 : 0;
-        for(let i=0; i<title.length && (i+tOffset)<ROWS; i++) colData[0].cells[i+tOffset] = title[i];
-        
-        let nStart = ROWS - name.length - namePadding;
+        let tOffset = currentMode === 'fix' ? 7 : Math.min(Math.max(0, parseInt(document.getElementById('titleOffsetInput').value) || 0), ROWS - 1);
+        const maxTitleLen = Math.max(0, ROWS - tOffset);
+        for(let i=0; i<title.length && (i+tOffset)<ROWS; i++) ensureCol(0).cells[i+tOffset] = title[i];
+        titleEl.style.outline = title.length > maxTitleLen ? '2px solid #f44336' : '';
+        titleEl.title = title.length > maxTitleLen ? `題名が長すぎるため、${maxTitleLen}文字目以降が印刷されません。` : '';
+
+        const maxNameLen = Math.max(0, ROWS - namePadding);
+        let nStart = Math.max(0, ROWS - name.length - namePadding);
         for(let i=0; i<name.length && (i+nStart)<ROWS; i++) {
-            if (i+nStart >= 0) colData[1].cells[i+nStart] = name[i];
+            ensureCol(1).cells[i+nStart] = name[i];
         }
+        nameEl.style.outline = name.length > maxNameLen ? '2px solid #f44336' : '';
+        nameEl.title = name.length > maxNameLen ? `名前が長すぎるため、${maxNameLen}文字目以降が印刷されません。` : '';
 
-        const isEnd = (c) => /[。、）」』）]/.test(c);
+        const isEnd = (c) => /[。、）」』)]/.test(c);
         const isStart = (c) => /[（「『(]/.test(c);
         let tokens = bodyText.match(/[0-9]{1,2}|[０-９]|[^\n]|\n/g) || [];
         let curC = startCol, curR = 0;
 
         for (let i = 0; i < tokens.length; i++) {
-            if (currentMode === 'fix' && curR === 0 && (curC === 3 || curC === 4)) curR = 6;
+            if (curR === 0 && curC >= startCol && curC < startCol + topBlankCols) curR = topBlankRows;
             let t = tokens[i];
             if (t === '\n') { curC++; curR = 0; continue; }
 
             if (curR === ROWS - 1) {
-                colData[curC].cells[curR] = t;
+                ensureCol(curC).cells[curR] = t;
                 if (isStart(t) && tokens[i+1] && tokens[i+1] !== '\n' && !isEnd(tokens[i+1])) {
-                    colData[curC].extra.push(tokens[i+1]);
+                    ensureCol(curC).extra.push(tokens[i+1]);
                     i++;
                 } else {
                     while(tokens[i+1] && isEnd(tokens[i+1]) && tokens[i+1] !== '\n') {
-                        colData[curC].extra.push(tokens[i+1]);
+                        ensureCol(curC).extra.push(tokens[i+1]);
                         i++;
-                        if (colData[curC].extra.length >= 2) break;
+                        if (ensureCol(curC).extra.length >= 2) break;
                     }
                 }
                 if (tokens[i+1] === '\n') i++;
                 curC++; curR = 0;
             } else {
-                colData[curC].cells[curR] = t;
+                ensureCol(curC).cells[curR] = t;
                 curR++;
                 if (curR >= ROWS) { curC++; curR = 0; }
             }
@@ -286,7 +540,7 @@
         
         for (let p = 0; p < totalPages; p++) {
             const paper = document.createElement('div');
-            paper.className = 'paper';
+            paper.className = `paper ${fontClass} ${ruled === 'off' ? 'rule-off' : ''}`.trim();
             for (let c = 0; c < COLS; c++) {
                 const idx = p * COLS + c;
                 const line = document.createElement('div');
@@ -299,61 +553,83 @@
                     cell.style.fontSize = `${Math.min(22, (550 / ROWS))}px`;
                     let d = colData[idx]?.cells[r] || '';
                     if (d) {
-                        let cls = /^[0-9]+$/.test(d) ? 'tcy' : (/[（）]/.test(d) ? 'zenkaku-bracket' : (/[()]/.test(d) ? 'force-rotate' : ''));
-                        cell.innerHTML = `<span class="${cls}">${fixSymbol(d)}</span>`;
+                        cell.innerHTML = `<span class="${charClass(d)}">${fixSymbol(d)}</span>`;
                     }
                     line.appendChild(cell);
                 }
                 colData[idx]?.extra.forEach((ex, ei) => {
                     const exc = document.createElement('div');
-                    exc.className = `extra-cell pos-${23+ei}`;
+                    exc.className = 'extra-cell';
+                    exc.style.top = `calc(100% + (${ei} * (100% / ${ROWS})))`;
                     exc.style.height = `calc(100% / ${ROWS})`;
                     exc.style.fontSize = `${Math.min(22, (550 / ROWS))}px`;
-                    let cls = /^[0-9]+$/.test(ex) ? 'tcy' : (/[（）]/.test(ex) ? 'zenkaku-bracket' : (/[()]/.test(ex) ? 'force-rotate' : ''));
-                    exc.innerHTML = `<span class="${cls}">${fixSymbol(ex)}</span>`;
+                    exc.innerHTML = `<span class="${charClass(ex)}">${fixSymbol(ex)}</span>`;
                     line.appendChild(exc);
                 });
                 paper.appendChild(line);
             }
             out.appendChild(paper);
         }
+
+        // 画像保存で使う：画面と全く同じレイアウトデータをそのまま保持しておく
+        lastRenderData = { colData, ROWS, COLS, totalPages, ruled, fontFamily, paperSize, marginMm };
     }
 
     // ウィンドウの縦幅・横幅に合わせて「パンパン」に自動拡大縮小する
     function autoScalePaper() {
+        const wrapper = document.getElementById('output-wrapper');
         const container = document.getElementById('output-container');
-        const papers = document.querySelectorAll('.paper');
-        if (!papers.length) return;
+        const firstPaper = document.querySelector('.paper');
+        if (!firstPaper) return;
 
-        // 画面の有効な表示領域（98%まで使い切る）
-        const availableWidth = window.innerWidth * 0.98;
-        const availableHeight = window.innerHeight * 0.98; 
+        // 画面の有効な表示領域（スクロール時に余白が残らないよう100%まで使い切る）
+        const availableWidth = window.innerWidth;
+        const availableHeight = window.innerHeight;
 
-        // A4横の基準サイズ（ピクセル）
-        const paperBaseWidth = 1122; 
-        const paperBaseHeight = 794;
+        // 1ページ分の実寸（transformの影響を受けないレイアウト上のサイズ）
+        const pageWidth = firstPaper.offsetWidth;
+        const pageHeight = firstPaper.offsetHeight;
 
         // 横幅基準のスケールと縦幅基準のスケールのうち、より小さい方を採用
-        const scaleW = availableWidth / paperBaseWidth;
-        const scaleH = availableHeight / paperBaseHeight;
-        
+        const scaleW = availableWidth / pageWidth;
+        const scaleH = availableHeight / pageHeight;
+
         // 画面に収まる最大倍率を選択（パンパンにするため上限1.0を撤廃）
         const finalScale = Math.min(scaleW, scaleH);
 
         // スタイル適用
         container.style.transform = `scale(${finalScale})`;
         container.style.transformOrigin = 'top center';
-        
-        // 縮小・拡大した分、下の空白を詰める調整
-        const scaledHeight = paperBaseHeight * finalScale;
-        container.style.marginBottom = `calc(-${paperBaseHeight - scaledHeight}px + 10px)`;
-        container.style.marginTop = '10px';
+
+        // transformは見た目だけ縮小・拡大しレイアウト確保領域は元のまま残るため、
+        // ラッパーの高さを縮小後の実寸に合わせて、下の余白が残らないようにする
+        wrapper.style.height = `${container.scrollHeight * finalScale}px`;
     }
 
     window.addEventListener('resize', autoScalePaper);
 
+    function collectSettings() {
+        return {
+            title: titleInput.value,
+            name: nameInput.value,
+            body: textInput.value,
+            mode: currentMode,
+            rows: rowsInput.value,
+            cols: colsInput.value,
+            startCol: startColInput.value,
+            namePadding: namePaddingInput.value,
+            titleOffset: document.getElementById('titleOffsetInput').value,
+            topBlankCols: document.getElementById('topBlankColsInput').value,
+            topBlankRows: document.getElementById('topBlankRowsInput').value,
+            ruled: document.getElementById('ruledLinesInput').value,
+            font: document.getElementById('fontSelect').value,
+            paperSize: document.getElementById('paperSizeSelect').value,
+            margin: document.getElementById('marginInput').value
+        };
+    }
+
     function saveToFile() {
-        const data = { title: titleInput.value, name: nameInput.value, body: textInput.value, mode: currentMode, rows: rowsInput.value, cols: colsInput.value, startCol: startColInput.value, namePadding: namePaddingInput.value };
+        const data = collectSettings();
         const blob = new Blob([JSON.stringify(data, null, 2)], {type: 'text/plain'});
         const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
         a.download = `文集_${nameInput.value.trim() || '原稿'}.txt`; a.click();
@@ -371,10 +647,193 @@
                 rowsInput.value = data.rows || 22; colsInput.value = data.cols || 28;
                 document.getElementById('startColInput').value = data.startCol || 3;
                 document.getElementById('namePaddingInput').value = data.namePadding ?? 1;
+                document.getElementById('titleOffsetInput').value = data.titleOffset ?? 0;
+                document.getElementById('topBlankColsInput').value = data.topBlankCols ?? 0;
+                document.getElementById('topBlankRowsInput').value = data.topBlankRows ?? 0;
+                document.getElementById('ruledLinesInput').value = data.ruled || 'on';
+                document.getElementById('fontSelect').value = data.font || 'gothic';
+                document.getElementById('paperSizeSelect').value = data.paperSize || 'b5';
+                document.getElementById('marginInput').value = data.margin ?? 5;
                 if(data.mode) switchMode(data.mode); else updateAll();
             } catch (err) { alert("読込失敗"); }
         };
         reader.readAsText(file);
+    }
+
+    // 現在の設定を復元専用のURL（#v=...）として書き出す。読んだ側は編集できない。
+    // 初期設定との差分だけを短いキー名で持たせ、gzip圧縮した場合と無圧縮の場合で
+    // 短い方を採用する（短い設定差分だとgzipのヘッダ分だけ無圧縮より長くなることがあるため）。
+    async function createShareUrl() {
+        const json = JSON.stringify(packShareData(collectSettings()));
+        const plain = 'j' + bytesToBase64url(new TextEncoder().encode(json));
+        let encoded = plain;
+        try {
+            if (typeof CompressionStream !== 'undefined') {
+                const compressed = 'z' + await compressToBase64url(json);
+                if (compressed.length < encoded.length) encoded = compressed;
+            }
+        } catch (e) { /* 圧縮できなければ無圧縮のまま使う */ }
+        const url = `${location.origin}${location.pathname}#v=${encoded}`;
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(url).then(() => {
+                alert('共有用URLをコピーしました。\n\n' + url);
+            }).catch(() => {
+                prompt('このURLをコピーして共有してください（編集はできません）', url);
+            });
+        } else {
+            prompt('このURLをコピーして共有してください（編集はできません）', url);
+        }
+    }
+
+    function drawCharInCell(ctx, raw, cx, cy, fontSizePx, fontFamily) {
+        const displayChar = fixSymbol(raw);
+        const kind = charClass(raw); // CSS側と同じ判定ロジックを共用
+        ctx.fillStyle = '#222';
+        ctx.font = `${fontSizePx}px ${fontFamily}`;
+        if (kind === 'tcy') {
+            // text-combine-upright の再現：半角文字は全角の約半分の幅なので、
+            // 縮めず等倍のまま横に並べれば自然に1マス分に収まる。
+            const chars = displayChar.split('');
+            if (chars.length >= 2) {
+                const widths = chars.map(c => ctx.measureText(c).width);
+                const totalWidth = widths.reduce((a, b) => a + b, 0);
+                ctx.save();
+                ctx.textAlign = 'left';
+                let x = cx - totalWidth / 2;
+                for (let i = 0; i < chars.length; i++) {
+                    ctx.fillText(chars[i], x, cy);
+                    x += widths[i];
+                }
+                ctx.restore();
+            } else {
+                ctx.fillText(displayChar, cx, cy);
+            }
+        } else if (kind === 'zenkaku-bracket' || kind === 'force-rotate') {
+            ctx.save();
+            ctx.translate(cx, cy);
+            ctx.rotate(Math.PI / 2);
+            ctx.fillText(displayChar, 0, 0);
+            ctx.restore();
+        } else if (kind === 'kuten') {
+            // 句読点は原稿用紙の慣習でマスの右上寄りに書く（大きさは他の文字と同じ）
+            const offset = fontSizePx * 0.55;
+            ctx.fillText(displayChar, cx + offset, cy - offset);
+        } else {
+            ctx.fillText(displayChar, cx, cy);
+        }
+    }
+
+    // 実際の描画データ（lastRenderData）から直接Canvasに描くので、
+    // 画面のCSS表示（縦書き・罫線・フォント設定）とズレが起きない。
+    function drawPageToCanvas(pageIndex, data) {
+        const { colData, ROWS, COLS, ruled, fontFamily, paperSize, marginMm } = data;
+        const paperMm = paperSize === 'b5' ? { w: 257, h: 182 } : { w: 297, h: 210 };
+        const DPI = 300;
+        const MM_TO_PX = DPI / 25.4;
+        const canvasW = Math.round(paperMm.w * MM_TO_PX);
+        const canvasH = Math.round(paperMm.h * MM_TO_PX);
+        const margin = (typeof marginMm === 'number' ? marginMm : 5);
+
+        // このページの列の中に、禁則処理で下にはみ出すマス（extra）が最大何個あるか調べる
+        let maxExtra = 0;
+        for (let c = 0; c < COLS; c++) {
+            const col = colData[pageIndex * COLS + c];
+            if (col && col.extra && col.extra.length > maxExtra) maxExtra = col.extra.length;
+        }
+
+        // マスは正方形にする。指定した余白は「最低限確保する余白」として扱い、
+        // 縦横どちらか狭い方に合わせて1マスのサイズを決め、余った分は反対側の
+        // 余白に均等に振り分けて中央に配置する（上下同士・左右同士は必ず同じ広さになる）。
+        // はみ出しマスの確保スペースは下だけでなく上にも同じマス数ぶん確保し、
+        // 罫線のある本体行（ROWS行）を真ん中に置くことで、はみ出しがあっても
+        // 見た目の余白（罫線の外側の空白）が上下で揃うようにする。
+        // はみ出しがない場合でも、上下には最低1マス分は確保しておく。
+        const reserveRows = Math.max(maxExtra, 1);
+        const availableWmm = paperMm.w - margin * 2;
+        const availableHmm = paperMm.h - margin * 2;
+        const cellMm = Math.min(availableWmm / COLS, availableHmm / (ROWS + reserveRows * 2));
+        const gridWmm = cellMm * COLS;
+        const gridHmm = cellMm * (ROWS + reserveRows * 2);
+        const padLeft = (paperMm.w - gridWmm) / 2 * MM_TO_PX;
+        const padRight = padLeft;
+        const colW = cellMm * MM_TO_PX;
+        const rowH = colW;
+        const outerPadTop = (paperMm.h - gridHmm) / 2 * MM_TO_PX;
+        const padTop = outerPadTop + reserveRows * rowH; // 本体行の開始位置は上の確保スペース分だけ下げる
+        const fontScale = DPI / 96; // 画面のCSS px(96dpi相当)基準を印刷解像度に合わせる
+        const fontSizePx = Math.min(22, 550 / ROWS) * fontScale;
+
+        const canvas = document.createElement('canvas');
+        canvas.width = canvasW;
+        canvas.height = canvasH;
+        const ctx = canvas.getContext('2d');
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, canvasW, canvasH);
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+
+        for (let c = 0; c < COLS; c++) {
+            const idx = pageIndex * COLS + c;
+            const x = padLeft + (COLS - 1 - c) * colW; // row-reverse：右から左へ列を並べる
+            const col = colData[idx];
+
+            if (ruled === 'on') {
+                ctx.strokeStyle = '#ff8e8e';
+                ctx.lineWidth = Math.max(1, 0.5 * fontScale);
+                // はみ出し分（禁則処理の確保スペース）には画面表示と同じく罫線を引かない
+                for (let r = 0; r < ROWS; r++) {
+                    ctx.strokeRect(x, padTop + r * rowH, colW, rowH);
+                }
+            }
+
+            for (let r = 0; r < ROWS; r++) {
+                const raw = col?.cells[r] || '';
+                if (!raw) continue;
+                const cy = padTop + r * rowH + rowH / 2;
+                drawCharInCell(ctx, raw, x + colW / 2, cy, fontSizePx, fontFamily);
+            }
+
+            (col?.extra || []).forEach((raw, ei) => {
+                const cy = padTop + ROWS * rowH + ei * rowH + rowH / 2;
+                drawCharInCell(ctx, raw, x + colW / 2, cy, fontSizePx, fontFamily);
+            });
+        }
+
+        return canvas;
+    }
+
+    // A4印刷でも粗くならないよう、原稿用紙を高解像度のJPEG画像として書き出す。
+    // html2canvasやdom-to-imageなどのDOMスクリーンショット系ライブラリは縦書き
+    // (writing-mode: vertical-rl)の再現が弱く、罫線や文字が消えることがあったため、
+    // 画面と全く同じレイアウトデータ（lastRenderData）から直接Canvasに描画する。
+    async function saveAsImage() {
+        if (!lastRenderData || !lastRenderData.totalPages) return;
+
+        const btn = document.getElementById('btnSaveImage');
+        const originalLabel = btn ? btn.innerText : '';
+        if (btn) { btn.innerText = '画像を作成中…'; btn.disabled = true; }
+
+        try {
+            if (document.fonts && document.fonts.ready) await document.fonts.ready;
+            const { totalPages } = lastRenderData;
+            for (let i = 0; i < totalPages; i++) {
+                const canvas = drawPageToCanvas(i, lastRenderData);
+                const dataUrl = canvas.toDataURL('image/jpeg', 0.95);
+                const a = document.createElement('a');
+                a.href = dataUrl;
+                const base = (nameInput.value || '原稿').trim();
+                a.download = totalPages > 1 ? `文集_${base}_${i + 1}.jpg` : `文集_${base}.jpg`;
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+                if (i < totalPages - 1) await new Promise(res => setTimeout(res, 300));
+            }
+        } catch (err) {
+            console.error('画像の保存に失敗しました:', err);
+            alert('画像の保存に失敗しました。');
+        } finally {
+            if (btn) { btn.innerText = originalLabel; btn.disabled = false; }
+        }
     }
 </script>
 
