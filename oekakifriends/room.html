@@ -545,7 +545,7 @@ canvas { touch-action: none; -webkit-user-select: none; user-select: none; }
         </div>
         <button type="button" class="btn btn-sub" style="margin-top:10px;" onclick="leaveRoomToMenu()">メインメニューへもどる</button>
     </div>
-    <div class="lobby-version-footer">お絵かきクイズ フレンズ | Ver 1.6 | ota tools</div>
+    <div class="lobby-version-footer">お絵かきクイズ フレンズ | Ver 1.7 | ota tools</div>
     </div>
 </div>
 
@@ -725,6 +725,39 @@ const config = {
 };
 firebase.initializeApp(config);
 const db = firebase.database();
+
+// このファイル自身のバージョン番号。index.htmlと同じしくみで、Firebase側の
+// appConfig/minVersionより古ければ止める（ensureVersionOk参照）。room.htmlは
+// 通常index.html側のチェックを通ってからしか来ないはずだが、ブックマークや
+// タブを開いたままにしていた場合など、直接ここに来るケースの保険として
+// こちらにも同じチェックを入れておく。
+const APP_VERSION = "1.7";
+function isVersionOlder(a, b) {
+    const pa = String(a).split('.').map(n => parseInt(n, 10) || 0);
+    const pb = String(b).split('.').map(n => parseInt(n, 10) || 0);
+    for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+        const x = pa[i] || 0, y = pb[i] || 0;
+        if (x < y) return true;
+        if (x > y) return false;
+    }
+    return false;
+}
+async function ensureVersionOk() {
+    try {
+        const snap = await db.ref('appConfig/minVersion').once('value');
+        const minVersion = snap.val();
+        if (minVersion && isVersionOlder(APP_VERSION, minVersion)) {
+            alert('新しいバージョンが公開されています。ページを読み込み直しますので、もう一度お試しください。');
+            location.reload();
+            return false;
+        }
+    } catch (e) {
+        // 確認できなくても遊べなくなってしまうのは困るので、確認に失敗したときは
+        // そのまま続行する。
+    }
+    return true;
+}
+
 // Safariのプライベートブラウズ等でindexedDBが使えないと、Firebase Authのログイン状態の
 // 保存処理がフリーズすることがある（index.htmlと同じ理由）。ログイン状態をページを
 // またいで覚えておく必要はないので、メモリ上だけに置く方式にしてindexedDBを使わないようにする。
@@ -987,6 +1020,15 @@ let currentProgressRoundNumber = 0;
 let latestLiveDraw = null;
 let currentDrawerUid = "";
 let currentPhase = "";
+// 残り時間（timeLeft）は、以前は1秒ごとにホストがFirebaseへ書きこんで全員に配って
+// いたが、それだと「部屋の中の1つの値が変わるたびに部屋の情報が丸ごと全員に
+// 再送される」しくみ（casual_roomsの1本リスナー）のせいで、1秒ごとに部屋全員へ
+// 部屋の情報を丸ごと送りなおすのと同じことになり、通信量をとても大きく使って
+// いた。roundEndAt（ラウンドの終了予定時刻）さえ知っていれば、残り時間は
+// 各端末が自分の時計で計算できるので、そちらに切りかえた（hostRunRoundTimer・
+// updateTimerAndHints参照）。
+let currentRoundEndAt = 0;
+let currentCorrectAnswer = "";
 
 let lastCanvasW = 0, lastCanvasH = 0;
 // サイズが変わるたびに、消えないよう前の絵をいったん画像として退避して描き戻しているが、
@@ -1365,9 +1407,18 @@ function hostRunCountdown() {
 // 毎秒Firebaseを読みに行く必要はない（正解が出た時の即終了は、リアルタイムリスナー側
 // （state.correctCountの変化に反応するほう）がすでに別に処理しているので、ここで
 // あらためて見にいかなくても問題ない）。
+//
+// さらに以前は、ここで毎秒 state/timeLeft をFirebaseに書きこんで全員に配っていたが、
+// casual_roomsは「部屋の中の1つの値が変わるだけで、部屋の情報が丸ごと全員に
+// 再送される」しくみ（1本の.on('value')リスナー）なので、1秒ごとの書きこみは
+// 「1秒ごとに部屋の情報を全員へ丸ごと送りなおす」のと同じことになり、通信量を
+// 大きく使ってしまっていた。残り時間は、各端末がroundEndAt（下でstateから
+// currentRoundEndAtとして受け取る）と自分の時計から計算すれば十分なので
+// （updateTimerAndHints参照）、ここでの書きこみ自体をやめた。このタイマーは、
+// ホストが「時間切れになったら次に進める」ための見回り専用として、表示には
+// もう使わない。
 function hostRunRoundTimer(roundEndAt) {
     if (hostTimerInterval) clearInterval(hostTimerInterval);
-    let lastWrittenTimeLeft = null;
     hostTimerInterval = setInterval(() => {
         // 「時間で終了」のゲーム全体の制限時間がきたら、そのお題のカウントダウンが
         // まだ残っていても、そこで区切って終わらせる（roomSettings/currentGameEndAtは
@@ -1378,11 +1429,6 @@ function hostRunRoundTimer(roundEndAt) {
             clearInterval(hostTimerInterval);
             hostTimerInterval = null;
             hostFinishRound();
-            return;
-        }
-        if (remaining !== lastWrittenTimeLeft) {
-            lastWrittenTimeLeft = remaining;
-            db.ref(`casual_rooms/${myRoom}/state/timeLeft`).set(remaining);
         }
     }, 1000);
 }
@@ -1905,7 +1951,8 @@ window.onload = () => {
     broadcastPendingSettings();
 };
 
-authReady.then(() => {
+authReady.then(async () => {
+    if (!(await ensureVersionOk())) return;
     if (isHost) {
         // このタブ自身のID。あとで「今このタブが、Firebase上の現在のホストと一致しているか」を
         // 確認するのに使う（ホストのタブを誤って複製したときの対策。hostStartGame()を参照）。
@@ -2040,6 +2087,8 @@ authReady.then(() => {
         currentIsPlaying = (state.phase === "playing" && state.active);
         currentDrawerUid = state.currentDrawer || "";
         currentPhase = state.phase || "";
+        currentRoundEndAt = state.roundEndAt || 0;
+        currentCorrectAnswer = state.correctAnswer || "";
 
         // ホストがゲーム中にページを再読み込みすると、正解チェックや残り時間を進めている
         // hostTimerInterval（メモリ上のタイマー）が消えてしまい、だれかが正解しても
@@ -2111,12 +2160,9 @@ authReady.then(() => {
         }
 
         // ここから通常のゲーム画面
-        const limitTimerEl = document.getElementById('limitTimer');
-        if (currentIsPlaying && state.timeLeft !== undefined) {
-            limitTimerEl.style.display = "block";
-            limitTimerEl.innerText = state.timeLeft;
-            limitTimerEl.style.background = state.timeLeft <= 10 ? "#ff0000" : "#ff3333";
-        } else { limitTimerEl.style.display = "none"; }
+        // 残り時間まわりの表示（タイマー・ヒント）はupdateTimerAndHints()にまとめてあり、
+        // ここ（部屋の情報が変わった時）と、1秒ごとのローカルタイマー（localTimerTick）の
+        // 両方から呼ばれる。
 
         renderPlayerSidebar(data);
 
@@ -2254,38 +2300,61 @@ authReady.then(() => {
         document.getElementById('myScoreDisplay').innerText = `${(usersData[myUid] && usersData[myUid].score) || 0}点`;
         document.getElementById('odaiGhost').innerText = (isDrawer && currentIsPlaying) ? `お題： 「 ${state.correctAnswer} 」` : "";
 
-        const hintBox = document.getElementById('hintDisplay'); hintBox.innerHTML = "";
-        // 「都道府県」のお題だけは、最初の文字ヒントを出さないぶん、
-        // 文字数の丸ヒントを少し早め（残り20秒）から出す。それ以外はこれまで通り残り40秒から。
-        const hintStartSec = roomSettings.difficulty === "都道府県" ? 20 : 40;
-        const showHint = currentIsPlaying && state.timeLeft <= hintStartSec && state.correctAnswer;
-        // 残り20秒からは最初の1文字だけ実際の文字を見せる（それ以外は引き続き点のまま）。
-        // ただし答えが1〜2文字しかないときは、1文字見せるとほぼ答えを教えてしまうのと
-        // 同じになるので、文字数の丸だけにして、最初の文字は最後まで見せない。
-        const answerLen = state.correctAnswer ? [...state.correctAnswer].length : 0;
-        // 「都道府県」のお題だけは、最初の文字が答えとほぼ同じ意味になってしまう
-        // （都道府県名は最初の文字だけでほぼ絞りこめるため）ので、ヒントで文字を見せない。
-        const showFirstChar = state.timeLeft <= 20 && answerLen >= 3 && roomSettings.difficulty !== "都道府県";
-        hintBox.style.display = showHint ? 'flex' : 'none'; // 中身が空でも枠(丸っぽい形)だけ表示されてしまうのを防ぐ
-        if (showHint) {
-            const label = document.createElement('div'); label.id = "hintLabel"; label.innerText = "ヒント："; hintBox.appendChild(label);
-            [...state.correctAnswer].forEach((char, i) => {
-                const isSmall = "ぁぃぅぇぉゃゅょっァィゥェォャュョッ".includes(char);
-                if (i === 0 && showFirstChar) {
-                    const chip = document.createElement('div');
-                    chip.className = "hint-char" + (isSmall ? " small" : "");
-                    chip.innerText = char;
-                    hintBox.appendChild(chip);
-                } else {
-                    const dot = document.createElement('div');
-                    dot.className = "hint-dot" + (isSmall ? " small" : "");
-                    hintBox.appendChild(dot);
-                }
-            });
-        }
+        updateTimerAndHints();
         scheduleStageLayout();
     });
 });
+
+// 残り時間の表示（右上のバッジ）と、時間切れが近づいてから出すヒントをまとめて
+// 更新する。残り時間はcurrentRoundEndAt（ラウンド終了予定の時刻）から各端末が
+// 自分の時計で計算するので、Firebaseへの問い合わせなしで呼べる。部屋の情報が
+// 変わった時（上のリスナー）と、1秒ごとのローカルタイマー（すぐ下のsetInterval）の
+// 両方から呼ばれる。
+function updateTimerAndHints() {
+    const limitTimerEl = document.getElementById('limitTimer');
+    const timerActive = currentIsPlaying && currentRoundEndAt;
+    const timeLeft = timerActive ? Math.max(0, Math.ceil((currentRoundEndAt - Date.now()) / 1000)) : 0;
+    if (timerActive) {
+        limitTimerEl.style.display = "block";
+        limitTimerEl.innerText = timeLeft;
+        limitTimerEl.style.background = timeLeft <= 10 ? "#ff0000" : "#ff3333";
+    } else {
+        limitTimerEl.style.display = "none";
+    }
+
+    const hintBox = document.getElementById('hintDisplay'); hintBox.innerHTML = "";
+    // 「都道府県」のお題だけは、最初の文字ヒントを出さないぶん、
+    // 文字数の丸ヒントを少し早め（残り20秒）から出す。それ以外はこれまで通り残り40秒から。
+    const hintStartSec = roomSettings.difficulty === "都道府県" ? 20 : 40;
+    const showHint = timerActive && timeLeft <= hintStartSec && currentCorrectAnswer;
+    // 残り20秒からは最初の1文字だけ実際の文字を見せる（それ以外は引き続き点のまま）。
+    // ただし答えが1〜2文字しかないときは、1文字見せるとほぼ答えを教えてしまうのと
+    // 同じになるので、文字数の丸だけにして、最初の文字は最後まで見せない。
+    const answerLen = currentCorrectAnswer ? [...currentCorrectAnswer].length : 0;
+    // 「都道府県」のお題だけは、最初の文字が答えとほぼ同じ意味になってしまう
+    // （都道府県名は最初の文字だけでほぼ絞りこめるため）ので、ヒントで文字を見せない。
+    const showFirstChar = timerActive && timeLeft <= 20 && answerLen >= 3 && roomSettings.difficulty !== "都道府県";
+    hintBox.style.display = showHint ? 'flex' : 'none'; // 中身が空でも枠(丸っぽい形)だけ表示されてしまうのを防ぐ
+    if (showHint) {
+        const label = document.createElement('div'); label.id = "hintLabel"; label.innerText = "ヒント："; hintBox.appendChild(label);
+        [...currentCorrectAnswer].forEach((char, i) => {
+            const isSmall = "ぁぃぅぇぉゃゅょっァィゥェォャュョッ".includes(char);
+            if (i === 0 && showFirstChar) {
+                const chip = document.createElement('div');
+                chip.className = "hint-char" + (isSmall ? " small" : "");
+                chip.innerText = char;
+                hintBox.appendChild(chip);
+            } else {
+                const dot = document.createElement('div');
+                dot.className = "hint-dot" + (isSmall ? " small" : "");
+                hintBox.appendChild(dot);
+            }
+        });
+    }
+}
+// 1秒ごとに残り時間の見た目だけをローカルで更新する（Firebaseへは問い合わせない）。
+// 部屋の情報がずっと変わらない間も、表示の秒数はちゃんとカウントダウンして見える。
+setInterval(updateTimerAndHints, 1000);
 
 function renderFinal() {
     const container = document.getElementById('finalRankContainer');

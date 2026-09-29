@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex, nofollow">
+<title>部屋そうじツール</title>
+<style>
+  body { font-family: 'Hiragino Sans', 'Yu Gothic', sans-serif; max-width: 680px; margin: 30px auto; padding: 0 16px; color: #2c2a4a; line-height: 1.7; }
+  h1 { font-size: 20px; }
+  .panel { background: #f7f8fd; border-radius: 14px; padding: 16px 18px; margin: 14px 0; }
+  .panel b { color: #4d5085; }
+  button { font-size: 15px; font-weight: 700; padding: 12px 20px; border-radius: 10px; border: none; cursor: pointer; margin-top: 8px; margin-right: 8px; }
+  #runBtn { background: #e05252; color: #fff; }
+  #runBtn:disabled { background: #ccc; cursor: not-allowed; }
+  #refreshBtn { background: #eef1fb; color: #2c2a4a; }
+  #log { white-space: pre-wrap; background: #fff; border: 1px solid #e0e0ee; border-radius: 10px; padding: 12px 14px; font-size: 13px; margin-top: 10px; min-height: 40px; }
+  .warn { color: #c0392b; font-weight: 700; }
+  .ok { color: #1a8a4a; font-weight: 700; }
+  .room-list { font-size: 13px; color: #6a6d99; word-break: break-all; }
+</style>
+</head>
+<body>
+<h1>部屋そうじツール</h1>
+<p>「お絵かきクイズ フレンズ」の部屋（casual_rooms）のうち、<b>今その部屋に誰もつながっていない
+（＝実際に遊んでいる人がいない）部屋</b>だけをまとめて削除します。今まさに遊んでいる部屋は、
+判定にはかかわらないので消えません。あわせて、描いている途中のプレビュー置き場
+（live_draws）の中の、対応する部屋がもう無いもの（残りかす）もいっしょに片付けます。</p>
+
+<div class="panel" id="statusPanel">読み込み中…</div>
+
+<button id="refreshBtn">数え直す</button>
+<button id="runBtn" disabled>使っていない部屋を削除する</button>
+<div id="log"></div>
+
+<h1 style="margin-top:36px;">必要なバージョンの設定</h1>
+<p>ここで設定した番号より<b>古いバージョン</b>の index.html・room.html は、
+「部屋を作る」「入る」ができなくなり、「読み込み直してください」と表示されます
+（ページを開いた古いタブがまだ残っている端末に気づかせるためのしくみです）。
+新しいバージョンのファイルを配ったら、ここもその番号に合わせて更新してください。</p>
+<div class="panel" id="versionPanel">読み込み中…</div>
+<input id="minVersionInput" type="text" placeholder="例：1.7" style="font-size:15px; padding:10px 12px; border-radius:8px; border:1px solid #ccc; width:120px;">
+<button id="setVersionBtn">この番号にする</button>
+
+<p style="margin-top:24px; font-size:12px; color:#9497c2;">
+※このファイルは掃除専用のツールです。ゲーム本体（index.html・room.html）からはリンクされていないので、
+このURLを直接開いた人だけが使えます。
+</p>
+
+<script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-database-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-auth-compat.js"></script>
+<script>
+const config = {
+    apiKey: "AIzaSyBc9bPH4N_wa_NkEI3kpTYERTTP1ThByNw",
+    authDomain: "ondoku-c48a9.firebaseapp.com",
+    databaseURL: "https://ondoku-c48a9-default-rtdb.asia-southeast1.firebasedatabase.app",
+    projectId: "ondoku-c48a9",
+    appId: "1:508376944479:web:7d38bc7a02399cd0bd70ea"
+};
+firebase.initializeApp(config);
+const db = firebase.database();
+
+function log(msg) {
+    document.getElementById('log').textContent += msg + "\n";
+}
+
+const authReady = new Promise((resolve, reject) => {
+    firebase.auth().onAuthStateChanged(user => {
+        if (user) { resolve(user); return; }
+        firebase.auth().signInAnonymously().catch(reject);
+    }, reject);
+});
+
+// 「今その部屋に誰もつながっていない」＝usersの中に connected:true の人が
+// 1人もいない（room.htmlが接続のたびに正確に保っている値を見ている）。
+// stateが無い壊れた部屋（残骸）も、同じくらい安全に消してよいので「未使用」あつかいにする。
+function isRoomUnused(room) {
+    if (!room || !room.state) return true;
+    const users = room.users || {};
+    const anyoneConnected = Object.values(users).some(u => u && u.connected === true);
+    return !anyoneConnected;
+}
+
+let scan = null; // { unusedRooms: [...], inUseCount, orphanLiveDraws: [...] }
+
+async function runScan() {
+    document.getElementById('statusPanel').textContent = '数えています…';
+    document.getElementById('runBtn').disabled = true;
+    try {
+        await authReady;
+        const [roomsSnap, liveSnap] = await Promise.all([
+            db.ref('casual_rooms').once('value'),
+            db.ref('live_draws').once('value'),
+        ]);
+        const rooms = roomsSnap.val() || {};
+        const liveDraws = liveSnap.val() || {};
+
+        const unusedRooms = [];
+        let inUseCount = 0;
+        Object.keys(rooms).forEach(roomId => {
+            if (isRoomUnused(rooms[roomId])) unusedRooms.push(roomId);
+            else inUseCount++;
+        });
+
+        // 対応する部屋がもう無いlive_drawsは、常に片付けてよい「残りかす」。
+        const orphanLiveDraws = Object.keys(liveDraws).filter(roomId => !rooms[roomId]);
+
+        scan = { unusedRooms, inUseCount, orphanLiveDraws, liveDrawsTotal: Object.keys(liveDraws).length };
+
+        let html = `部屋の合計：${Object.keys(rooms).length}件<br>`;
+        html += `　└ 今つながっている人がいる部屋：<b>${inUseCount}件</b>（これは消しません）<br>`;
+        html += `　└ 今使われていない部屋：<b>${unusedRooms.length}件</b>（削除の対象）<br>`;
+        html += `live_drawsの合計：${scan.liveDrawsTotal}件<br>`;
+        html += `　└ 対応する部屋がもう無い残りかす：<b>${orphanLiveDraws.length}件</b>（削除の対象）`;
+        if (unusedRooms.length) {
+            html += `<div class="room-list">削除対象の部屋番号：${unusedRooms.join('、')}</div>`;
+        }
+        document.getElementById('statusPanel').innerHTML = html;
+        document.getElementById('runBtn').disabled = (unusedRooms.length === 0 && orphanLiveDraws.length === 0);
+    } catch (e) {
+        document.getElementById('statusPanel').innerHTML = '<span class="warn">読み込みに失敗しました：' + (e && e.message ? e.message : e) + '</span>';
+        console.error(e);
+    }
+}
+
+document.getElementById('refreshBtn').onclick = runScan;
+
+document.getElementById('runBtn').onclick = async () => {
+    if (!scan) return;
+    const total = scan.unusedRooms.length + scan.orphanLiveDraws.length;
+    if (!confirm(`今使われていない部屋 ${scan.unusedRooms.length}件と、live_drawsの残りかす ${scan.orphanLiveDraws.length}件、合計${total}件を削除します。今まさに遊んでいる部屋は対象に含まれていません。よろしいですか？`)) return;
+
+    document.getElementById('runBtn').disabled = true;
+    log('削除しています…');
+    try {
+        const updates = {};
+        scan.unusedRooms.forEach(roomId => {
+            updates[`casual_rooms/${roomId}`] = null;
+            updates[`live_draws/${roomId}`] = null;
+        });
+        scan.orphanLiveDraws.forEach(roomId => {
+            updates[`live_draws/${roomId}`] = null;
+        });
+        await db.ref().update(updates);
+        log(`完了しました。部屋 ${scan.unusedRooms.length}件、live_drawsの残りかす ${scan.orphanLiveDraws.length}件を削除しました。`);
+        await runScan();
+    } catch (e) {
+        log('エラーが発生しました：' + (e && e.message ? e.message : e));
+        document.getElementById('runBtn').disabled = false;
+    }
+};
+
+async function loadMinVersion() {
+    try {
+        await authReady;
+        const snap = await db.ref('appConfig/minVersion').once('value');
+        const v = snap.val();
+        document.getElementById('versionPanel').innerHTML = v
+            ? `今設定されている必要バージョン：<b>${v}</b>`
+            : `今はまだ何も設定されていません（この場合、古いバージョンでも止まりません）`;
+        if (v) document.getElementById('minVersionInput').value = v;
+    } catch (e) {
+        document.getElementById('versionPanel').innerHTML = '<span class="warn">読み込みに失敗しました：' + (e && e.message ? e.message : e) + '</span>';
+    }
+}
+document.getElementById('setVersionBtn').onclick = async () => {
+    const v = document.getElementById('minVersionInput').value.trim();
+    if (!v) { alert('バージョン番号を入れてください（例：1.7）'); return; }
+    if (!confirm(`必要バージョンを「${v}」にします。これより古いファイルのままの端末は、部屋を作る・入るができなくなります。よろしいですか？`)) return;
+    try {
+        await authReady;
+        await db.ref('appConfig/minVersion').set(v);
+        log(`必要バージョンを ${v} にしました。`);
+        await loadMinVersion();
+    } catch (e) {
+        log('エラーが発生しました：' + (e && e.message ? e.message : e));
+    }
+};
+
+runScan();
+loadMinVersion();
+</script>
+</body>
+</html>
