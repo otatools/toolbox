@@ -25,7 +25,9 @@
 <p>「お絵かきクイズ フレンズ」の部屋（casual_rooms）のうち、<b>今その部屋に誰もつながっていない
 （＝実際に遊んでいる人がいない）部屋</b>だけをまとめて削除します。今まさに遊んでいる部屋は、
 判定にはかかわらないので消えません。あわせて、描いている途中のプレビュー置き場
-（live_draws）の中の、対応する部屋がもう無いもの（残りかす）もいっしょに片付けます。</p>
+（live_draws）の中の、対応する部屋がもう無いもの（残りかす）もいっしょに片付けます。<br>
+※スリープや強制終了などで正しく切断が伝わらず、「つながっている」表示のまま
+2時間以上応答が無い場合も、実際にはもう遊んでいないとみなして削除の対象にします。</p>
 
 <div class="panel" id="statusPanel">読み込み中…</div>
 
@@ -72,14 +74,25 @@ const authReady = new Promise((resolve, reject) => {
     }, reject);
 });
 
-// 「今その部屋に誰もつながっていない」＝usersの中に connected:true の人が
-// 1人もいない（room.htmlが接続のたびに正確に保っている値を見ている）。
-// stateが無い壊れた部屋（残骸）も、同じくらい安全に消してよいので「未使用」あつかいにする。
-function isRoomUnused(room) {
-    if (!room || !room.state) return true;
+// connected:true は、回線がきれいに切れなかった場合（スリープ・強制終了など）に
+// 残りつづけてしまうことがある。そこでroom.htmlが5分おきに書いている
+// 「最後に生きていた時刻」（presence）もあわせて見て、2時間以上更新が
+// 止まっているものは「実際にはもう遊んでいない」とみなす。
+// presenceが無い場合（古いバージョンのroom.htmlを開いたままの端末など、
+// 判定できない場合）は、誤って消してしまわないようconnectedの値をそのまま信じる。
+const STALE_HEARTBEAT_MS = 2 * 60 * 60 * 1000; // 2時間
+
+function isRoomActuallyInUse(room, presenceForRoom) {
+    if (!room || !room.state) return false;
     const users = room.users || {};
-    const anyoneConnected = Object.values(users).some(u => u && u.connected === true);
-    return !anyoneConnected;
+    const now = Date.now();
+    return Object.keys(users).some(uid => {
+        const u = users[uid];
+        if (!u || u.connected !== true) return false;
+        const lastSeen = presenceForRoom ? presenceForRoom[uid] : null;
+        if (lastSeen == null) return true; // 判定できないので信じる
+        return (now - lastSeen) < STALE_HEARTBEAT_MS;
+    });
 }
 
 let scan = null; // { unusedRooms: [...], inUseCount, orphanLiveDraws: [...] }
@@ -89,29 +102,41 @@ async function runScan() {
     document.getElementById('runBtn').disabled = true;
     try {
         await authReady;
-        const [roomsSnap, liveSnap] = await Promise.all([
+        const [roomsSnap, liveSnap, presenceSnap] = await Promise.all([
             db.ref('casual_rooms').once('value'),
             db.ref('live_draws').once('value'),
+            db.ref('presence').once('value'),
         ]);
         const rooms = roomsSnap.val() || {};
         const liveDraws = liveSnap.val() || {};
+        const presence = presenceSnap.val() || {};
 
         const unusedRooms = [];
         let inUseCount = 0;
+        let staleConnectedCount = 0;
         Object.keys(rooms).forEach(roomId => {
-            if (isRoomUnused(rooms[roomId])) unusedRooms.push(roomId);
-            else inUseCount++;
+            if (isRoomActuallyInUse(rooms[roomId], presence[roomId])) {
+                inUseCount++;
+            } else {
+                unusedRooms.push(roomId);
+                const users = (rooms[roomId] && rooms[roomId].users) || {};
+                if (Object.values(users).some(u => u && u.connected === true)) staleConnectedCount++;
+            }
         });
 
-        // 対応する部屋がもう無いlive_drawsは、常に片付けてよい「残りかす」。
+        // 対応する部屋がもう無いlive_draws・presenceは、常に片付けてよい「残りかす」。
         const orphanLiveDraws = Object.keys(liveDraws).filter(roomId => !rooms[roomId]);
+        const orphanPresence = Object.keys(presence).filter(roomId => !rooms[roomId]);
 
-        scan = { unusedRooms, inUseCount, orphanLiveDraws, liveDrawsTotal: Object.keys(liveDraws).length };
+        scan = { unusedRooms, inUseCount, orphanLiveDraws, orphanPresence, liveDrawsTotal: Object.keys(liveDraws).length };
 
         let html = `部屋の合計：${Object.keys(rooms).length}件<br>`;
         html += `　└ 今つながっている人がいる部屋：<b>${inUseCount}件</b>（これは消しません）<br>`;
-        html += `　└ 今使われていない部屋：<b>${unusedRooms.length}件</b>（削除の対象）<br>`;
-        html += `live_drawsの合計：${scan.liveDrawsTotal}件<br>`;
+        html += `　└ 今使われていない部屋：<b>${unusedRooms.length}件</b>（削除の対象）`;
+        if (staleConnectedCount > 0) {
+            html += `<br>　　（うち${staleConnectedCount}件は、connectedの表示上は「つながっている」ままですが、2時間以上応答が無いため未使用あつかいにしています）`;
+        }
+        html += `<br>live_drawsの合計：${scan.liveDrawsTotal}件<br>`;
         html += `　└ 対応する部屋がもう無い残りかす：<b>${orphanLiveDraws.length}件</b>（削除の対象）`;
         if (unusedRooms.length) {
             html += `<div class="room-list">削除対象の部屋番号：${unusedRooms.join('、')}</div>`;
@@ -138,9 +163,13 @@ document.getElementById('runBtn').onclick = async () => {
         scan.unusedRooms.forEach(roomId => {
             updates[`casual_rooms/${roomId}`] = null;
             updates[`live_draws/${roomId}`] = null;
+            updates[`presence/${roomId}`] = null;
         });
         scan.orphanLiveDraws.forEach(roomId => {
             updates[`live_draws/${roomId}`] = null;
+        });
+        (scan.orphanPresence || []).forEach(roomId => {
+            updates[`presence/${roomId}`] = null;
         });
         await db.ref().update(updates);
         log(`完了しました。部屋 ${scan.unusedRooms.length}件、live_drawsの残りかす ${scan.orphanLiveDraws.length}件を削除しました。`);

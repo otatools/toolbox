@@ -545,7 +545,7 @@ canvas { touch-action: none; -webkit-user-select: none; user-select: none; }
         </div>
         <button type="button" class="btn btn-sub" style="margin-top:10px;" onclick="leaveRoomToMenu()">メインメニューへもどる</button>
     </div>
-    <div class="lobby-version-footer">お絵かきクイズ フレンズ | Ver 1.7 | ota tools</div>
+    <div class="lobby-version-footer">お絵かきクイズ フレンズ | Ver 1.8 | ota tools</div>
     </div>
 </div>
 
@@ -731,7 +731,7 @@ const db = firebase.database();
 // 通常index.html側のチェックを通ってからしか来ないはずだが、ブックマークや
 // タブを開いたままにしていた場合など、直接ここに来るケースの保険として
 // こちらにも同じチェックを入れておく。
-const APP_VERSION = "1.7";
+const APP_VERSION = "1.8";
 function isVersionOlder(a, b) {
     const pa = String(a).split('.').map(n => parseInt(n, 10) || 0);
     const pb = String(b).split('.').map(n => parseInt(n, 10) || 0);
@@ -1968,11 +1968,28 @@ authReady.then(async () => {
     // 自分の接続状態（connected）を、フェーズに関わらずゲーム中ずっと正確に保つ。
     // 再接続のたびにこのコールバックが呼び直されるのがFirebaseの標準的な使い方で、
     // そのたびにonDisconnectも新しくつけ直す必要がある（切断ごとに1回しか効かないため）。
+    //
+    // ただし、onDisconnectは「回線がきれいに切れた（正しく通知が来た）場合」しか
+    // 働かない。スリープや強制終了・通信の異常など、通知が来ないまま止まった場合は
+    // connected:trueが残りつづけてしまうことがある。それを見分けられるように、
+    // casual_roomsとは別の軽い場所（presence）に「最後に生きていた時刻」を
+    // 5分おきに書いておく。ここへの書きこみはcasual_roomsの中ではないので、
+    // 部屋の情報がまるごと他の人に再送されることはない（bandwidth対策と同じ考え方）。
+    const HEARTBEAT_INTERVAL_MS = 5 * 60 * 1000;
+    let heartbeatTimer = null;
+    function sendHeartbeat() {
+        const presenceRef = db.ref(`presence/${myRoom}/${myUid}`);
+        presenceRef.set(Date.now());
+        presenceRef.onDisconnect().remove();
+    }
     db.ref('.info/connected').on('value', csnap => {
         if (csnap.val() === true) {
             const connRef = db.ref(`casual_rooms/${myRoom}/users/${myUid}/connected`);
             connRef.set(true);
             connRef.onDisconnect().set(false);
+
+            sendHeartbeat();
+            if (!heartbeatTimer) heartbeatTimer = setInterval(sendHeartbeat, HEARTBEAT_INTERVAL_MS);
         }
     });
 
