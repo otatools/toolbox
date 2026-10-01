@@ -605,6 +605,7 @@ h1{ font-size:1.5rem; text-align:center; letter-spacing:.05em; }
 }
 .solo-highscore span{ font-size:1.15em; }
 .solo-settings-btn{ display:block; margin:clamp(10px, 1.8vh, 18px) auto 0; min-width:0; }
+.rank-banned{ display:none !important; }   /* 不適切な名前を入れた人には、ランキングのボタンを出さない */
 .solo-rank-btn{ margin-top:clamp(18px, 3.2vh, 32px); }   /* スタートボタンの影(下に11px)と重ならないよう少し離す */
 .result-settings-btn{ display:block; margin:0 auto clamp(14px, 2.6vh, 26px); min-width:0; }
 .result-rank-btn{ margin:clamp(22px, 4vh, 40px) auto 0; }   /* 「もう一度遊ぶ／トップにもどる」の影の下に離して置く */
@@ -1477,6 +1478,7 @@ function escapeHtml(str){
    持ったままのカード(分身)が残らないよう showScreen から呼ぶ。 */
 var currentDragCancel = null;
 function showScreen(id){
+  try{ applyRankBan(); }catch(e){}
   if(id !== 'game-screen' && currentDragCancel){ try{ currentDragCancel(); }catch(e){} currentDragCancel = null; }
   document.querySelectorAll('.screen').forEach(function(s){ s.classList.remove('active'); });
   document.getElementById(id).classList.add('active');
@@ -2816,7 +2818,7 @@ function rankPosition(entries, score){
 
 /* --- ひとりプレイが終わったとき：ランクインの可能性があるときだけ読みこむ --- */
 function rankAfterGame(score){
-  if(!(score > 0)) return;
+  if(!(score > 0) || rankBanned()) return;
   var keys = rankKeys();
   var cands = RANK_BOARDS.filter(function(b){ return mayRankIn(b.id, keys[b.id], score); });
   if(!cands.length) return;
@@ -2833,6 +2835,43 @@ function rankAfterGame(score){
     // 遊びの邪魔にならないよう小さなお知らせだけ。くわしい原因はコンソール(F12)に出す
     try{ console.warn('[ranking] 読みこみ失敗:', e && (e.code || e.message || e)); }catch(_){}
     showToast('ランキングに つなげませんでした', 'ng');
+  });
+}
+
+/* --- 不適切な名前をくり返した端末は、その日ランキングを使えなくする ---
+   1日に5回はじかれたら、その日はランキングのボタンも登録も出さない。
+   いちどそうなった端末は、つぎの日からは1回はじかれただけで、その日は使えなくなる。 */
+var RANK_STRIKE_FIRST = 5;
+function rankToday(){ var d = new Date(); return d.getFullYear() + '-' + (d.getMonth() + 1) + '-' + d.getDate(); }
+function rankStrikeLoad(){
+  var st = null;
+  try{ st = JSON.parse(localStorage.getItem('rekishi.rankStrike') || 'null'); }catch(e){}
+  if(!st || typeof st !== 'object') st = { d: '', n: 0, lv: 0 };
+  if(st.d !== rankToday()){ st.d = rankToday(); st.n = 0; }   // 日がかわったら、その日の回数は0から（きびしさは引きつぐ）
+  return st;
+}
+function rankStrikeSave(st){ try{ localStorage.setItem('rekishi.rankStrike', JSON.stringify(st)); }catch(e){ rankStrikeMem = st; } }
+var rankStrikeMem = null;
+function rankLimit(st){ return st.lv ? 1 : RANK_STRIKE_FIRST; }
+function rankBanned(){
+  var st = rankStrikeLoad();
+  if(rankStrikeMem && rankStrikeMem.d === st.d){ st = rankStrikeMem; }
+  return st.n >= rankLimit(st);
+}
+function rankStrike(){
+  var st = rankStrikeLoad();
+  if(rankStrikeMem && rankStrikeMem.d === st.d){ st = rankStrikeMem; }
+  st.n++;
+  if(st.n >= RANK_STRIKE_FIRST) st.lv = 1;      // 5回に達した → 明日からは1回でアウト
+  rankStrikeSave(st);
+  rankStrikeMem = st;
+  applyRankBan();
+}
+function applyRankBan(){
+  var b = rankBanned();
+  ['solo-rank-btn', 'result-rank-btn'].forEach(function(id){
+    var el = document.getElementById(id);
+    if(el) el.classList.toggle('rank-banned', b);
   });
 }
 
@@ -2883,10 +2922,12 @@ function closeRankEntry(){
    ※言葉を足すときは、カンマ区切りの文字列をbase64にして、それぞれの文字列に置きかえる。 */
 var RANK_BAD_WHOLE_ENC = 'NjksYXYsYmosZnUsc20sc3gsYXNzLGJjaCxjdW0sZGllLGVybyxmYWcsZmFwLGZhdCxmY2ssZnVjLGZ1ayxmdXEsZ2F5LGd1bixob2Usa2trLGtsbCxrbXMsa3lzLGxleixuYXosbmlnLHBlZSxwb28scHVzLHNleCxzaHQsc3V4LHRpdCx2YWcsd29wLHd0Zix4eHgsYW5hbCxhbnVzLGFyc2UsYXNzaCxhc3NzLGJpdGMsYm9tYixib29iLGJ0Y2gsYnV0dCxjaG5rLGNsaXQsY29jayxjb2tlLGNvb24sY3JhayxjcmFwLGN1bW0sY3VudCxkYW1uLGRlYWQsZGljayxkcnVnLGR1bWIsZHlrZSxmYWdzLGZhZ3QsZmNrdSxmY3VrLGZ1Y2ssZnVrayxmdWtyLGZ1eGssZnZjayxnb29rLGdvcmUsZ3VucyxoYW5nLGhhdGUsaGVsbCxoZW50LGhpdGwsaG9lcyxob21vLGhvcm4saXNpcyxqaXNtLGppenosa2lrZSxraWxsLG1ldGgsbWlsZixtdXJkLG5hemksbmlnYSxuaWdnLG5pZ3IsbnVkZSxudWRzLG9tZmcsb3JneSxwYWtpLHBlZG8scGltcCxwaXNzLHBvb3AscG9ybixwcmlrLHB1c3MscmFlcCxyYXBlLHNleHgsc2V4eSxzaGF0LHNoaXQsc2h5dCxzbHV0LHNwaWMsc3RhYixzdGZ1LHN1Y2ssc3VpYyx0YXJkLHRob3QsdGl0cyx0dXJkLHR3YXQsdWdseSx3YW5rLHdlZWQsd2hvcixhaG9sZSxhbmFscyxhbnVzcyxhcnNlcyxhc3Nlcyxhc3NobCxiYWxscyxiYXN0ZCxiaXRjaCxibG93aixib21icyxib25lcixib29icyxjbGl0cyxjb2Nrcyxjb2NreSxjcmFjayxjdW50cyxkZWF0aCxkaWNrcyxkaWNreSxkaWxkbyxkcnVncyxkeWtlcyxmYWdncyxmYWdvdCxmYXRzbyxmYXR0eSxmdWNrYSxmdWNrcyxmdWNrdSxnb29rcyxoYXRlcyxoaXRsZSxoaXRscixob21vcyxob3JueSxpZGlvdCxpbmNlbCxraWtlcyxraWxsYSxraWxscyxsZXNibyxsb3NlcixtaWxmcyxtb3JvbixuYXppcyxuZWdybyxuaWdlcixuaWdnYSxuaWdncyxudWRlcyxwZWRvcyxwZW5pcyxwaW1wcyxwdXNzeSxxdWVlcixyYXBlZCxyYXBlcyxyYXBleSxyZXRhcixzZW1lbixzZXh4eCxzZXh4eSxzaGl0ZSxzaGl0cyxzaGl0dCxzaGl0eSxzaGl0eixza2FuayxzbHV0cyxzcGljcyxzdGFicyxzdHVwZCx0d2F0cyx2dWx2YSx3YW5rYSx3YW5rcyx3ZWVkcyx3aG9yZSx3aG9ycyxtb2xlc3Q=';
 var RANK_BAD_PART_ENC = 'Y3VudCxmdWNrLGppenosa2trLG5pZ2cscGlzcyxwb3JuLHNsdXQsdHdhdCx4eHg=';
+var RANK_BAD_JP_WHOLE_ENC = 'dW5rbyx1bmNoaSx1bnRpLHVua29vLHRpbmtvLHRpbnBvLGNoaW5rbyxjaGlucG8sY2hpbmssbWFua28sbW5rbyxvbW5rbyxvY2hpbixvY2huayxvcHBhaSxvcGFpLGJvaW4sZXJvLGVyb2ksZXJvbyxlY2NoaSxldGNoaSxlY2NoLGVjY2ksc2V4LHNla2t1LHN1a2ViZSxrdXNvLGt1c29vLHNoaW5lLHNpbmUsc2luZWUsc2hpa28sc2lrbyxzaWtvdSxib2traSxpbnJhbixpbm1hLGtpbW8sa2ltb2ksdXphaSx1emVlLGt1enUsYnVzdSxkZWJ1LGJha2EsYmFrYWEsYWhvdSx5YXJpbWFuLGNoaWt1LHRpa3UsY2hpa2FuLHRpa2FuLHZhZ2kscGFudHksa29qaWtpLGlqaW1lLGtvcm9zLGtvcm95LGtvcnNlLHNpbmVpLHNoaW5lZSxzaGluZGUsc2luZGUsaW5raW4scm9yaSxoZW50LGhlbnRhaSx5YWp1LHlhanV1LHlhenl1LHlhenl1dSx5YWp5dSx5YWp5dXUsaG9tbyxob21vcyxob21vbyxob21vdSxyZXphLHJlenUscmV6enUsbGV6dSxsZXphLGxlenp5LG9rYW1hLG9rYW1vLG9uYWJlLG55dWhhLGdlaSxnZXksY2hvbixjaG9uayxjaG9ua28sbWVrdXJhLG1la3IsdHN1bmJvLHR1bmJvLGJpa2tvLGphcCxqYXBzLHRyYW55LHRyYW5ueSxmYWdvdCxmYWdnbyxiZWFuZSxkYXJreSxqaWdnYSxuZWdyLG5pZ2VyLG5pZ2dyLHJldGFyLHNwYXosbW9uZyxneXBvLGd5cHN5LGtpY2hlLGtpY2hp';
+var RANK_BAD_JP_PART_ENC = 'bWFua28sdGlua28sdGlucG8sb3BwYWksY2hpbmssc3VrZWIsaW5yYW4saGVudGFpLG1la3VyYSx0c3VuYm8sY2hvbmtvLGZhZ2dvLG5pZ2dlLG5pZ2dh';
 var rankBadCache = null;
 function rankBadLists(){
   if(!rankBadCache){
-    try{ rankBadCache = { whole: atob(RANK_BAD_WHOLE_ENC).split(','), part: atob(RANK_BAD_PART_ENC).split(',') }; }
+    try{ rankBadCache = { whole: atob(RANK_BAD_WHOLE_ENC).split(',').concat(atob(RANK_BAD_JP_WHOLE_ENC).split(',')), part: atob(RANK_BAD_PART_ENC).split(',').concat(atob(RANK_BAD_JP_PART_ENC).split(',')) }; }
     catch(e){ rankBadCache = { whole: [], part: [] }; }
   }
   return rankBadCache;
@@ -2915,8 +2956,10 @@ function submitRankEntry(){
   var name = rankSanitize(document.getElementById('rank-name').value);
   var pref = document.getElementById('rank-pref').value;
   if(!name){ showToast('なまえを いれてね（えいご・きごう）', 'ng'); return; }
+  if(rankBanned()){ closeRankEntry(); return; }
   if(rankIsBad(name)){
     // 不適切な名前は、登録も名前の記憶もせず、そのままトップ画面へもどす
+    rankStrike();    // 1日5回（いちど出たあとは1回）で、その日はランキングが使えなくなる
     closeRankEntry();
     cancelAllTimers();
     showScreen('menu-screen');   // 理由は何も言わず、そのままトップへ
@@ -2959,6 +3002,7 @@ function submitRankEntry(){
 
 /* --- ランキング画面 --- */
 function openRankScreen(from, tab){
+  if(rankBanned()) return;
   rankBack = from || 'setup-solo-screen';
   showScreen('ranking-screen');
   selectRankTab(tab || rankTab);
