@@ -762,7 +762,7 @@ h1{ font-size:1.5rem; text-align:center; letter-spacing:.05em; }
 .rank-period{ margin-bottom:clamp(8px, 1.6vh, 16px); }
 .rank-list{ list-style:none; margin:0 auto; padding:0; max-width:460px; text-align:left; }
 .rank-row{
-  display:grid; grid-template-columns:2.4em 1fr auto 3.6em; align-items:center; column-gap:8px;
+  display:grid; grid-template-columns:2.4em 1fr auto auto 3.6em; align-items:center; column-gap:8px;
   padding:clamp(7px, 1.2vh, 12px) 8px; border-bottom:1px dashed #cdc4ac;
   font-family:var(--mincho); font-weight:700; color:#3f3a2e;
   font-size:clamp(15px, min(2.8vh, 4.2vw), 24px);
@@ -771,6 +771,7 @@ h1{ font-size:1.5rem; text-align:center; letter-spacing:.05em; }
 .rank-row.r1 .rk{ color:#c79a1a; } .rank-row.r2 .rk{ color:#8d94a0; } .rank-row.r3 .rk{ color:#b0703c; }
 .rank-row .nm{ letter-spacing:.08em; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .rank-row .pf{ font-size:.66em; font-weight:400; color:#7a7263; white-space:nowrap; }
+.rank-row .dt{ font-size:.55em; font-weight:400; color:#a39b86; white-space:nowrap; }   /* 記録した日。目立たせない */
 .rank-row .sc{ text-align:right; white-space:nowrap; }
 .rank-row.mine{ background:#fff3cd; }
 .rank-msg{ margin-top:clamp(10px, 2vh, 20px); margin-bottom:0; min-height:1.7em; }
@@ -1039,7 +1040,7 @@ h1{ font-size:1.5rem; text-align:center; letter-spacing:.05em; }
       <div class="rank-tabs">
         <button type="button" class="wa-chip rank-tab" data-board="w">今週</button>
         <button type="button" class="wa-chip rank-tab" data-board="m">今月</button>
-        <button type="button" class="wa-chip rank-tab" data-board="a">累計</button>
+        <button type="button" class="wa-chip rank-tab" data-board="a">通算</button>
       </div>
       <p class="wa-note rank-period" id="rank-period"></p>
       <ol class="rank-list" id="rank-list"></ol>
@@ -1062,7 +1063,7 @@ h1{ font-size:1.5rem; text-align:center; letter-spacing:.05em; }
     <div class="rank-entry-score"><b id="rank-entry-score">0</b>枚</div>
     <ul class="rank-entry-hits" id="rank-entry-hits"></ul>
     <div class="rank-field-label">プレーヤー名（英語・記号 5文字まで）</div>
-    <input id="rank-name" class="wa-input" type="text" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="下のキーボードでプレーヤー名を入れてね" readonly tabindex="-1">
+    <input id="rank-name" class="wa-input" type="text" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="プレーヤー名" readonly tabindex="-1">
     <div class="rank-kb-tabs">
       <button type="button" class="wa-chip rank-kb-tab selected" data-kb="en">英語</button>
       <button type="button" class="wa-chip rank-kb-tab" data-kb="sym">記号</button>
@@ -2714,7 +2715,7 @@ function setSoloResultButtons(){
 }
 
 /* ============================================================
-   ひとりプレイのランキング（今週・今月・累計）
+   ひとりプレイのランキング（今週・今月・通算）
    ・Firestore の rankings コレクションに3つのドキュメント
        w-YYYY-MM-DD(その週の月曜) / m-YYYY-MM / all
      を置き、それぞれ上位RANK_TOP人ぶんの記録(entries)だけを持つ。
@@ -2728,7 +2729,7 @@ var RANK_COLL = 'rankings';
 var RANK_TOP = 10;
 var RANK_NAME_MAX = 5;
 var RANK_MEM_MS = 2 * 60 * 1000;   // ランキング画面で、同じ表を2分は読みなおさない
-var RANK_BOARDS = [ { id:'w', label:'今週' }, { id:'m', label:'今月' }, { id:'a', label:'累計' } ];
+var RANK_BOARDS = [ { id:'w', label:'今週' }, { id:'m', label:'今月' }, { id:'a', label:'通算' } ];
 var RANK_ALLOWED = /^[A-Za-z☆★♡♥♪♬♩!?&+.✿◎○△×✦♫♠♣♦❀-]$/;
 var RANK_SYMBOLS = ['☆','★','✦','♡','♥','♪','♬','♫','♠','♣','♦','◎','○','△','×','❀','✿','!','?','&','-','+','.'];
 var PREFS = ['北海道','青森県','岩手県','宮城県','秋田県','山形県','福島県','茨城県','栃木県','群馬県','埼玉県','千葉県','東京都','神奈川県',
@@ -3099,6 +3100,12 @@ function paintRankList(entries){
     cell('rk', (i + 1));
     cell('nm', e.n);
     cell('pf', e.p || '');
+    var dtx = '';
+    if(typeof e.t === 'number'){
+      var dd = new Date(e.t);
+      dtx = (rankTab === 'a' ? dd.getFullYear() + '/' : '') + (dd.getMonth() + 1) + '/' + dd.getDate();
+    }
+    cell('dt', dtx);
     cell('sc', e.s + '枚');
     ol.appendChild(li);
   });
