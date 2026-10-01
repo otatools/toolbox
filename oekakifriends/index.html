@@ -11,7 +11,7 @@
 </script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>教育アプリ｜お絵かきクイズ フレンズ｜みんなで遊べる無料お絵かき当てっこゲーム</title>
+    <title>お絵かきクイズ フレンズ｜みんなで遊べる無料お絵かき当てっこゲーム</title>
     <meta name="description" content="お絵かきクイズ フレンズは、お題を絵にして仲間に当ててもらう無料のオンラインお絵かきゲームです。スマホやパソコンから部屋を作ってすぐに遊べます。小学校の先生が作った学習・あそびアプリ「ota tools」のひとつです。">
     <meta name="robots" content="index, follow">
     <link rel="canonical" href="https://otatools.github.io/toolbox/oekakifriends/">
@@ -230,7 +230,7 @@
             <button class="btn btn-sub" onclick="backToSelect()">もどる</button>
         </div>
 
-        <div class="footer">お絵かきクイズ フレンズ | Ver 1.8 | ota tools</div>
+        <div class="footer">お絵かきクイズ フレンズ | Ver 2.2 | ota tools</div>
     </div>
 
     <script>
@@ -301,7 +301,7 @@
         // （ensureVersionOk参照）。すでにキャッシュされた古いページがそのまま動いていて、
         // 新しいバージョンの人と混ざって遊ぶと、部屋の中のデータの形が食いちがって
         // おかしな動きになることがあるのを防ぐため。
-        const APP_VERSION = "1.8";
+        const APP_VERSION = "2.2";
         function isVersionOlder(a, b) {
             const pa = String(a).split('.').map(n => parseInt(n, 10) || 0);
             const pb = String(b).split('.').map(n => parseInt(n, 10) || 0);
@@ -694,61 +694,5 @@
             location.href = 'room.html';
         }
     </script>
-<script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-    import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-    import { getFirestore, doc, setDoc, updateDoc, increment, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-
-    // 1. Firebaseの設定（ポータルサイトと同じもの）
-    const firebaseConfig = {
-        apiKey: "AIzaSyB4fpt6ffIuTBDJo_9g37kYr6KOWNgIcEY",
-        authDomain: "otatoolssite.firebaseapp.com",
-        projectId: "otatoolssite",
-        storageBucket: "otatoolssite.firebasestorage.app",
-        messagingSenderId: "20522292752",
-        appId: "1:20522292752:web:22fba7fecb61736593dc95"
-    };
-
-    // 2. このアプリ固有のID（★アプリごとにここを書き換える！★）
-    const THIS_APP_ID = "33"; 
-    
-    // 3. ポータルサイトのデータベース保存先パス
-    const PORTAL_APP_ID = "otatoolssite-v1";
-
-    // Firebaseの初期化
-    const app = initializeApp(firebaseConfig);
-    const db = getFirestore(app);
-    const auth = getAuth(app);
-
-    // 匿名ログインしてカウントアップを実行
-    signInAnonymously(auth).then(async () => {
-        // 1日1カウント制限の仕組み
-        const todayStr = new Date().toISOString().split('T')[0];
-        const storageKey = `ota_visited_${THIS_APP_ID}`;
-        
-        // 今日すでにアクセスしていればカウントしない
-        if (localStorage.getItem(storageKey) === todayStr) {
-            return;
-        }
-
-        const docRef = doc(db, 'artifacts', PORTAL_APP_ID, 'public', 'data', 'app_views', THIS_APP_ID);
-        
-        try {
-            const docSnap = await getDoc(docRef);
-            if (docSnap.exists()) {
-                await updateDoc(docRef, { count: increment(1) });
-            } else {
-                await setDoc(docRef, { count: 1 }); // 初回アクセスの場合
-            }
-            // 成功したら本日アクセス済みとして保存
-            localStorage.setItem(storageKey, todayStr);
-        } catch (e) { 
-            console.error("閲覧数のカウントに失敗しました:", e); 
-        }
-    }).catch((error) => {
-        console.error("Firebase認証エラー:", error);
-    });
-</script>
-
 </body>
 </html>

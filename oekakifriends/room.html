@@ -11,7 +11,7 @@
 </script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>教育アプリ｜お絵かきクイズ フレンズ - 部屋</title>
+<title>お絵かきクイズ フレンズ - 部屋</title>
 <!-- 部屋の画面はその場かぎりの内容（人によって中身が変わる）なので、検索結果には出さない -->
 <meta name="robots" content="noindex, nofollow">
 <meta name="theme-color" content="#ff8a3d">
@@ -365,7 +365,7 @@ canvas { touch-action: none; -webkit-user-select: none; user-select: none; }
 }
 .k-special { background: #dfe3f7; font-size: 16px; }
 .k-bs { background: #ef5f6b; color: white; width: 100px; height: 50px; font-size: 16px; }
-.k-decide { background: #3ed6c6; color: #04302b; flex: 1; font-size: 22px; }
+.k-decide { background: #29b36b; color: #ffffff; flex: 1; font-size: 22px; }
 #drawTools { position: fixed; bottom: 0; left: 0; width: 100%; background: rgba(255,255,255,0.97); z-index: 4000; display: none; flex-direction: column; padding: 10px 5px env(safe-area-inset-bottom) 5px; gap: 10px; border-top: 2px solid rgba(60,50,120,0.1); box-shadow: 0 -4px 20px rgba(60,50,120,0.12); }
 /* 名前タグを左右に出す画面幅では、キーボードや色パレットを内側にせばめて、名前と重ならないようにする */
 @media (min-width: 901px) {
@@ -379,6 +379,10 @@ canvas { touch-action: none; -webkit-user-select: none; user-select: none; }
     #kbdWrapper { background: rgba(255,255,255,0.32); backdrop-filter: blur(1px); }
     .k-key { background: rgba(238,241,251,0.5); }
     .k-key:active { background: rgba(223,227,247,0.75); }
+    /* 上の.k-keyの半透明化（パソコン版だけ、絵が隠れないように）が、同じ強さ（クラス
+       1つぶん）の.k-decideの緑を、あとに書かれているせいで上書きしてしまい、「決定」が
+       白っぽく見えなくなっていた。.k-key.k-decideと2つぶんのクラスで指定して確実に勝たせる。 */
+    .k-key.k-decide { background: #29b36b; }
 }
 .tool-panel { display: flex; flex-direction: column; align-items: center; gap: 10px; }
 .tool-divider { display: none; }
@@ -396,6 +400,7 @@ canvas { touch-action: none; -webkit-user-select: none; user-select: none; }
 .color-btn.active { transform: scale(1.2); border-color: #ff8a3d; box-shadow: 0 0 10px #ff8a3d; }
 .tool-row-bottom { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 10px 14px; min-height: 60px; }
 .mode-btn { width: 44px; height: 44px; padding: 0; border-radius: 12px; background: #eef1fb; color: #2c2a4a; border: 2px solid transparent; display: flex; align-items: center; justify-content: center; }
+.mode-btn:disabled { opacity: 0.35; }
 .mode-btn.active { background: #ff8a3d; color: #2a1500; border-color: #fff; box-shadow: 0 0 0 3px rgba(255,138,61,0.35); }
 /* 塗りつぶしボタンは選択中、アイコンの色は変えず、ボタンの背景そのものを今の色にする
    （どの色を選んでいるか一目でわかるように）。枠は濃い紺で固定。背景色・アイコン色（黒の
@@ -545,7 +550,7 @@ canvas { touch-action: none; -webkit-user-select: none; user-select: none; }
         </div>
         <button type="button" class="btn btn-sub" style="margin-top:10px;" onclick="leaveRoomToMenu()">メインメニューへもどる</button>
     </div>
-    <div class="lobby-version-footer">お絵かきクイズ フレンズ | Ver 1.8 | ota tools</div>
+    <div class="lobby-version-footer">お絵かきクイズ フレンズ | Ver 2.2 | ota tools</div>
     </div>
 </div>
 
@@ -576,7 +581,7 @@ canvas { touch-action: none; -webkit-user-select: none; user-select: none; }
     <div id="stage">
         <div id="canvasBox">
             <canvas id="canvas"></canvas>
-            <div id="viewer" style="display:none;"><img id="sharedImg" src=""></div>
+            <div id="viewer" style="display:none;"><img id="sharedImg" src=""><canvas id="viewerCanvas" style="display:none;"></canvas></div>
             <div id="odaiGhost"></div>
         </div>
     </div>
@@ -627,6 +632,10 @@ canvas { touch-action: none; -webkit-user-select: none; user-select: none; }
                 <div class="size-dot-wrap" id="wrap1" onclick="changeSize(6, 'wrap1')" aria-label="基本"><div class="size-dot" id="sizeDot1" style="width: 6px; height: 6px;"></div></div>
                 <div class="size-dot-wrap" id="wrap2" onclick="changeSize(12, 'wrap2')" aria-label="ふとい"><div class="size-dot" id="sizeDot2" style="width: 15px; height: 15px;"></div></div>
                 <div class="size-dot-wrap" id="wrap3" onclick="changeSize(28, 'wrap3')" aria-label="もっとふとい"><div class="size-dot" id="sizeDot3" style="width: 30px; height: 30px;"></div></div>
+                <!-- 「戻る」ボタン：直前のひと筆・塗りつぶし・全消しを1つ取り消す。 -->
+                <button class="mode-btn" id="undoBtn" onclick="undoLast()" aria-label="戻る" disabled>
+                    <svg viewBox="0 0 24 24" width="22" height="22"><path fill="currentColor" d="M12.5 8c-2.65 0-5.05 1-6.9 2.6L2 7v9h9l-3.62-3.62c1.39-1.16 3.16-1.88 5.12-1.88 3.54 0 6.55 2.31 7.6 5.5l2.37-.78C21.08 11.03 17.15 8 12.5 8z"/></svg>
+                </button>
                 <button class="mode-btn" onclick="clearCanvas()" aria-label="ぜんぶ消す">
                     <svg viewBox="0 0 1000 1000" width="24" height="24"><path fill="currentColor" d="M840,180c0-22.1-17.9-40-40-40H620v-40c0-22.1-17.9-40-40-40H420c-22.1,0-40,17.9-40,40v40H200c-22.1,0-40,17.9-40,40v100 h41.1l40.1,660h517.6l40.1-660H840V180z M420,97h160v43H420V97z M200,178h600v64H200V178z M721.2,900H278.8l-37.6-620h517.5 L721.2,900z M520,820h-40V380h40V820z M359.1,820l-18.3-440h40l18.3,440H359.1z M640.9,820h-40l18.3-440h40L640.9,820z"/></svg>
                 </button>
@@ -646,7 +655,7 @@ canvas { touch-action: none; -webkit-user-select: none; user-select: none; }
          ときに押すボタン。押すと、押した人の名前タグ（せまい画面では画面上の吹き出し）に
          その人自身の色で「わかった！」と出て、みんな（特に描いている人）に伝わる。
          これを見れば、描いている人はお題をむやみにチェンジしなくてよいと判断できる。 -->
-    <button id="gotItBtn" onclick="sendGotIt()" style="display:none; position: fixed; bottom: 15px; left: 15px; z-index: 4500; padding: 12px 24px; border-radius: 30px; background: #3ed6c6; color: #fff; font-weight: bold; border: 2px solid #fff;">わかった！</button>
+    <button id="gotItBtn" onclick="sendGotIt()" style="display:none; position: fixed; bottom: 15px; left: 15px; z-index: 4500; padding: 12px 24px; border-radius: 30px; background: #ffcc00; color: #5a4600; font-weight: bold; border: 2px solid #fff;">わかった！</button>
     <div id="kbdWrapper">
         <div class="input-display">
             <button class="k-close-x" onclick="toggleKeyboard()">×</button>
@@ -731,7 +740,7 @@ const db = firebase.database();
 // 通常index.html側のチェックを通ってからしか来ないはずだが、ブックマークや
 // タブを開いたままにしていた場合など、直接ここに来るケースの保険として
 // こちらにも同じチェックを入れておく。
-const APP_VERSION = "1.8";
+const APP_VERSION = "2.2";
 function isVersionOlder(a, b) {
     const pa = String(a).split('.').map(n => parseInt(n, 10) || 0);
     const pb = String(b).split('.').map(n => parseInt(n, 10) || 0);
@@ -903,6 +912,24 @@ const myName = sessionStorage.getItem('friends_name');
 const isHost = sessionStorage.getItem('friends_isHost') === "1";
 if (!myRoom || !myUid) location.href = 'index.html';
 
+// ×ボタンでウィンドウを閉じる・タブを閉じるなど、ブラウザが「ページがいなくなる」と
+// わかっている場合は、Firebaseが切断に気づくのを待たず、その場ですぐに片付けを
+// 試みる（うまく送れれば、見ている人たちはすぐ入り口の画面に戻れる）。
+// ただし、電波が切れた・アプリやパソコンごと強制終了された等、ページ側に通知が
+// 来ないまま消えるケースもあるので、これは「できれば速く」のための仕組みであり、
+// 本当の保証は今までどおりonDisconnect・8秒待ちの仕組み（下のhostGoneTimer）が担う。
+window.addEventListener('pagehide', () => {
+    try {
+        if (isHost) {
+            db.ref(`casual_rooms/${myRoom}`).remove();
+            db.ref(`live_draws/${myRoom}`).remove();
+            db.ref(`presence/${myRoom}`).remove();
+        } else if (myRoom && myUid) {
+            db.ref(`casual_rooms/${myRoom}/users/${myUid}/connected`).set(false);
+        }
+    } catch (e) {}
+});
+
 function escapeHtml(str) {
     return String(str).replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
 }
@@ -974,6 +1001,52 @@ function trackWordPassed(word) {
 
 const canvas = document.getElementById('canvas'), ctx = canvas.getContext('2d');
 let drawing = false, penColor = "#000000", penSize = 12, isDrawer = false, isEraserMode = false, isFillMode = false;
+// 「戻る」ボタン用のきろく。ひと筆・塗りつぶし・全消しを始める直前のキャンバスの
+// 状態を、ここに積んでおく（putImageDataで即座に戻せるよう、画像化せず生のまま持つ）。
+// 増えすぎないよう、ふるいものから捨てる上限を設ける。
+let undoStack = [];
+const UNDO_STACK_MAX = 10;
+// 「ひと手」ごとに番号（gen）をふっておき、どの線・塗りつぶしが同じひと手の
+// ぶんかを見分けられるようにする。genStackはundoStackと対になっていて、
+// 「戻る」を押したときにどの番号ぶんを取り消せばよいかを教えてくれる。
+let strokeGen = 0;
+let genStack = [];
+function pushUndoSnapshot() {
+    if (canvas.width <= 0 || canvas.height <= 0) return;
+    try {
+        undoStack.push(ctx.getImageData(0, 0, canvas.width, canvas.height));
+        strokeGen++;
+        genStack.push(strokeGen);
+        if (undoStack.length > UNDO_STACK_MAX) { undoStack.shift(); genStack.shift(); }
+        updateUndoBtnState();
+    } catch (e) {}
+}
+function updateUndoBtnState() {
+    const btn = document.getElementById('undoBtn');
+    if (btn) btn.disabled = (undoStack.length === 0);
+}
+function undoLast() {
+    if (!isDrawer || !currentIsPlaying || !undoStack.length) return;
+    const snapshot = undoStack.pop();
+    const gen = genStack.pop();
+    updateUndoBtnState();
+    try { ctx.putImageData(snapshot, 0, 0); } catch (e) { return; }
+    // 見ている人には画像を送り直すのではなく、「このひと手（gen）ぶんを取り消して」
+    // という小さな指示だけを送る。届いていた線・塗りつぶしのきろくから、その
+    // ひと手ぶんだけを取りのぞいて描き直せば、同じ見た目を再現できる
+    // （viewerの'undo'受信処理を参照）。
+    liveSegBuffer.push({ t: 'undo', g: gen });
+    flushLiveSegments(); // 単発の操作なので、ためずにすぐ送る
+}
+
+// 見ている側（描いていない人たち）の画面に、線の動きそのものを再現して描く
+// しくみ（通信量対策。flushLiveSegments参照）に使う
+// キャンバスと、再現に必要な状態。
+const viewerCanvasEl = document.getElementById('viewerCanvas'), vctx = viewerCanvasEl.getContext('2d');
+let viewerLastW = 0, viewerLastH = 0;
+let viewerCheckpointImg = null; // ラウンド開始時の「土台」になる1枚の画像（通常は無く、白紙から）
+let viewerSegLog = [];          // 土台の上に重ねてきた線のきろく（キャンバスの大きさが変わった時の描き直し用）
+let viewerRoundKey = "";        // 今再現している「だれの・何ラウンド目の・何回目の土台か」
 let lastX = 0, lastY = 0, kbdType = 'hira', lastStatePhase = "", currentIsPlaying = false;
 let lastResultInitialized = false, lastShownResultTs = 0, missedResultHideTimer = null, missedResultActive = false;
 // 「このラウンド番号ではもうuploadFinal()ずみ」を覚えておく鍵。Firebaseへの書きこみ
@@ -1001,6 +1074,14 @@ let resultTimeout = null;
 // 古いほうのタブが同時にゲーム進行を書き込んでしまう事故を防ぐために使う
 // （後から読み込まれたタブのIDがFirebase上のhostSessionIdとして「現在の正式なホスト」になる）。
 let hostSessionId = null;
+// ホストの画面が急にいなくなった（タブを閉じた・フリーズした等）ときに使う。
+// ロビー中・けっか発表後は、もともと「部屋ごと自動削除」のしくみ（onDisconnect）が
+// 働いて部屋自体が消えるので、ほかの人は自然と入り口の画面に戻る。しかしゲームの
+// 真っ最中（countdown/playing/result）はそのしくみをわざと止めてあるため
+// （瞬間的な回線切れで部屋が消えてしまう事故を防ぐため）、ホストがいなくなっても
+// 部屋はそのまま残り、だれも進行させられず止まってしまっていた。ホストのconnectedが
+// falseになってからしばらく（8秒）戻らなければ、ホスト以外の全員を入り口に戻す。
+let hostGoneTimer = null;
 
 // 今のラウンドの通し番号（data.progress.roundNumberをそのまま持っておく）。
 // 回線が遅い環境で、前の人が最後に描いていた線のアップロード（throttleUpload、
@@ -1018,6 +1099,13 @@ let currentProgressRoundNumber = 0;
 // 「今のフェーズは何か」（どちらもcasual_roomsのリスナーの中でしか分からない値を
 // コピーしておく）。
 let latestLiveDraw = null;
+// 描いている本人側で使う、ライブプレビューの状態。以前は「今の絵をまるごと縮小画像に
+// して定期的に送る」方式だったが、見ている人数ぶん毎回まるごと再送されるため通信量が
+// 大きかった。今は「線をどう動かしたか」「どこを・何色で塗ったか」「どのひと手を
+// 取り消すか」「ぜんぶ消して」という小さな情報（segment）だけをためておき、一定間隔
+// でまとめて送る（flushLiveSegments）方式にして、画像を送る場面そのものを無くした。
+let liveSeq = 0;
+let liveSegBuffer = [];
 let currentDrawerUid = "";
 let currentPhase = "";
 // 残り時間（timeLeft）は、以前は1秒ごとにホストがFirebaseへ書きこんで全員に配って
@@ -1056,6 +1144,77 @@ function resize() {
     lastCanvasW = targetW; lastCanvasH = targetH;
     ctx.scale(2, 2); ctx.lineCap = 'round'; ctx.lineJoin = 'round';
     if (tempCanvas) { ctx.drawImage(tempCanvas, 0, 0, box.clientWidth, box.clientHeight); }
+    // 「戻る」のきろく（putImageData用）は、キャンバスの大きさに合わせて記録してあるので、
+    // 大きさが変わったら古いきろくはもう正しく貼り戻せない。混乱を防ぐため消しておく。
+    undoStack = [];
+    genStack = [];
+    updateUndoBtnState();
+}
+// 見ている側のキャンバス（viewerCanvas）は、自分では絵をずっと持っているわけではなく、
+// 届いた「土台の画像」＋「そのあとの線のきろく」から毎回ぜんぶ描き直せるようにしてある
+// ので、drawの退避（resize内のtempCanvas）のような複雑なことをしなくてよい。
+function redrawViewerCanvas() {
+    const box = document.getElementById('canvasBox');
+    if (!box) return;
+    const w = box.clientWidth, h = box.clientHeight;
+    vctx.clearRect(0, 0, w, h);
+    if (viewerCheckpointImg) { try { vctx.drawImage(viewerCheckpointImg, 0, 0, w, h); } catch (e) {} }
+    viewerSegLog.forEach(seg => drawViewerSeg(seg, w, h));
+}
+function drawViewerSeg(seg, w, h) {
+    if (!seg) return;
+    // 塗りつぶしは「どこを・何色で」という小さな情報だけが届くので、見ている側の
+    // キャンバス（vctx）でも、描いている人とまったく同じ塗りつぶし処理
+    // （floodFillOn）を自分のがめんの上で実行する。画像をまるごと送るより、
+    // ずっと通信量が少ない（viewerFloodFillAt・floodFillOn参照）。
+    if (seg.t === 'fill') { viewerFloodFillAt(seg.x, seg.y, seg.c); return; }
+    // 「ぜんぶ消す」も、結果が決まりきっている（真っ白になるだけ）操作なので、
+    // 画像を送らずこの小さな指示だけで再現する。
+    if (seg.t === 'clearall') { vctx.clearRect(0, 0, w, h); return; }
+    // 'undo'は見た目を持たない指示（きろくから取りのぞくだけ）なので、ここには来ない
+    // はずだが、念のため何もしないようにしておく。
+    if (seg.t === 'undo') return;
+    vctx.globalCompositeOperation = seg.e ? 'destination-out' : 'source-over';
+    if (seg.t === 'dot') {
+        vctx.beginPath();
+        vctx.fillStyle = seg.e ? 'white' : seg.c;
+        vctx.arc(seg.x * w, seg.y * h, Math.max(0.5, seg.s * w) / 2, 0, Math.PI * 2);
+        vctx.fill();
+    } else {
+        vctx.beginPath();
+        vctx.strokeStyle = seg.e ? 'rgba(0,0,0,1)' : seg.c;
+        vctx.lineWidth = Math.max(0.5, seg.s * w);
+        vctx.lineCap = 'round'; vctx.lineJoin = 'round';
+        vctx.moveTo(seg.x1 * w, seg.y1 * h);
+        vctx.lineTo(seg.x2 * w, seg.y2 * h);
+        vctx.stroke();
+    }
+}
+function resizeViewerCanvas() {
+    const box = document.getElementById('canvasBox');
+    if (!box) return;
+    const targetW = box.clientWidth * 2, targetH = box.clientHeight * 2;
+    if (targetW === viewerLastW && targetH === viewerLastH) return;
+    viewerCanvasEl.width = targetW; viewerCanvasEl.height = targetH;
+    viewerLastW = targetW; viewerLastH = targetH;
+    vctx.scale(2, 2);
+    redrawViewerCanvas();
+}
+// 「土台になる画像」が変わった（塗りつぶし直後・新しいラウンド開始など）ときに呼ぶ。
+// rootが無い、またはimageが無ければ白紙から再現を始める。
+function resetViewerCanvasFor(root) {
+    viewerCheckpointImg = null;
+    redrawViewerCanvas();
+    if (root && root.image) {
+        const img = new Image();
+        const forKey = viewerRoundKey;
+        img.onload = () => {
+            if (forKey !== viewerRoundKey) return; // 読みこみ中にさらに次の土台に変わっていたら捨てる
+            viewerCheckpointImg = img;
+            redrawViewerCanvas();
+        };
+        img.src = root.image;
+    }
 }
 // 上下のバー（点数表示・色パレット・キーボードなど）の高さぶんキャンバスの表示エリアをへこませて、
 // 四角の絵が隠れてしまわないようにする。CSSのaspect-ratioだけに頼ると、はじめの幅が
@@ -1087,6 +1246,7 @@ function updateStageLayout() {
     stage.style.paddingTop = topReserve + 'px';
     stage.style.paddingBottom = bottomReserve + 'px';
     resize();
+    resizeViewerCanvas();
     updateToggleKbdBtn();
 }
 // パソコン版（画面幅が広く、キーボードを出したままでも絵が透けて見えるようになったため）は、
@@ -1099,10 +1259,12 @@ function updateToggleKbdBtn() {
     const kbdOpen = document.getElementById('kbdWrapper').style.display === 'flex';
     if (window.innerWidth > 900 && kbdOpen) {
         btn.innerText = '決定';
-        btn.style.background = '#3ed6c6'; // キーボード側の「決定」ボタンと同じ色にする
+        btn.style.background = '#29b36b'; // キーボード側の「決定」ボタンと同じ色にする
+        btn.style.color = '#ffffff';
     } else {
         btn.innerText = '答えを入力';
         btn.style.background = '#ffcc00';
+        btn.style.color = '';
     }
 }
 // 右下のボタンは、キーボードを開く前は「答えを入力」（開く）、パソコン版でキーボードを
@@ -1136,16 +1298,46 @@ canvas.onpointerdown = e => {
     // 塗りつぶしモードは、線をひくのではなく「タップした1点」から塗りひろげるだけの
     // 動作なので、drawingフラグは立てずここで完結させる（pointermoveでは何もしない）。
     if (isFillMode) {
+        pushUndoSnapshot();
         const scaleX = canvas.width / r.width, scaleY = canvas.height / r.height;
         floodFillAt((e.clientX - r.left) * scaleX, (e.clientY - r.top) * scaleY, penColor);
-        upload();
+        // 塗りつぶしの結果を画像にして送るのではなく、「どこを・何色で塗ったか」という
+        // 小さな情報（ペンの点や線と同じ経路・同じ考え方）だけを送る。見ている人の
+        // 画面では、届いたこの情報をもとに自分のがめんの上で同じ塗りつぶしを実行する
+        // （viewerFloodFillAt参照）ので、画像を送るよりずっと通信量が少ない。
+        liveSegBuffer.push({ t: 'fill', x: (e.clientX - r.left) / r.width, y: (e.clientY - r.top) / r.height, c: penColor, g: strokeGen });
+        flushLiveSegments(); // 単発の操作なので、ためずにすぐ送る
+        // 塗りつぶしは1回ごとの単発の操作なので、押しっぱなしのペン・消しゴムとはちがい、
+        // 塗ったらすぐ元のペンに戻しておく（連続してあちこち塗りつぶしたいときとちがい、
+        // 1回塗って次はまた線を描きたいことの方が多いため）。
+        setPenMode();
         return;
     }
+    pushUndoSnapshot();
     try { canvas.setPointerCapture(e.pointerId); } catch (err) {}
-    drawing=true; lastX=e.clientX-r.left; lastY=e.clientY-r.top; ctx.beginPath(); ctx.globalCompositeOperation = isEraserMode ? 'destination-out' : 'source-over'; ctx.fillStyle = isEraserMode ? 'white' : penColor; ctx.arc(lastX, lastY, penSize/2, 0, Math.PI * 2); ctx.fill(); throttleUpload();
+    drawing=true; lastX=e.clientX-r.left; lastY=e.clientY-r.top; ctx.beginPath(); ctx.globalCompositeOperation = isEraserMode ? 'destination-out' : 'source-over'; ctx.fillStyle = isEraserMode ? 'white' : penColor; ctx.arc(lastX, lastY, penSize/2, 0, Math.PI * 2); ctx.fill();
+    // 見ている人には、このひと筆を「点を打った」という小さな情報だけで伝える
+    // （画像をまるごと送るより、ずっと通信量が少ない）。
+    liveSegBuffer.push({ t: 'dot', x: lastX / r.width, y: lastY / r.height, s: penSize / r.width, c: penColor, e: isEraserMode, g: strokeGen });
+    throttleUpload();
 };
-canvas.onpointermove = e => { if(!drawing || !currentIsPlaying) return; e.preventDefault(); const r=canvas.getBoundingClientRect(), x=e.clientX-r.left, y=e.clientY-r.top; ctx.beginPath(); ctx.globalCompositeOperation = isEraserMode ? 'destination-out' : 'source-over'; ctx.strokeStyle = isEraserMode ? 'rgba(0,0,0,1)' : penColor; ctx.lineWidth=penSize; ctx.moveTo(lastX, lastY); ctx.lineTo(x, y); ctx.stroke(); lastX=x; lastY=y; throttleUpload(); };
-window.onpointerup = () => { if(drawing){ drawing=false; upload(); } };
+canvas.onpointermove = e => {
+    if(!drawing || !currentIsPlaying) return;
+    e.preventDefault();
+    const r=canvas.getBoundingClientRect(), x=e.clientX-r.left, y=e.clientY-r.top;
+    ctx.beginPath(); ctx.globalCompositeOperation = isEraserMode ? 'destination-out' : 'source-over'; ctx.strokeStyle = isEraserMode ? 'rgba(0,0,0,1)' : penColor; ctx.lineWidth=penSize; ctx.moveTo(lastX, lastY); ctx.lineTo(x, y); ctx.stroke();
+    liveSegBuffer.push({ t: 'line', x1: lastX / r.width, y1: lastY / r.height, x2: x / r.width, y2: y / r.height, s: penSize / r.width, c: penColor, e: isEraserMode, g: strokeGen });
+    lastX=x; lastY=y; throttleUpload();
+};
+window.onpointerup = () => {
+    if(drawing){
+        drawing=false;
+        // 待っている途中だった定期送信があれば止めて、今たまっている分をすぐ送る
+        // （指を離した瞬間の線だけ届かない、ということがないように）。
+        if (uploadTimeout) { clearTimeout(uploadTimeout); uploadTimeout = null; }
+        flushLiveSegments();
+    }
+};
 // OSやブラウザ側の判断（パームリジェクションなど）でpointerが急に
 // キャンセルされることがある。そのまま放置するとdrawingがtrueのまま
 // 固まり、次にペンを置いたときに変な位置から線が引かれてしまうので、
@@ -1196,25 +1388,35 @@ let uploadTimeout = null;
 //      もとの高画質サイズで1回だけ送り直す（uploadFinal）。「正解発表」でみんなが
 //      じっくり見る絵はこちらに差し替わるので、そこだけは今までどおりきれいに見える。
 //      1ラウンドに1回だけの送信なので、通信量への影響はごくわずか。
-// 0.4秒だと1秒間に2.5回送っていたが、0.6秒（1秒間に1.67回）に伸ばすことで、
-// 見た目のなめらかさをほとんど損なわずに、この経路の通信量を約3割減らせる。
-const UPLOAD_INTERVAL_MS = 600;
-const UPLOAD_CANVAS_W = 400, UPLOAD_CANVAS_H = 300;
-// 線が薄く・欠けて見える一番の原因は、実は画質設定よりも「線の太さ」だった
-// （実測ずみ：縮小後、太さ4pxの線は画質を上げても薄いままだったが、6pxに太くしたら
-// 画質を下げても線がちゃんと残った）。基本ペンを6pxに太くした（changeSize参照）ので、
-// 画質は45%まで戻して大丈夫（実際に試して問題なかった）。もともとの45%と同じ設定に
-// 戻ることになるが、太さのおかげで見え方は前とはっきり変わっている。
-const UPLOAD_WEBP_QUALITY = 0.45;
+// さらに通信量を減らすため、「描いている間ずっと画像をまるごと送り続ける」のをやめて、
+// 「線をどう動かしたか」という小さな情報（1回で数十～数百バイト）だけを一定間隔で
+// まとめて送る方式にした（flushLiveSegments）。見る側は、届いた小さな情報から
+// 自分の画面に線を描き足していく（viewerCanvas・drawViewerSeg参照）ので、画像を
+// まるごと送るときとちがって「見ている人数ぶん」が効いてこず、ずっと軽い。
+// 塗りつぶし・戻る・全消しも同じしくみで、「どこを・何色で」「どのひと手を取り消すか」
+// 「ぜんぶ消して」という小さな指示だけを送り、見ている側で同じ処理を再現する
+// （viewerFloodFillAt・drawViewerSeg参照）ので、画像を送る場面はもう無い。
+const UPLOAD_INTERVAL_MS = 800;
 const UPLOAD_FINAL_CANVAS_W = 800, UPLOAD_FINAL_CANVAS_H = 600;
 const UPLOAD_FINAL_WEBP_QUALITY = 0.8;
 function throttleUpload() { if (!uploadTimeout) { uploadTimeout = setTimeout(() => { upload(); uploadTimeout = null; }, UPLOAD_INTERVAL_MS); } }
-// 描いている最中の軽いプレビューは、部屋の情報（casual_rooms）とは別の場所
-// （live_draws）へ送る。casual_roomsを見ているクライアントは全員、部屋の中で
-// 何か1つでも変わるたびに部屋の情報を丸ごと再取得してしまうため、そこに頻繁な
-// 書きこみを混ぜると通信量が大きくふくらむ。別の場所に分けることで、画質は
-// まったく変えずに通信量だけを減らせる。
-function upload() { uploadLiveDraw(UPLOAD_CANVAS_W, UPLOAD_CANVAS_H, UPLOAD_WEBP_QUALITY); }
+function upload() { flushLiveSegments(); }
+// たまっている線の情報（liveSegBuffer）を、部屋の情報（casual_rooms）とは別の場所
+// （live_draws/segs）へ、1つの小さなかたまりとして送る。.push()で送るので、ずっと
+// 見ている人には「増えた分だけ」が届き、新しく入ってきた人には今たまっている分が
+// まとめて届く（Firebaseの標準の動き）。何もたまっていなければ何もしない。
+function flushLiveSegments() {
+    if (!liveSegBuffer.length) return;
+    const list = liveSegBuffer;
+    liveSegBuffer = [];
+    db.ref(`live_draws/${myRoom}/segs`).push({
+        uid: myUid,
+        round: currentProgressRoundNumber,
+        seq: liveSeq,
+        list,
+        ts: Date.now()
+    }).catch(() => {});
+}
 // 描き終わった瞬間に1回だけ呼ぶ、きれいな最終版のアップロード。こちらは今までどおり
 // casual_rooms側に置く（結果発表・見のがし救済で、あとから来た人にも見えている必要が
 // あるため。頻度は1ラウンドに1回だけなので、通信量への影響はごくわずか）。
@@ -1225,17 +1427,6 @@ function uploadAt(w, h, quality) {
     temp.getContext('2d').drawImage(canvas, 0, 0, w, h);
     db.ref(`casual_rooms/${myRoom}/users/${myUid}`).update({ image: temp.toDataURL('image/webp', quality), imageRound: currentProgressRoundNumber });
 }
-function uploadLiveDraw(w, h, quality) {
-    const temp = document.createElement('canvas');
-    temp.width = w; temp.height = h;
-    temp.getContext('2d').drawImage(canvas, 0, 0, w, h);
-    db.ref(`live_draws/${myRoom}`).set({
-        uid: myUid,
-        round: currentProgressRoundNumber,
-        image: temp.toDataURL('image/webp', quality),
-        ts: Date.now()
-    }).catch(() => {});
-}
 
 // 「今見えている絵」の表示を更新する。casual_rooms（部屋の情報）とlive_draws
 // （描いている最中のプレビュー）、2つの別々のリスナーの両方から呼ばれるので、
@@ -1245,20 +1436,23 @@ function uploadLiveDraw(w, h, quality) {
 function updateViewerImage() {
     const viewer = document.getElementById('viewer');
     if (!viewer) return;
+    const sImg = document.getElementById('sharedImg');
     if (!isDrawer && (currentIsPlaying || currentPhase === "result")) {
         viewer.style.display = 'block';
-        const sImg = document.getElementById('sharedImg');
-        let newSrc = "";
         if (currentPhase === "result") {
-            // 結果発表は今までどおりcasual_rooms側の最終版（きれいな画質）を使う。
+            // 結果発表は今までどおりcasual_rooms側の最終版（きれいな画質）を、画像として表示する。
+            viewerCanvasEl.style.display = 'none';
+            sImg.style.display = 'block';
             const sharedDrawUser = usersData[currentDrawerUid] || {};
-            newSrc = (sharedDrawUser.image && sharedDrawUser.imageRound === currentProgressRoundNumber) ? sharedDrawUser.image : "";
-        } else if (latestLiveDraw && latestLiveDraw.uid === currentDrawerUid && latestLiveDraw.round === currentProgressRoundNumber) {
-            // 描いている最中はlive_draws側の軽いプレビューを使う。回線遅延で前のラウンドや
-            // 別の人の絵が後から届くことがあるので、uidとラウンド番号が一致するときだけ信用する。
-            newSrc = latestLiveDraw.image || "";
+            const newSrc = (sharedDrawUser.image && sharedDrawUser.imageRound === currentProgressRoundNumber) ? sharedDrawUser.image : "";
+            if (sImg.src !== newSrc) { if (!newSrc) sImg.removeAttribute('src'); else sImg.src = newSrc; }
+        } else {
+            // 描いている最中は、live_draws側から届いた小さな情報をもとに自分の画面で
+            // 線を再現しているviewerCanvasを見せる（on('value')・on('child_added')側で
+            // 中身は常に更新ずみ）。
+            sImg.style.display = 'none';
+            viewerCanvasEl.style.display = 'block';
         }
-        if (sImg.src !== newSrc) { if (!newSrc) sImg.removeAttribute('src'); else sImg.src = newSrc; }
     } else {
         viewer.style.display = 'none';
     }
@@ -1993,12 +2187,52 @@ authReady.then(async () => {
         }
     });
 
-    // 描いている最中のプレビュー画像だけを届ける、casual_roomsとは別の軽い経路。
+    // 描いている最中のプレビューを届ける、casual_roomsとは別の軽い経路。
     // ここへの書きこみは、この小さいデータだけが対象クライアントに再送されるので、
-    // 部屋の情報をまるごと巻きこまない（uploadLiveDraw参照）。
+    // 部屋の情報をまるごと巻きこまない。
+    // ルート（live_draws/{room}）は「今のラウンドが、だれの・何ラウンド目・何回目か」
+    // だけを持つ（塗りつぶし・戻る・全消しはどれも下のsegsがわの小さな指示だけで
+    // 再現できるので、もうここを置きかえる必要が無い）。ここが変わるのは新しい
+    // ラウンドが始まったときだけなので、そのときだけ見ている側のキャンバスを
+    // 白紙から作りなおす（resetViewerCanvasFor）。
     db.ref(`live_draws/${myRoom}`).on('value', lsnap => {
         latestLiveDraw = lsnap.val();
+        const key = latestLiveDraw ? `${latestLiveDraw.uid}_${latestLiveDraw.round}_${latestLiveDraw.seq}` : "";
+        if (key !== viewerRoundKey) {
+            viewerRoundKey = key;
+            viewerSegLog = [];
+            resetViewerCanvasFor(latestLiveDraw);
+        }
         updateViewerImage();
+    });
+    // segs（線・塗りつぶし・戻る・全消しの小さなきろく）は.push()で追加されるので、
+    // ずっとつないでいる人には増えた分（child_added）だけが届く。新しく参加した
+    // 人には、今たまっている分がまとめて1回で、もともとの順番どおりに届く
+    // （Firebaseの標準の動き）ので、途中からでも同じ見た目を再現できる。
+    // 新しいラウンドが始まるとlive_draws/{room}がまるごと置きかわり、前のsegsは
+    // 自動的に消えるので、ここで古いものを気にして消す必要はない。seq・roundが
+    // 今のラウンドと一致するものだけ描き足す（回線遅延で前のラウンドぶんが
+    // 混ざって届くのを防ぐ）。
+    db.ref(`live_draws/${myRoom}/segs`).on('child_added', csnap => {
+        const batch = csnap.val();
+        if (!batch || !latestLiveDraw) return;
+        if (batch.seq !== latestLiveDraw.seq || batch.round !== latestLiveDraw.round) return;
+        const box = document.getElementById('canvasBox');
+        const w = box ? box.clientWidth : 0, h = box ? box.clientHeight : 0;
+        (batch.list || []).forEach(seg => {
+            if (!seg) return;
+            if (seg.t === 'undo') {
+                // 「戻る」は見た目を直接持たない指示。同じひと手（g）のぶんを
+                // きろくから取りのぞいて、はじめから描き直す（きろくに残っている
+                // 他の線・塗りつぶし・全消しは、もとの順番どおりに描き直されるので、
+                // 「全消しを戻ったら元の絵にもどる」なども正しく再現できる）。
+                viewerSegLog = viewerSegLog.filter(s => s.g !== seg.g);
+                redrawViewerCanvas();
+                return;
+            }
+            viewerSegLog.push(seg);
+            if (box) drawViewerSeg(seg, w, h);
+        });
     });
 
     db.ref(`casual_rooms/${myRoom}`).on('value', snap => {
@@ -2098,6 +2332,37 @@ authReady.then(async () => {
         const isStaleHostTab = isHost && data.hostSessionId && data.hostSessionId !== hostSessionId;
         if (isStaleHostTab) {
             if (hostTimerInterval) { clearInterval(hostTimerInterval); hostTimerInterval = null; }
+        }
+
+        // ホストがいなくなったまま戻ってこない場合の救済。ロビー・最終結果の間は
+        // 「部屋ごと自動削除」（isSafeToAutoDeleteRoom、上のonDisconnect）が働いて
+        // 自然と全員入り口に戻るが、ゲームの真っ最中はそれをわざと止めてあるため、
+        // ホスト以外は自分でこれを見張っておく必要がある。
+        if (!isHost && data.hostUid && (state.phase === "countdown" || state.phase === "playing" || state.phase === "result")) {
+            const hostUser = usersData[data.hostUid];
+            const hostLooksGone = hostUser && hostUser.connected === false;
+            if (hostLooksGone) {
+                if (!hostGoneTimer) {
+                    hostGoneTimer = setTimeout(() => {
+                        hostGoneTimer = null;
+                        alert('ホストの画面がいなくなってしまったため、このゲームは続けられません。もう一度さいしょから遊んでください。');
+                        // 自分が戻るだけでなく、部屋自体も片付けておく（残しておいても
+                        // 誰も進められないので、ホストが「部屋を閉じる」のを押したのと
+                        // 同じ状態にする）。ほかの子の画面も、部屋が無くなったことで
+                        // 自然と入り口の画面に戻る（上の「!data || !data.state」のところ）。
+                        db.ref(`casual_rooms/${myRoom}`).remove().catch(() => {});
+                        db.ref(`live_draws/${myRoom}`).remove().catch(() => {});
+                        db.ref(`presence/${myRoom}`).remove().catch(() => {});
+                        location.href = 'index.html';
+                    }, 8000); // すぐ戻すと、ホストの一瞬の回線切れ・リロードでも全員が戻されてしまうので、少し待つ
+                }
+            } else if (hostGoneTimer) {
+                clearTimeout(hostGoneTimer);
+                hostGoneTimer = null;
+            }
+        } else if (hostGoneTimer) {
+            clearTimeout(hostGoneTimer);
+            hostGoneTimer = null;
         }
 
         isDrawer = (state.currentDrawer === myUid);
@@ -2255,7 +2520,23 @@ authReady.then(async () => {
                 closeKeyboard();
                 document.getElementById('answerInput').value = "";
             }
-            if (state.phase === "countdown") { canvasGen++; ctx.clearRect(0, 0, canvas.width, canvas.height); resetDrawToolsToDefault(); }
+            if (state.phase === "countdown") {
+                canvasGen++; ctx.clearRect(0, 0, canvas.width, canvas.height); resetDrawToolsToDefault();
+                // 前の人（または自分の前のターン）の「戻る」のきろくが残らないようにする。
+                undoStack = [];
+                genStack = [];
+                strokeGen = 0;
+                updateUndoBtnState();
+                // 新しいラウンドが始まるタイミングで、これから描く本人（isDrawer）が
+                // live_draws側の土台を白紙に戻しておく。これをしないと、前の人が
+                // 描いていた絵の続きのように見えてしまう。
+                if (isDrawer) {
+                    liveSeq = 0;
+                    liveSegBuffer = [];
+                    if (uploadTimeout) { clearTimeout(uploadTimeout); uploadTimeout = null; }
+                    db.ref(`live_draws/${myRoom}`).set({ uid: myUid, round: currentProgressRoundNumber, seq: 0, ts: Date.now() }).catch(() => {});
+                }
+            }
             if (state.phase === "result") {
                 document.getElementById('judgeEffect').style.display = "none";
                 // 描いていた本人だけ、この瞬間に1回だけきれいな画質で送り直す
@@ -2916,19 +3197,35 @@ function resetDrawToolsToDefault() {
     changeSize(6, 'wrap1');
     updateActiveColor();
 }
-function clearCanvas(){ if(confirm('ぜんぶ消す？')){ canvasGen++; ctx.clearRect(0,0,canvas.width,canvas.height); upload(); } }
+// ぜんぶ消すのは「真っ白になる」という決まりきった結果になる操作なので、こちらも
+// 画像を送らず「ぜんぶ消して」という小さな指示（他の操作と同じ'g'つき、あとで
+// この「ぜんぶ消す」自体を「戻る」で取り消せるように）だけを送る。
+function clearCanvas(){ if(confirm('ぜんぶ消す？')){ pushUndoSnapshot(); canvasGen++; ctx.clearRect(0,0,canvas.width,canvas.height); liveSegBuffer.push({ t: 'clearall', g: strokeGen }); flushLiveSegments(); } }
 
 // 塗りつぶし（バケツ）ツール本体：タップした場所と「近い色」でひとつながりの部分を、
 // 選んだ色でまとめて塗りつぶす。手描きの線はにじみ・アンチエイリアスで完全な同色に
 // ならないことがあるので、色の近さにある程度の許容範囲(TOLERANCE)を持たせて判定する。
 // 何も描いていない部分は透明（アルファ0）なので、そこをタップすると背景をまるごと塗れる。
 const FLOOD_FILL_TOLERANCE = 50;
+// 描いている人の本物のキャンバス（ctx）向けの入り口。
 function floodFillAt(rawX, rawY, fillColorHex) {
-    const w = canvas.width, h = canvas.height;
+    floodFillOn(ctx, canvas.width, canvas.height, rawX, rawY, fillColorHex);
+}
+// 見ている人がわのキャンバス（vctx・再現用）向けの入り口。seg.x/seg.yは0〜1の
+// わりあいで届くので、viewerCanvasEl自身の実際のピクセル数（CSSの大きさではなく、
+// resizeViewerCanvasでせっていされる実ピクセル数）をかけて場所を求める。
+function viewerFloodFillAt(nx, ny, fillColorHex) {
+    const w = viewerCanvasEl.width, h = viewerCanvasEl.height;
+    if (!w || !h) return;
+    floodFillOn(vctx, w, h, nx * w, ny * h, fillColorHex);
+}
+// 塗りつぶしの中身そのもの。描いている人・見ている人の両方から、それぞれの
+// キャンバス（ctx／vctx）を指定して同じやり方で呼べるようにしてある。
+function floodFillOn(targetCtx, w, h, rawX, rawY, fillColorHex) {
     const sx = Math.floor(rawX), sy = Math.floor(rawY);
     if (sx < 0 || sy < 0 || sx >= w || sy >= h) return;
 
-    const imgData = ctx.getImageData(0, 0, w, h);
+    const imgData = targetCtx.getImageData(0, 0, w, h);
     const data = imgData.data;
     const startP = sy * w + sx;
     const startIdx = startP * 4;
@@ -2940,6 +3237,41 @@ function floodFillAt(rawX, rawY, fillColorHex) {
     if (Math.abs(startR - fr) <= T && Math.abs(startG - fg) <= T && Math.abs(startB - fb) <= T && Math.abs(startA - 255) <= T) return;
 
     const visited = new Uint8Array(w * h);
+
+    // 線を外枠（キャンバスのふち）までぴったりつなげたつもりでも、指やペンの描画は
+    // ぴったり1px単位で止まるとは限らず、ふちのすぐ内側にほんの数pxのすきまが
+    // 残ってしまうことがある。そのすきまから、外枠ぞいをぐるっと回りこんで
+    // 外側まで塗りが漏れてしまうのを防ぐため、ふちに近い帯の中だけ、「近くに線が
+    // あれば、そこもふさがっているものとみなす」処理をあらかじめしておく
+    // （実際に色を変えるわけではなく、流れこめないようにvisitedだけ立てておく）。
+    (function closeEdgeGaps() {
+        const EDGE_BAND = 8;       // ふちから何pxぶんを対象にするか
+        const GAP_RADIUS = 6;      // その中で、近くに線がないか探す範囲
+        function isWall(x, y) {
+            const idx = (y * w + x) * 4;
+            return !(Math.abs(data[idx] - startR) <= T && Math.abs(data[idx + 1] - startG) <= T &&
+                     Math.abs(data[idx + 2] - startB) <= T && Math.abs(data[idx + 3] - startA) <= T);
+        }
+        function maybeBlock(x, y) {
+            const p = y * w + x;
+            if (p === startP || visited[p]) return;
+            if (isWall(x, y)) return; // すでに線そのものなら、何もしなくてよい
+            for (let dy = -GAP_RADIUS; dy <= GAP_RADIUS; dy++) {
+                const ny = y + dy; if (ny < 0 || ny >= h) continue;
+                for (let dx = -GAP_RADIUS; dx <= GAP_RADIUS; dx++) {
+                    const nx = x + dx; if (nx < 0 || nx >= w) continue;
+                    if (isWall(nx, ny)) { visited[p] = 1; return; }
+                }
+            }
+        }
+        for (let y = 0; y < h; y++) {
+            for (let bx = 0; bx < EDGE_BAND; bx++) { maybeBlock(bx, y); maybeBlock(w - 1 - bx, y); }
+        }
+        for (let x = 0; x < w; x++) {
+            for (let by = 0; by < EDGE_BAND; by++) { maybeBlock(x, by); maybeBlock(x, h - 1 - by); }
+        }
+    })();
+
     const stack = new Int32Array(w * h); // 最大でも全ピクセル数ぶんまでしか積まれない
     let sp = 0;
     stack[sp++] = startP;
@@ -2962,7 +3294,7 @@ function floodFillAt(rawX, rawY, fillColorHex) {
         if (p + w < w * h) { const np = p + w; if (!visited[np] && isMatch(np)) { visited[np] = 1; stack[sp++] = np; } }
         if (p - w >= 0) { const np = p - w; if (!visited[np] && isMatch(np)) { visited[np] = 1; stack[sp++] = np; } }
     }
-    ctx.putImageData(imgData, 0, 0);
+    targetCtx.putImageData(imgData, 0, 0);
 }
 </script>
 </body>

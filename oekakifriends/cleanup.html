@@ -14,6 +14,9 @@
   #runBtn { background: #e05252; color: #fff; }
   #runBtn:disabled { background: #ccc; cursor: not-allowed; }
   #refreshBtn { background: #eef1fb; color: #2c2a4a; }
+  #deleteAllBtn { background: #8a1c1c; color: #fff; }
+  .danger-panel { background: #fdeeee; border: 1px solid #e6b3b3; border-radius: 14px; padding: 16px 18px; margin: 24px 0 14px; }
+  .danger-panel b { color: #8a1c1c; }
   #log { white-space: pre-wrap; background: #fff; border: 1px solid #e0e0ee; border-radius: 10px; padding: 12px 14px; font-size: 13px; margin-top: 10px; min-height: 40px; }
   .warn { color: #c0392b; font-weight: 700; }
   .ok { color: #1a8a4a; font-weight: 700; }
@@ -34,6 +37,15 @@
 <button id="refreshBtn">数え直す</button>
 <button id="runBtn" disabled>使っていない部屋を削除する</button>
 <div id="log"></div>
+
+<div class="danger-panel">
+<b>⚠ 今まさに遊んでいる部屋も含めて、全部まとめて削除</b><br>
+テスト中にたまった部屋をまとめて片付けたい時など、<b>今遊んでいる子がいても関係なく</b>
+全部の部屋（casual_rooms・live_draws・presence）を消したい場合に使います。
+ふだんの掃除には使わないでください。押すと確認のため「けす」と入力を求めます。
+<br><br>
+<button id="deleteAllBtn">今使っている部屋も含めて全部削除する</button>
+</div>
 
 <h1 style="margin-top:36px;">必要なバージョンの設定</h1>
 <p>ここで設定した番号より<b>古いバージョン</b>の index.html・room.html は、
@@ -177,6 +189,41 @@ document.getElementById('runBtn').onclick = async () => {
     } catch (e) {
         log('エラーが発生しました：' + (e && e.message ? e.message : e));
         document.getElementById('runBtn').disabled = false;
+    }
+};
+
+document.getElementById('deleteAllBtn').onclick = async () => {
+    if (!confirm('本当に、今まさに遊んでいる部屋もふくめて全部の部屋を削除しますか？いま遊んでいる子は全員、急にメインメニューに戻されます。')) return;
+    const typed = prompt('最終確認です。よろしければ「けす」と入力してください。');
+    if (typed !== 'けす') { log('入力が違ったため、削除を取り消しました。'); return; }
+
+    document.getElementById('deleteAllBtn').disabled = true;
+    log('全部の部屋を削除しています…');
+    try {
+        await authReady;
+        const [roomsSnap, liveSnap, presenceSnap] = await Promise.all([
+            db.ref('casual_rooms').once('value'),
+            db.ref('live_draws').once('value'),
+            db.ref('presence').once('value'),
+        ]);
+        const roomIds = new Set([
+            ...Object.keys(roomsSnap.val() || {}),
+            ...Object.keys(liveSnap.val() || {}),
+            ...Object.keys(presenceSnap.val() || {}),
+        ]);
+        const updates = {};
+        roomIds.forEach(roomId => {
+            updates[`casual_rooms/${roomId}`] = null;
+            updates[`live_draws/${roomId}`] = null;
+            updates[`presence/${roomId}`] = null;
+        });
+        await db.ref().update(updates);
+        log(`完了しました。${roomIds.size}件の部屋を全部削除しました。`);
+        await runScan();
+    } catch (e) {
+        log('エラーが発生しました：' + (e && e.message ? e.message : e));
+    } finally {
+        document.getElementById('deleteAllBtn').disabled = false;
     }
 };
 
