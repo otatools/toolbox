@@ -14,7 +14,11 @@
 <title>歴史ならべ</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Shippori+Mincho:wght@500;700&display=swap">
+<!-- display=swapだと、一旦フォールバックの書体で表示してから専用フォントに切り替わる瞬間が
+     目立って見えてしまう。display=optionalにすると、読み込みが間に合わなければそのページでは
+     フォールバックのまま通す（後から切り替わらない）ので、違う書体がパッと出て入れ替わる
+     見た目にならない。 -->
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Shippori+Mincho:wght@500;700&display=optional">
 <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
 <link rel="icon" type="image/png" sizes="192x192" href="favicon-192.png">
 <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
@@ -32,7 +36,7 @@
 }
 @supports (height:100dvh){ :root{ --app-h:100dvh; } }
 *{
-  box-sizing:border-box; touch-action:manipulation;
+  box-sizing:border-box; touch-action:pan-x pan-y;   /* manipulation だとピンチ拡大が効いてしまうので pinch-zoom を含めない */
   -webkit-touch-callout:none; -webkit-tap-highlight-color:transparent;
   -webkit-user-select:none; user-select:none;   /* iPhoneでは -webkit- 付きでないと長押し選択が防げないことがある */
 }
@@ -54,22 +58,73 @@ input,textarea{ -webkit-user-select:text; user-select:text; }
 h1,h2,h3{ margin:0 0 8px; }
 h1{ font-size:1.5rem; text-align:center; letter-spacing:.05em; }
 /* ---- ゲーム画面 ---- */
-#game-screen{ padding:10px 0 0; justify-content:center; position:relative; z-index:0; }
+#game-screen{ position:relative; overflow:hidden; z-index:0; }
+/* #game-stageは固定サイズのデザイン。JS(fitGameStage)が実測した使える領域に
+   収まる倍率でtransform:scaleし、#game-screenの中央に置く。中の要素(HUD・
+   場札・手札)はすべてこの固定pxのデザインの中で組んであるので、ウィンドウの
+   大きさが変わっても場札・手札・文字の比率は常に一定のまま、全体がいっしょに
+   大きくなったり小さくなったりする。 */
+#game-stage{
+  position:absolute; top:50%; left:50%;
+  width:900px; height:700px;
+  transform:translate(-50%, -50%) scale(1);
+  transform-origin:center center;
+  display:flex; flex-direction:column; justify-content:center;
+}
+#game-stage.is-portrait{ width:420px; height:760px; }
 .hud{
-  display:flex; justify-content:space-between; align-items:center;
-  padding:0 12px 8px; flex:0 0 auto;
+  /* 3列グリッド(左1fr・中auto・右1fr)にして、中央列(solo-stats)を常に
+     画面の真ん中に置く。以前はflexのjustify-content:space-betweenで、
+     左右のturn-label/deck-countが空文字になれば自然に中央に来る想定だったが、
+     それだと「hud全体の中央」になるだけで、勾玉自体は「85秒」と「正解 0枚」の
+     文字幅の差のぶんだけ中心からずれてしまっていた。 */
+  display:grid; grid-template-columns:1fr auto 1fr; align-items:center;
+  padding:14px 12px 8px; flex:0 0 auto;   /* 上に14px：秒数などを少し下げる */
   width:100%; max-width:1100px; margin:0 auto;
 }
-.hud .turn-label{ font-weight:700; font-size:.95rem; }
-.hud .deck-count{ font-size:.75rem; color:#6b5c42; }
+/* grid-columnを明示しておく：ソロ中はsolo-statsがhidden属性でボックス生成自体
+   されなくなるため、明示しないとdeck-countが自動配置で中央列に詰めてしまう */
+.hud .turn-label{ grid-column:1; font-weight:700; font-size:.95rem; }
+.hud .deck-count{ grid-column:3; font-size:.75rem; color:#6b5c42; text-align:right; }
+.solo-stats{
+  grid-column:2;
+  /* 勾玉(中央列)を挟んで左右を1fr/1frにする。「85秒」と「正解 0枚」は文字数が違うので、
+     flexでただ並べただけだと勾玉がその差のぶんだけ中心からずれてしまう。左右を同じ幅に
+     することで、勾玉自体が常にど真ん中に来るようにする。 */
+  display:grid; grid-template-columns:1fr auto 1fr; align-items:center; gap:10px;
+  font-size:1.65rem; font-weight:700; color:#4a4436; white-space:nowrap;
+}
+.solo-stats #solo-time{ text-align:right; }
+.solo-stats #solo-correct{ text-align:left; }
+.miss-gems{ display:flex; gap:7px; align-items:center; justify-content:center; }
+.miss-gems .gem{ position:relative; width:21px; height:30px; }
+.miss-gems .gem::before, .miss-gems .gem::after{
+  content:''; position:absolute; inset:0;
+  background-size:contain; background-repeat:no-repeat; background-position:center;
+  transition:opacity .3s ease;
+}
+.miss-gems .gem::before{
+  background-image:url("data:image/png;base64,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");
+}
+.miss-gems .gem::after{
+  background-image:url("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEgAAABmCAYAAABoS9cBAAAa4ElEQVR42s2de7BkR33fP7/uc2bmPndXq9cirR4QyUiCEhYVROIUG+yoEEFUkjKrgiiJgmNkp6BwUhgnjjDLOiSUS5hQNsQWxmVT5STKbgU7JnEky45YI6sUbAksayUUBT1Wj31Ju9q9z5lzujt/dPecPmfOzJ19ydxbXWfe0+dzvr9fd//61z3CWfxzoAEETOPxbcA1wLXA1cClwAXAXCgWWAOWgUPAC8BTwPeAJwWONj4vA6z4953TPzmLYKyAC/fngL8B3AT8LeDNwHmn+fGHA6gHgfuAbwv0w/coQJoX5Afmz4F2CWQH73TwZQfPO3AtxTiRMhQTig0l3vfPgxnzGU87uMvBDyffK1G9PyhgahVy8Pcc/NEIDCgCFOtE3JgTnlz8e8vwWTZ5rnTwDQc3J/VQQVV/dSbmQEdJO/jbwGeAHdXTGHwlFSL+VNK/Xg9mZ2Fmxt/u9UApKEvo931ZXYWVFRgMGrUVcM4Gn5Ulz3wT+CWBe5t1fF0BOcjEX7kLgM8B/yw8ZQOcUZlnGZx3Hlx0EVx8MWzdCouLHkye+yICxnhIZekBnTwJr7wChw7B4cNw/DhYm4Jy4XuFSjW/B3xKYH9U1Jk6cpnWpPBfZhy8F/g14PKJYDod2LYNrroKrrjCg+l2QW/gKiRUyTkPbX0djh2DAwfg+9+HF16olFUp1CSgVoF/FxRl4kU9Z4CiEw5VuRP4bHiqbMjc/ykFmzfD9u1w5ZVw6aVeQVny0mh2Q/Nzof1r1kwqYMZ4VT33HDz2mD9aS8OMTXKxHgTuEHjyTCDJBnBUUIgAXwU+TCXZdmfY7cLCAszPw6ZNHs78fOVzuh2Y6UGnG0wsA515fcaTjZ2FeDuFZYxX1P4n4Dvf8aZXhxT9YAacAH5a4J5mV+SMAQXlRNnuAf4BUIQvnt53aQGtINPQyb3pzQRHPTvrYS5u8jAXFz3M3kzlm6LSrKuqLOKd+TPPwkMPwXPPhyrVzj1V0y6BX4wX/FQgySSfE9SyB/hAgJNP9Ynx3ZKUtm+Lz2XBZ83OwabNcMGFcOFFsPUC2LTFqy/L/GnFhl4EjIWDB+HBB2H/kxUkl54KNoC6W+CnTxWSbNBafQn46FRwVAOMakCKfd70NbEG0ZRcYtC5hrl52HohvGE7XLIdzr/Qq05UABXee/QoPPCAhySSPDesXaz/bwt8+FTMTcb1cxzcAdy9IRzVAqUNUhMWbQqT6ro7540kXv+FzR7UFW+CSy7z95WuzO/ll+D+P4RnD1SQLCmoeB5fFfjItI5bmk45fPRbgT8L4letSktPXLfA0RtA2sj84oMRVhlgdXO4eDv8tWvg8jfB4mavKGPhqe/B/ffBsRP+vTZAdsOmJUL6rMAvTANJWvyOAH8KvKPh6Kp3qEbRY0CpMYDUGDiSeI7m0YUnywArz2DbZXDN9XDZG2F2Hk4uwbcfhv/zsAdmqVToi8MNW7h/LPA7G/W6pcXvfAz41dZ+TvOkswSMHgNNnYKKWuy9vQQnUOBbvCuvhqvfCvOb4PAheOhbcPBICLy4OiiDC//rwI0Cj0/qcUvaGQS2hNDC1lpfRxonrhtQdAsoPYWSJJyyhP9pANmk/26lUtSW8+HKN3tIB56DJ5+EMlGRqUEyWDSOR0NYxoxz2lnSWymdb7EuqKlHWgBMU9RY/+QQDIoMHcD4kzfhnqqb1hhANjT5Wbj2S6/A/odh6zbozcNCD5ZWq1YxFj8o0RhKLDdguVNgV2jZRkxNXNUPnQ/qeUOoihqrmqxxWyWPqQmgBItG0Rmq4CgwQDifDl0cUGIQdK2ZtuMApT5GQnAF6M7549KKf9zgTa0Ml94EUzNYLCWWt4UIpjRNLZ5WCdwCXDJ0zOnVz1rgZGNgjTNBwdBB41hC+BU0v0vOM2hK1jgf4V1oPs4sN9DHDpWUgnFj4EQA8UzKFe+nOnho8TPympq8dg1d4C6xvL8tliRJv+f3A6Qo//qJ5i1gJsFKi2DpoXB8B8OH5D6eavXJd5BzlM+R8wkGQUnTqMdQdQPK9L6C+fNAdeDV47C8Vn9NEfyRQeN4l5R8q9mqRSe9Ffg+sAmFQyOtMLIJj42HZMkRhANYbpRvcNi9nZxbMOymGmDtQLEPI+DcB/l1uvwUfQwumFvqnGvKaYCJcIzA9jfDlW+BrAsvvQjffQSOL3l1lUOT84BK/kgKbmq2aBHQe4B7UcFH6DEw8jFgsjHK8iZm6KEp+IB8nf/m7iCXr1C0KmhXkPhBehQ8geJySiwO1QpnHJjCQW8Brv9RuOyHQHfgyCF4+Fvw1FMeUJH4pBKLQVGMqija3I1IqIZqccgRTlvpJKUbSmd4tMyh0TzNW/nvDhRfGd9zld1YQMlXWKXL11gAulh6QC985rhjt/H9neCDMgkRBanqPHpxXTjXT7Y388JbgllJqzLyltv5FMrSWOZQFDwsuyndTrTs3SAE+oQfqzPLn6CBmeCsm74nLVnwJzr0tBVQLsPh70O3B6oHBw/A8Zd9XW0zMhLiXo6bXYcfkgFPRVPLwtNXBOVITTn5BAVlLffbTK4HaA45EK6dLo4k4Fxn02tICWIEZ3300Jl6z9gkJqYDpGGraeHgk3DiiJfUsVehv+YVVrh6/8ghWEpycuCfMuDnY7gnc/4anTdiUm2KmVTalKSD5BVbBZy7booYzE5wexG6vQW0gr5xYAVXgjVgC7CljyyaMMdaJmCKcF+AwsDSkdhaBTgtvfU8yMTD3ul8gG3gQDKgh2I2wJGxkJp+ZyNIOaBE+Vh0dqNza8I0Mwz7d4iwz7ls0zuZVUBhcVbhjAczBDTwt03hpy9VAqo2rJFggm50zOdqA2KFw5LxJua5kWW+FSLsLZ29bAKkzhgH3Wk66Ay6swrmLQubruPT2/6OCM49sCMbG+Z1CNdd6NyuHRndxQ8j89BZUHTmqcpCdcznIZ+FbtbWQIS6ulAmXMy0S+LP933R2hWbWnrL07RgnXGQBDq9UPm5cFxwzG7+gtu1bVbeva90d789d85JvKbOIW7PTs1ndmi5da/hvHwXm8+7GpkzdBcUncUAJkJJgc1DvgCdGeiqOpzuGLVnYxsYCRzeFQc54mCOzTxOhyvIsHRQrRC6DSBttzMNWQ+yGdBd30HTXVC5ZW5WYbL7UdwmP/Pg0TQOlY6i3d0//rPk3EW/MDinvWkZvA8qvUlF0zIDMH1fyj6YNSjXoSi9rxlQHQeN+wU+BaKovcZRIBQsI7xJDnPEX8WtPEKHHybHkofB5DiFtJU8mJSe8XCyni+6W4FSuWFuVmP089C5ixn1DW7f+4KAc791+2Yy/Q6s+zi5vI9+YbFO4Sy+BSt9CxbB2BY45TqYdX8sV6EoRgH1W4ANRkBaShSGd8thvuklfiHfoMstZBhydCuE7iRIOWSzCZyZClDW8z3ZqKRuT9HrwjorKP08ogegttHLL0IrWCusN/rYtFuGLZgpwA4CnFjWK0DlWri/5iENBqMg+mMAVaBKSjIGfFQO8R+9w9R8D80taNxUHcWaCWYJnFnIew0VJUrSuUJ1LEXu6OVzdLrXonQISViLVY7ujPaTgC6YVjAxW4IOytEBTtn3gXvRPi4t4o9pK8WADaMCNulwmuEQ6eqqJ615JDhmaXXSbX2iTkhMGMKZgXymcTsAir5Id0F3FCoHpR1kDpeBUoJWqjZROARkk+a9qJSj+qAyKBuA0rY8JsrYYnyoJIVjg6P2TC6tACm+jVCgyYOKZMPmPpegllDyAGp4DKB06o86VVGZoDJBsqACVY/aO1tXz7DPE9WTeUBDOAkgST/DJp+VDHjNGOXoYbjwYoDMgXCAZ7mavyTnBjQWjd6wqdddf/I11cxOABSV1PHxGZ0TlFSd5AigqJ5yVD0SAanqvVExJFCGx7VqrixvGddVkCRkOL3RXc7mjB1o2UfpMn6PjBtCPGhy7EdnQTndcLKpMoJD1jOjjnuoom47oNTEnKPqPZeVcy77CRjqo05R4fPEO/iaiZaQDeqD3LI1wKfC8UIMb8zYF7r/He4BPkUWzEwjrR3ITBJ/0oPZrTB3AfQWPRTdAcn9SQxhdZO+UWpuOTUTE1XNrQ/NKw4t8vC5OZiON28WK6/rjIdYrMLqMTjxIiwd8o/rAEiXoG3dx5YtMzESrEhxVSZg3S6U7OZp99e5jw7vR2HQ6FYF6bxSzux5cP5VsGU7zJ3ve7pZz8OJgyHrwqSfVJRVACiJH1G64WCDDbh4uUNm5PCjQpaHBHM0Ac7aCVg+HDJAlj20rADbCQrq19XTBknjfGSKq7IQg5EwJvs8wvtRQT3NwLuWcHLBnHqLMH8BLG6DhYs9sO58ABjMIM2jiJN+LjbHKjkm06vpTKu49qyR1FeZAoo16C/5C1j2k3p0QBW+vqbjuwqpisbNwvjHL88AZC8mqOhP3Lu5jy7vQWFQibPW+PS5aBo695+iMu+Qe4swuwVmNkFnNvijpiqiy5BGkyzjZ1dF6lObMUPEhfkgU0I5gEHu1dZf8t9rQi5p1gkOPtY78y2hngAmCkTYliWRPF+FLj8H/FjwQQ6V9o2CSUQVFX0YrPpKOucrlnU9sLznXy8NQG3Tp4766yblLqYvsxZkEJxxcMxFAf1VWF/y6tTdACT3fkwlgDbKJ1CcP+x2yl6M24mWe3kM+CI9dFBReLFUTlLlXiEILB2F5Vd9hQarHpo11TB02EdRProyUrRXplKTi6SqC2ZrUwWtwtoSrB6Hk0d8PXQw9VoJLaeamEsg4WsW67GZvVi3Ew18mpKbmeMtQ1NTOnyBrorOfUWOv+hDG7rnIYqummudV03v2Upjt86DKfpeLWsnYfmYD68ee8nfV8GcyqQxUEnfSZlpEiu62Ugs+Fqc7GbNfZDbgIfJ6Pr5dC2+v5JVRWUewGANXn3BX4Y4Z16WMFOEjmOorEqc8akAS3PvrQ351H0fY147AUuvwomX4bWXYH1ltJWMt0VXLaYqxqfmVLdnsrapF7cTLffwmLudnyDnv5BRIkqjtNQUNPzC3LcmJ1/xTeigD4t9GGzxkDoz3jdlCaQQzGwF1kwTtmFkb4wv0c+snfDKWToCq6/5nCDd8U35sJ5R9apebyV+4YJMVJC0hj9lL8btIJOvcY/751zKnNwFqgSlESWVX0mvSKhIWcDScd+36BcwW/iWrVv6zNUsq/uc6FtExitmqJoyxHkGXimrJ2F92YOJJl/Gz0176LpxX1V9KGFSKcbGh2UfpdtFJrv5vPsE8yzoXThlQFQFqeGERVWSdg7668AKGA0D4+NGEVKe+xNpwhqm/SaKiWBiKUsoQ3K9agxaVWhym/WSRB5xmDIpFdAf1yeujJHdAdIvu8/Ql5+lozRaCYgZHUGnV0Z8hXWWjI0aJzoYVKqwNhlotgAypr5OI35+Mw4UITQvXA2M1Ef90pJv53OYQDYAVIP0uRO/zMB9CKWW6WqNoxxqVFouhzS6vtJS0hNWqm5+MuY9tV62NOJALffT70i75KlJj1fQ8anWVg0h7X7xHkr5EYx9lPk8C6zP7mq/NojNuazXZUkcAEenXnzmIe3I5M7HH+O13o+wZj6HpmQ2034NlzW12GYam0lzn8eVaFJlWZlUanqpCdY+z1ZrO4ZxJFefFWy+l7bParktvHxKq/Nk977Sj9n2rcvH/vDfgH4nRfkHdLSim2ustVhrq4onhQ3ApHAioPi8a5yoYzRamH5P7buajyUA3QRF+scPnPLyRdmNdfiJPvnI3kfkn3ztfZTle+kPHqCrFb1MYUuDLV0V0zHtTXdaUkhNUGlJg2murMMZRiGTcGHtItn6KqJxJebfWp7JTnMNlePWvcbt2qUA5B/uvhe4131993uh/yk2LfxNCgvlwJGV4oNeHe984xovY+r9nrZmvg1OzPIYRhrTYhozIXYU3lBxEyEpDCXCM2dnWfienZqde6z4hbvC/V/5GJ3ZX6K7MIPtOHqLQifEZ7SuStoPSp1yU2lpc2+sH2YUyzBYgcFSuL0Eg+Yx3j7pX9Nfqh7vr8F6mCdbC0d/3zFAWOMwBddkZ6XhuXWvAcHt2aPZv9/JTXf8qrvvNx4l6/0+Wb6Fct2h8jCWa+kxjwOU+qihksoQFQzRweFsa9leohmmt9MZjtGjDTHFZ+UvOZ6d1Rb61lv9aug9ezrynlv/1N3/W7exmP9PnxG/VvW+Y/56CqHZrKcmlSqpXK9KnHpOZ1rj/Jkt2s1veLsxT+Zq6zkAHh+/rPLMQQ3cn9+dy00fvpeV5f9KTynMekm5GqaHi4bZNBx06qSHpfTvLdaSKeZ+AqlfzXzYBJQpGtCKCpChHZQH9Mg5AwTAM1usc05w/a+ytgSDNUWxBsWKD26V/TqQFErtsRAQK1b9eyPkYq3K5hjOzzfUFGGZhqJMS7ZsVTQFYHn03ALaudOKiKM4/l2WXzsOfUWx4vyJLnvnWaxAse4BlOlgNJQY0i2WQ1lNylp4b9PcElApnJguEwHZ1nxrF1aSHKHgCVqXdZ+1EYOfjpCbP3HM/cGXnqXX3UJR+HzD4Uxppx7lqznptlnVmMXRr5RUrtX90ohv6tf9U2lHs2SrbpMNiet/Jk+w7Haizxmg2PzLrXsN5erLmM4NFM53HnWYhomRvxjEak4915xsMrM6THFZr3xSDVQ/Mbl+AxjNRS1pcQHW/wbgyJiA2Vn7u+Baf8bl2glMBw+oBNsNc+wpoHQxa5q8EPzQMC+on0BKcoHKxHnXSgKqtOPARCVpCiyGPwZgH+7cAop/5UrGQPksLhumYVQyN690ffKwOZxoJi/UAK0HZ90s6w0VFenSg3oxQ/NSGJ7ifPaHWKM9t4C+GYbyg+WLWAcK8cMOk4+a1zDYlY7SbQNQAmnojwKgInYB1quWzSSKimsziiSXOk1iKLFYFJb7ZB+l20Em+yjlnPmfuFBvz84ZlnpP05u7BKsdWVf8VFAaKtX1zDBo5PWUjdzo/qipFQ0FDVu7lRDkT1Lw+i3peP2Qm1jwo7KfB+KClnOnoD07ldu51/Jr69fT5RJWSw/HhlnO4bRMBCQNJ+2qkXpbjtCwhUpbsNj0rya+KSRzlolyRotXz4BnGfBQNK9z2syH4KBzX1z+R3QdFMpgi6w2BSxxGki1JFClgNIs+9C3ia1SbNbLpGUbwhnU03yLsZCieX1d/h/9aF5wljZ5a1339RkcX7j+DdB5EtWdRzqgO6PmNUy/U41182l8xzTyFBtpwKk/KkMPuyj8aosB0xRHgaPg7fI0303Xi50bBR18uxZ5pHC7l+9iYWaB9cKQdTQ2UU/T/zRNDFcFvmy6kKUlV3rYjEcFFaNJ423Fm53BojA8FOCodEnmWQfkVxQ+Urif3/IR9OqHOFkYdEdj07zErD4zO0zfbZpYi6OuQRok46/YrJtRMIMxJlYM17oKhl8HCEtDbXMm6CzCoXAf5xZm899FuoJ0VGVaY5r3sSm8tsVRt6QEm34Yv7l2pQxabvujpUQYcIAVruUga1S5I2dPQXGtqeymcD/BB7H8NuuFRkrIBuJNqzPaORwLyDU6i00/lLZohY8yFg1VbATKq8hhUJR8WQ6y2rbZyRkrKPX47jZ+gS6/GDIkHHlcfxamiHUWcox03UFLc7cTN5rnHAG5Igw9yvpmAWWL6RQTi1dPwWEs1/A8J5rqOSMFuZ1o9mJlH6V7H1eR8ys4bmYFS4aQh3zjLKwj1YUvql9lWrRND8NornQahLd2dLWzaWm+N1aUw6Io+IK8yGvjdoE5nY0mh/unul0o9vExOuymy2agJCNrXUfftkuMMDqlPDIx6OrLCEzLwt5yQilaOokDLCb4noLrOMwaY7btklMAM9xLEcC9jZvo8G+Z4cZw8f1KoUmbDNRzkdv3OWvOdrYtQGnbUKAcA6tdWX4zgYLb5CD/edJGS9Puo6jjB7iruB7Np+jwgbAY1pCjaus7NoKjaN9HaBygcatzTIuSNlaU3xpnwDflEO/eaIOlbAM48c2lu5jL0fwrBvwkXXLWcZQ48rBDVduyouYmTJNyAqF9B6pp9u1oMzfTGtZwAdI6BR+dJh0im+Bn/P5NW1mg4F9Q8C8RtoSAtgkLFqS2EV88pitnTAugabYR3GjvIHMKSqpuGywZJf9ajvHENJviygTV4HJuRfNZMq4KJ1yGJQoy1a4vmsk7UTV3xGOMmaXTMYb2PTzaANVhmRAx/GOOcVO8fHIqCkr2MbsU+CKGHw9PlNiwaHqc4xwHZiNAbVlebgM/5BhdEDcZlA07vBxGuD1OTU6zj2LWUE7p4O8CvwlcjA0bWrnwurbKZoxfmDbNjngyhYJa9y8bO3UzGoj3xeD4kJzgpVPZbzpLzSrsYfalGEkGspq8dcvtVD22RTV6gmlNAuSmaO7thqBc2NAtw3CHLPPAqe4MnCVwfirAsSPml1ZONyqsG5VsOmbD5H0UTwXQRoty6ybnsEM4n5ZVfuN0tk2Oa/beid9c0jVcZ/s7Ntpksq3FGud7TmcfRbshqEo5js/LGp883T2lJeyfMn7nzXF/6hTKqarndFUUszNsGGcZ/r0U3BnO0chppIBm+O253pEYzHR/aSUVG296O8n3nC6gUUh+zzOLYPmklHzeTdmcTwL0ASanM05OlnUNUDKFas5UQe2gymBSS1h+Uix7TncX8iag6za4jtODsqcAZtxGt21wJvWsvVER4PwFltsF/uJMN/tPAW06q+HX2IlLt1M6HfVsrCIX2qrYef0y8HNCe2TwTACdTKpw9mLUTaPdSDXjFDQKqQLj6/94APO/4jjybMGJ3/mfwhq+8rR+WuZMi0xR6j+FE++/6uBOBzOxs+vOxTyfg9uS38pxP2AlXri0bscd/AcH29Nh0rlLcoKeg0fClw9+QKE4B885/9MPNTDuHM0ONyFd4+BwAsm+jjBMgFG0/GTWioP/4eCDDhZedzBpcMzBdQ7+vPHzVOVZgGVbQBQTTPqV8LNYdzj/+0G1cMzrBqYxFosD1i7wM/hR/WVj+s7j4n/pUZIByUZ/LwJPAA+HIc+jAq80Z1HOtMN3RoCS5tGG2wvA+4G/jx/Ibj+D71gNXYmj+N8vfBa/NfNTwP8Fnhf/mqaqFa/T7xhOHXJtzmCExzbhf2fjbaHXfTlwIX6L93h114HXgOeB5/A/4ngwQDkCHAeOy/jNKSIQ91ellHF//x8avHse/0vgxwAAAABJRU5ErkJggg==");
+  opacity:0;
+}
+.miss-gems .gem.is-miss::after{ opacity:1; }
 
 #timeline-wrap{
-  /* 場札は常に同じ高さ(tl-grid: 218px+34pxの行+すき間+余白 ≒267px)なので、
+  /* 場札の大きさ(--cardw)は#game-stage基準の固定px。画面サイズへの追従は
+     #game-stage自体をtransform:scaleすることでまとめて行うので、ここで
+     画面の高さに応じて個別に縮める必要はない（場札だけ・手札だけが縮む/縮まない
+     という不釣り合いがそもそも起きなくなる）。
+     ここで明示的に宣言しておく：renderTimeline()がJSでgrid-template-columnsに
+     var(--cardw)をフォールバックなしで埋め込んでいるため、ここで宣言しないと
+     無効な値になって列幅が一切効かなくなる(カードが中身にあわせて暴れて見える)。
      flex-growはさせない。伸びる余地を余らせたままにすると、その分だけ
-     手札欄が縮む余地だと誤認して手札を必要以上に小さくしてしまう。
-     min-heightは、それでも場札が絶対に欠けない高さの保険。 */
-  flex:0 1 auto; min-height:280px; max-height:480px; overflow-x:auto; overflow-y:hidden;
-  display:flex; align-items:center; padding:6px 12px;
+     手札欄が縮む余地だと誤認して手札を必要以上に小さくしてしまう。 */
+  --cardw:114px;   /* 場札の大きさ(横長レイアウト)。縦長レイアウトは下で104px */
+  flex:0 0 auto; min-height:275px; max-height:475px; overflow-x:auto; overflow-y:hidden;
+  display:flex; align-items:center; padding:4px 12px;
   background:repeating-linear-gradient(90deg,transparent,transparent 40px,rgba(184,134,11,.08) 40px,rgba(184,134,11,.08) 41px);
   scrollbar-width:none; -ms-overflow-style:none;   /* 下にデザイン済みのスクロールバーを別途用意するので、素のバーは隠す */
 }
@@ -79,10 +134,10 @@ h1{ font-size:1.5rem; text-align:center; letter-spacing:.05em; }
    ※ 表示/非表示を hidden 属性で切りかえると、その分だけ画面全体の高さが変わり、
       #game-screen の justify-content:center により場札ごと上下にずれて見えてしまう。
       なので常に同じ高さの箱を確保しておき、使わない時は visibility だけ消す。 */
-.tl-scrollbar{ flex:0 0 auto; padding:2px 20px 8px; visibility:visible; }
+.tl-scrollbar{ flex:0 0 auto; padding:2px 20px 2px; visibility:visible; }
 .tl-scrollbar.is-hidden{ visibility:hidden; pointer-events:none; }
 .tl-scrollbar-track{
-  position:relative; height:11px; border-radius:999px;
+  position:relative; height:8px; border-radius:999px;
   background:#e9e2cc; border:1px solid #d9d0b3;
   box-shadow:inset 0 1px 3px rgba(74,68,54,.18);
   cursor:pointer;
@@ -97,8 +152,11 @@ h1{ font-size:1.5rem; text-align:center; letter-spacing:.05em; }
 }
 .tl-scrollbar-thumb:active{ cursor:grabbing; filter:brightness(.96); }
 .tl-grid{
-  --gapw: 10px; --cardw: 100px;
-  display:grid; grid-template-rows:218px 34px; row-gap:3px; align-items:center; justify-items:center;
+  /* --cardwは親(#timeline-wrap)からJSが継承させる（既定値100pxはJS実行前の保険）。
+     行の高さも--cardwからの比率で決まるので、カードが縮めば行も縮む。 */
+  --gapw: 10px;
+  display:grid; grid-template-rows:calc(var(--cardw, 100px) * 2.18) calc(var(--cardw, 100px) * .34);
+  row-gap:3px; align-items:center; justify-items:center;
   padding:4px 4px 8px;
   margin:auto;            /* 中央ぞろえ。カードが増えて横に収まらなくなったら自動で左端から並ぶ */
 }
@@ -113,18 +171,35 @@ h1{ font-size:1.5rem; text-align:center; letter-spacing:.05em; }
   width:100%; aspect-ratio:1.05; object-fit:cover; border-radius:8px; flex:0 0 auto; display:block;
 }
 .tl-card .img-ph{ background:#eadfc4; }
+/* 年を絵の上に重ねるのではなく、絵の上に帯として独立させ、そのぶんカード全体を
+   縦に伸ばす（絵を欠けさせない）。手札→場札のアニメーションでは、着地先の
+   実測サイズに向かって伸び縮みするので、この帯のぶんだけ上に伸びて見える。
+   フォントサイズも--cardwからの比率にして、場札が縮んだときに文字だけ
+   相対的に大きくなって収まらなくなるのを防ぐ（既定値はcardw=100pxのときの
+   もとの固定値と一致する）。 */
+.tl-card .year{
+  align-self:stretch; flex:0 0 auto;
+  margin:calc(var(--cardw, 100px) * -.04) calc(var(--cardw, 100px) * -.03) calc(var(--cardw, 100px) * .04);
+  padding:calc(var(--cardw, 100px) * .04);
+  font-weight:900; color:#fff; font-size:calc(var(--cardw, 100px) * .184); line-height:1.3; letter-spacing:.02em;
+  background:linear-gradient(135deg, var(--accent), #8a2412);
+  border-radius:8px 8px 0 0;
+}
 .tl-card .info{ display:flex; flex-direction:column; align-items:center; min-width:0; width:100%; flex:1 1 auto; justify-content:flex-start; }
 .tl-card .yomi{
-  font-size:.55rem; color:#8a7a5c; line-height:1.1; margin-top:6px;
+  font-size:calc(var(--cardw, 100px) * .088); color:#8a7a5c; line-height:1.1; margin-top:6px;
   white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:100%;
 }
-.tl-card .name{ font-weight:700; font-size:1rem; line-height:1.2; margin-top:1px; }
+.tl-card .name{
+  /* 名前は必ず1行。基本は--cardwの16%、長い名前(--nc=文字数)は枠の内側の幅(カード幅-枠と余白12px)に収まる大きさまで小さくする */
+  font-weight:700; line-height:1.2; margin-top:1px; white-space:nowrap;
+  font-size:min(calc(var(--cardw, 100px) * .16), calc((var(--cardw, 100px) - 12px) / var(--nc, 4)));
+}
 .tl-card .event{
   align-self:stretch;
-  font-size:.64rem; color:#6b5c42; line-height:1.2; margin-top:3px; text-align:left;
+  font-size:calc(var(--cardw, 100px) * .1024); color:#6b5c42; line-height:1.2; margin-top:3px; text-align:left;
   display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;
 }
-.tl-card .year{ font-weight:900; color:var(--accent); font-size:1.2rem; flex:0 0 auto; }
 
 /* ---- ゲーム開始時の「配って→めくる」演出 ---- */
 .tl-card{ position:relative; }
@@ -162,15 +237,17 @@ h1{ font-size:1.5rem; text-align:center; letter-spacing:.05em; }
 .tl-marker-btn:active{ transform:scale(.85); }
 .tl-marker-btn.drag-over{ background:#ffe08a; transform:scale(1.35); box-shadow:0 0 0 4px rgba(184,134,11,.25); }
 
-#hand-wrap{ flex:0 0 auto; padding:10px 12px 16px; }
-@media (max-width:600px){
-  /* スマホ幅では画面の左右の余白を極力なくして、そのぶん手札・場札のカードを大きくする
-     （PC・タブレット幅にはいっさい影響しない） */
-  #hand-wrap{ padding-left:2px; padding-right:2px; }
-  .hand-row{ padding-left:2px; padding-right:2px; }
-  .hud{ padding-left:6px; padding-right:6px; }
-  #timeline-wrap{ padding-left:4px; padding-right:4px; }
-}
+#hand-wrap{ flex:0 0 auto; padding:0 12px 16px; }
+/* 縦長(スマホのような)画面では#game-stageがポートレート用の細いデザイン
+   (is-portraitクラス、JS:fitGameStage)に切りかわる。その中では左右の余白を
+   極力なくして、そのぶん手札・場札のカードを大きくする
+   （以前は実ビューポート幅のmedia queryで判定していたが、#game-stageは
+   固定デザインなので、画面の実際の幅ではなく「どちらのテンプレートを
+   使っているか」で切りかえる） */
+#game-stage.is-portrait #hand-wrap{ padding-left:2px; padding-right:2px; }
+#game-stage.is-portrait .hand-row{ padding-left:2px; padding-right:2px; }
+#game-stage.is-portrait .hud{ padding-left:6px; padding-right:6px; }
+#game-stage.is-portrait #timeline-wrap{ padding-left:4px; padding-right:4px; --cardw:104px; }
 /* 手札の幅(--handw)は、手札の枚数と画面の幅から JS が計算して入れる。
    カードの中身はすべて --handw からの比率で作ってあるので、縮んでも見た目の比率は変わらない。 */
 .hand-row{
@@ -182,7 +259,10 @@ h1{ font-size:1.5rem; text-align:center; letter-spacing:.05em; }
   overflow-x:auto;
   /* 文章の長さでカードごとに高さが変わってしまうので、同じ段のカードは
      いちばん背の高いカードに高さをそろえる（下ぞろえだと上端がガタガタになる） */
-  padding:34px 4px 10px; align-items:stretch;
+  /* 選択中のカードは translateY(-16px)+scale(1.14) で持ち上がって上にはみ出す。
+     overflow-x:autoのせいで縦方向もはみ出しが切られるので、上の余白はカードの大きさに
+     比例させて、持ち上がり分(16px+高さの7%≒カード幅の9%)より少しだけ大きく取る(広すぎると場札との間が空く) */
+  padding:calc(18px + var(--handw, 132px) * .1) 4px 10px; align-items:stretch;
 }
 .hand-card{
   flex:0 0 auto;
@@ -206,7 +286,7 @@ h1{ font-size:1.5rem; text-align:center; letter-spacing:.05em; }
   font-size:.62em; color:#8a7a5c; line-height:1.1;
   white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:100%;
 }
-.hand-card .name{ font-weight:700; font-size:1.32em; line-height:1.25; padding:0 calc(var(--handw, 132px) * .033); }
+.hand-card .name{ white-space:nowrap; font-weight:700; font-size:1.32em; line-height:1.25; padding:0 calc(var(--handw, 132px) * .033); }
 .hand-card.name-tight .name{ font-size:1.02em; }
 .hand-card .event{
   font-size:.945em; color:#6b5c42; line-height:1.25; margin-top:.5em;
@@ -229,11 +309,29 @@ h1{ font-size:1.5rem; text-align:center; letter-spacing:.05em; }
   box-shadow:0 10px 22px rgba(0,0,0,.28);
   transition:left .45s cubic-bezier(.4,0,.2,1), top .45s cubic-bezier(.4,0,.2,1),
              width .45s cubic-bezier(.4,0,.2,1), height .45s cubic-bezier(.4,0,.2,1),
-             opacity .45s ease, border-radius .45s ease;
+             opacity .45s ease, border-radius .45s ease,
+             border-color .45s ease, box-shadow .45s ease,
+             padding .45s cubic-bezier(.4,0,.2,1), border-width .45s cubic-bezier(.4,0,.2,1);
 }
 .fly-card .card-pic{
   width:100%; aspect-ratio:1.45; object-fit:cover; border-radius:8%; margin-bottom:4px; flex:0 0 auto; display:block;
   transition:aspect-ratio .45s cubic-bezier(.4,0,.2,1), object-position .45s cubic-bezier(.4,0,.2,1);
+}
+/* 場札の年号帯は、手札には無いもの。着地の瞬間にいきなり出ると不自然なので、
+   着地演出のあいだに上から「にゅーっ」と畳んだ状態(高さ0)から広げる。
+   JS側(playFlyAnimation)が開始値・終了値をinline styleで切りかえる。 */
+.fly-card .year{
+  align-self:stretch; overflow:hidden; flex:0 0 auto;
+  margin:-3px -3px 0; max-height:0; padding:0 4px;
+  font-weight:900; color:#fff; font-size:1.15rem; line-height:1.3; letter-spacing:.02em;
+  background:linear-gradient(135deg, var(--accent), #8a2412);
+  /* 帯自身は角丸にしない：カード本体(overflow:hidden)の丸みで切り抜かれるので、
+     帯に別の丸みがあると、枠の角と帯の間に地の色の隙間ができてしまう */
+  border-radius:0;
+  /* opacityは付けない：途中で半透明になると地の生成り色と混ざって赤がピンクっぽく
+     見えてしまう。高さ(max-height)だけで巻き物を広げるように見せる。 */
+  transition:max-height .45s cubic-bezier(.4,0,.2,1), margin .45s cubic-bezier(.4,0,.2,1),
+             padding-top .45s cubic-bezier(.4,0,.2,1), padding-bottom .45s cubic-bezier(.4,0,.2,1);
 }
 .fly-card .img-ph{ background:#eadfc4; }
 /* 文字サイズは飛んでいる間、手札での大きさ→場札での大きさへなめらかに変わるよう
@@ -245,7 +343,7 @@ h1{ font-size:1.5rem; text-align:center; letter-spacing:.05em; }
   transition:font-size .45s cubic-bezier(.4,0,.2,1);
 }
 .fly-card .name{
-  font-weight:700; font-size:.7rem; line-height:1.2; padding:0 2px;
+  font-weight:700; font-size:.7rem; line-height:1.2; padding:0 2px; white-space:nowrap;
   transition:font-size .45s cubic-bezier(.4,0,.2,1);
 }
 .fly-card .event{
@@ -288,7 +386,7 @@ h1{ font-size:1.5rem; text-align:center; letter-spacing:.05em; }
 #toast{
   position:fixed; left:50%; top:46px; transform:translate(-50%,-220%);   /* 上部の表示と重ならない高さ */
   background:rgba(0,0,0,.82); color:#fff; padding:10px 18px; border-radius:999px;
-  font-size:.85rem; font-weight:700; z-index:50; pointer-events:none;
+  font-size:.85rem; font-weight:700; z-index:70; pointer-events:none;
   white-space:nowrap;
   opacity:0; visibility:hidden;                       /* 非表示時に上端からはみ出さないように */
   transition:transform .25s ease, opacity .25s ease, visibility 0s linear .25s;
@@ -312,7 +410,11 @@ h1{ font-size:1.5rem; text-align:center; letter-spacing:.05em; }
 }
 .judge-mark.show{ opacity:.55; }
 .judge-mark img{
-  position:absolute; width:min(78vw, 66vh, 420px); height:min(78vw, 66vh, 420px);
+  /* #game-stageは固定pxのデザインなので、ここも固定pxでよい
+     （vw/vhを使うと、transform:scaleされた#game-stageの実際の大きさと
+     無関係に実ビューポート基準で決まってしまい、拡大縮小のたびに
+     他の要素との大きさの釣り合いが崩れてしまう） */
+  position:absolute; width:340px; height:340px;
   object-fit:contain; display:none;
 }
 .judge-mark img.is-visible{ display:block; }
@@ -324,7 +426,8 @@ h1{ font-size:1.5rem; text-align:center; letter-spacing:.05em; }
 }
 .turn-banner.show{ opacity:1; }
 .turn-banner span{
-  font-family:var(--mincho); font-weight:900; font-size:clamp(1.3rem, 5vw, 2.1rem); color:#fff;
+  /* 同上の理由で固定pxにする(#game-stage基準の拡大縮小にまかせる) */
+  font-family:var(--mincho); font-weight:900; font-size:1.8rem; color:#fff;
   background:rgba(192,57,43,.92); padding:.5em 1em; border-radius:6px;
   box-shadow:0 4px 18px rgba(0,0,0,.3); letter-spacing:.06em;
 }
@@ -502,7 +605,9 @@ h1{ font-size:1.5rem; text-align:center; letter-spacing:.05em; }
 }
 .solo-highscore span{ font-size:1.15em; }
 .solo-settings-btn{ display:block; margin:clamp(10px, 1.8vh, 18px) auto 0; min-width:0; }
+.solo-rank-btn{ margin-top:clamp(18px, 3.2vh, 32px); }   /* スタートボタンの影(下に11px)と重ならないよう少し離す */
 .result-settings-btn{ display:block; margin:0 auto clamp(14px, 2.6vh, 26px); min-width:0; }
+.result-rank-btn{ margin:clamp(22px, 4vh, 40px) auto 0; }   /* 「もう一度遊ぶ／トップにもどる」の影の下に離して置く */
 .settings-reset-btn{ display:block; margin:clamp(24px, 4vh, 40px) auto 0; min-width:0; }
 #setup-solo-screen .wa-group{ margin-bottom:clamp(10px, 2vh, 20px); }
 #setup-solo-screen .wa-start{ margin-top:clamp(10px, 1.8vh, 18px); }
@@ -626,8 +731,8 @@ h1{ font-size:1.5rem; text-align:center; letter-spacing:.05em; }
   font-size:.85em; font-weight:900; color:#fdfcf7; background:#4a4436;
 }
 .player-chip.is-turn .me-badge{ background:#c0392b; }
-.hand-row.is-waiting{ pointer-events:none; }
-.hand-row.is-waiting .hand-card{ opacity:.55; }
+.hand-row.is-waiting, .hand-row.is-locked{ pointer-events:none; }
+.hand-row.is-waiting .hand-card, .hand-row.is-locked .hand-card{ opacity:.55; }
 .hand-empty-msg{ font-family:var(--mincho); }
 /* 開始ボタン（トップメニューのボタンと同じ、線だけのデザイン） */
 .wa-start{
@@ -638,7 +743,7 @@ h1{ font-size:1.5rem; text-align:center; letter-spacing:.05em; }
   font-size:clamp(15px, min(2.8vh, 4.2vw), 27px);
   letter-spacing:.16em; text-indent:.16em; line-height:1.3;
   padding:clamp(12px, 2.3vh, 24px) clamp(16px, 3vw, 38px);
-  width:min(88%, 330px); cursor:pointer;
+  width:min(88%, 440px); white-space:nowrap; cursor:pointer;
 }
 .wa-start::after{
   content:""; position:absolute; left:-7px; right:-7px; top:8px; bottom:-11px;
@@ -649,6 +754,55 @@ h1{ font-size:1.5rem; text-align:center; letter-spacing:.05em; }
   color:#a89c81; border-color:#cdc4ac; cursor:default;
 }
 .wa-start:disabled::after{ border-color:#cdc4ac; }
+
+/* ---- ランキング ---- */
+.rank-tabs{ display:flex; justify-content:center; gap:clamp(6px, 1.4vw, 12px); margin-bottom:clamp(8px, 1.6vh, 16px); }
+.rank-tab{ min-width:84px; flex:1 1 0; max-width:130px; }
+.rank-period{ margin-bottom:clamp(8px, 1.6vh, 16px); }
+.rank-list{ list-style:none; margin:0 auto; padding:0; max-width:460px; text-align:left; }
+.rank-row{
+  display:grid; grid-template-columns:2.4em 1fr auto 3.6em; align-items:center; column-gap:8px;
+  padding:clamp(7px, 1.2vh, 12px) 8px; border-bottom:1px dashed #cdc4ac;
+  font-family:var(--mincho); font-weight:700; color:#3f3a2e;
+  font-size:clamp(15px, min(2.8vh, 4.2vw), 24px);
+}
+.rank-row .rk{ text-align:center; color:#7a7263; }
+.rank-row.r1 .rk{ color:#c79a1a; } .rank-row.r2 .rk{ color:#8d94a0; } .rank-row.r3 .rk{ color:#b0703c; }
+.rank-row .nm{ letter-spacing:.08em; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.rank-row .pf{ font-size:.66em; font-weight:400; color:#7a7263; white-space:nowrap; }
+.rank-row .sc{ text-align:right; white-space:nowrap; }
+.rank-row.mine{ background:#fff3cd; }
+.rank-msg{ margin-top:clamp(10px, 2vh, 20px); margin-bottom:0; min-height:1.7em; }
+#rank-entry{
+  position:fixed; inset:0; z-index:60; background:rgba(40,34,22,.55);
+  display:flex; align-items:center; justify-content:center; padding:14px; overflow-y:auto;
+}
+#rank-entry[hidden]{ display:none; }
+.rank-entry-card{
+  width:100%; max-width:400px; max-height:100%; overflow-y:auto; margin:auto;
+  background:#fdfcf7; border:2px solid #4a4436; padding:12px 16px 14px; text-align:center;
+  font-family:var(--mincho); color:#3f3a2e;
+}
+.rank-entry-title{ font-size:clamp(20px, 3.6vh, 30px); font-weight:900; letter-spacing:.12em; color:var(--accent); }
+.rank-entry-hits{ list-style:none; margin:2px 0 4px; padding:0; display:flex; flex-wrap:wrap; justify-content:center; gap:2px 14px; font-size:clamp(15px, 2.4vh, 19px); font-weight:700; line-height:1.5; }
+.rank-entry-hits b{ color:var(--accent); font-size:1.25em; }
+.rank-entry-score{ font-size:clamp(14px, 2.2vh, 18px); color:#6b6252; line-height:1.2; }
+.rank-entry-score b{ font-size:1.7em; color:#3f3a2e; }
+.rank-field-label{ font-size:12px; letter-spacing:.1em; color:#7a7263; margin:8px 0 4px; }
+#rank-name{ min-height:0; cursor:default; caret-color:transparent; -webkit-user-select:none; user-select:none; font-size:max(22px, 3.2vh); letter-spacing:.3em; text-indent:.3em; padding:7px 12px; max-width:none; }
+#rank-pref{ max-width:none; font-size:max(16px, 2.2vh); letter-spacing:.06em; padding:6px 10px; }
+.rank-kb-tabs{ display:flex; justify-content:center; gap:8px; margin-top:10px; }
+.rank-kb-tab{ min-width:0; flex:1 1 0; max-width:140px; padding:7px 10px; font-size:14px; }
+.rank-kb{ display:grid; grid-template-columns:repeat(9, 1fr); gap:4px; margin-top:6px; }
+.rank-kb button{
+  -webkit-appearance:none; appearance:none; height:34px; min-width:0; padding:0; line-height:1;
+  background:#fdfcf7; border:1.5px solid #8a8270; border-radius:0; color:#4a4436;
+  font-family:var(--mincho); font-weight:700; font-size:17px; cursor:pointer;
+}
+.rank-kb button:active{ background:#efe9da; }
+.rank-kb button.del{ font-size:11px; background:#f3ecd8; }
+#rank-entry .wa-start{ margin-top:12px; width:100%; padding-top:11px; padding-bottom:11px; }
+.rank-skip{ display:block; margin:14px auto 2px; min-width:0; }
 
 /* ---- デバッグ：場札イラスト一覧（?debug=cards で表示） ---- */
 .debug-cards-meta{ text-align:center; font-size:.8rem; color:#6b5c42; padding-bottom:8px; flex:0 0 auto; }
@@ -813,11 +967,13 @@ h1{ font-size:1.5rem; text-align:center; letter-spacing:.05em; }
       </div>
       <button class="wa-chip solo-settings-btn" id="solo-settings-btn">難易度・出題範囲を変える</button>
       <button class="wa-start" id="start-solo-btn">チャレンジスタート</button>
+      <button class="wa-chip solo-settings-btn solo-rank-btn" id="solo-rank-btn">ランキングを見る</button>
     </div>
   </section>
 
   <!-- ===================== ゲーム画面 ===================== -->
   <section id="game-screen" class="screen">
+    <div id="game-stage">
     <div class="judge-mark" id="judge-mark" aria-hidden="true">
       <img id="judge-mark-maru" src="data:image/svg+xml;base64,PHN2ZyB2ZXJzaW9uPSIxLjEiIGlkPSJfeDMzXyIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIiB4bWxuczp4bGluaz0iaHR0cDovL3d3dy53My5vcmcvMTk5OS94bGluayIgeD0iMHB4IiB5PSIwcHgiIHZpZXdCb3g9IjAgMCA2NzIgNzIwIiBzdHlsZT0iZW5hYmxlLWJhY2tncm91bmQ6bmV3IDAgMCA2NzIgNzIwOyIgeG1sOnNwYWNlPSJwcmVzZXJ2ZSI+CjxzdHlsZSB0eXBlPSJ0ZXh0L2NzcyI+Cgkuc3Qwe2ZpbGw6dXJsKCNTVkdJRF8xXyk7fQoJLnN0MXtmaWxsOnVybCgjU1ZHSURfMl8pO30KCS5zdDJ7ZmlsbDp1cmwoI1NWR0lEXzNfKTt9Cgkuc3Qze2ZpbGw6dXJsKCNTVkdJRF80Xyk7fQoJLnN0NHtmaWxsOnVybCgjU1ZHSURfNV8pO30KCS5zdDV7ZmlsbDp1cmwoI1NWR0lEXzZfKTt9Cgkuc3Q2e2ZpbGw6dXJsKCNTVkdJRF83Xyk7fQoJLnN0N3tmaWxsOnVybCgjU1ZHSURfOF8pO30KCS5zdDh7ZmlsbDp1cmwoI1NWR0lEXzlfKTt9Cgkuc3Q5e2ZpbGw6dXJsKCNTVkdJRF8xMF8pO30KCS5zdDEwe2ZpbGw6dXJsKCNTVkdJRF8xMV8pO30KCS5zdDExe2ZpbGw6dXJsKCNTVkdJRF8xMl8pO30KPC9zdHlsZT4KPGc+Cgk8bGluZWFyR3JhZGllbnQgaWQ9IlNWR0lEXzFfIiBncmFkaWVudFVuaXRzPSJ1c2VyU3BhY2VPblVzZSIgeDE9IjMzNiIgeTE9Ijc5MC45OTg2IiB4Mj0iMzM2IiB5Mj0iMTgzLjI4NDkiPgoJCTxzdG9wIG9mZnNldD0iMCIgc3R5bGU9InN0b3AtY29sb3I6I0ZGRjFBQSI+PC9zdG9wPgoJCTxzdG9wIG9mZnNldD0iMC40MTYyIiBzdHlsZT0ic3RvcC1jb2xvcjojRkY5RTAwIj48L3N0b3A+CgkJPHN0b3Agb2Zmc2V0PSIwLjc1NyIgc3R5bGU9InN0b3AtY29sb3I6I0ZGNkEwMCI+PC9zdG9wPgoJCTxzdG9wIG9mZnNldD0iMSIgc3R5bGU9InN0b3AtY29sb3I6I0ZGMkEyQSI+PC9zdG9wPgoJPC9saW5lYXJHcmFkaWVudD4KCTxwYXRoIGNsYXNzPSJzdDAiIGQ9Ik02NzEuMjksMzIwLjY5MmMtMC4zMTMsMy4xMy0wLjYyNSw2LjI1Ni0wLjkzNyw5LjM3OGMtMC4zNjgsMy4xMzYtMC43MzUsNi4yNjctMS4xMDMsOS4zOTYKCQljLTAuMzk3LDMuMTE5LTAuODU2LDYuMjE4LTEuMjY4LDkuMzEzYy0wLjQzOCwzLjA5Mi0wLjk2Myw2LjE1OC0xLjQyNiw5LjIyOGMtMi4wMDUsMTIuMjQ5LTQuNDEzLDI0LjI3OS03LjE2NCwzNi4xNDgKCQljLTIuNTg0LDExLjE0Mi01LjIzMywyMi4yOTEtOC44MiwzMi45NDljLTMuNTg3LDEwLjY0Mi04LjA3OCwyMC44MDctMTQuMjUxLDI5LjY0NmwyLjUxMy01Ljk1YzAuODQ3LTEuOTc2LDEuNjA2LTQuMDEsMi40MS02LjAxMwoJCWMxLjYyLTMuOTk5LDMuMDY5LTguMTAyLDQuNTY1LTEyLjE3MmMwLjcyMS0yLjA1MSwxLjQwNy00LjEyMSwyLjEwNy02LjE4MmwxLjA0Mi0zLjA5NmwwLjk3NS0zLjEzMQoJCWMwLjY0NC0yLjA5LDEuMzA0LTQuMTcyLDEuOTI1LTYuMjcxbDEuNzg2LTYuMzM3YzIuMjk3LTguNDgzLDQuMzcxLTE3LjA2Nyw2LjAwNy0yNS43OTVjMC44OTItNC4zNCwxLjU0Ny04Ljc1MywyLjI4My0xMy4xMzkKCQlsMC45MS02LjYzMWMwLjE0NS0xLjEwNywwLjMwOC0yLjIxLDAuNDM0LTMuMzJsMC4zNi0zLjMzNmMxLjAyMi04Ljg3NSwxLjU1MS0xNy44ODYsMS44MTItMjYuODMxbDAuMTA5LTYuNjc0CgkJYzAuMDIzLTIuMjI1LTAuMDMyLTQuNDQ3LTAuMDUxLTYuNjcxbC0wLjA0Ni0zLjMzNmMtMC4wMjMtMS4xMTItMC4wOC0yLjIyMS0wLjEyLTMuMzMybC0wLjI4MS02LjY2MwoJCWMtMC4zMTgtNC40MjktMC41NTItOC44NzMtMS4wMzItMTMuMjg3Yy0wLjIyOC0yLjIwOS0wLjQxMi00LjQyNC0wLjY4OS02LjYyN2wtMC44NC02LjYwN2MtMS4yNDctOC43ODgtMi43MTYtMTcuNTU0LTQuNjY5LTI2LjIxMgoJCWMtMC4yMzctMS4wOTEtMC4zOC0yLjE5NS0wLjQ3NC0zLjMxM2MtMC4xMTUtMS4xMTMtMC4xNzQtMi4yNDEtMC4yMTEtMy4zODdjLTAuMDgzLTIuMjg4LTAuMDQ0LTQuNjU4LTAuMjUzLTcuMDc5CgkJYzIuMTY5LDIuNjYxLDMuMTk0LDQuMDE1LDQuMjU2LDUuMzU1Yy0wLjQ2Ni0yLjA2Ny0wLjk4OC00LjI4OC0xLjY1NS02LjQyNmMtMC42NjItMi4xNDEtMS4zNzgtNC4yMjctMi4wODgtNi4wNjYKCQljLTAuNjk0LTEuODQ1LTEuNDU5LTMuNDE4LTIuMTIxLTQuNTY5Yy0wLjY2Ny0xLjE1LTEuMjU5LTEuODY3LTEuNzEzLTEuOTcxYy0xLjk1Ni0wLjQ0Mi0zLjIwOS0xLjk0OS00LjI1NC0zLjkwMgoJCWMtMS4wNDUtMS45NTItMS44MTItNC4zOC0yLjY1NS02LjY5N2MtMTIuMTk1LTMyLjU2My0yOS41NDgtNjMuMDg4LTUwLjk4Ni05MC42MzNjLTYuNTczLTguNDE4LTEzLjUzLTE2LjU2NS0yMC44NjEtMjQuNDAyCgkJYy03LjM0MS03LjgyNi0xNS4wMzEtMTUuMzczLTIzLjE4My0yMi40NDZjLTE2LjI2Ni0xNC4xNjUtMzQuMDg3LTI2Ljc5OC01My4yOS0zNi45NzVjLTEwLjAwNy01LjMzLTIwLjMwMy0xMC4xMy0zMC44MjYtMTQuMzQ1CgkJYy0xMC41MzYtNC4xOC0yMS4yODUtNy43ODQtMzIuMTY3LTEwLjgwNWwtNC4wODctMS4xMDhjLTEuMzYxLTAuMzczLTIuNzI2LTAuNzM0LTQuMDk5LTEuMDVsLTguMjI4LTEuOTRsLTguMjY4LTEuNjgKCQljLTEuMzc3LTAuMjg5LTIuNzYtMC41MjctNC4xNDMtMC43NTlsLTQuMTUtMC43MDJjLTEuMzg0LTAuMjI2LTIuNzY2LTAuNDc1LTQuMTUxLTAuNjc3bC00LjE1OS0wLjU3MQoJCWMtMi43NzMtMC4zNjUtNS41NDUtMC43NzktOC4zMi0xLjAzNWMtMi43NzUtMC4yODItNS41NS0wLjU4Mi04LjMyNS0wLjgyN2wtOC4zMi0wLjU4MWMtMTEuMDg0LTAuNjExLTIyLjE0LTAuNzIxLTMzLjEwMS0wLjI3NwoJCWMtMTAuOTQ2LDAuNTA0LTIxLjgxMiwxLjQ0LTMyLjUyMywyLjg5NmMtMjEuMzk5LDIuOTY4LTQyLjI0Miw3LjctNjIuMTg5LDE0LjAyMmwtNS45MywxLjg4bC01Ljg0NywyLjAyMmwtNS44NDEsMi4wNQoJCWwtNi4wODMsMi4zMzRjLTIuMDIzLDAuNzg5LTQuMDUzLDEuNTU0LTYuMDY0LDIuMzczbC01Ljk5MiwyLjU2OGMtMS45OSwwLjg3My0zLjk5OCwxLjY5Ni01Ljk2NiwyLjYxOWwtNS44OTIsMi43OTUKCQljLTE1LjY3MSw3LjUyOC0zMC43NTMsMTYuMjktNDUuMDc3LDI2LjEyNGMtMS44MTksMS4xODYtMy41NTEsMi41MDEtNS4zMjIsMy43NTdsLTUuMjc4LDMuODE1CgkJYy0zLjQ2NywyLjYxMy02Ljg4Miw1LjI5Ni0xMC4zMDUsNy45NjNsLTUuMDEsNC4xNTZsLTIuNTAxLDIuMDgyYy0wLjgzMywwLjY5NS0xLjY3MSwxLjM4My0yLjQ3NCwyLjExM2wtNC44NjQsNC4zMjIKCQljLTEuNjE4LDEuNDQ0LTMuMjUxLDIuODcxLTQuODA3LDQuMzgzYy0xMi42ODMsMTEuODM2LTI0LjUwOCwyNC41NjgtMzUuNDM1LDM4LjA1NGwtMi4yOTUsMi44MTYKCQljLTAuNzc0LDAuOTMyLTEuNDg1LDEuOTEyLTIuMjMsMi44NjZsLTQuNDIxLDUuNzY2Yy0wLjc0NywwLjk1NS0xLjQ1NywxLjkzNS0yLjE2MSwyLjkyMWwtMi4xMjIsMi45NDlsLTIuMTIsMi45NTMKCQljLTAuNzA1LDAuOTg2LTEuNDIyLDEuOTYzLTIuMDg3LDIuOTc2bC00LjA1NCw2LjAzOGMtMC42NjksMS4wMTEtMS4zNjEsMi4wMDgtMi4wMDksMy4wMzNsLTEuOTMsMy4wODVsLTMuODQ3LDYuMTg0bC0zLjY1Myw2LjMwNQoJCWMtMi40OCw0LjE4My00LjY4NCw4LjUxOS02Ljk3MSwxMi44MThjLTAuNTc4LDEuMDcyLTEuMTE2LDIuMTYzLTEuNjQ0LDMuMjZsLTEuNTk2LDMuMjg3bC0xLjU4NywzLjI5MwoJCWMtMC41MjcsMS4wOTktMS4wNjIsMi4xOTUtMS41NDIsMy4zMTZsLTIuOTM4LDYuNzA1Yy0wLjQ3OCwxLjEyMy0wLjk4OCwyLjIzMy0xLjQzNSwzLjM2OWwtMS4zNDYsMy40MDlsLTIuNjU2LDYuODM3bC0yLjQxMiw2LjkzNgoJCWwtMS4yNzcsMy44MDZjLTAuMzk2LDEuMjc5LTAuNzYsMi41Ny0xLjEzLDMuODU4Yy0wLjczMiwyLjU4LTEuNDQyLDUuMTY4LTIuMTIxLDcuNzY1Yy0wLjYxMSwyLjYxNy0xLjIwMiw1LjI0MS0xLjc3OSw3Ljg2NQoJCWMtMC4yODIsMS4zMTQtMC41ODgsMi42MjEtMC44NDEsMy45NDFsLTAuNzI5LDMuOTY5Yy0yLjAzOSwxMC41NTktMy4zNTQsMjEuMjMyLTQuODQ2LDMxLjgyNwoJCWMtMi41MDIsMTguOTUtMy4zNjgsMzguMjA3LTIuNDg3LDU3LjQ2N2MwLjk2NSwxOS4yNTQsMy42NTgsMzguNDk0LDguMDYsNTcuMzY4YzguODEyLDM3Ljc2NSwyNC44MSw3My44MjIsNDUuODYsMTA1Ljg2NQoJCWMxLjQxNywyLjEzMiwyLjkwNiw0LjIyLDQuMzk4LDYuMzE5YzAuNzU0LDEuMDQ0LDEuNTA5LDIuMDksMi4yNjQsMy4xMzZsMS4xNDUsMS41NjRjMC4zODUsMC41MTksMC43OTEsMS4wMTYsMS4xODgsMS41MjUKCQljMS41OTYsMi4wMjMsMy4yMDksNC4wMzgsNC44MzEsNi4wNDhsMi40MzksMy4wMTFsMi41MjQsMi45MTdjMS42ODYsMS45MzksMy4zNzIsMy44NzgsNS4wNTUsNS44MTNsMS4yNiwxLjQ1MmwxLjI5MSwxLjQxCgkJYzAuODYsMC45MzgsMS43MiwxLjg3NSwyLjU3OCwyLjgxMWMxLjcxMywxLjg3NSwzLjQxNCwzLjc1Miw1LjA5NSw1LjYzNWMxLjcwOSwxLjg0LDMuNDEyLDMuNjcyLDUuMTA1LDUuNDk1CgkJYzUuNDU4LDQuNTQ4LDExLjE0Nyw4LjYxOSwxNi43MjQsMTIuNjYzYzIuODQ5LDEuOTIsNS42OTEsMy44MDIsOC41MjMsNS42MzhjMS40MjMsMC45MDUsMi44MTQsMS44NTMsNC4yNTYsMi42OTEKCQljMS40MzcsMC44NDEsMi44NjksMS42OCw0LjI5NCwyLjUxNGMxLjk2MSwxLjEzLDMuODU0LDIuMjIzLDUuNjg0LDMuMjc4YzEuODE0LDEuMDc3LDMuNjI4LDEuOTc3LDUuMzQ5LDIuOTA1CgkJYzMuNDYsMS44MTYsNi42NiwzLjUxLDkuNjk1LDQuOTY1YzMuMDU2LDEuNDA2LDUuOTEyLDIuNjUzLDguNjA5LDMuNzMzYzEuMzQ4LDAuNTQsMi42NTcsMS4wMzcsMy45MzEsMS40OTIKCQljMS4yODIsMC40MzYsMi41NDEsMC43OTksMy43NjQsMS4xMzdjMi40NDgsMC42NjYsMi44Miw0Ljk1NCw1LjA3LDUuMjYxYzIuMjU2LDAuMjkyLDYuMDQyLDIuMTA3LDguMjAyLDEuOTUyCgkJYzQuMy0wLjI1Nyw4Ljc2LTYuNzM2LDEzLjA0NC04LjY5MWMyLjM4NC0xLjA5LDcuMzk3LDEuMDM0LDkuMjIsMC4xYzEuODMxLTAuOTU1LDAuNDY0LTQuOTQ5LDIuMjE5LTUuNzQ4CgkJYzMuNTA1LTEuNiwxMi4wNTgsNi4yMTIsMTQuNTc2LDAuNjcyYzUuODU5LTEyLjg4NiwxOS4xMTgtNi4zMzIsMjEuMTcyLTE5LjM5M2MwLjU5Mi0zLjcxMSw4Ljg0NS03LjUsMTAuNDY2LTE0LjU4CgkJYzEuNjE1LTcuMDgyLDE3LjEzLTIwLjQ2NiwxNS4zMDctMjQuMDY0Yy0wLjg0NS0xLjczNC0yLjEyOC0zLjYzOC0zLjcyNC01LjYxNWMtMC43OTctMC45OSwxLjg0NS01LjYwOSwwLjkxNi02LjYzNwoJCWMtMC45MzEtMS4wMjUtMC42NzgtMTAuNTY0LTEuNjYtMTEuNjczYy0xLjk4Ny0yLjE4Ni01Ljk2My05Ljk0LTguMTA1LTEyLjE0N2MtMC41NDItMC41NDMtNC4xMjksMC4yMi00LjY0Mi0wLjM1NAoJCWMtMC41MTUtMC41Ny0xLjAyOC0xLjEzOS0xLjU0LTEuNzA2Yy0xLjAxMi0xLjEzNC00LjE2NiwxLjk4NS01LjE0NSwwLjg4OGMtMS4yMDItMC42MjEtNS4wNzQsMS40MjEtNi4yNDksMC43ODEKCQljLTEuMTgyLTAuNjMyLTIuMzI3LDAuNjExLTMuNTE1LDBjLTEuMTg4LTAuNjExLTMuODgyLTMuMzE2LTUuMDc4LTMuOTA1Yy0wLjYtMC4yOTEtMS43NTMsMy41NzItNS40OTUsMC44MjkKCQljLTUuMTgxLTMuNzk4LDAuNTgxLDAuMzAzLDAsMGMtNC45NTMtNy4wODItMjAuMjU2LTIuOTkzLTI0LjM5NS04LjcyNmMtNy42MzgtMTAuNTc3LTE0LjMyNi0yMS40NC0xOS44OTUtMzIuNDQ4CgkJYy01LjU3Mi0xMS4wMDUtMTIuNzYtMTguMzk2LTE2LjAyMy0yOS40ODdjLTAuMjY0LTAuODc3LTAuNTU3LTEuNzUtMC44NjktMi42MmMtMC4yNzItMC44ODgtMC41NTgtMS43NzYtMC44NTctMi42NTkKCQljLTAuMzA2LTAuODc2LTAuNjE0LTEuNzU3LTAuOTIyLTIuNjM3Yy0wLjMwMy0wLjg4LTAuNjU0LTEuNzM2LTAuODk2LTIuNjMyYy0zLjA3Mi05LjYxNS0yLjgyMS0yMC4wMjEtNi41NDEtMjguODg1CgkJYy0xLjkxMS00LjU1Mi00LjgxOSwzLjQxOS00LjkwNCwyLjUwOGwtMC4xNDUtMS4zNTZjLTAuMDU3LTAuNDQ5LTAuMTAxLTAuOTAzLTAuMTIzLTEuMzYyYy0wLjEyMy0xLjgyOC0wLjI4My0zLjY0My0wLjQ5LTUuNDQKCQljLTAuMjYtMy42MzUtMC43MTUtNy4yLTEuMTAzLTEwLjc0Yy0wLjExNi0wLjg4Mi0wLjI0Ny0xLjc1Ni0wLjM5Ni0yLjYyNmMtMC4xMTQtMC44NzYtMC4yMjEtMS43NTEtMC4zNi0yLjYxNwoJCWMtMC4xMzYtMC44NjYtMC4yOTEtMS43MjctMC40NjUtMi41ODFjLTAuMDkyLTAuNDI3LTAuMTgzLTAuODUzLTAuMjc0LTEuMjc3Yy0wLjA3OC0wLjQyOC0wLjE1Ny0wLjg1NC0wLjIzNS0xLjI3OQoJCWMtMC4zMzEtMS42OTktMC43NTctMy4zNzMtMS4yNTgtNS4wMjRjLTAuNDE3LTEuNjYyLTAuOTI4LTMuMjk5LTEuNTQyLTQuOTEzYy0zLjAwOC04LjMwNiwzLjAyNC0yNi4wNDgsMi43MjgtMzQuOTMyCgkJYy0wLjI5NS04Ljg5OCwwLjQ1OC0xNy45MjQsMS42NzYtMjcuMTI2YzAuMTExLTEuMjA2LDAuMzYxLTIuMzg5LDAuNTQ1LTMuNTg4bDAuNTk5LTMuNTk2YzAuNDY3LTIuMzg3LDEuMDItNC43NjQsMS41MjYtNy4xNjEKCQljMC42NDItMi4zNTksMS4yMzctNC43NCwxLjkxMi03LjEwMWwxLjEwNi0zLjUxNmMwLjM4MS0xLjE2OCwwLjctMi4zNiwxLjE0Ni0zLjUwN2MzLjIxOC05LjMwMiw3LjI4My0xOC4zMTgsMTEuOTE0LTI2Ljg4OQoJCWwxLjE5My0yLjE4M2MwLjQtMC43MjcsMC43ODgtMS40NjMsMS4yMzctMi4xNjNjMC44Ny0xLjQxNiwxLjc0MS0yLjgzNSwyLjYxMy00LjI1NGMwLjQyNC0wLjcxOSwwLjg5My0xLjQwOCwxLjM2Ny0yLjA5NAoJCWwxLjQwOS0yLjA2OWwxLjQwOS0yLjA3MWMwLjQ2LTAuNjk4LDAuOTkxLTEuMzQ1LDEuNDgyLTIuMDIybDIuOTk1LTQuMDI2bDMuMTU4LTMuOTAyYzAuNTMyLTAuNjQ1LDEuMDI5LTEuMzIxLDEuNTg2LTEuOTQ1CgkJbDEuNjUtMS44OTJsMS42NC0xLjljMC41NDMtMC42MzYsMS4wODEtMS4yNzcsMS42NjQtMS44NzhjMS4xNDEtMS4yMjMsMi4yNzMtMi40NTQsMy4zOTctMy42OTJjMC41NS0wLjYzLDEuMTM5LTEuMjIzLDEuNzI4LTEuODE2CgkJbDEuNzQ4LTEuNzk0bDEuNzMzLTEuODA5YzAuNTYzLTAuNjE3LDEuMTkyLTEuMTY4LDEuNzgtMS43NTljMS4xOTQtMS4xNjUsMi4zNzctMi4zNDEsMy41NDctMy41MwoJCWMxLjIxMi0xLjE0MywyLjQzMi0yLjI3NywzLjYyOS0zLjQzN2wxLjc5NS0xLjc0MmwxLjg0Ny0xLjY4YzEuMjE3LTEuMTQyLDIuNDM0LTIuMjgyLDMuNjQ4LTMuNDE5CgkJYzEuMjQ3LTEuMTAyLDIuNDgxLTIuMjIyLDMuNy0zLjM2M2MwLjQ4Ni0wLjQ0NywwLjk2NC0wLjkwOSwxLjQ3LTEuMzM3YzAuNTE1LTAuNDE3LDEuMDMyLTAuODM1LDEuNTUtMS4yNTQKCQljMS4wNDItMC44MzEsMi4xMDEtMS42NTQsMy4xNzItMi40NzJsMC44MDUtMC42MTJsMC44MzYtMC41NzFsMS42ODQtMS4xMzRjMS4xMjktMC43NTEsMi4yNjEtMS41MDUsMy4zOTUtMi4yNgoJCWMxLjE1OC0wLjcxNiwyLjM0MS0xLjQsMy41MDktMi4xMDZjMS4xNzctMC42OTEsMi4zMjYtMS40MzMsMy41MTctMi4xYzEuMTk3LTAuNjU3LDIuMzg3LTEuMzIzLDMuNTY4LTIuMDAxCgkJYzEuMTg2LTAuNjcxLDIuMzM3LTEuMzk4LDMuNTQyLTIuMDIyYzQuNzM2LTIuNjUyLDkuMzY4LTUuMzcxLDEzLjc3Mi04LjM3OGMxLjEwNS0wLjc0NCwyLjE4Ny0xLjUyNSwzLjI0Ni0yLjM0NgoJCWMwLjUyOC0wLjQxOSwxLjA1NC0wLjgzNiwxLjU3Ny0xLjI1MWMwLjUzLTAuNDAzLDEuMDUzLTAuODE4LDEuNTcxLTEuMjQ0YzEuMDM1LTAuODUzLDIuMDQ0LTEuNzUxLDMuMDI3LTIuNzAyCgkJYzAuNDkyLTAuNDc2LDAuOTc3LTAuOTY0LDEuNDU2LTEuNDY1YzAuNTE5LTAuNDkyLDEuMDQzLTAuOTk1LDEuNTUzLTEuNTE0YzEuMDA3LTEuMDE5LDMuMTQ1LTEuNzI4LDQuODAxLTIuNTQxCgkJYzEwLjQ5My01LjAwMiwyMS4zOTEtOS4xMjgsMzIuNTE0LTEyLjIzNGMxMS4xMjMtMy4xMjEsMjIuNDYyLTUuMjg5LDMzLjg1Mi02LjUzNmMxMS4zOTUtMS4yODMsMjIuODIxLTEuNDksMzQuMTctMC44OTMKCQljMTEuMzYyLDAuNTU4LDIyLjYsMi4xNjQsMzMuNzEyLDQuNDQyYzYuMzI5LDEuMzY2LDEyLjYzNywyLjk2NywxOC44NTMsNC45ODFjNi4yMTEsMi4wMjIsMTIuMzY5LDQuMzQxLDE4LjQ2Myw2Ljk4MgoJCWM2LjA2NSwyLjY5NywxMi4wNjQsNS43MDMsMTcuOTg2LDkuMDM0YzUuOTM3LDMuMzEsMTEuNzIsNy4wNTcsMTcuNDQ0LDExLjA3OGMtMC4xOTMtMS40NDUtMC4zODEtMi44NTgtMC41NjctNC4yNDcKCQljLTAuMDk1LTAuNTc0LTAuMTg4LTEuMTQtMC4yODEtMS43MDZjNS4yOTksMi4zNDIsOS45NDYsNS4xMjksMTQuNTM1LDguNWMyLjQ2NiwxLjgwMyw0Ljg5NywzLjc1OCw3LjM1Myw1LjgzMwoJCWMxLjIyNywxLjAzMiwyLjQ2MSwyLjEwNywzLjcwNywzLjE5NmMwLjYyNSwwLjU1MiwxLjI1MSwxLjEwNCwxLjg3OSwxLjY1N2MwLjUzNSwwLjQ2NCwxLjA3MSwwLjkyOCwxLjYwOCwxLjM5M2wwLjUxNSwwLjQ1MwoJCWwwLjI1OCwwLjIyN2wwLjEyOSwwLjExNGwwLjE1MywwLjE0NGwxLjIyNSwxLjE1N2MwLjgwOSwwLjc3OSwxLjYwOSwxLjU3LDIuNCwyLjM3NGMxLjU4MSwxLjYxMSwzLjEyNiwzLjI4NCw0LjY1OCw1LjAzNAoJCWMyLjg3MiwzLjI3Nyw1LjcxNCw2Ljg1OSw4LjU5NSwxMC42ODZjMC42NjYsMS4wNjQsMS4zMDQsMi4wMiwxLjg3NCwyLjgzNGwwLjQ3OSwwLjY3OWwwLjQyLDAuNTc3bDAuNzQ5LDEuMDA4bDAuMTcyLDAuMjI4CgkJbDAuMDM5LDAuMDUxbDAuMDA1LDAuMDA1bDAuMDEsMC4wMWwwLjA0MSwwLjAzOWwwLjA4MywwLjA3OGMwLjIyMSwwLjIwOCwwLjQyNywwLjQzMywwLjU5NywwLjY4MWwwLjAzNSwwLjA0OGwwLjAwOSwwLjAxMgoJCWwtMC4wNjItMC4xMjNsMC4wMDksMC4wMTVsMC4wOCwwLjE0M2MwLjE3LDAuMzE3LDAuMzM4LDAuNjI5LDAuNTA1LDAuOTM4YzAuMTI2LDAuMjI3LDAuMjUxLDAuNDUyLDAuMzc2LDAuNjc3CgkJYzAuMzk0LDAuNjk1LDAuNzg5LDEuMzksMS4xODgsMi4wOTRjMC41MjYsMC45MjgsMS4wNTMsMS44NTYsMS41ODUsMi43OTRjMC41MjIsMC45MywxLjA0NCwxLjg2MSwxLjU3MSwyLjhsMC4zNjEsMC41NDkKCQljMC4xNDIsMC4xNjksMC4yNTgsMC4zNTksMC4zODksMC41MzdsMC43NjksMS4wNzljMC40MjYsMC41ODcsMC44OCwxLjE1MiwxLjMzOCwxLjcxNmMxLjkxOCwzLjc4NSwzLjYzMiw3LjIyNCw1LjA0NCwxMC4yOAoJCWMwLjkzMSwyLjAwOCwxLjc0OCwzLjg3MiwyLjQ4Niw1LjY2YzAuMTc3LDAuNDQ0LDAuMzc0LDAuODk0LDAuNTQsMS4zMjlsMC4yNjEsMC42NTdsMC4xMzQsMC4zMzRsMC4yOTksMC44MzkKCQljMC44NDUsMi4zMzMsMS42OTEsNC42NjMsMi41MzYsNi45OTJsMS41MjEsMi4yOTdjMC4xMjUsMC4zNywwLjI0OCwwLjczLDAuMzcsMS4wNjljMC4zMDcsMC44NTIsMC42MTUsMS42NTMsMC44ODEsMi4zMDMKCQlsMC4xMDMsMC4yNTVsMC4wMzUsMC4wODNsMC4wMTYsMC4wMzNsMC4wNjYsMC4xMzZsMC4xNDIsMC4zMzhsMC41ODEsMS4zODhjMC4zOTMsMC45MjMsMC43OTYsMS44NDIsMS4yMTEsMi43NThsMC42MzEsMS4zNzEKCQlsMC42MzksMS40OTFjMC43MTMsMS42NTYsMS4zNzQsMy4zNTksMi4wMDUsNS4wODhjMC41NzgsMS43NDUsMS4xMTUsMy41MiwxLjY1MSw1LjMwMWMwLjU2MywxLjc3MywwLjk3NywzLjU5NCwxLjQ3Nyw1LjM4OAoJCWMwLjI0OCwwLjg5OCwwLjQ5NSwxLjc5NSwwLjc0MiwyLjY5YzAuMjM1LDAuODk4LDAuNDY5LDEuNzk0LDAuNzAyLDIuNjg4YzAuMjQyLDAuODkyLDAuNDk0LDEuNzc4LDAuNzYsMi42NTcKCQljMC4yNywwLjg3OSwwLjUzOSwxLjc1NCwwLjgwNiwyLjYyNGMwLjUzNCwxLjc0MSwxLjEzNSwzLjQ0OSwxLjgzLDUuMTE0YzAuNjcyLDEuNjcsMS4zOCwzLjMwOCwyLjI0LDQuODg5CgkJYzAuNDI0LDAuNzkyLDAuODg5LDEuNTY5LDEuMzY3LDIuMzM3YzAuNDYzLDAuNzcsMC45NiwxLjUyNiwxLjQ5NCwyLjI2OGMwLjUyNSwwLjczMSwwLjcyOCwyLjEyMiwxLjA1LDMuMjI3CgkJYzEuOTIxLDcuMDEsMy40MDgsMTQuMjExLDQuNDA5LDIxLjUyMmMwLjk2OSw3LjMxNCwxLjUxNywxNC43MjgsMS43MDIsMjIuMTgxYzAuMTMzLDcuNDUzLTAuMTE4LDE0LjkzNi0wLjY0NSwyMi40MTRsLTAuNDY0LDUuNjA1CgkJbC0wLjYsNS41OTZjLTAuMTc1LDEuODcyLTAuNDUyLDMuNzI1LTAuNjk1LDUuNTg4Yy0wLjI0OCwxLjg2MS0wLjQ2NywzLjczMS0wLjc4Miw1LjU4MWMtMi41MSwxNi45OTktNy4wMjksMzMuODEyLTEzLjUyNCw1MC44NTIKCQljMS43MjMtMC43MSwzLjM4Mi0xLjQwNSw1LTIuMDk5YzEuNTkxLTAuNzI1LDMuMTM3LTEuNDMsNC42NjktMi4xMjhjLTAuNDMxLDYuMjkzLTIuNzY1LDEyLjc0NS01LjUwNiwxOS4yMzcKCQljLTEuNDQ0LDMuMjEyLTIuOSw2LjQ5LTQuNDU0LDkuNzA1Yy0wLjM3MiwwLjgxNS0wLjc0NCwxLjYyOC0xLjExNSwyLjQzOWwtMC41NDEsMS4yMjdsLTAuNTM3LDEuMTY3CgkJYy0wLjcwNiwxLjU2MS0xLjM3MiwzLjE0LTEuOTgsNC43NDNsLTAuMzQ2LDAuODk0bC0wLjA0NCwwLjExMmwtMC4wMjIsMC4wNTZsLTAuMTExLDAuMTlsLTAuMjMxLDAuNDA2bC0wLjI3NywwLjUxOQoJCWMtMC4yNzEsMC41MTktMC41MjMsMS4xLTAuNzQxLDEuNjg3Yy0xLjA3Ny0wLjY5OC0xLjM5OS0wLjkwNi0wLjAwMSwwLjAwMmMtMC4xMDcsMC4yODgtMC4yMDcsMC41NzYtMC4yOTMsMC44NgoJCWMtMC4wNjgsMC4yMjEtMC4xMTcsMC40MTEtMC4xNzEsMC42MTljLTAuMDUzLDAuMjA4LTAuMTAyLDAuNDE1LTAuMTMzLDAuNTc0bC0wLjA5OCwwLjUxMWwtMC4wNTcsMC4zOAoJCWMtMC4wMjMsMC4xNTMtMC4wMiwwLjE4LTAuMDI5LDAuMjY0Yy0wLjAwNiwwLjA2MS0wLjAxMiwwLjEyNC0wLjAxLDAuMTQyYy0wLjAwNywwLjAxNC0wLjAxMywwLjAyNy0wLjAyLDAuMDQKCQljLTAuMjI2LTAuMDQxLTAuNDIzLTAuMDc3LDAsMC4wMDFjLTAuMTIyLDAuMjUxLTAuMjQyLDAuNS0wLjM2NCwwLjc1MmMtMC4zMywwLjY3NS0wLjY0LDEuMjgyLTAuOTUzLDEuODg4CgkJYy0wLjMxOCwwLjYwOS0wLjYzOCwxLjIyLTAuOTU4LDEuODMyYy0wLjYzOSwxLjIyNy0xLjMyNSwyLjQzMy0yLjAwOSwzLjY0N2MtMi43NDgsNC44NDgtNS43NDcsOS42MjMtOC42MTIsMTQuMzc0CgkJYy0wLjkxMiwxLjQ4NC0xLjA4MSwzLjI0OC0xLjYzNCw0Ljg2OWwxLjIzMiwwLjM2YzQuMDg1LTQuOTExLDguMDM3LTkuOTM2LDExLjg0NC0xNS4wNzhjLTIuNzU5LDguMTE2LTQuMzIxLDEzLjY5OS03LjIyMSwxOS4wNTgKCQljLTQuNTA1LDguMjg0LTkuOTg2LDE2LjM4OS0xNS45MDQsMjQuMDk2Yy0yLjY1NCwzLjQ1OS01LjM2OCw2Ljg1NS04LjE2MywxMC4yNTFjLTEuNDA0LDEuNjg1LTIuODY5LDMuMzAzLTQuMzA4LDQuOTU4CgkJYy0xLjQ1NCwxLjYzNi0yLjg3OSwzLjMxMy00LjM2Niw0LjkxNmwtNC40NTcsNC44MjVsLTIuMjM4LDIuNDA5bC0yLjI4OSwyLjM2MWwtNC41ODgsNC43MjRjLTEuNTQ2LDEuNTU5LTMuMTI3LDMuMDgzLTQuNjksNC42MjgKCQljLTguMjEsOC4wMTYtMTYuODUzLDE1LjY2NS0yNS43NjEsMjIuOTg0Yy0wLjQ1NSwwLjM3My0wLjQyLDEuMjI0LTAuODcxLDIuNTIxYzIuODcxLTAuMTE3LDUuOTM1LTAuMzE3LDguNjYxLTAuNDgxCgkJYy0xLjAyLDIuMzQxLTEuNjk3LDMuODk2LTMuMDI2LDYuOTQ3YzIuMzctMS44NjQsNC42MjYtMy42MzgsNi43OTctNS4zNDZjMC41NDItMC40MjcsMS4wNzktMC44NSwxLjYxMS0xLjI3CgkJYzAuNTIyLTAuNDMyLDEuMDM5LTAuODU5LDEuNTUyLTEuMjgzYzEuMDI1LTAuODQ5LDIuMDMzLTEuNjgzLDMuMDI2LTIuNTA2YzQuMDEtMy4yNTEsNy42MzEtNi41MDIsMTEuMzIxLTkuNjc0CgkJYzMuMDY4LTIuNzUyLDYuMTE5LTUuNTIzLDkuMTQyLTguMzE4bDQuNDY1LTQuMjZjMS40ODYtMS40MjIsMi45ODctMi44Myw0LjQyNS00LjI5NGw0LjM1OC00LjM1NGwyLjE3Ni0yLjE4M2wyLjE1My0yLjI0NAoJCWMyLjg2Ny0zLDUuNzU4LTUuOTM3LDguNTQ4LTkuMTEzYzEwLjk2Mi0xMi4yNDgsMjEuNDI0LTI1LjA2NiwzMS4xMDctMzguNTc4YzMuNTU0LTQuOTUzLDYuODA1LTEwLjU1NiwxMC4xMzQtMTUuNDM3CgkJYzAuODI5LTEuMjE3LDEuNzA5LTIuNDI3LDIuNDU5LTMuMzkyYzAuMzkzLTAuNTA0LDAuNzkxLTAuOTg5LDEuMTk1LTEuNDU1YzAuMjA2LTAuMjMxLDAuNDEtMC40NTgsMC42MTItMC42ODNsMC4zMS0wLjMzMQoJCWMwLjE0NS0wLjE5NSwwLjM0Ni0wLjQ4NSwwLjUxLTAuNzI2YzAuMDMyLTAuMDQzLDAuMTE4LTAuMTg2LDAuMTc4LTAuMjg0bDAuMTk0LTAuMzI0bDAuMzctMC42NTcKCQljMC4wODItMC4xNTUsMC4xNi0wLjMxNSwwLjIzOS0wLjQ3NGMzLjE5NywyLjEwNyw2LjQ3NSw0LjI2OCw5LjUzNSw2LjI4NWMtMC4yMDcsMC4zOTItMC40MTgsMC43OC0wLjYzOSwxLjE2MmwtMC41NjIsMC45MjYKCQlsLTAuMjE2LDAuMzQzbC0wLjA0LDAuMDdsLTAuMTYxLDAuMjgxbC0wLjMyMiwwLjU2M2wtMC42NDYsMS4xMjVsLTAuNjQ2LDEuMTIzbC0wLjMyNCwwLjU2MmwtMC4zODIsMC42MzkKCQljLTEuMDYyLDEuNzQ1LTIuMDk1LDMuNTEtMy4xODgsNS4yMzdjLTQuMzE0LDYuOTQ3LTguODc0LDEzLjc1MS0xMy42MywyMC4zNzhjLTQuNzYzLDYuNjIyLTkuNzEyLDEzLjA3NC0xNC43NzUsMTkuMzY2CgkJYy0yLjk4MywzLjY5NC02LjExNSw3LjI2NS05LjIxNSwxMC44MTVsLTEuNTM3LDEuNzY3bC0xLjYxNCwxLjgyMWMtMS4wODIsMS4yMS0yLjE2LDIuNDU5LTMuMjUzLDMuNTg4bC02LjU0OCw2LjkyOQoJCWMtNC4zODYsNC40OC04LjczMyw4LjkzNi0xMy4yODEsMTMuMjY3Yy05LjAyOCw4LjY5OC0xOC40MjgsMTcuMTAzLTI4LjIyMywyNS4wOWMtMS42ODMsMS4zNDctMy41MzMsMi41MjUtNS4zNTYsMy43MTYKCQljLTEuODMyLDEuMTgxLTMuNjA5LDIuNDExLTUuMjY2LDMuNzNjLTIwLjc5NywxNy4yODctNDQuMDY1LDMxLjY4Mi02OC40NDcsNDIuODQ0Yy0xLjkzOCwwLjg4Ny00Ljc3NiwyLjg4Ny01LjIxMSwzLjkxMQoJCWMtMC45ODEsMi41ODktMy4yNiw0LjU4Mi02LjAwOSw2LjI2OWMtMC42OTEsMC40MjEtMS4zOTQsMC44MjYtMi4xNDYsMS4yMTFjLTAuNzgzLDAuMzgxLTEuNTgzLDAuNzQ4LTIuMzg3LDEuMTA0CgkJYy0xLjQyNiwwLjYxNS0yLjg1MiwxLjIzLTQuMjE1LDEuODE4Yy02Ljg2NSwzLjAxOS0xMy44NzYsNS45MzktMjAuOTg0LDguNzZjLTMuNTUzLDEuNDEtNy4xMjgsMi43OTUtMTAuNzEyLDQuMTU2bC0zLjExOSwxLjE4OAoJCWMtMS40NTQsMC41OTktMi45NjQsMS4wMjEtNC40NjEsMS40OTdjLTIuMjEzLDAuNjcxLTQuMjg2LDEuMjQ4LTYuMTgyLDEuNzY2Yy0yLjUwMiwwLjY4My00Ljc0NSwxLjE4LTYuNDY0LDIuMDAzCgkJYy0wLjg1LDAuNDA1LTEuNjUxLDAuOTE5LTIuMTQ5LDEuNTIxYy0wLjExNSwwLjE0Ny0wLjIyNCwwLjMwNC0wLjMyNiwwLjQ2OWMtMC4yMjIsMC4yMDctMC40NDMsMC40MjctMC42NTMsMC42NTYKCQljLTAuNDIxLDAuNDU4LTAuODExLDAuOTU5LTEuMTY1LDEuNTA5YzAuODQyLTAuMTQ1LDEuNjM4LTAuMjY3LDIuMzk3LTAuMzgxYzAuMjI4LTAuMDA0LDAuNDEyLDAuMDA2LDAuNjExLDAuMDA3CgkJYzAuMTg2LDAuMDA1LDAuNDc0LTAuMDE5LDAuNjk3LTAuMDI5YzAuOTY3LTAuMDU3LDEuOTA5LTAuMTQ2LDIuOTQxLTAuMzcyYzEuNTg3LTAuMzUsMy40MDItMC43NTQsNS4zOTUtMS4yMjgKCQljMC45OTYtMC4yMzYsMi4wNTEtMC40OTYsMy4xNDQtMC43NzVsMS42ODItMC40NDFsMC44Ni0wLjIzMmwwLjk4OS0wLjI4bDIuNDY1LTAuNzM4YzAuODE4LTAuMjQ3LDEuNjA1LTAuNTcxLDIuNDE0LTAuODU5CgkJbDAuNjAzLTAuMjI0bDAuMzU3LTAuMTI1bDAuNzA0LTAuMjQ3bDEuNDA2LTAuNDk4bDUuNjE1LTIuMDI2YzcuNDcyLTIuNzM2LDE0Ljg2Ni01LjYwNSwyMi4xNDEtOC40NjNsNS40NC0yLjE0bDIuNzc1LTEuMDk0CgkJYzEuMDQ0LTAuNDI0LDIuMTQ4LTAuODQ1LDMuMTQzLTEuMjczbDUuOTI1LTIuNTcybDIuOTY2LTEuMjgybDEuNDg0LTAuNjRsMS40MjQtMC42MzhsNS42NjgtMi41MzUKCQljMS44OTItMC44MzksMy43OS0xLjY2NCw1LjY3Mi0yLjU1MWMxLjg5MS0wLjg2NCwzLjc4Mi0xLjcyNyw1LjY3MS0yLjU5bDIuODQyLTEuMjg4bDIuODMtMS4zMzEKCQljOC4wMDItMy43LDE1Ljc5LTguMjcsMjMuNTI1LTEzLjE3OGMtMC44NjEsMC42MzMtMS42OTgsMS4yODItMi40OTksMS45NTdjLTEuNjUyLDEuMzYtMy4xNywyLjgwOS00LjQ2Miw0LjQzNwoJCWMtMC44NjUsMS4wOTUtMS42MjQsMi4yNy0yLjI3NiwzLjUyNmMtMC4xNywwLjI4NS0wLjMzOCwwLjU3My0wLjQ4OSwwLjg3OWMwLjAyNy0wLjAxNywwLjA1NS0wLjAzMywwLjA4Mi0wLjA1CgkJYy0wLjE2NCwwLjM1NC0wLjMyOCwwLjcwNy0wLjQ3NCwxLjA3NmMyLjY3OC0xLjE4Niw1LjAyNC0yLjIyNiw3LjIyNy0zLjIwMmMxLjEtMC40OTUsMi4xNTctMC45ODYsMy4xODctMS40OTYKCQljMS4wMjQtMC41MTksMi4wMTMtMS4wNjcsMi45OS0xLjY1NmMxMi4xOTItNy4zNDQsMjQuMDYxLTE1LjM0MiwzNS41NjgtMjMuOTNjMTEuNTAxLTguNTk5LDIyLjY2LTE3Ljc1OCwzMy40ODgtMjcuMzkzCgkJYzEwLjgzNy05LjYyNSwyMS4yODktMTkuNzk1LDMxLjQ2LTMwLjM1MWMyLjU2My0yLjYxNiw1LjA0Ni01LjMyOCw3LjU2NS04LjAwNGMyLjUwOS0yLjY4OCw0Ljk2My01LjQ0Miw3LjQ1LTguMTY0CgkJYzQuODk2LTUuNTMyLDkuNzc4LTExLjEsMTQuNTI5LTE2LjgzOGM3LjkzNC05LjUwMywxNS4xNjctMTkuOTQ5LDIxLjg2LTMwLjk5OGM2LjY5Ni0xMS4wNTEsMTIuODUyLTIyLjcsMTguNzA3LTM0LjcwNAoJCWMxLjExMiwxLjY4MiwyLjg2NCwxLjQ0OSw0LjgzMi0wLjMzM2MwLjk3OS0wLjg5MywyLjAyLTIuMTY2LDMuMDc0LTMuNzU3YzEuMDU3LTEuNTg5LDIuMTMxLTMuNDkzLDMuMTEyLTUuNjk0bDIuNzA1LTUuOTg1CgkJbDIuNTcxLTYuMDc5YzAuNDIzLTEuMDE3LDAuODU5LTIuMDI1LDEuMjY4LTMuMDVsMS4yMTEtMy4wODdjMC43OTgtMi4wNjQsMS42MjMtNC4xMTIsMi4zODYtNi4xOTYKCQljMS41MDgtNC4xODEsMy4wMzctOC4zNTEsNC4zOTEtMTIuNjE3YzEuNDI4LTQuMjI2LDIuNjc1LTguNTQ2LDMuOTQzLTEyLjg1NGM0Ljg2NS0xNy4zMjIsOC40NjMtMzUuMjU3LDEwLjMzLTUzLjU1OQoJCUM2NzIuNDkzLDM0My4zMiw2NzEuOTE5LDMzMS43NzgsNjcxLjI5LDMyMC42OTJ6IE01ODQuNzc5LDE0OS45OTNjMC4zMjUsMC40MjgsMC42MzUsMC44NjYsMC45NSwxLjMwMWwtMC42MzMsMC40MjUKCQljLTAuODE4LDAuNTUyLTEuNjQ1LDEuMDkzLTIuNDc4LDEuNjI0bC0xLjk2NiwxLjI0OWMtMC41MTgsMC4zMjgtMS4wNDMsMC42NDgtMS41NzMsMC45NmwtMS4xNjMsMC42OTIKCQljLTAuMzQsMC4xOTktMC42ODUsMC4zOTItMS4wMzQsMC41NzlsLTAuNjk5LDAuMzg1Yy0wLjIyMSwwLjExOC0wLjQ0NiwwLjIzMS0wLjY3MywwLjM0MWw5LjA2LTcuODM0TDU4NC43NzksMTQ5Ljk5M3oKCQkgTTU2OS4yNzIsMjI4LjU1NWwwLjAwMy0wLjAwMkM1NjkuMjg0LDIyOC41NDksNTY5LjI4MSwyMjguNTUsNTY5LjI3MiwyMjguNTU1eiBNNTY4LjA5Miw0NzUuOTQ3bC0wLjQxNi0wLjEwNwoJCWMtMC4wMDQtMC4wMDEtMC4wMDctMC4wMDItMC4wMTEtMC4wMDNjMC4wODMsMC4wMjEsMC4yMDIsMC4wNTEsMC40NDYsMC4xMTRDNTY4LjEwNSw0NzUuOTUsNTY4LjA5OCw0NzUuOTQ5LDU2OC4wOTIsNDc1Ljk0N3oKCQkgTTU2Ny4yMjMsNDc1LjcxYzAuMDAxLDAuMDAxLDAuMDAyLDAuMDAxLDAuMDAzLDAuMDAyTDU2Ny4yMjMsNDc1LjcxTDU2Ny4yMjMsNDc1LjcxeiBNNTY3LjM2Miw0NzUuNzg1CgkJYzAuMDAzLDAuMDAyLDAuMDA3LDAuMDA1LDAuMDEyLDAuMDA3Yy0wLjAwNi0wLjAwNC0wLjAxMy0wLjAwOC0wLjAxOS0wLjAxMUM1NjcuMzU3LDQ3NS43ODIsNTY3LjM1OSw0NzUuNzg0LDU2Ny4zNjIsNDc1Ljc4NXoKCQkgTTU2Ny40NTcsNDc1LjgzM2MtMC4wMjItMC4wMDktMC4wNDMtMC4wMTgtMC4wNTgtMC4wMjZDNTY3LjQxNiw0NzUuODE1LDU2Ny40MzYsNDc1LjgyNCw1NjcuNDU3LDQ3NS44MzN6IE01NjcuNjU4LDQ3NS45MTYKCQlsMC4xMzMsMC4wNjFjLTAuMDk3LTAuMDQ2LTAuMTk3LTAuMDg5LTAuMy0wLjEzTDU2Ny42NTgsNDc1LjkxNnogTTU2Ny44MDcsNDc1Ljk4NGwwLjAyMSwwLjAxYzAsMC0wLjAwMS0wLjAwMS0wLjAwMS0wLjAwMQoJCWwwLjAwNSwwLjAwM2MwLjAwMSwwLDAuMDAxLDAuMDAxLDAuMDAyLDAuMDAxbC0wLjAzMS0wLjAxNUw1NjcuODA3LDQ3NS45ODR6IE01NjguNTksNDc2LjQ5NmMwLjcxOSwwLjQ3NCwxLjQ2OSwwLjk2OSwyLjI0NiwxLjQ4MQoJCWMtMC42OTUtMC40NTgtMS40MTYtMC45MzMtMi4xNi0xLjQyNEM1NjguNjUsNDc2LjUzNSw1NjguNjIxLDQ3Ni41MTYsNTY4LjU5LDQ3Ni40OTZ6IE01NzAuOTE5LDQ3Ni41NDZsLTAuMjQ4LTAuMDUKCQljMC4yODcsMC4wNTcsMC41NzUsMC4xMDcsMC44NjMsMC4xNjFDNTcxLjMyOSw0NzYuNjE5LDU3MS4xMjQsNDc2LjU4Niw1NzAuOTE5LDQ3Ni41NDZ6IE01NjcuNTM4LDQ3NS44MDFjMCwwLTAuMDAxLDAtMC4wMDEsMAoJCUM1NjYuODM2LDQ3NS4zMzgsNTY2LjMzNyw0NzUuMDA5LDU2Ny41MzgsNDc1LjgwMXogTTU2Ny41MzYsNDc1LjhjLTAuMDAxLDAtMC4wMDItMC4wMDEtMC4wMDMtMC4wMDEKCQlDNTU2LjMyLDQ2OC40MDYsNTU5LjU2NSw0NzAuNTQ1LDU2Ny41MzYsNDc1Ljh6IE01NjcuMTQ2LDQ3NS42NzRsMC4wMDMsMC4wMDFsLTAuMDA4LTAuMDAzTDU2Ny4xNDYsNDc1LjY3NHogTTU3MC45MzMsNDc4LjA0CgkJYzAuMjMxLDAuMTUyLDAuNDY1LDAuMzA2LDAuNywwLjQ2MkM1NzEuNDAzLDQ3OC4zNSw1NzEuMTY4LDQ3OC4xOTUsNTcwLjkzMyw0NzguMDR6IE01NzguNzIxLDQ4My4xNzQKCQlDNTc4LjcyMSw0ODMuMTc0LDU3OC43MjEsNDgzLjE3Myw1NzguNzIxLDQ4My4xNzRjMC4wNywwLjA0NiwwLjEzNSwwLjA4OSwwLjIwNSwwLjEzNWwwLjAwNi0wLjAwNgoJCWMwLjI0My0wLjIxMywwLjQ4OS0wLjQxOSwwLjczNy0wLjYxOWMwLjk5Mi0wLjc5NywyLjAyLTEuNDg0LDMuMDkyLTIuMDQxYzAuNDAyLTAuNTc5LDAuNzk5LTEuMTUsMS4xOTQtMS43MTkKCQljLTMuMjI3LTAuNTktNi44MDgtMS4yNDUtMTAuNzg0LTEuOTcyYy0wLjAxMS0wLjAwMi0wLjAyMy0wLjAwNC0wLjAzNC0wLjAwNmwwLjAxLDAuMDAyYzQuNTA0LDAuODIzLDguMDQzLDEuNDcsMTAuODA4LDEuOTc1CgkJYzAuNTQ3LTAuNzg3LDEuMDg4LTEuNTY3LDEuNjIxLTIuMzM1YzAuODQ4LTEuMjg3LDEuNjc4LTIuNTQ3LDIuNDkzLTMuNzg0YzAuODExLTEuMjQxLDEuNjI2LTIuNDUxLDIuMzk2LTMuNjYxCgkJYzAuNzUzLTEuMjIsMS40OTUtMi40MjEsMi4yMjctMy42MDdjMC43My0xLjE5LDEuNDUxLTIuMzYzLDIuMTY0LTMuNTI2YzAuNjc5LTEuMTgzLDEuMzUxLTIuMzU0LDIuMDE5LTMuNTE4CgkJYzAuNjY1LTEuMTY4LDEuMzI1LTIuMzI4LDEuOTgzLTMuNDg0YzAuNjQ5LTEuMTYyLDEuMjUtMi4zNDMsMS44NzMtMy41MTZjNC45MjEtOS4zLDkuNDY1LTE4Ljg1NywxMy4wNzEtMjguNzkzCgkJYzMuNTk5LTkuOTMxLDYuMjE5LTIwLjI1MSw3LjMwMS0zMC44MzljMC4zMzYtMi43NzgsMC43MDEtNS42NDMsMS41ODEtOC4xNDRjMC44ODktMi41LDIuMTAxLTQuNjc3LDQuMDM5LTYuMTEKCQljLTAuNTQ2LDYuOTk2LTEuNjgxLDEzLjkzMS0zLjA1NiwyMC44MTljLTAuMzYxLDEuNzE4LTAuNzY4LDMuNDI3LTEuMTYzLDUuMTM4Yy0wLjQxMywxLjcwNy0wLjc3NiwzLjQyNy0xLjI1Nyw1LjExNwoJCWMtMC45MzQsMy4zODYtMS44MTIsNi43OTEtMi44OTgsMTAuMTMybC0xLjU3OCw1LjAyN2wtMS43MTUsNC45OGMtMS4xMTMsMy4zMzEtMi4zODcsNi42MDMtMy42MTQsOS44OQoJCWMtMC41OTcsMS42NS0xLjI2NCwzLjI3My0xLjkxOCw0LjlsLTEuOTQ2LDQuODg4bC0yLjAzOSw0Ljg0OGMtMC42ODgsMS42MTItMS4zMTgsMy4yNTEtMi4wNDQsNC44NDZsLTIuNTA4LDUuNjYzCgkJYy0wLjgzMiwxLjg5My0xLjc3MiwzLjczMy0yLjY2MSw1LjYwMmMtMS43NiwzLjc0Ni0zLjc1LDcuMzc5LTUuNjc3LDExLjA1MmMtMC4zMjMtMC4wNi0wLjgxNy0wLjE1LTEuMzEzLTAuMjQybC0wLjAwMSwwLjAwNAoJCWMwLjYyNSwwLjExNCwxLjA0OSwwLjE5MSwxLjMxMywwLjIzOWMwLDAsMCwwLjAwMSwwLDAuMDAxYzAsMC4wMDEtMC4wMDEsMC4wMDEtMC4wMDEsMC4wMDJjLTAuNDI4LTAuMDc4LTAuODY1LTAuMTU4LTEuMzExLTAuMjQKCQlsLTAuMDE0LDAuMDg1bC0wLjExOSwwLjY2N2wtMC4wOTQsMC40NzdsLTAuMTQ5LDAuNjc3bC0wLjE2NiwwLjY4OWwtMC4yMjYsMC44MzJsLTAuMjUsMC44MzVjLTAuMDIsMC4wNjQtMC4wNDQsMC4xMzMtMC4wNjUsMC4yCgkJYy0wLjI5MiwwLjUwOS0wLjU4NiwxLjAxOS0wLjg3NiwxLjUyNWwtMC44MzEsMS40MzlsLTAuNDE3LDAuNzE5bC0wLjIwOSwwLjM2bC0wLjEwNCwwLjE4bC0wLjA1MiwwLjA5bC0wLjAyNiwwLjA0NQoJCWMtMy40OS0yLjI5OC0xLjE2Ni0wLjc2MSwwLjUyMiwwLjM1NmMtMC4wMDEsMC4wMDItMC4wMDIsMC4wMDUtMC4wMDQsMC4wMDdDNTg2Ljc4MSw0ODguNDg1LDU4My44ODMsNDg2LjU3Niw1NzguNzIxLDQ4My4xNzR6Ij48L3BhdGg+Cgk8bGluZWFyR3JhZGllbnQgaWQ9IlNWR0lEXzJfIiBncmFkaWVudFVuaXRzPSJ1c2VyU3BhY2VPblVzZSIgeDE9IjI5NC4yNTUiIHkxPSI3OTAuOTk4NiIgeDI9IjI5NC4yNTUiIHkyPSIxODMuMjg0OSI+CgkJPHN0b3Agb2Zmc2V0PSIwIiBzdHlsZT0ic3RvcC1jb2xvcjojRkZGMUFBIj48L3N0b3A+CgkJPHN0b3Agb2Zmc2V0PSIwLjQxNjIiIHN0eWxlPSJzdG9wLWNvbG9yOiNGRjlFMDAiPjwvc3RvcD4KCQk8c3RvcCBvZmZzZXQ9IjAuNzU3IiBzdHlsZT0ic3RvcC1jb2xvcjojRkY2QTAwIj48L3N0b3A+CgkJPHN0b3Agb2Zmc2V0PSIxIiBzdHlsZT0ic3RvcC1jb2xvcjojRkYyQTJBIj48L3N0b3A+Cgk8L2xpbmVhckdyYWRpZW50PgoJPHBhdGggY2xhc3M9InN0MSIgZD0iTTI4Ni42ODgsNzIwYzUuMDczLTAuOTM4LDEwLjExNy0xLjk2NywxNS4xMzQtMy4wNzJjLTUuMDA5LDAuOTQ1LTEwLjAzOCwxLjgxNC0xNS4wOTEsMi41OTNMMjg2LjY4OCw3MjB6Ij48L3BhdGg+Cgk8bGluZWFyR3JhZGllbnQgaWQ9IlNWR0lEXzNfIiBncmFkaWVudFVuaXRzPSJ1c2VyU3BhY2VPblVzZSIgeDE9IjMzMC4xNDA3IiB5MT0iNzkwLjk5ODYiIHgyPSIzMzAuMTQwNyIgeTI9IjE4My4yODQ5Ij4KCQk8c3RvcCBvZmZzZXQ9IjAiIHN0eWxlPSJzdG9wLWNvbG9yOiNGRkYxQUEiPjwvc3RvcD4KCQk8c3RvcCBvZmZzZXQ9IjAuNDE2MiIgc3R5bGU9InN0b3AtY29sb3I6I0ZGOUUwMCI+PC9zdG9wPgoJCTxzdG9wIG9mZnNldD0iMC43NTciIHN0eWxlPSJzdG9wLWNvbG9yOiNGRjZBMDAiPjwvc3RvcD4KCQk8c3RvcCBvZmZzZXQ9IjEiIHN0eWxlPSJzdG9wLWNvbG9yOiNGRjJBMkEiPjwvc3RvcD4KCTwvbGluZWFyR3JhZGllbnQ+Cgk8cGF0aCBjbGFzcz0ic3QyIiBkPSJNMzU4LjM2Niw3MDIuNjM5bDAuMDkzLTEuOTA3Yy0xOC40NTMsNi40ODYtMzcuMzQxLDExLjk0NC01Ni42MzcsMTYuMTk2CgkJQzMyMS4wMDksNzEzLjMwNiwzMzkuODcxLDcwOC40ODgsMzU4LjM2Niw3MDIuNjM5eiI+PC9wYXRoPgoJPGxpbmVhckdyYWRpZW50IGlkPSJTVkdJRF80XyIgZ3JhZGllbnRVbml0cz0idXNlclNwYWNlT25Vc2UiIHgxPSI2MjguNDU5NSIgeTE9Ijc5MC45OTg2IiB4Mj0iNjI4LjQ1OTUiIHkyPSIxODMuMjg0OSI+CgkJPHN0b3Agb2Zmc2V0PSIwIiBzdHlsZT0ic3RvcC1jb2xvcjojRkZGMUFBIj48L3N0b3A+CgkJPHN0b3Agb2Zmc2V0PSIwLjQxNjIiIHN0eWxlPSJzdG9wLWNvbG9yOiNGRjlFMDAiPjwvc3RvcD4KCQk8c3RvcCBvZmZzZXQ9IjAuNzU3IiBzdHlsZT0ic3RvcC1jb2xvcjojRkY2QTAwIj48L3N0b3A+CgkJPHN0b3Agb2Zmc2V0PSIxIiBzdHlsZT0ic3RvcC1jb2xvcjojRkYyQTJBIj48L3N0b3A+Cgk8L2xpbmVhckdyYWRpZW50PgoJPHBhdGggY2xhc3M9InN0MyIgZD0iTTYyNS4xNDgsMTUzLjcyOWwxLjUyNiwyLjkxN2wxLjQ4MiwyLjk0M2MwLjk5MywxLjk2LDIuMDE0LDMuOTA2LDMuMDU4LDUuODQ1CgkJYzEuMDEsMS45NTcsMi4wNiwzLjg5OCwzLjE2Nyw1LjgyMWMxLjEyNSwxLjkxMywyLjI0LDMuODM5LDMuNDM3LDUuNzRjMS4xODksMS45MDUsMi41MDIsMy43NjUsMy44MjgsNS42MzkKCQljLTAuNDU3LTIuMjI4LTEuMTAyLTQuMzc4LTEuNzg1LTYuNTEzYy0wLjY5NS0yLjEzLTEuNDYyLTQuMjMtMi4zNzYtNi4yNThjLTAuODk1LTIuMDM4LTEuODYyLTQuMDQyLTIuODg2LTYuMDE1CgkJYy0xLjA0OS0xLjk2LTIuMTg1LTMuODc0LTMuMzQ4LTUuNzcxYy0wLjU4My0wLjk0Ny0xLjE3Ny0xLjg4OC0xLjc3OS0yLjgyM2MtMC42MjMtMC45MjQtMS4yNTctMS44NDEtMS44OTctMi43NTQKCQljLTEuMjg0LTEuODIzLTIuNTgzLTMuNjM0LTMuOTIzLTUuNDE4Yy0yLjc1MS0zLjUyNi01LjQ5Mi03LjA0MS04LjM4LTEwLjQ1NWMyLjUxMywzLjYxNCw0LjY1OCw3LjQ1MSw2LjgxLDExLjI3NAoJCUM2MjMuMTMsMTQ5LjgzLDYyNC4xMjksMTUxLjc4NSw2MjUuMTQ4LDE1My43Mjl6Ij48L3BhdGg+Cgk8bGluZWFyR3JhZGllbnQgaWQ9IlNWR0lEXzVfIiBncmFkaWVudFVuaXRzPSJ1c2VyU3BhY2VPblVzZSIgeDE9IjYxOS4yOTc3IiB5MT0iNzkwLjk5ODYiIHgyPSI2MTkuMjk3NyIgeTI9IjE4My4yODQ5Ij4KCQk8c3RvcCBvZmZzZXQ9IjAiIHN0eWxlPSJzdG9wLWNvbG9yOiNGRkYxQUEiPjwvc3RvcD4KCQk8c3RvcCBvZmZzZXQ9IjAuNDE2MiIgc3R5bGU9InN0b3AtY29sb3I6I0ZGOUUwMCI+PC9zdG9wPgoJCTxzdG9wIG9mZnNldD0iMC43NTciIHN0eWxlPSJzdG9wLWNvbG9yOiNGRjZBMDAiPjwvc3RvcD4KCQk8c3RvcCBvZmZzZXQ9IjEiIHN0eWxlPSJzdG9wLWNvbG9yOiNGRjJBMkEiPjwvc3RvcD4KCTwvbGluZWFyR3JhZGllbnQ+Cgk8cGF0aCBjbGFzcz0ic3Q0IiBkPSJNNjE2LjE3Myw1MDIuMjkyYy0xLjQ2NCwyLjQ3Ny0yLjczNCw1LjAzNi0zLjczNCw3LjY1OGMtMS4wMDIsMi42Mi0xLjY3Myw1LjM2Mi0xLjg0Niw4LjMwNAoJCWM2LjE2My05LjY0NiwxMS45ODYtMTkuNjAxLDE3LjQwOS0yOS44NjhjLTAuOTY3LTAuMzctMS45My0wLjczOS0yLjg5Ny0xLjEwOUM2MjIuNTI3LDQ5Mi40NDIsNjE5LjA1NSw0OTcuMzAzLDYxNi4xNzMsNTAyLjI5MnoiPjwvcGF0aD4KCTxsaW5lYXJHcmFkaWVudCBpZD0iU1ZHSURfNl8iIGdyYWRpZW50VW5pdHM9InVzZXJTcGFjZU9uVXNlIiB4MT0iMzg4LjgxNzgiIHkxPSI3OTAuOTk4NiIgeDI9IjM4OC44MTc4IiB5Mj0iMTgzLjI4NDkiPgoJCTxzdG9wIG9mZnNldD0iMCIgc3R5bGU9InN0b3AtY29sb3I6I0ZGRjFBQSI+PC9zdG9wPgoJCTxzdG9wIG9mZnNldD0iMC40MTYyIiBzdHlsZT0ic3RvcC1jb2xvcjojRkY5RTAwIj48L3N0b3A+CgkJPHN0b3Agb2Zmc2V0PSIwLjc1NyIgc3R5bGU9InN0b3AtY29sb3I6I0ZGNkEwMCI+PC9zdG9wPgoJCTxzdG9wIG9mZnNldD0iMSIgc3R5bGU9InN0b3AtY29sb3I6I0ZGMkEyQSI+PC9zdG9wPgoJPC9saW5lYXJHcmFkaWVudD4KCTxwYXRoIGNsYXNzPSJzdDUiIGQ9Ik0zODguMjk1LDY4My4xNzdjLTAuOTI3LDAuNjY1LTEuODQxLDEuMzIxLTIuNzUxLDEuOTc1Yy0wLjkyMSwwLjYzOS0xLjgzOSwxLjI3Ny0yLjc2NSwxLjkxOQoJCWMtMS44NTksMS4yNzktMy43MzYsMi42MTYtNS43NzksMy45NzRjNi44OTItMS42NTQsMTAuMzYyLTIuNTI3LDEzLjMzMS00LjY3NGMxLjQ4Ni0xLjA3MiwyLjg2Ny0yLjQzMiw0LjQ3MS00LjM5NAoJCWMxLjU5NS0xLjk3NiwzLjQzOS00LjUxLDUuODMzLTcuOTA0Yy0yLjM4NiwxLjc4Ni00LjU0MiwzLjQwMS02LjU1Niw0LjkxQzM5Mi4wNiw2ODAuNDk0LDM5MC4xNDIsNjgxLjgzNywzODguMjk1LDY4My4xNzd6Ij48L3BhdGg+Cgk8bGluZWFyR3JhZGllbnQgaWQ9IlNWR0lEXzdfIiBncmFkaWVudFVuaXRzPSJ1c2VyU3BhY2VPblVzZSIgeDE9IjY2Ny45NzQ3IiB5MT0iNzkwLjk5ODYiIHgyPSI2NjcuOTc0NyIgeTI9IjE4My4yODQ5Ij4KCQk8c3RvcCBvZmZzZXQ9IjAiIHN0eWxlPSJzdG9wLWNvbG9yOiNGRkYxQUEiPjwvc3RvcD4KCQk8c3RvcCBvZmZzZXQ9IjAuNDE2MiIgc3R5bGU9InN0b3AtY29sb3I6I0ZGOUUwMCI+PC9zdG9wPgoJCTxzdG9wIG9mZnNldD0iMC43NTciIHN0eWxlPSJzdG9wLWNvbG9yOiNGRjZBMDAiPjwvc3RvcD4KCQk8c3RvcCBvZmZzZXQ9IjEiIHN0eWxlPSJzdG9wLWNvbG9yOiNGRjJBMkEiPjwvc3RvcD4KCTwvbGluZWFyR3JhZGllbnQ+Cgk8cGF0aCBjbGFzcz0ic3Q2IiBkPSJNNjcxLjE2NywyODcuMTg0Yy0wLjc2Ni00LjM5My0xLjE0Ny05LjA1My0xLjg1Ni0xMy44ODFjLTAuODA1LTQuODAzLTEuOTMyLTkuNzgyLTQuNTI3LTE0LjU4MgoJCWMxLjg0OSwxMS4yMzksMi44MjIsMTkuOTM0LDMuNDg2LDI4LjY0N0w2NzEuMTY3LDI4Ny4xODR6Ij48L3BhdGg+Cgk8bGluZWFyR3JhZGllbnQgaWQ9IlNWR0lEXzhfIiBncmFkaWVudFVuaXRzPSJ1c2VyU3BhY2VPblVzZSIgeDE9IjU5MC41MTI2IiB5MT0iNzkwLjk5ODYiIHgyPSI1OTAuNTEyNiIgeTI9IjE4My4yODQ5Ij4KCQk8c3RvcCBvZmZzZXQ9IjAiIHN0eWxlPSJzdG9wLWNvbG9yOiNGRkYxQUEiPjwvc3RvcD4KCQk8c3RvcCBvZmZzZXQ9IjAuNDE2MiIgc3R5bGU9InN0b3AtY29sb3I6I0ZGOUUwMCI+PC9zdG9wPgoJCTxzdG9wIG9mZnNldD0iMC43NTciIHN0eWxlPSJzdG9wLWNvbG9yOiNGRjZBMDAiPjwvc3RvcD4KCQk8c3RvcCBvZmZzZXQ9IjEiIHN0eWxlPSJzdG9wLWNvbG9yOiNGRjJBMkEiPjwvc3RvcD4KCTwvbGluZWFyR3JhZGllbnQ+Cgk8cGF0aCBjbGFzcz0ic3Q3IiBkPSJNNTkxLjM0OSw0ODAuMTkzbC0wLjAxMSwwLjA0N2wtMC4wMDYsMC4wMjNjLTIuODctMC41MjQtMS40MzYtMC4yNiwwLjAwNSwwLjAwNWwwLjAwMy0wLjAyTDU5MS4zNDksNDgwLjE5M3oiPjwvcGF0aD4KCTxsaW5lYXJHcmFkaWVudCBpZD0iU1ZHSURfOV8iIGdyYWRpZW50VW5pdHM9InVzZXJTcGFjZU9uVXNlIiB4MT0iNTg3LjY0NTYiIHkxPSI3OTAuOTk4NiIgeDI9IjU4Ny42NDU2IiB5Mj0iMTgzLjI4NDkiPgoJCTxzdG9wIG9mZnNldD0iMCIgc3R5bGU9InN0b3AtY29sb3I6I0ZGRjFBQSI+PC9zdG9wPgoJCTxzdG9wIG9mZnNldD0iMC40MTYyIiBzdHlsZT0ic3RvcC1jb2xvcjojRkY5RTAwIj48L3N0b3A+CgkJPHN0b3Agb2Zmc2V0PSIwLjc1NyIgc3R5bGU9InN0b3AtY29sb3I6I0ZGNkEwMCI+PC9zdG9wPgoJCTxzdG9wIG9mZnNldD0iMSIgc3R5bGU9InN0b3AtY29sb3I6I0ZGMkEyQSI+PC9zdG9wPgoJPC9saW5lYXJHcmFkaWVudD4KCTxwYXRoIGNsYXNzPSJzdDgiIGQ9Ik01OTEuMzM3LDQ4MC4yNzJjLTEuMzU4LTAuMjQ4LTMuNjY3LTAuNjY5LTcuMzgyLTEuMzQ4YzAsMCwwLDAuMDAxLTAuMDAxLDAuMDAxCgkJYzIuNzA1LDAuNDk1LDUuMTU5LDAuOTQzLDcuMzgyLDEuMzVMNTkxLjMzNyw0ODAuMjcyeiI+PC9wYXRoPgoJPGxpbmVhckdyYWRpZW50IGlkPSJTVkdJRF8xMF8iIGdyYWRpZW50VW5pdHM9InVzZXJTcGFjZU9uVXNlIiB4MT0iMjM3LjM1NzMiIHkxPSI3OTAuOTk4NiIgeDI9IjIzNy4zNTczIiB5Mj0iMTgzLjI4NDkiPgoJCTxzdG9wIG9mZnNldD0iMCIgc3R5bGU9InN0b3AtY29sb3I6I0ZGRjFBQSI+PC9zdG9wPgoJCTxzdG9wIG9mZnNldD0iMC40MTYyIiBzdHlsZT0ic3RvcC1jb2xvcjojRkY5RTAwIj48L3N0b3A+CgkJPHN0b3Agb2Zmc2V0PSIwLjc1NyIgc3R5bGU9InN0b3AtY29sb3I6I0ZGNkEwMCI+PC9zdG9wPgoJCTxzdG9wIG9mZnNldD0iMSIgc3R5bGU9InN0b3AtY29sb3I6I0ZGMkEyQSI+PC9zdG9wPgoJPC9saW5lYXJHcmFkaWVudD4KCTxwYXRoIGNsYXNzPSJzdDkiIGQ9Ik0yMzIuOTk3LDcxMC4zMTNsLTAuMDY2LDAuMjk2YzIuOTQ2LTAuMDYyLDUuODk4LTAuMTU4LDguODUzLTAuMjc1CgkJQzIzOC44NDksNzEwLjM1MiwyMzUuOTE5LDcxMC4zNDksMjMyLjk5Nyw3MTAuMzEzeiI+PC9wYXRoPgoJPGxpbmVhckdyYWRpZW50IGlkPSJTVkdJRF8xMV8iIGdyYWRpZW50VW5pdHM9InVzZXJTcGFjZU9uVXNlIiB4MT0iMjU4LjkxOCIgeTE9Ijc5MC45OTg2IiB4Mj0iMjU4LjkxOCIgeTI9IjE4My4yODQ5Ij4KCQk8c3RvcCBvZmZzZXQ9IjAiIHN0eWxlPSJzdG9wLWNvbG9yOiNGRkYxQUEiPjwvc3RvcD4KCQk8c3RvcCBvZmZzZXQ9IjAuNDE2MiIgc3R5bGU9InN0b3AtY29sb3I6I0ZGOUUwMCI+PC9zdG9wPgoJCTxzdG9wIG9mZnNldD0iMC43NTciIHN0eWxlPSJzdG9wLWNvbG9yOiNGRjZBMDAiPjwvc3RvcD4KCQk8c3RvcCBvZmZzZXQ9IjEiIHN0eWxlPSJzdG9wLWNvbG9yOiNGRjJBMkEiPjwvc3RvcD4KCTwvbGluZWFyR3JhZGllbnQ+Cgk8cGF0aCBjbGFzcz0ic3QxMCIgZD0iTTI3NS43NzcsNzA4LjcxM2wwLjI3NC0xLjE2N2MtMTEuNDQzLDEuNDU1LTIyLjg4MywyLjMzNC0zNC4yNjgsMi43ODcKCQlDMjUzLjA0Nyw3MTAuMjYsMjY0LjM5NCw3MDkuNzY4LDI3NS43NzcsNzA4LjcxM3oiPjwvcGF0aD4KCTxsaW5lYXJHcmFkaWVudCBpZD0iU1ZHSURfMTJfIiBncmFkaWVudFVuaXRzPSJ1c2VyU3BhY2VPblVzZSIgeDE9IjI5NS45MTg2IiB5MT0iNzkwLjk5ODYiIHgyPSIyOTUuOTE4NiIgeTI9IjE4My4yODQ5Ij4KCQk8c3RvcCBvZmZzZXQ9IjAiIHN0eWxlPSJzdG9wLWNvbG9yOiNGRkYxQUEiPjwvc3RvcD4KCQk8c3RvcCBvZmZzZXQ9IjAuNDE2MiIgc3R5bGU9InN0b3AtY29sb3I6I0ZGOUUwMCI+PC9zdG9wPgoJCTxzdG9wIG9mZnNldD0iMC43NTciIHN0eWxlPSJzdG9wLWNvbG9yOiNGRjZBMDAiPjwvc3RvcD4KCQk8c3RvcCBvZmZzZXQ9IjEiIHN0eWxlPSJzdG9wLWNvbG9yOiNGRjJBMkEiPjwvc3RvcD4KCTwvbGluZWFyR3JhZGllbnQ+Cgk8cGF0aCBjbGFzcz0ic3QxMSIgZD0iTTI5OS40NjUsNzAxLjI1NmMxLjE4LTAuOTc0LDIuNTc4LTIuMjQyLDQuNDA3LTMuOTc2Yy02LjQ2NywyLjk2Mi0xMC41MDksNC43MjUtMTUuOTA2LDYuOTI1CgkJYzQuMjIxLDAuMDI3LDYuMzM5LTAuMDU5LDguMzQ0LTAuOTAzQzI5Ny4zMTMsNzAyLjg4LDI5OC4yODMsNzAyLjIyOCwyOTkuNDY1LDcwMS4yNTZ6Ij48L3BhdGg+CjwvZz4KPC9zdmc+" alt="">
       <img id="judge-mark-batsu" src="data:image/svg+xml;base64,PHN2ZyB2ZXJzaW9uPSIxLjEiIGlkPSJfeDMzXyIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIiB4bWxuczp4bGluaz0iaHR0cDovL3d3dy53My5vcmcvMTk5OS94bGluayIgeD0iMHB4IiB5PSIwcHgiIHZpZXdCb3g9IjAgMCA3MjAgNzEyIiBzdHlsZT0iZW5hYmxlLWJhY2tncm91bmQ6bmV3IDAgMCA3MjAgNzEyOyIgeG1sOnNwYWNlPSJwcmVzZXJ2ZSI+CjxzdHlsZSB0eXBlPSJ0ZXh0L2NzcyI+Cgkuc3Qwe2ZpbGw6dXJsKCNTVkdJRF8xXyk7fQo8L3N0eWxlPgo8Zz4KCTxsaW5lYXJHcmFkaWVudCBpZD0iU1ZHSURfMV8iIGdyYWRpZW50VW5pdHM9InVzZXJTcGFjZU9uVXNlIiB4MT0iMzYwIiB5MT0iODE5LjUyNTYiIHgyPSIzNjAiIHkyPSI3LjEwNjgiPgoJCTxzdG9wIG9mZnNldD0iMCIgc3R5bGU9InN0b3AtY29sb3I6I0ZGRjFBQSI+PC9zdG9wPgoJCTxzdG9wIG9mZnNldD0iMC40MTYyIiBzdHlsZT0ic3RvcC1jb2xvcjojRkY5RTAwIj48L3N0b3A+CgkJPHN0b3Agb2Zmc2V0PSIwLjc1NyIgc3R5bGU9InN0b3AtY29sb3I6I0ZGNkEwMCI+PC9zdG9wPgoJCTxzdG9wIG9mZnNldD0iMSIgc3R5bGU9InN0b3AtY29sb3I6I0ZGMkEyQSI+PC9zdG9wPgoJPC9saW5lYXJHcmFkaWVudD4KCTxwYXRoIGNsYXNzPSJzdDAiIGQ9Ik03MTcuNTM0LDQ1Ljk1NWMtMS42MjctMi40MjctMy43MDctNS4wODctNS44NTYtOC4xNDFjLTIuMDc4LTMuMDQ0LTQuMjMyLTYuNDY2LTUuODAzLTEwLjMwNwoJCWMtMS41ODktMy44MzctMi42NDEtOC4xMTItMy4wMzMtMTIuNzU0Yy0wLjU3Ny00LjYxNy0xLjg5OC03Ljc3My0zLjIxMy0xMC4wNTdjLTAuNzI3LTEuMTMtMS41NjctMi4wMjEtMi40MDctMi43MjIKCQljLTEuMDMzLTAuNjc5LTEuOTU2LTEuMTg1LTMuMzE1LTEuNDg5Yy0yLjUyOS0wLjYzNC01Ljk4OS0wLjU3Ny0xMC4wMjMtMC4yMTljLTMuOTU5LDAuMzM1LTguNjA5LDEuMDUyLTEyLjI0NywxLjQwMgoJCWMtMC45MjksMC4wOTQtMS44NDMsMC4yNDgtMi43NDYsMC40NThjLTAuOTEzLDAuMjE1LTEuOTA5LDAuNTMtMi44NDYsMC44NzZjLTEuODQ0LDAuNjczLTMuODk1LDEuNjg2LTUuODk4LDIuODcKCQljLTAuOTc1LDAuNTc1LTIuMTE1LDEuMy0zLjE3MSwyLjAxOGMtMS4wODYsMC43MzgtMi4xMjgsMS40ODctMy4zMTcsMi4zODJjLTEuMTU5LDAuODczLTIuMzI4LDEuNzkzLTMuNTA5LDIuNzU5CgkJYy0xLjAyNiwwLjk0My0yLjAyNCwxLjkyLTMuMDYxLDIuOTQxYy00LjEwNCw0LjA5Mi04LjY1MSw4Ljc0NC0xMy4wNjIsMTQuMTI4Yy0xLjEzMywxLjMxNy0yLjMwNSwyLjY3OS0zLjUxOCw0LjA4OAoJCWMtMC42MDIsMC42OTEtMS4yMTQsMS4zOTQtMS44MzcsMi4xMWMtMC41NzcsMC43MTktMS4xNjMsMS40NS0xLjc2LDIuMTk0Yy0yLjM3NiwyLjk1Ni00LjkxNSw2LjAyMS03LjYzMyw5LjE4NQoJCWMtMS40MDksMS43OS0zLjQ2OCwzLjk4NC02LjExMyw2LjU1OGMtMi41ODIsMi40OTEtNS42OCw1LjQ3Ny05LjI1Nyw4LjkyNmMtMy42NDEsMy4zNDUtNy4zMTMsNy4xMzMtMTEuNjExLDExLjIzMQoJCWMtMi4xLDIuMDU2LTQuMTcxLDQuMjEyLTYuNDE0LDYuNDQyYy0xLjEwOSwxLjExMy0yLjI0MiwyLjI1LTMuMzk5LDMuNDExYy0xLjExLDEuMTU2LTIuMjQzLDIuMzM2LTMuMzk5LDMuNTM5CgkJYy05LjI5NCw5LjU4NC0xOS4zMzYsMjAuNDg1LTI5LjgyNywzMi4xMDdjLTEwLjQ5NywxMS41OTUtMjEuNTA0LDIzLjk1NS0zMi45MDYsMzUuNzkzYy0yNS40LDI1Ljg5My01NC4wNDgsNTUuNTU4LTgzLjYzNyw4Ni44ODIKCQljLTcuNDAzLDcuODM0LTE0Ljg2LDE1Ljc1MS0yMi4zNjUsMjMuNzE0Yy01LjIzNS03LjIwMi0xMC4zODYtMTQuMzkxLTE1LjQwOS0yMS41MTljLTYuNTE3LTkuMTY4LTEyLjI5NS0xNy42MDMtMTguMDE1LTI2LjI3MgoJCWMtMi44NTEtNC4yNzQtNS42MjctOC42MTctOC4zNTktMTIuODE4Yy0yLjcxNy00LjI4MS01LjM4Ni04LjQ4Ni03Ljk5OC0xMi42MDRjLTEwLjQxNi0xNi41OTUtMTkuODg0LTMyLjI0LTI4LjA4NS00NS43OQoJCWMtMTYuMzM0LTI3LjEzLTI3Ljc1OC00NS43NDgtMjguMzM0LTQ3Ljk4MWMtMS4xNDctNC41MjktNC41NjgtNy40MDYtNy40MDctMTEuMDQ0Yy0yLjgxNS0zLjY0NC01LjItOC4wNDEtNC4zODgtMTUuNzcxCgkJYzAuODE4LTcuNzQzLTQuOTQ1LTguOTE0LTkuMTM3LTkuNzM4Yy0yLjEyOC0wLjQzMS0zLjgzMy0wLjcyMi00LjM0Ni0xLjg2NmMtMC41ODktMS4yMTksMC4xNjQtMy4xNDIsMy4xOS02LjYwNwoJCWMxMi4wOTEtMTMuODQtMC4xMS0wLjIzOC0xLjMyNS0xMi41NThjLTAuMjM3LTIuOTcyLTAuMzU5LTUuNDk4LTAuNDA3LTcuMzI5Yy0wLjA1NC0xLjg0LTAuMTgzLTMuMTc3LTAuNjM2LTQuMDI1CgkJYy0wLjIyNS0wLjQyMi0wLjUzOC0wLjczMi0wLjk1LTAuOTA0Yy0wLjM5Ni0wLjE1Ni0wLjkwNi0wLjE5Mi0xLjU2LTAuMTFjLTEuMzA3LDAuMTY0LTMuMTg4LDAuOC01Ljg4OCwxLjkwMQoJCWMtNS40MDYsMi4xOTgtOC4yNjUsNS44NDgtOS41MjcsNi41MzRjLTAuNjE4LDAuMzU2LTAuODEzLTAuMDAzLTAuNjU5LTEuNTg3YzAuMDc3LTAuNzkxLDAuMjQxLTEuODg5LDAuNDg0LTMuMzUzCgkJYzAuMjcxLTEuNDQsMC42OTMtMy4xODEsMS4xODQtNS4zNTFjMC40Ni0yLjE5NCwwLjk3OS0zLjY4OSwxLjI5Ni00LjgzMmMwLjMyOS0xLjEzMiwwLjUyMy0xLjg1NywwLjU5Ni0yLjI5CgkJYzAuMTQ2LTAuODY1LTAuMTk3LTAuNTY2LTAuODg0LDAuMDMxYy0wLjY4MywwLjYtMS43MzYsMS40NzktMi45MTEsMS44NDdjLTAuNTkxLDAuMTgxLTEuMjIzLDAuMjI4LTEuODcxLDAuMDM2CgkJYy0wLjMyNS0wLjA5Ni0wLjY1My0wLjI1Mi0wLjk4NC0wLjQ3OWMtMC4xNjUtMC4xMTQtMC4zMzEtMC4yNDUtMC40OTYtMC4zOTZjLTAuMTQ0LTAuMTM2LTAuMjgxLTAuMjg1LTAuNDItMC40NTcKCQljLTAuNTUtMC42ODUtMS4yMjUtMS4wMzItMS45ODgtMS4xNDFjLTAuNzA3LTAuMDcyLTEuNDkyLDAuMTAxLTIuMzUxLDAuNDA5Yy0xLjcxLDAuNjItMy42NDQsMS44MTktNS40MTYsMi45NzcKCQljLTMuNTQzLDIuMzI5LTYuNTEyLDQuNDA1LTUuNzQ1LDEuMjg5YzAuMzI5LTEuNDcxLTAuMzkxLTEuMjI1LTEuOTM0LTAuMjkyYy0xLjUxMSwwLjk1MS0zLjY5LDIuNjkxLTUuODcsNC40ODQKCQljLTIuMTk0LDEuNzg2LTQuMzQ2LDMuNjQtNS45NzIsNC42NDJjLTEuNjQ1LDEuMDAxLTIuNjkxLDEuMTQzLTIuNjE0LTAuMzg2YzAuMDQyLTEuNTI4LTAuMjA0LTIuNDY0LTEuMDM4LTIuOTU0CgkJYy0wLjg2LTAuNDkyLTIuMTM3LTAuNTE0LTMuOTk4LTAuMTM5Yy0zLjcxNiwwLjc2Ny05Ljc1MiwzLjA1Ny0xNy44NjcsNy4xMzNjLTQuMDc4LDIuMDQ1LTcuNDk4LDQuMzIzLTEwLjQ1LDYuNjM4CgkJYy0yLjk1NSwyLjMwOC01LjQ0Niw0LjY0Ni03Ljc0Niw2LjYxNGMtNC42MDgsMy45MS04LjQ1OCw2LjQtMTQuMzIsMy4xMzFjLTUuNjUyLTMuNDAyLTExLjAzMy0yLjA1LTE2Ljg1MSwyLjcKCQljLTIuOTA2LDIuMzc1LTUuOTEyLDUuNjExLTkuMTAzLDkuNDhjLTMuMTkzLDMuODY5LTYuNDcxLDguMjQ3LTEwLjE0NSwxMi45NjFjMCwwLTEuNjExLDEuMzI2LTMuODI5LDMuNjcyCgkJYy0yLjIxMiwyLjMzOS01LjAwNSw1LjY0MS03LjMzNyw5LjcyNGMtMS4xNjUsMi4wMjgtMi4yMTMsNC4yODQtMy4wMDksNi42MTZjLTAuNzk2LDIuMy0xLjM0NSw0LjczNi0xLjUyLDcuMjUKCQljLTAuMTY5LDIuNTU5LDAuMDEsNS4wMTcsMC42NjksNy40NzdjMC4zMzEsMS4yMzIsMC43ODEsMi40NjIsMS4zNjQsMy42NzNjMC41NjQsMS4xNDEsMS4yNTcsMi4yNjUsMi4wOTQsMy4zNTYKCQljMy44MDUsOC45NDgsNy41NjksMTYuOTgsMTAuNzU2LDI0LjE1NGM0Ljk5OSw1LjU0OSw5LjM1NywxMC4xODUsMTIuOTQxLDE0LjExYzAsMCwxLjE2MS0wLjA3MiwzLjAyMS0wLjA1MwoJCWMwLjkyMSwwLjAwMSwyLjA1NywwLjA2LDMuMjM3LDAuMTAxYzEuMTUyLDAuMDE4LDIuNDE2LDAuMDc0LDMuNzM2LDAuMTljMS4zNjIsMC4xNDgsMi41NzUsMC4yMDIsMy44NzgsMC40MDQKCQljMC42NTEsMC4xMDcsMS4yNiwwLjE3NiwxLjkzNywwLjM3MmMwLjczMSwwLjI3MiwxLjQ1MiwwLjU2OCwyLjE1OCwwLjg4OGMyLjgyLDEuMjc5LDUuMzc3LDIuOTUxLDcuMTU2LDUuMTA4CgkJYzAuNDQ5LDAuNTIzLDEuNzg2LDIuMjkxLDMuOTIxLDUuMDcyYzEuMDY2LDEuMzk0LDIuMzMsMy4wNDgsMy43OCw0Ljk0M2MxLjQ0MSwxLjkzNSwzLjA2Nyw0LjExNiw0Ljg2MSw2LjUyNAoJCWM3LjE4Miw5LjY2NSwxNi45OTQsMjMuMjg0LDI4Ljc1LDQwLjA3MmMxMS43OCwxNi43NjEsMjUuNTAyLDM2Ljc1Niw0MS4xMDksNTguNTQxYzcuNzc5LDEwLjg3NywxNi4wODcsMjIuMjE2LDI0Ljg3NiwzMy43MzIKCQljNC40NjcsNS44OTgsOC42MzYsMTEuMTk2LDEyLjk1LDE2Ljc0NmM0LjI4NSw1LjUxMyw4LjYsMTEuMDI4LDEyLjk0OSwxNi40ODljNC4xOTMsNS4zMDgsOC40MDEsMTAuNTkyLDEyLjYwOCwxNS44MzgKCQljLTIyLjU4OSwyMi42ODEtNDUuMTM4LDQ0LjY5OC02Ni45MDMsNjUuNDc1Yy0xNC45NDEsMTQuMjA5LTI5LjMzNiwyNy44NjEtNDMuMjY5LDQwLjkyNQoJCWMtMTMuODgzLDEzLjA0NS0yNy4yMTUsMjUuNjMyLTM5LjQxOCwzNy42MTdjLTI0LjQ0LDIzLjk4Mi00My45MDIsNDQuNjg4LTU3Ljc1MSw1OS42MTNjLTcuNTgzLDguMjAzLTEzLjQ1NiwxNC43MDMtMTcuMzgyLDE5LjIyOAoJCWMtNS4zMTYsNC45NTQtMTAuMjI4LDkuNjA4LTE0LjczMSwxMy45NzFjLTEyLjE5MSwxMS44NDgtMjEuMjM1LDIxLjM2OS0yOC40NzQsMjkuMzg0Yy0xNC40MjMsMTYuMDU5LTIyLjAxMSwyNi40MTEtMzIuMTM0LDQwLjIwMQoJCWMtMTAuMDMzLDEzLjc4OSw1LjcyNywxLjcwMywyNS43OTktMTUuMjc5YzYuOTY1LTUuODc3LDE0LjQ3LTEyLjMzNSwyMS42MjktMTguNTA2Yy0xLjAxNywwLjk0LTIuMDQsMS44ODktMy4wNzMsMi44NTMKCQlDMzkuNjAzLDY1OC45NywxNC44MjQsNjgzLjgsMy45NzksNjk2Ljc0MWMtMTAuODM2LDEyLjk0NCwyLjIyNiw3Ljk4MSwxNy45NzYtMC4xNzdjNy44OS00LjA3NSwxNi40NTQtOC45NDcsMjMuMDcyLTEyLjc4MgoJCWM2LjU5Ny0zLjg0NSwxMS4yNTktNi42NDksMTEuMjU5LTYuNjQ5cy0zLjA5OSw0LjgzMy01LjMwMSwxMC41MTJjLTIuMjEsNS42NzctMy41NTYsMTIuMTc2LTAuMTM5LDE1LjQ5NwoJCWMzLjQyNCwzLjMzMSwxNC4zMDctMy42MTcsMjYuODI0LTEzLjc3YzEyLjUxNi0xMC4xNjQsMjYuNzMzLTIzLjQsMzYuNzU3LTMyLjk0MWMxLjQ0OC0xLjM2OCwyLjUwOC0yLjM3MiwzLjI0NS0zLjA3CgkJYzAuMDE0LDAuMDEyLDAuMDI4LDAuMDI2LDAuMDQzLDAuMDM4Yy0yLjI0OSwyLjIzNS03LjMwMSw3LjI2Ni0xMy4zMzYsMTMuNTZjLTExLjk4NywxMi41MDctMjcuNzI0LDMwLjIxMS0zMy43OTksMzkuODQzCgkJYy02LjA2Nyw5LjY0OSwyLjQzMSw0LjI5NCwxMi40NjItMy4zNDljNS4wMTEtMy44NDEsMTAuNDE3LTguMjEyLDE0LjU2LTExLjY1MmM0LjE1My0zLjQwNiw3LjA0OC01Ljg3Miw3LjA0OC01Ljg3MgoJCXM0LjQ3NywwLjU4NCwxMS42NDgtMS44NzNjNy4yLTIuNDU3LDE2Ljk2NS03Ljg2NiwyOC4wNy0xOS44MTFjMS44MjItMS45NjgsNS44NDYtNS43MzUsMTEuNzk2LTExLjAyOAoJCWM0Ljg1LTEuMDI1LDEwLjI1LTEuOTY5LDE1Ljk1NS0yLjYwN2MxMC4yMDEtMS4xNjQsMTIuMDMyLTUuNzk3LDEzLjE4Ni0xMS4xNGMxLjE1LTUuMzQ4LDEuNjIyLTExLjM4Myw5LjAxNi0xNS4xMzYKCQljMy42OTctMS44OTMsNy4zODktMy45ODMsMTEuNTA2LTYuNzZjNC4xMi0yLjgxLDguNjY1LTYuMjYzLDE0LjA2OC0xMC44OTZjNS40MDgtNC42MDcsMTEuNjU5LTEwLjM0NiwxOS4yNzgtMTcuNjE5CgkJYzcuNjEyLTcuMjg3LDE2LjYzNi0xNi4wODQsMjcuODk1LTI3LjE5OGM4LjU5NS04LjY4OCwxNy45MTgtMTcuODQ2LDI3LjczOS0yNy4zOTJjOS44NTItOS42NTEsMjAuMTk2LTE5LjUyLDMwLjgwNS0yOS43NTEKCQljMTkuMzQ0LTE4LjYxLDM5LjY1Ny0zOC4xNTIsNjAuMzUzLTU4LjA2MmM1LjYyNCw2LjQ5NCwxMS4wMzcsMTIuNjY5LDE2LjE3OCwxOC40NTZjMjcuNzMxLDMxLjIwNSw0Ny42MTIsNTEuMzk2LDUxLjcwMyw1MC42MDYKCQljMCwwLDUuMjk4LDYuMjQxLDEyLjEwMiwxMy41NTRjNi43OCw3LjMsMTUuMDgyLDE1LjY3NSwyMS4wNzQsMTkuOTQ4YzExLjk5MSw4LjU1MSwxNy45OTctMTIuNTQ5LDI4LjUzOC0wLjA3MwoJCWMxMC41MTUsMTIuNDc2LDI2LjU4LDIwLjI4MSwzNC41OTQsMjQuMjEyYzguMDMsMy45MjgsNy4yNDMtMTQuMDQzLDcuMjQzLTE0LjA0M2M4LjAzNSwzLjkzNCwxNS4yNzItMTAuMTE2LDE1LjI3Mi0xMC4xMTYKCQlzMjAuMjIsNy4xMzQsMjUuNDQ4LDEzLjQ3MWM1LjIzMiw2LjMwMywyNC4zMzQsNi41MTUsMjAuNTc1LTMuNzE2Yy0zLjcyNy0xMC4yOC0zNC4wNzgtNDYuNTc4LTM5LjM5Ni01Mi44MjgKCQljLTIuNjQ2LTMuMTQ1LDUuMzYsMy41NDQsMTQuMDMzLDExLjAyOGM4LjY2LDcuNTAyLDE3Ljk3OCwxNS44MTcsMTcuOTc4LDE1LjgxN3MtNi4yOTItMTguOTAyLTExLjU5OS0yNS4yMDIKCQljLTUuMjg5LTYuMzExLTI1LjA1NC0zNS40MTEtMzUuNjg1LTQ3LjkxM2MtMTAuNjIyLTEyLjUzOS03LjcyMi0yMC4zNTgtMTQuNjAyLTE3LjIxNmMtNy40MjUtMy4xMjEtMTkuNzgxLTEzLjQ1Ny0zMC4yODEtMjMuMDEzCgkJYy0xMC40ODYtOS41NTMtMTkuMTItMTguMzMxLTE5LjEyLTE4LjMzMXMxMi4zMzMsMTAuMzMxLDI0LjU0NiwxOS4wOThjMTIuMjE4LDguNzY2LDI0LjMwOSwxNS45NzcsMjMuNzY5LDkuNzE1CgkJYy0xOC41ODgtMTYuNTQtNDIuOTgxLTQzLjMxLTY4Ljk1OC03NC42NzNjMTUuNzk2LTE1LjQ3NywzMS4yMDUtMzAuNDc0LDQ2LjA4OC00NC42MjFjMjAuNzYtMTkuNzYzLDQwLjYzNC0zNy45NjgsNTguOTAyLTU0LjI3MwoJCWM0LjU3NS00LjA2Myw5LjAzMS04LjAyMiwxMy4zNTctMTEuODY0YzIuNDEtMi4xNjEsNC43ODMtNC4yODksNy4xMTktNi4zODNjMi4zODUtMi4xMjksNC40OTctNC4xMDUsNi43MDItNi4xMTIKCQljOC4yMzEtNy42LDE1Ljg4Mi0xNC42NjQsMjIuODU3LTIxLjEwM2MxMy4zNjMtMTIuMjk3LDIzLjQxNy0yMC45MDYsMzAuMjUxLTI2LjMwNWMwLjg1NS0wLjY5LDEuNjYyLTEuMzQxLDIuNDItMS45NTMKCQljMC43NDUtMC41NjQsMS40NDEtMS4wOTIsMi4wODYtMS41ODJjMS4yODktMC45ODEsMi4zNzktMS44MSwzLjI2LTIuNDhjMC44NzktMC42NjksMS41NTEtMS4xOTUsMS45ODgtMS40ODQKCQljMC40NDItMC4zMSwwLjY2Ny0wLjQ2OCwwLjY2Ny0wLjQ2OHMxLjAwNC0wLjE3NSwyLjY1My0wLjQ2M2MwLjgxMS0wLjE1LDEuNzgtMC4zMjgsMi44NjQtMC41MjcKCQljMC41MzQtMC4xMDMsMS4wOTctMC4yMSwxLjY4Mi0wLjMyMmMwLjU2OS0wLjA3OCwxLjE2MS0wLjE1OSwxLjc2OS0wLjI0MmMyLjQwNS0wLjI5Miw1LjA0OS0wLjc4Nyw3LjQ0OS0xLjA3OAoJCWMyLjM4Mi0wLjIzMSw0LjU5MS0wLjUyNyw2LjMzMy0wLjkyNWMzLjMxNy0wLjM5OCwxLjYzLTQuNzExLDAuNTkxLTguNjMxYy0xLjA3Ni0zLjk4MS0xLjQ2My03LjMwMSwzLjY3NC01LjYzMgoJCWMxLjI4NSwwLjM2NSwyLjI5NSwwLjgxOCwzLjE5OSwwLjk3MmMwLjg5OSwwLjE3NCwxLjY1NiwwLjE1OCwyLjMxMi0wLjAzNGMwLjMyNy0wLjA5NiwwLjYyOS0wLjIzNiwwLjkwOS0wLjQxOAoJCWMwLjI2Ny0wLjE3MiwwLjMzNy0wLjI2MywwLjQ4Ny0wLjQ2N2MwLjIwMy0wLjM3MiwwLjU0LTAuOTI5LDAuODItMS42MzFjMS4xNzEtMi44MiwyLjc5OC04LjA0OCw1Ljk4My0xNC4yNQoJCWMzLjI3Mi02LjIyMiwyLjY1Ny0xNS40NDIsMS4xNjMtMjUuMTIyYy0xLjQ0Ni05LjY5My0zLjMxMi0xOS45MzItMS4zMDgtMjguNTM1YzIuMDExLTguNjE3LDIuNzctMTUuNjE3LDMuMTk0LTIxLjU1NQoJCWMwLjIxOS0yLjk2MywwLjM2NS01LjY2LDAuNTE1LTguMTc0YzAuMTc2LTIuNDk4LDAuMzQzLTQuODIxLDAuNTk2LTcuMDA4QzcyMC4yMjMsNTAuNTgxLDcxOS4xNDYsNDguMzg2LDcxNy41MzQsNDUuOTU1egoJCSBNMjQzLjk1OCw1NzAuNjA5Yy0xNC43LDExLjk0NS0yMy44ODgsMjEuMTM0LTMwLjMxOSwyNS43MjhjLTYuNDMxLDQuNTk0LTIyLjA1LDIxLjEzNC0zMC4zMTksMjcuNTY1CgkJYy04LjI2OSw2LjQzMi0yLjIyMyw4LjI3LTE4LjM3NSwxMS4wMjZjLTE2LjE1MywyLjc1Ny0zNC45MTMsMjcuNTY2LTQyLjI2NCwzMi4xNmMtNy4zNSw0LjU5NCwxMS45NDQtMTYuNTQsMTEuOTQ0LTE2LjU0CgkJYzAuNjU1LTAuNzI3LDY2LjQ0Mi01Ni4wMDQsODMuNDgxLTY2LjE1OEMyMzYuNjA4LDU3My4zNjYsMjU4LjY1OCw1NTguNjY0LDI0My45NTgsNTcwLjYwOXogTTMyMS44MywzODkuMzk2CgkJYy0xMS41ODIsMTEuMzE4LTIzLjI1OCwyMi4zMDctMzQuMjg4LDMyLjYyM2MtMTEuMTIzLDEwLjIyNi0yMS41ODUsMTkuNzkyLTMxLjAxNiwyNy45OTFjLTkuNDI4LDguMjA1LTE3LjY4NSwxNS4xNjctMjQuMjY5LDIwLjM0CgkJYy02LjYwNSw1LjE2OC0xMS41MDQsOC41Ni0xNC4xNTMsOS42NDJjNS41NjItNS45MDUsMjMuMTQ0LTIzLjA5Miw0NS44NC00NS4yMzJjMTguNDQxLTE3Ljk0NCw0MC4xMDItMzkuMjgsNjEuNDg5LTYwLjQ5MwoJCWMxLjc1NSwyLjE2OCwzLjUwOSw0LjMzMiw1LjI1OSw2LjQ4MUMzMjcuNzQ2LDM4My42NDEsMzI0Ljc4OSwzODYuNTI4LDMyMS44MywzODkuMzk2eiBNNDI4LjcyMSwyNzguNzMKCQljLTEuMzk4LDEuNTY2LTMuMTAyLDMuNDU3LTUuMDY5LDUuNjE5Yy0wLjg1LTEuMTQxLTEuNjk4LTIuMjgyLTIuNTQ1LTMuNDI0QzQyOC43NzYsMjc0LjQyNiw0MzEuOTkzLDI3Mi45NjQsNDI4LjcyMSwyNzguNzN6Ij48L3BhdGg+CjwvZz4KPC9zdmc+" alt="">
@@ -825,6 +981,11 @@ h1{ font-size:1.5rem; text-align:center; letter-spacing:.05em; }
     <div class="turn-banner" id="turn-banner" aria-hidden="true"><span>あなたの番です</span></div>
     <div class="hud">
       <div class="turn-label" id="turn-label">プレイヤー1の番</div>
+      <div class="solo-stats" id="solo-stats" hidden aria-hidden="true">
+        <span class="solo-time" id="solo-time">90秒</span>
+        <span class="miss-gems" id="miss-gems"><span class="gem"></span><span class="gem"></span><span class="gem"></span></span>
+        <span class="solo-correct" id="solo-correct">正解 0枚</span>
+      </div>
       <div class="deck-count" id="deck-count">山札:0 残り時間:--</div>
     </div>
     <div class="player-strip" id="player-strip" hidden></div>
@@ -839,6 +1000,7 @@ h1{ font-size:1.5rem; text-align:center; letter-spacing:.05em; }
 
     <div id="hand-wrap">
       <div class="hand-row" id="hand-row"></div>
+    </div>
     </div>
   </section>
 
@@ -861,7 +1023,25 @@ h1{ font-size:1.5rem; text-align:center; letter-spacing:.05em; }
         <button class="wa-opt" id="retry-btn">もう一度遊ぶ</button>
         <button class="wa-opt" id="menu-back-btn">トップにもどる</button>
       </div>
+      <button class="wa-chip result-settings-btn result-rank-btn" id="result-rank-btn" hidden>ランキングを見る</button>
       <p class="wa-note result-wait" id="result-wait" hidden>親が「もう一度」を押すと、この部屋でまた遊べます</p>
+    </div>
+  </section>
+
+  <!-- ===================== ランキング（ひとりプレイ） ===================== -->
+  <section id="ranking-screen" class="screen wa-screen">
+    <button class="wa-back" id="rank-back-btn" aria-label="もどる">‹</button>
+    <div class="wa-inner">
+      <h2 class="wa-title">ランキング</h2>
+      <div class="wa-rule"></div>
+      <div class="rank-tabs">
+        <button type="button" class="wa-chip rank-tab" data-board="w">今週</button>
+        <button type="button" class="wa-chip rank-tab" data-board="m">今月</button>
+        <button type="button" class="wa-chip rank-tab" data-board="a">累計</button>
+      </div>
+      <p class="wa-note rank-period" id="rank-period"></p>
+      <ol class="rank-list" id="rank-list"></ol>
+      <p class="wa-note rank-msg" id="rank-msg"></p>
     </div>
   </section>
 
@@ -871,6 +1051,26 @@ h1{ font-size:1.5rem; text-align:center; letter-spacing:.05em; }
     <div class="debug-cards-grid" id="debug-cards-grid"></div>
   </section>
 
+</div>
+
+<!-- ランクインしたときの名前入力 -->
+<div id="rank-entry" hidden>
+  <div class="rank-entry-card" role="dialog" aria-modal="true" aria-labelledby="rank-entry-title">
+    <div class="rank-entry-title" id="rank-entry-title">ランクイン！</div>
+    <div class="rank-entry-score"><b id="rank-entry-score">0</b>枚</div>
+    <ul class="rank-entry-hits" id="rank-entry-hits"></ul>
+    <div class="rank-field-label">なまえ（5もじまで）</div>
+    <input id="rank-name" class="wa-input" type="text" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="ABCDE" readonly tabindex="-1">
+    <div class="rank-kb-tabs">
+      <button type="button" class="wa-chip rank-kb-tab selected" data-kb="en">えいご</button>
+      <button type="button" class="wa-chip rank-kb-tab" data-kb="sym">きごう</button>
+    </div>
+    <div class="rank-kb" id="rank-kb"></div>
+    <div class="rank-field-label">すんでいる ところ（えらばなくてもOK）</div>
+    <select id="rank-pref" class="wa-input"></select>
+    <button class="wa-start" id="rank-submit">とうろくする</button>
+    <button class="wa-chip rank-skip" id="rank-skip">とうろくしない</button>
+  </div>
 </div>
 
 <div id="toast"></div>
@@ -889,6 +1089,10 @@ var DEBUG_CARDS = /(?:^|[?&])debug=cards(?:&|$)/.test(location.search);
 ['gesturestart','gesturechange','gestureend'].forEach(function(t){
   document.addEventListener(t, function(e){ e.preventDefault(); }, { passive:false });
 });
+/* PCのトラックパッドのピンチ（Ctrl+ホイール）による拡大も止める */
+document.addEventListener('wheel', function(e){ if(e.ctrlKey) e.preventDefault(); }, { passive:false });
+/* 2本指タッチでの拡大の保険 */
+document.addEventListener('touchmove', function(e){ if(e.touches && e.touches.length > 1) e.preventDefault(); }, { passive:false });
 
 function setAppHeight(){
   var el = document.activeElement;
@@ -896,15 +1100,59 @@ function setAppHeight(){
   var h = window.visualViewport ? window.visualViewport.height : window.innerHeight;
   if(h > 0) document.documentElement.style.setProperty('--app-h', Math.round(h) + 'px');
 }
+
+/* ゲーム画面(#game-stage)は固定サイズのデザインで、実際に使える領域に収まる
+   倍率でtransform:scaleする。横長の画面と縦長（スマホのような）画面とで
+   デザインの縦横比が違うほうがすき間が少なくなるので、2つのテンプレートを
+   画面の縦横比で選ぶ。中の要素(HUD・場札・手札)はすべてこの固定pxの
+   デザインの中で組んであるので、ここでの倍率計算だけで全部まとめて
+   大きくなったり小さくなったりする（場札だけ・手札だけが不釣り合いな
+   大きさになることがそもそも起きない）。 */
+var GAME_STAGE_LANDSCAPE = { w:900, h:700 };
+var GAME_STAGE_PORTRAIT  = { w:420, h:760 };
+var GAME_STAGE_MAX_W = 1600;     // 横長画面で広げる幅の上限（デザイン上のpx）
+var gameStageScale = 1;        // 他のアニメーション(FLIPのtranslateXなど)がスケールを打ち消すのに使う
+var gameStageIsPortrait = false;
+function fitGameStage(){
+  var screen = document.getElementById('game-screen');
+  var stage = document.getElementById('game-stage');
+  if(!screen || !stage) return;
+  var availW = screen.clientWidth;
+  var availH = screen.clientHeight;
+  if(availW <= 0 || availH <= 0) return;
+  gameStageIsPortrait = (availW / availH) < 1.05;
+  var base = gameStageIsPortrait ? GAME_STAGE_PORTRAIT : GAME_STAGE_LANDSCAPE;
+  stage.classList.toggle('is-portrait', gameStageIsPortrait);
+  var stageW = base.w;
+  var sc = Math.min(availW / base.w, availH / base.h);
+  if(!gameStageIsPortrait){
+    // 横に広い画面では、高さにぴったり合わせて拡大し、余った横幅のぶんだけ
+    // ゲーム画面そのものを横に広げる（場札を並べられる枚数がふえ、
+    // 左右が空いているのにスクロールバーが出る、ということが起きにくくなる）。
+    var scH = availH / base.h;
+    var wideW = availW / scH;
+    if(wideW > base.w){
+      stageW = Math.min(Math.round(wideW), GAME_STAGE_MAX_W);
+      sc = scH;
+    }
+  }
+  stage.style.width = stageW + 'px';
+  stage.style.height = base.h + 'px';
+  gameStageScale = Math.max(0.05, sc);
+  stage.style.transform = 'translate(-50%, -50%) scale(' + gameStageScale + ')';
+  fitHandCards();   // 幅が変わったので、手札の折返し判定をやりなおす
+}
+
 setAppHeight();
+fitGameStage();
 ['resize','pageshow'].forEach(function(t){
-  window.addEventListener(t, function(){ setAppHeight(); fitHandCards(); });
+  window.addEventListener(t, function(){ setAppHeight(); fitGameStage(); });
 });
 window.addEventListener('orientationchange', function(){
-  setTimeout(function(){ setAppHeight(); fitHandCards(); }, 250);
+  setTimeout(function(){ setAppHeight(); fitGameStage(); }, 250);
 });
 if(window.visualViewport){
-  visualViewport.addEventListener('resize', setAppHeight);
+  visualViewport.addEventListener('resize', function(){ setAppHeight(); fitGameStage(); });
   visualViewport.addEventListener('scroll', setAppHeight);
 }
 function resetZoomIfNeeded(){
@@ -1225,7 +1473,11 @@ function escapeHtml(str){
     return ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' })[c];
   });
 }
+/* いまカードを持って(ドラッグして)いるときの後始末関数。結果画面などへ切りかわるとき、
+   持ったままのカード(分身)が残らないよう showScreen から呼ぶ。 */
+var currentDragCancel = null;
 function showScreen(id){
+  if(id !== 'game-screen' && currentDragCancel){ try{ currentDragCancel(); }catch(e){} currentDragCancel = null; }
   document.querySelectorAll('.screen').forEach(function(s){ s.classList.remove('active'); });
   document.getElementById(id).classList.add('active');
   if(id === 'settings-screen') paintEraRange();       // スライダーの位置を今の設定に合わせる
@@ -1555,7 +1807,7 @@ function isCorrectGapIndex(timeline, year, gapIndex){
    カードが着地したときには、まわりのカードの動きが終わっているようにする。
    先に年表を確定させてしまい、置き場所の実測値に向かって飛ばすので、
    着地位置がずれることもない。 */
-function insertCardWithAnimation(card, insertIndex, sourceEl, onLanded, ghostEl){
+function insertCardWithAnimation(card, insertIndex, sourceEl, onLanded, ghostEl, durMs){
   var oldRects = captureTimelineRects();        // 動く前の位置を記録（ドラッグ中に間を空けていれば、その状態で記録される）
   game.timeline.splice(insertIndex, 0, card);   // 年表を先に確定させる
   renderTimeline(function(){});                 // 年表だけ描き直す（手札はそのまま残す）
@@ -1570,10 +1822,12 @@ function insertCardWithAnimation(card, insertIndex, sourceEl, onLanded, ghostEl)
     var wr = wrap.getBoundingClientRect();
     var nr = newEl.getBoundingClientRect();
     var margin = Math.min(28, wr.width * 0.12);
+    // wr/nrは#game-stageのtransform:scale後の実画面px。scrollLeftはwrap自身の
+    // ローカルな(scaleされていない)px単位なので、差分はscaleで割って変換する。
     if(nr.left < wr.left + margin){
-      wrap.scrollLeft += nr.left - (wr.left + margin);
+      wrap.scrollLeft += (nr.left - (wr.left + margin)) / gameStageScale;
     } else if(nr.right > wr.right - margin){
-      wrap.scrollLeft += nr.right - (wr.right - margin);
+      wrap.scrollLeft += (nr.right - (wr.right - margin)) / gameStageScale;
     }
   }
 
@@ -1583,18 +1837,51 @@ function insertCardWithAnimation(card, insertIndex, sourceEl, onLanded, ghostEl)
     newEl.style.visibility = 'hidden';          // 飛んできたカードが着くまで隠しておく
   }
 
-  playTimelineFlip(oldRects);                   // まわりのカードが間を空ける（すでに開いていれば実質動かない）
+  playTimelineFlip(oldRects, durMs);            // まわりのカードが間を空ける（すでに開いていれば実質動かない）
   playFlyAnimation(sourceEl, target, function(){ // 同時に、着地位置へスッと収束させる（.45秒）
     if(newEl) newEl.style.visibility = '';
     onLanded();
-  }, ghostEl, card.id);
+  }, ghostEl, card.id, durMs);
 }
 
 /* 飛んでいく分身(.fly-card)の文字サイズを、元の手札カードの実際の大きさに合わせる。
    .fly-card の文字サイズは固定値なので、これをしないと手札の大きさとズレて
    飛び始めた瞬間に文字だけ急に小さく(または大きく)なって見えてしまう。 */
+/* 手札カード(sourceEl)は#game-stageのscaleや選択中のscale(1.14)の内側にあるので、
+   getComputedStyleで取れる文字サイズ等は「拡大前」の値。分身(.fly-card)はbody直下で
+   画面pxのまま描かれるので、画面上の実際の倍率k(見た目の幅÷レイアウト上の幅)を掛けないと、
+   持った瞬間に文字だけ小さく見えてしまう。 */
+function flyScaleOf(sourceEl){
+  var k = NaN;
+  if(sourceEl && sourceEl.offsetWidth > 0){
+    k = sourceEl.getBoundingClientRect().width / sourceEl.offsetWidth;
+  }
+  if(!(k > 0)) k = gameStageScale || 1;
+  return k;
+}
+/* 持ち上げた分身を、手札のカードと同じ雰囲気(枠の色・影・角丸・絵の余白)にそろえる */
+function applyHandLookToGhost(ghost, sourceEl){
+  if(!ghost || !sourceEl) return;
+  var k = flyScaleOf(sourceEl);
+  var cs = getComputedStyle(sourceEl);
+  ghost.style.transition = 'none';
+  ghost.style.borderColor = cs.borderTopColor;
+  ghost.style.boxShadow = cs.boxShadow;
+  ghost.style.borderRadius = (parseFloat(cs.borderTopLeftRadius) * k) + 'px';
+  var pic = ghost.querySelector('.card-pic'), spic = sourceEl.querySelector('.card-pic');
+  if(pic && spic){
+    var pcs = getComputedStyle(spic);
+    pic.style.transition = 'none';
+    pic.style.marginBottom = (parseFloat(pcs.marginBottom) * k) + 'px';
+    pic.style.borderRadius = (parseFloat(pcs.borderTopLeftRadius) * k) + 'px';
+  }
+  void ghost.offsetWidth;
+  ghost.style.transition = '';
+  if(pic) pic.style.transition = '';
+}
 function setFlyCardFontFromSource(clone, sourceEl){
   if(!clone || !sourceEl) return;
+  var k = flyScaleOf(sourceEl);
   ['.name', '.yomi', '.event'].forEach(function(sel){
     var src = sourceEl.querySelector(sel);
     var dst = clone.querySelector(sel);
@@ -1604,22 +1891,50 @@ function setFlyCardFontFromSource(clone, sourceEl){
        本来なめらかにしたい場面の直前に一瞬すり替わって見える。
        いったんtransitionを切って値を確定させ、reflowしてから戻す。 */
     dst.style.transition = 'none';
-    dst.style.fontSize = getComputedStyle(src).fontSize;
+    dst.style.fontSize = (parseFloat(getComputedStyle(src).fontSize) * k) + 'px';
     void dst.offsetWidth;   // 確定させるための強制reflow
     dst.style.transition = '';
   });
 }
 /* 着地間際に、本物の場札カード(.tl-card)と同じ文字サイズへなめらかに収束させる。
    ここで合わせておかないと、着地して本物のカードに差し替わった瞬間に文字サイズが
-   カクッと変わって見えてしまう。値は .tl-card .name/.yomi/.event のCSSと合わせてある。 */
+   カクッと変わって見えてしまう。値は .tl-card .name/.yomi/.event/.year のCSSと
+   合わせてある（固定値ではなく、実際の場札の大きさ(--cardw)から計算する。
+   画面が低くて場札が縮んでいるときに、着地の瞬間だけ等身大(cardw=100px相当)の
+   大きさになってから本物のカードへ一気に縮む、という見た目のズレを防ぐため）。 */
 function setFlyCardFontToTimelineSize(clone){
   if(!clone) return;
+  var wrap = document.getElementById('timeline-wrap');
+  var cardw = wrap ? parseFloat(getComputedStyle(wrap).getPropertyValue('--cardw')) : NaN;
+  if(!(cardw > 0)) cardw = 100;
+  // --cardwは#game-stage内のデザインpx。分身は画面px(body直下)なので、拡大縮小の倍率を掛ける。
+  // これを掛けないと、着地して本物の場札に替わった瞬間に年号などの大きさがカクッと変わる。
+  cardw = cardw * (gameStageScale || 1);
   var nameEl = clone.querySelector('.name');
   var yomiEl = clone.querySelector('.yomi');
   var eventEl = clone.querySelector('.event');
-  if(nameEl) nameEl.style.fontSize = '1rem';
-  if(yomiEl) yomiEl.style.fontSize = '.55rem';
-  if(eventEl) eventEl.style.fontSize = '.64rem';
+  var yearEl = clone.querySelector('.year');
+  if(nameEl){
+    var nc = Math.max(1, (nameEl.textContent || '').length);
+    var sc = (gameStageScale || 1);
+    nameEl.style.fontSize = Math.min(cardw * .16, (cardw - 12 * sc) / nc) + 'px';   // 場札の.nameと同じ式
+  }
+  if(yomiEl) yomiEl.style.fontSize = (cardw * .088) + 'px';
+  if(eventEl) eventEl.style.fontSize = (cardw * .1024) + 'px';
+  /* 着地して本物の.tl-cardに差し替わる瞬間にイラストが縦にずれないよう、
+     枠の太さ・内側の余白・年号帯の上下の余白を.tl-cardと同じ値(画面px)へ収束させる */
+  var sc2 = (gameStageScale || 1);
+  clone.style.borderWidth = (2 * sc2) + 'px';
+  clone.style.padding = (4 * sc2) + 'px ' + (3 * sc2) + 'px';
+  if(yearEl){
+    yearEl.style.marginTop = (-cardw * .04) + 'px';
+    yearEl.style.marginLeft = yearEl.style.marginRight = (-cardw * .03) + 'px';
+    yearEl.style.marginBottom = (cardw * .04) + 'px';
+    yearEl.style.fontSize = (cardw * .184) + 'px';
+    yearEl.style.paddingTop = (cardw * .04) + 'px';
+    yearEl.style.paddingBottom = (cardw * .04) + 'px';
+    yearEl.style.maxHeight = (cardw * .48) + 'px';   // 文字+余白が収まるだけの十分な高さ
+  }
 }
 
 /* 着地位置(target)へスーッと移動させ、そこで実際の年表カードと同じサイズへ収束させる。
@@ -1627,7 +1942,9 @@ function setFlyCardFontToTimelineSize(clone){
    ghostEl があれば（ドラッグ中に指へ追従していた分身があれば）それをそのまま使って、
    今それがある場所・大きさから着地位置へ収束させる（手札の位置まで戻ってから飛ぶことはしない）。
    ghostEl がなければ（タップで置いたときなど）従来どおり sourceEl から新しく分身を作って飛ばす。 */
-function playFlyAnimation(sourceEl, target, onDone, ghostEl, cardId){
+/* durMs … 飛ぶ時間(ms)。省略すると既定の.45秒。まちがえて遠い正解位置まで飛ぶときは
+   同じ時間だと速すぎて見えるので、長めを渡す */
+function playFlyAnimation(sourceEl, target, onDone, ghostEl, cardId, durMs){
   if(!target){ if(ghostEl) ghostEl.remove(); onDone(); return; }
   var tRect = (typeof target.getBoundingClientRect === 'function') ? target.getBoundingClientRect() : target;
 
@@ -1652,7 +1969,24 @@ function playFlyAnimation(sourceEl, target, onDone, ghostEl, cardId){
   // 手札での実際の文字の大きさから始める（飛び始めた瞬間に文字だけ小さくならないように）
   setFlyCardFontFromSource(clone, sourceEl);
 
+  // 年号の帯は手札には無いので、はじめは畳んだ状態(高さ0)で用意しておき、
+  // 着地のタイミングで他のサイズ変化と同時に広げる（にゅーっと上から降りてくる見た目になる）。
+  var yearEl = clone.querySelector('.year');
+  if(!yearEl){
+    yearEl = document.createElement('div');
+    yearEl.className = 'year';
+    var yc = CARD_BY_ID[cardId];
+    yearEl.textContent = yc ? (yc.year + '年') : '';
+    clone.insertBefore(yearEl, clone.firstChild);
+  }
+
   if(sourceEl) sourceEl.style.visibility = 'hidden';
+
+  if(durMs){
+    // 本体と中身(文字・絵・年号の帯)のtransitionを同じ長さにそろえる
+    clone.style.transitionDuration = durMs + 'ms';
+    clone.querySelectorAll('*').forEach(function(c){ c.style.transitionDuration = durMs + 'ms'; });
+  }
 
   requestAnimationFrame(function(){
     requestAnimationFrame(function(){
@@ -1660,8 +1994,11 @@ function playFlyAnimation(sourceEl, target, onDone, ghostEl, cardId){
       clone.style.top = tRect.top + 'px';
       clone.style.width = tRect.width + 'px';
       clone.style.height = tRect.height + 'px';
-      clone.style.borderRadius = '10px';
-      // 場札での実際の文字の大きさへなめらかに収束させる（着地時に文字だけ急に変わらないように）
+      clone.style.borderRadius = (10 * (gameStageScale || 1)) + 'px';
+      clone.style.borderColor = '';   // 手札の赤枠 → 場札の金枠へ
+      clone.style.boxShadow = '';
+      // 場札での実際の文字の大きさ・年号帯の大きさへなめらかに収束させる
+      // （着地時に文字だけ急に変わらないように。年号帯の展開もここでまとめて行う）
       setFlyCardFontToTimelineSize(clone);
       var clonePic = clone.querySelector('.card-pic');
       if(clonePic){
@@ -1679,7 +2016,7 @@ function playFlyAnimation(sourceEl, target, onDone, ghostEl, cardId){
     onDone();
   }
   clone.addEventListener('transitionend', finish);
-  T(finish, 600); // 保険：transitionendが発火しない端末があるため
+  T(finish, (durMs || 450) + 150); // 保険：transitionendが発火しない端末があるため
 }
 
 /* 年表に新しいカードが差し込まれる直前の、既存カードの位置を記録しておく（FLIP法） */
@@ -1692,13 +2029,17 @@ function captureTimelineRects(){
 }
 
 /* 差し込み後、既存カードが新しい位置へ「ニョーン」とスライドしながら間を空けるように見せる */
-function playTimelineFlip(oldRects){
+function playTimelineFlip(oldRects, durMs){
   var toAnimate = [];
   document.querySelectorAll('#timeline-wrap .tl-card').forEach(function(el){
     var old = oldRects[el.dataset.id];
     if(!old) return; // 今回新しく差し込まれたカードはアニメーション対象外（すでに飛来演出で着地済み）
     var now = el.getBoundingClientRect();
-    var dx = old.left - now.left;
+    // old/nowは#game-stageのtransform:scale後の実画面px。ここで動かす対象(el)は
+    // そのscaleされた箱の中の子なので、ローカルなtranslateXの値はscaleで割って
+    // 実際の見た目の移動量に戻す必要がある（割らないと、拡大縮小時に動く量が
+    // ずれて、カードが本来の位置に正しく収まらなくなる）。
+    var dx = (old.left - now.left) / gameStageScale;
     if(Math.abs(dx) < 0.5) return;
     el.style.transition = 'none';
     el.style.transform = 'translateX(' + dx + 'px)';
@@ -1708,7 +2049,7 @@ function playTimelineFlip(oldRects){
   requestAnimationFrame(function(){
     requestAnimationFrame(function(){
       toAnimate.forEach(function(el){
-        el.style.transition = 'transform .32s cubic-bezier(.4,0,.2,1)';
+        el.style.transition = 'transform ' + (.32 * (durMs || 450) / 450) + 's cubic-bezier(.4,0,.2,1)';
         el.style.transform = '';
       });
     });
@@ -2052,8 +2393,6 @@ function playRoomMove(prev, room){
   var mv = room.lastMove;
   var card = CARD_BY_ID[mv.cardId];
   var mine = (mv.by === online.myKey);
-  var who = mine ? '' : (playerName(room, mv.by) + '：');
-  showToast(who + (mv.correct ? '正解！' : '残念…正しい位置に入れたよ'), mv.correct ? 'ok' : 'ng');
   playJudgeMark(mv.correct);
 
   syncGameFromRoom(prev);                                  // ひとつ前の年表から、この1枚を差し込む
@@ -2096,13 +2435,17 @@ function discardPendingGhost(cardId){
   if(g){ g.remove(); delete online.pendingGhosts[cardId]; }
 }
 function onlinePlace(cardId, gapIndex, sourceEl, ghostEl){
-  if(uiLocked || online.busy){ if(ghostEl) ghostEl.remove(); return; }
+  // 早期リターンするときは、ドラッグの分身(ghost)と隠した手札(sourceEl)を必ず元に戻す。
+  // 戻さないと、ghostが画面に残ったまま手札も隠れた状態になり、操作できず
+  // 「フリーズ」したように見えてしまう（次に部屋の状態が届くまで直らない）。
+  if(uiLocked || online.busy){ if(ghostEl) ghostEl.remove(); if(sourceEl) sourceEl.style.visibility = ''; return; }
   var room = online.room;
-  if(!room || room.status !== 'playing'){ if(ghostEl) ghostEl.remove(); return; }
+  if(!room || room.status !== 'playing'){ if(ghostEl) ghostEl.remove(); if(sourceEl) sourceEl.style.visibility = ''; return; }
   var me = findPlayerIndex(room, online.myKey);
   if(room.turn !== me){
     showToast('今は ' + (room.players[room.turn] ? room.players[room.turn].name : '') + ' さんの番だよ', 'ng');
     if(ghostEl) ghostEl.remove();
+    if(sourceEl) sourceEl.style.visibility = '';
     return;
   }
   uiLocked = true;
@@ -2340,6 +2683,7 @@ function showOnlineResult(room){
   document.getElementById('result-score-group').hidden = true;
   document.getElementById('result-best-group').hidden = true;
   document.getElementById('result-settings-btn').hidden = true;
+  document.getElementById('result-rank-btn').hidden = true;
   var retry = document.getElementById('retry-btn');
   retry.hidden = !online.isHost;
   retry.textContent = 'もう一度（この部屋で）';
@@ -2354,7 +2698,392 @@ function setSoloResultButtons(){
   document.getElementById('menu-back-btn').textContent = 'トップにもどる';
   document.getElementById('result-wait').hidden = true;
   document.getElementById('result-settings-btn').hidden = false;
+  document.getElementById('result-rank-btn').hidden = false;
 }
+
+/* ============================================================
+   ひとりプレイのランキング（今週・今月・累計）
+   ・Firestore の rankings コレクションに3つのドキュメント
+       w-YYYY-MM-DD(その週の月曜) / m-YYYY-MM / all
+     を置き、それぞれ上位RANK_TOP人ぶんの記録(entries)だけを持つ。
+   ・毎回読みこまないための工夫：いったん読みこんだら、各ランキングの
+     「いちばん下の人の点数(min)」と「満員かどうか(full)」だけを端末に覚えておく。
+     ランキングの最下位は下がらない(週・月が変わるまで)ので、
+       点数 <= min かつ 満員  →  通信せずに「ランクインなし」と判断できる
+     点数がそれを上回るときだけ読みなおし、ランクインが確定したら入力画面を出す。
+   ============================================================ */
+var RANK_COLL = 'rankings';
+var RANK_TOP = 10;
+var RANK_NAME_MAX = 5;
+var RANK_MEM_MS = 2 * 60 * 1000;   // ランキング画面で、同じ表を2分は読みなおさない
+var RANK_BOARDS = [ { id:'w', label:'今週' }, { id:'m', label:'今月' }, { id:'a', label:'累計' } ];
+var RANK_ALLOWED = /^[A-Za-z☆★♡♥♪♬♩!?&+.✿◎○△×✦♫♠♣♦❀-]$/;
+var RANK_SYMBOLS = ['☆','★','✦','♡','♥','♪','♬','♫','♠','♣','♦','◎','○','△','×','❀','✿','!','?','&','-','+','.'];
+var PREFS = ['北海道','青森','岩手','宮城','秋田','山形','福島','茨城','栃木','群馬','埼玉','千葉','東京','神奈川',
+  '新潟','富山','石川','福井','山梨','長野','岐阜','静岡','愛知','三重','滋賀','京都','大阪','兵庫','奈良','和歌山',
+  '鳥取','島根','岡山','広島','山口','徳島','香川','愛媛','高知','福岡','佐賀','長崎','熊本','大分','宮崎','鹿児島','沖縄'];
+
+var rankMem = {};          // key -> { entries, at }
+var rankMine = null;       // 直前に登録した記録 { key, t }
+var rankBack = 'setup-solo-screen';
+var rankTab = 'w';
+var rankPending = null;    // 入力画面に出しているランクイン情報 { score, hits }
+
+function rkPad(n){ return (n < 10 ? '0' : '') + n; }
+function rkYmd(d){ return d.getFullYear() + '-' + rkPad(d.getMonth() + 1) + '-' + rkPad(d.getDate()); }
+function rankKeys(){
+  var d = new Date();
+  var mon = new Date(d.getFullYear(), d.getMonth(), d.getDate() - ((d.getDay() + 6) % 7));   // 月曜はじまり
+  return { w: 'w-' + rkYmd(mon), m: 'm-' + d.getFullYear() + '-' + rkPad(d.getMonth() + 1), a: 'all' };
+}
+function rankPeriodText(id){
+  var d = new Date();
+  if(id === 'w'){
+    var mon = new Date(d.getFullYear(), d.getMonth(), d.getDate() - ((d.getDay() + 6) % 7));
+    var sun = new Date(mon.getFullYear(), mon.getMonth(), mon.getDate() + 6);
+    return (mon.getMonth() + 1) + '/' + mon.getDate() + '（月）〜 ' + (sun.getMonth() + 1) + '/' + sun.getDate() + '（日）';
+  }
+  if(id === 'm') return d.getFullYear() + '年' + (d.getMonth() + 1) + '月';
+  return 'これまでの すべての きろく';
+}
+function rankCmp(a, b){ return (b.s - a.s) || (a.t - b.t); }   // 点数が高い順。同点は先に取った人が上
+/* この端末を見分けるための番号（同じ端末は、各ランキングに最高記録1件までにするため） */
+var rankDevMem = '';
+function rankDevId(){
+  try{
+    var v = localStorage.getItem('rekishi.rankDev');
+    if(!v){
+      v = Math.random().toString(36).slice(2, 10) + Math.random().toString(36).slice(2, 10);
+      localStorage.setItem('rekishi.rankDev', v);
+    }
+    return v;
+  }catch(e){
+    if(!rankDevMem) rankDevMem = Math.random().toString(36).slice(2, 12);
+    return rankDevMem;
+  }
+}
+function cleanEntries(list){
+  var seen = {}, out = [];
+  (Array.isArray(list) ? list : []).filter(function(e){
+    return e && typeof e.s === 'number' && typeof e.n === 'string';
+  }).sort(rankCmp).forEach(function(e){
+    if(typeof e.d === 'string' && e.d){          // 同じ端末の記録は、いちばん高い1件だけ残す
+      if(seen[e.d]) return;
+      seen[e.d] = 1;
+    }
+    out.push(e);
+  });
+  return out.slice(0, RANK_TOP);
+}
+function myBest(entries){
+  var d = rankDevId(), m = 0;
+  entries.forEach(function(e){ if(e.d === d && e.s > m) m = e.s; });
+  return m;
+}
+
+/* --- 「最下位の点数」だけ端末に覚える（これで余計な通信をへらす） --- */
+function loadThr(){ try{ return JSON.parse(localStorage.getItem('rekishi.rankThr') || '{}') || {}; }catch(e){ return {}; } }
+function saveThr(t){ try{ localStorage.setItem('rekishi.rankThr', JSON.stringify(t)); }catch(e){} }
+function updateThr(id, key, entries){
+  var t = loadThr();
+  t[id] = { k: key, full: entries.length >= RANK_TOP, min: entries.length ? entries[entries.length - 1].s : 0, mine: myBest(entries) };
+  saveThr(t);
+}
+function mayRankIn(id, key, score){
+  if(!(score > 0)) return false;
+  var rec = loadThr()[id];
+  if(!rec || rec.k !== key) return true;        // まだ知らない（または週・月が変わった）→ 一度読む必要がある
+  if(rec.mine && score <= rec.mine) return false;   // この端末の記録のほうが高い（同じ）なら、新しく入れない
+  return !rec.full || score > rec.min;           // 満員で最下位以下なら、通信しなくても圏外
+}
+
+function fetchBoard(key, id){
+  return ensureDb().then(function(db){
+    return db.collection(RANK_COLL).doc(key).get();
+  }).then(function(snap){
+    var entries = cleanEntries(snap.exists ? snap.data().entries : []);
+    rankMem[key] = { entries: entries, at: Date.now() };
+    updateThr(id, key, entries);
+    return entries;
+  });
+}
+function rankPosition(entries, score){
+  if(myBest(entries) >= score) return RANK_TOP + 1;   // この端末の最高記録を超えていない → 圏外あつかい
+  var d = rankDevId(), above = 0;
+  entries.forEach(function(e){ if(e.d !== d && e.s >= score) above++; });   // 自分の古い記録は置きかわるので数えない
+  return above + 1;
+}
+
+/* --- ひとりプレイが終わったとき：ランクインの可能性があるときだけ読みこむ --- */
+function rankAfterGame(score){
+  if(!(score > 0)) return;
+  var keys = rankKeys();
+  var cands = RANK_BOARDS.filter(function(b){ return mayRankIn(b.id, keys[b.id], score); });
+  if(!cands.length) return;
+  Promise.all(cands.map(function(b){
+    return fetchBoard(keys[b.id], b.id).then(function(entries){
+      return { id: b.id, label: b.label, key: keys[b.id], pos: rankPosition(entries, score) };
+    });
+  })).then(function(res){
+    var hits = res.filter(function(r){ return r.pos <= RANK_TOP; });
+    if(!hits.length) return;
+    if(!document.getElementById('result-screen').classList.contains('active')) return;   // もう別の画面に移っていたら出さない
+    openRankEntry(score, hits);
+  }).catch(function(e){
+    // 遊びの邪魔にならないよう小さなお知らせだけ。くわしい原因はコンソール(F12)に出す
+    try{ console.warn('[ranking] 読みこみ失敗:', e && (e.code || e.message || e)); }catch(_){}
+    showToast('ランキングに つなげませんでした', 'ng');
+  });
+}
+
+/* --- 名前入力 --- */
+function rankSanitize(v){
+  var t = '';
+  try{ t = String(v).normalize('NFKC'); }catch(e){ t = String(v); }
+  return Array.from(t).filter(function(ch){ return RANK_ALLOWED.test(ch); }).slice(0, RANK_NAME_MAX).join('');
+}
+function loadRankProfile(){
+  try{ return { name: localStorage.getItem('rekishi.rankName') || '', pref: localStorage.getItem('rekishi.rankPref') || '' }; }
+  catch(e){ return { name: '', pref: '' }; }
+}
+function saveRankProfile(name, pref){
+  try{ localStorage.setItem('rekishi.rankName', name); localStorage.setItem('rekishi.rankPref', pref); }catch(e){}
+}
+function openRankEntry(score, hits){
+  rankPending = { score: score, hits: hits };
+  var list = document.getElementById('rank-entry-hits');
+  list.innerHTML = '';
+  hits.forEach(function(h){
+    var li = document.createElement('li');
+    li.appendChild(document.createTextNode(h.label + ' '));
+    var b = document.createElement('b'); b.textContent = h.pos;
+    li.appendChild(b);
+    li.appendChild(document.createTextNode(' 位'));
+    list.appendChild(li);
+  });
+  document.getElementById('rank-entry-score').textContent = score;
+  var prof = loadRankProfile();
+  document.getElementById('rank-name').value = rankSanitize(prof.name);
+  document.getElementById('rank-pref').value = prof.pref;
+  document.getElementById('rank-submit').disabled = false;
+  document.getElementById('rank-entry').hidden = false;
+}
+function closeRankEntry(){
+  rankPending = null;
+  document.getElementById('rank-entry').hidden = true;
+}
+/* --- 不適切な名前の判定 ---
+   名前は5文字までなので、調べる相手は「5文字以内の英語の不適切な言葉」。
+   コードを開いたときに言葉そのものが読めてしまわないよう、一覧はエンコードして持ち、使うときにだけ元にもどす。
+   記号や数字でごまかした入力も見つけられるよう、小文字にして、よくある置きかえ
+   (0→o 1→i 3→e 4→a 5→s 7→t @→a $→s など)をもどし、英字以外を取りのぞき、
+   同じ文字の連続も1つにまとめた形でも調べる。
+   ・RANK_BAD_WHOLE_ENC：名前ぜんたいが一致したらアウト（ふつうの名前まで引っかけないため、基本はこちら）
+   ・RANK_BAD_PART_ENC ：名前のどこかに含まれていたらアウト（名前に入りようのない強い言葉だけ）
+   ※言葉を足すときは、カンマ区切りの文字列をbase64にして、それぞれの文字列に置きかえる。 */
+var RANK_BAD_WHOLE_ENC = 'NjksYXYsYmosZnUsc20sc3gsYXNzLGJjaCxjdW0sZGllLGVybyxmYWcsZmFwLGZhdCxmY2ssZnVjLGZ1ayxmdXEsZ2F5LGd1bixob2Usa2trLGtsbCxrbXMsa3lzLGxleixuYXosbmlnLHBlZSxwb28scHVzLHNleCxzaHQsc3V4LHRpdCx2YWcsd29wLHd0Zix4eHgsYW5hbCxhbnVzLGFyc2UsYXNzaCxhc3NzLGJpdGMsYm9tYixib29iLGJ0Y2gsYnV0dCxjaG5rLGNsaXQsY29jayxjb2tlLGNvb24sY3JhayxjcmFwLGN1bW0sY3VudCxkYW1uLGRlYWQsZGljayxkcnVnLGR1bWIsZHlrZSxmYWdzLGZhZ3QsZmNrdSxmY3VrLGZ1Y2ssZnVrayxmdWtyLGZ1eGssZnZjayxnb29rLGdvcmUsZ3VucyxoYW5nLGhhdGUsaGVsbCxoZW50LGhpdGwsaG9lcyxob21vLGhvcm4saXNpcyxqaXNtLGppenosa2lrZSxraWxsLG1ldGgsbWlsZixtdXJkLG5hemksbmlnYSxuaWdnLG5pZ3IsbnVkZSxudWRzLG9tZmcsb3JneSxwYWtpLHBlZG8scGltcCxwaXNzLHBvb3AscG9ybixwcmlrLHB1c3MscmFlcCxyYXBlLHNleHgsc2V4eSxzaGF0LHNoaXQsc2h5dCxzbHV0LHNwaWMsc3RhYixzdGZ1LHN1Y2ssc3VpYyx0YXJkLHRob3QsdGl0cyx0dXJkLHR3YXQsdWdseSx3YW5rLHdlZWQsd2hvcixhaG9sZSxhbmFscyxhbnVzcyxhcnNlcyxhc3Nlcyxhc3NobCxiYWxscyxiYXN0ZCxiaXRjaCxibG93aixib21icyxib25lcixib29icyxjbGl0cyxjb2Nrcyxjb2NreSxjcmFjayxjdW50cyxkZWF0aCxkaWNrcyxkaWNreSxkaWxkbyxkcnVncyxkeWtlcyxmYWdncyxmYWdvdCxmYXRzbyxmYXR0eSxmdWNrYSxmdWNrcyxmdWNrdSxnb29rcyxoYXRlcyxoaXRsZSxoaXRscixob21vcyxob3JueSxpZGlvdCxpbmNlbCxraWtlcyxraWxsYSxraWxscyxsZXNibyxsb3NlcixtaWxmcyxtb3JvbixuYXppcyxuZWdybyxuaWdlcixuaWdnYSxuaWdncyxudWRlcyxwZWRvcyxwZW5pcyxwaW1wcyxwdXNzeSxxdWVlcixyYXBlZCxyYXBlcyxyYXBleSxyZXRhcixzZW1lbixzZXh4eCxzZXh4eSxzaGl0ZSxzaGl0cyxzaGl0dCxzaGl0eSxzaGl0eixza2FuayxzbHV0cyxzcGljcyxzdGFicyxzdHVwZCx0d2F0cyx2dWx2YSx3YW5rYSx3YW5rcyx3ZWVkcyx3aG9yZSx3aG9ycyxtb2xlc3Q=';
+var RANK_BAD_PART_ENC = 'Y3VudCxmdWNrLGppenosa2trLG5pZ2cscGlzcyxwb3JuLHNsdXQsdHdhdCx4eHg=';
+var rankBadCache = null;
+function rankBadLists(){
+  if(!rankBadCache){
+    try{ rankBadCache = { whole: atob(RANK_BAD_WHOLE_ENC).split(','), part: atob(RANK_BAD_PART_ENC).split(',') }; }
+    catch(e){ rankBadCache = { whole: [], part: [] }; }
+  }
+  return rankBadCache;
+}
+function rankIsBad(name){
+  var L = rankBadLists();
+  var t = '';
+  try{ t = String(name).normalize('NFKC'); }catch(e){ t = String(name); }
+  t = t.toLowerCase();
+  var map = { '0':'o','1':'i','3':'e','4':'a','5':'s','7':'t','8':'b','9':'g','@':'a','$':'s','!':'i','+':'t','&':'a' };
+  var raw = t.replace(/[^a-z0-9@$!+&]/g, '');          // 数字だけの名前もそのまま調べる
+  t = t.replace(/[01345789@$!+&]/g, function(c){ return map[c]; });
+  t = t.replace(/[^a-z]/g, '');
+  var forms = [raw, t, t.replace(/(.)\1+/g, '$1')];     // そのまま／置きかえ後／連続文字を1つに
+  for(var f = 0; f < forms.length; f++){
+    var x = forms[f];
+    if(!x) continue;
+    if(L.whole.indexOf(x) >= 0) return true;
+    for(var i = 0; i < L.part.length; i++){ if(x.indexOf(L.part[i]) >= 0) return true; }
+  }
+  return false;
+}
+
+function submitRankEntry(){
+  if(!rankPending) return;
+  var name = rankSanitize(document.getElementById('rank-name').value);
+  var pref = document.getElementById('rank-pref').value;
+  if(!name){ showToast('なまえを いれてね（えいご・きごう）', 'ng'); return; }
+  if(rankIsBad(name)){
+    // 不適切な名前は、登録も名前の記憶もせず、そのままトップ画面へもどす
+    closeRankEntry();
+    cancelAllTimers();
+    showScreen('menu-screen');   // 理由は何も言わず、そのままトップへ
+    return;
+  }
+  saveRankProfile(name, pref);
+  var info = rankPending;
+  var btn = document.getElementById('rank-submit');
+  btn.disabled = true;
+  var entry = { n: name, p: pref, s: info.score, t: Date.now(), d: rankDevId() };
+  ensureDb().then(function(db){
+    var refs = info.hits.map(function(h){ return db.collection(RANK_COLL).doc(h.key); });
+    return db.runTransaction(function(tx){
+      return Promise.all(refs.map(function(r){ return tx.get(r); })).then(function(snaps){
+        var out = [];
+        snaps.forEach(function(sn, i){
+          var es = cleanEntries(sn.exists ? sn.data().entries : []);
+          if(myBest(es) >= entry.s){ out.push(es); return; }   // すでにこの端末の記録のほうが高い → 変更しない
+          es = es.filter(function(e){ return e.d !== entry.d; }).concat([entry]).sort(rankCmp).slice(0, RANK_TOP);
+          tx.set(refs[i], { entries: es });
+          out.push(es);
+        });
+        return out;
+      });
+    });
+  }).then(function(out){
+    info.hits.forEach(function(h, i){
+      rankMem[h.key] = { entries: out[i], at: Date.now() };
+      updateThr(h.id, h.key, out[i]);
+    });
+    rankMine = { t: entry.t, s: entry.s, n: entry.n };
+    closeRankEntry();
+    showToast('ランキングに とうろくしたよ！', 'ok');
+    openRankScreen('result-screen', info.hits[0].id);
+  }).catch(function(){
+    btn.disabled = false;
+    showToast('とうろくできませんでした。もう一度ためしてね', 'ng');
+  });
+}
+
+/* --- ランキング画面 --- */
+function openRankScreen(from, tab){
+  rankBack = from || 'setup-solo-screen';
+  showScreen('ranking-screen');
+  selectRankTab(tab || rankTab);
+}
+/* ランキング画面を開いている間だけ、見ているタブ1つ(約1KB)を onSnapshot で購読する。
+   誰かがランクインして中身が変わったときだけ、そのぶんが届く。
+   通信を残さないよう、タブを切りかえる・画面を出る・ブラウザが裏に回る・10分たつ、のどれでも解除する。 */
+var rankUnsub = null;
+var rankLiveTimer = null;
+var RANK_LIVE_MAX_MS = 10 * 60 * 1000;
+function rankStopLive(){
+  if(rankUnsub){ try{ rankUnsub(); }catch(e){} rankUnsub = null; }
+  if(rankLiveTimer){ clearTimeout(rankLiveTimer); rankLiveTimer = null; }
+}
+function selectRankTab(id){
+  rankTab = id;
+  document.querySelectorAll('.rank-tab').forEach(function(b){ b.classList.toggle('selected', b.getAttribute('data-board') === id); });
+  document.getElementById('rank-period').textContent = rankPeriodText(id);
+  rankStartLive(id);
+}
+var rankReqSeq = 0;
+function rankStartLive(id){
+  rankStopLive();
+  var key = rankKeys()[id];
+  var msg = document.getElementById('rank-msg');
+  var mem = rankMem[key];
+  if(mem){ msg.textContent = ''; paintRankList(mem.entries); }   // 前に見た内容をとりあえず出しておく（すぐ最新に置きかわる）
+  else { document.getElementById('rank-list').innerHTML = ''; msg.textContent = 'よみこみ中…'; }
+  var seq = ++rankReqSeq;
+  ensureDb().then(function(db){
+    if(seq !== rankReqSeq) return;
+    rankUnsub = db.collection(RANK_COLL).doc(key).onSnapshot(function(snap){
+      if(seq !== rankReqSeq) return;
+      var entries = cleanEntries(snap.exists ? snap.data().entries : []);
+      rankMem[key] = { entries: entries, at: Date.now() };
+      updateThr(id, key, entries);
+      paintRankList(entries);
+    }, function(err){
+      try{ console.warn('[ranking] 購読失敗:', err && (err.code || err.message || err)); }catch(_){}
+      if(seq !== rankReqSeq) return;
+      if(!rankMem[key]) msg.textContent = 'ランキングを よみこめませんでした';
+    });
+    rankLiveTimer = setTimeout(function(){
+      rankStopLive();
+      document.getElementById('rank-msg').textContent = 'しばらく たったので、自動こうしんを とめました（タブを押すと もう一度）';
+    }, RANK_LIVE_MAX_MS);
+  }).catch(function(){
+    if(seq !== rankReqSeq) return;
+    if(!rankMem[key]) msg.textContent = 'ランキングを よみこめませんでした';
+  });
+}
+function rankLeave(){
+  rankReqSeq++;       // 遅れて届く応答を無視する
+  rankStopLive();
+}
+document.addEventListener('visibilitychange', function(){
+  var active = document.getElementById('ranking-screen').classList.contains('active');
+  if(!active) return;
+  if(document.hidden) rankStopLive();                 // ブラウザが裏に回ったら止める
+  else rankStartLive(rankTab);                         // 戻ってきたら見ているタブだけ再開
+});
+function paintRankList(entries){
+  var ol = document.getElementById('rank-list');
+  ol.innerHTML = '';
+  var msg = document.getElementById('rank-msg');
+  msg.textContent = '';
+  if(!entries.length){ msg.textContent = 'まだ きろくが ありません'; return; }
+  entries.forEach(function(e, i){
+    var li = document.createElement('li');
+    li.className = 'rank-row' + (i < 3 ? ' r' + (i + 1) : '') +
+      ((rankMine && e.t === rankMine.t && e.s === rankMine.s && e.n === rankMine.n) ? ' mine' : '');
+    function cell(cls, text){ var sp = document.createElement('span'); sp.className = cls; sp.textContent = text; li.appendChild(sp); }
+    cell('rk', (i + 1));
+    cell('nm', e.n);
+    cell('pf', e.p || '');
+    cell('sc', e.s + '枚');
+    ol.appendChild(li);
+  });
+}
+
+/* --- ボタンの配線 --- */
+(function(){
+  var sel = document.getElementById('rank-pref');
+  var o = document.createElement('option'); o.value = ''; o.textContent = 'えらばない'; sel.appendChild(o);
+  PREFS.forEach(function(p){ var op = document.createElement('option'); op.value = p; op.textContent = p; sel.appendChild(op); });
+  /* えいご／きごう を切りかえられる入力キーボード（端末のキーボードは出さず、これで入力できる） */
+  var kb = document.getElementById('rank-kb');
+  var kbModes = {
+    en: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split(''),
+    sym: RANK_SYMBOLS
+  };
+  function paintKb(mode){
+    kb.innerHTML = '';
+    kbModes[mode].forEach(function(ch){
+      var b = document.createElement('button');
+      b.type = 'button'; b.textContent = ch; b.setAttribute('aria-label', ch);
+      b.addEventListener('click', function(){
+        var inp = document.getElementById('rank-name');
+        inp.value = rankSanitize(inp.value + ch);
+      });
+      kb.appendChild(b);
+    });
+    var del = document.createElement('button');
+    del.type = 'button'; del.className = 'del'; del.textContent = 'けす'; del.setAttribute('aria-label', '1文字けす');
+    del.addEventListener('click', function(){
+      var inp = document.getElementById('rank-name');
+      inp.value = Array.from(inp.value).slice(0, -1).join('');
+    });
+    kb.appendChild(del);
+    document.querySelectorAll('.rank-kb-tab').forEach(function(t){ t.classList.toggle('selected', t.getAttribute('data-kb') === mode); });
+  }
+  document.querySelectorAll('.rank-kb-tab').forEach(function(t){
+    t.addEventListener('click', function(){ paintKb(t.getAttribute('data-kb')); });
+  });
+  paintKb('en');
+  // 名前は画面上のキーボードでしか入力できない（入力欄は readonly。キーボード入力・貼りつけは受けつけない）
+  document.getElementById('rank-submit').addEventListener('click', submitRankEntry);
+  document.getElementById('rank-skip').addEventListener('click', closeRankEntry);
+  document.getElementById('solo-rank-btn').addEventListener('click', function(){ openRankScreen('setup-solo-screen', 'w'); });
+  document.getElementById('result-rank-btn').addEventListener('click', function(){ openRankScreen('result-screen', 'w'); });
+  document.getElementById('rank-back-btn').addEventListener('click', function(){ rankLeave(); showScreen(rankBack); });
+  document.querySelectorAll('.rank-tab').forEach(function(b){
+    b.addEventListener('click', function(){ selectRankTab(b.getAttribute('data-board')); });
+  });
+})();
 
 /* ---------------- ボタンの配線 ---------------- */
 document.getElementById('room-create-btn').addEventListener('click', createRoom);
@@ -2474,7 +3203,8 @@ document.addEventListener('visibilitychange', function(){
 
 function finishSoloStep(){
   if(game.missCount >= 3){
-    endSoloGame();
+    // 3つ目の勾玉が赤くなったのが見えるよう、少し間を置いてから結果画面にする
+    T(function(){ endSoloGame(); }, 1000);
     return;
   }
   if(game.deck.length === 0){
@@ -2486,30 +3216,39 @@ function finishSoloStep(){
 }
 
 function handleSoloPlacement(gapIndex, gapEl, sourceEl, ghostEl){
-  if(uiLocked) return;
+  if(uiLocked){
+    // 配る演出中などに差し込まれた場合、ここで何も片づけずに戻ると
+    // ドラッグの分身(ghost)が画面に残り、元の手札も隠れたまま(visibility:hidden)に
+    // なってしまい、操作できなくなって「フリーズ」したように見えてしまう。
+    if(ghostEl) ghostEl.remove();
+    if(sourceEl) sourceEl.style.visibility = '';
+    return;
+  }
   uiLocked = true;
   var card = game.current;
   var correctIdx = correctGapIndex(game.timeline, card.year);
 
   if(isCorrectGapIndex(game.timeline, card.year, gapIndex)){
-    showToast('正解！', 'ok');
     playJudgeMark(true);
     game.correctCount++;
+    renderHud();   // 正解数・勾玉の色を、カードが飛んでいる間も待たずすぐ反映する
     insertCardWithAnimation(card, correctIdx, sourceEl, function(){
-      finishSoloStep();
+      // 次の手札を描く(renderGame)前にロックを外しておかないと、
+      // 描いた直後の手札がロックされたままになってしまう
       uiLocked = false;
-    }, ghostEl);
+      finishSoloStep();
+    }, ghostEl, 620);   // 正解のときも、少しだけゆっくり(既定は450ms)
     return;
   }
 
   // まちがえたときは、そのカードを正しい位置に入れて見せる
   game.missCount++;
-  showToast('残念…正しい位置に入れたよ', 'ng');
   playJudgeMark(false);
+  renderHud();   // 勾玉が赤くなるのを、カードが飛んでいる間も待たずすぐ反映する
   insertCardWithAnimation(card, correctIdx, sourceEl, function(){
-    finishSoloStep();
     uiLocked = false;
-  }, ghostEl);
+    finishSoloStep();
+  }, ghostEl, 850);   // 正解位置まで遠くへ飛ぶので、ゆっくり(正解のときの約2倍)
 }
 
 function endSoloGame(){
@@ -2537,6 +3276,7 @@ function endSoloGame(){
   document.getElementById('result-best-text').textContent = bestScore + '枚';
 
   showScreen('result-screen');
+  rankAfterGame(game.correctCount);   // ランクインの可能性があるときだけ通信して、入る場合は名前入力へ
 }
 
 /* ============================================================
@@ -2573,13 +3313,12 @@ function cardYomiHtml(c){
 function cardInnerHtml(c){
   var img = cardPicHtml(c);
   if(c.image) img = img.replace('class="card-pic"', 'class="card-pic" style="object-position:' + tlImgPosX(c.id) + '% 50%"');
-  return img +
+  return '<div class="year">' + c.year + '年</div>' + img +
     '<div class="info">' +
       cardYomiHtml(c) +
-      '<div class="name">' + escapeHtml(c.name) + '</div>' +
+      '<div class="name" style="--nc:' + Math.max(1, c.name.length) + '">' + escapeHtml(c.name) + '</div>' +
       '<div class="event">' + escapeHtml(c.achievement) + '</div>' +
-    '</div>' +
-    '<div class="year">' + c.year + '年</div>';
+    '</div>';
 }
 function handCardInnerHtml(c){
   var img = cardPicHtml(c);
@@ -2593,6 +3332,7 @@ function renderHud(){
   if(!game) return;
   var turnLabel = document.getElementById('turn-label');
   var deckCount = document.getElementById('deck-count');
+  var soloStats = document.getElementById('solo-stats');
 
   if(game.type === 'online'){
     var r = game.room, ps = r.players || [], cur = ps[r.turn];
@@ -2600,12 +3340,19 @@ function renderHud(){
     var myTurn = !!(cur && cur.key === online.myKey && r.status === 'playing');
     turnLabel.textContent = (r.status === 'finished') ? '対戦終了' : '';
     deckCount.textContent = '山札:' + (r.deck || []).length + '枚';
+    soloStats.hidden = true;
     if(myTurn && !online.wasMyTurn) showMyTurnBanner();
     online.wasMyTurn = myTurn;
   } else {
-    turnLabel.textContent = '正解 ' + game.correctCount + '枚';
-    var timeStr = '残り時間:' + game.timeLeft + '秒　ミス:' + game.missCount + '/3';
-    deckCount.textContent = '山札:' + game.deck.length + '枚　' + timeStr;
+    // 「正解N枚」「山札:N枚」はやめて、残り時間・勾玉・正解数を中央にひとまとめで見せる
+    turnLabel.textContent = '';
+    deckCount.textContent = '';
+    soloStats.hidden = false;
+    document.getElementById('solo-time').textContent = game.timeLeft + '秒';
+    document.getElementById('solo-correct').textContent = '正解 ' + game.correctCount + '枚';
+    soloStats.querySelectorAll('.gem').forEach(function(gem, i){
+      gem.classList.toggle('is-miss', i < game.missCount);
+    });
   }
 }
 
@@ -2699,7 +3446,13 @@ function playDealAnimation(cardEls, onDone){
     T(function(){ card.classList.remove('tl-flipping'); }, flipAt + FLIP_MS);
   });
   var totalMs = flipPhaseStart + (cardEls.length - 1) * FLIP_STAGGER + FLIP_MS;
-  T(function(){ uiLocked = false; if(onDone) onDone(); }, totalMs + 30);
+  T(function(){
+    uiLocked = false;
+    // 配り終わった瞬間、再描画を待たずにその場で手札を操作できるようにする
+    var row = document.getElementById('hand-row');
+    if(row) row.classList.remove('is-locked');
+    if(onDone) onDone();
+  }, totalMs + 30);
 }
 
 /* ---- 場札のスクロールバー（カードが増えて横に収まらない時、下のバーでも操作できるようにする） ---- */
@@ -2738,10 +3491,10 @@ function updateTlScrollbar(){
   // トラックの、つまみ以外の場所をタップ／クリックしたら、その位置へジャンプする
   track.addEventListener('pointerdown', function(e){
     if(e.target === thumb) return;   // つまみ自体は下のドラッグ処理へ
-    var rect = track.getBoundingClientRect();
-    var trackW = rect.width;
+    var rect = track.getBoundingClientRect();   // 実画面px
+    var trackW = track.clientWidth;             // ローカルpx。thumbWと単位をそろえる
     var thumbW = thumb.offsetWidth;
-    var x = e.clientX - rect.left - thumbW / 2;
+    var x = (e.clientX - rect.left) / gameStageScale - thumbW / 2;
     x = Math.max(0, Math.min(trackW - thumbW, x));
     var overflow = wrap.scrollWidth - wrap.clientWidth;
     var ratio = (trackW - thumbW) > 0 ? x / (trackW - thumbW) : 0;
@@ -2753,8 +3506,9 @@ function updateTlScrollbar(){
   var drag = null;
   thumb.addEventListener('pointerdown', function(e){
     e.preventDefault();
-    var rect = track.getBoundingClientRect();
-    drag = { startX: e.clientX, startLeft: thumb.offsetLeft, trackW: rect.width, thumbW: thumb.offsetWidth, pointerId: e.pointerId };
+    // trackWはローカル(scaleされていない)pxで統一する。thumb.offsetLeftも
+    // ローカルなので、getBoundingClientRect().width(実画面px)を混ぜない。
+    drag = { startX: e.clientX, startLeft: thumb.offsetLeft, trackW: track.clientWidth, thumbW: thumb.offsetWidth, pointerId: e.pointerId };
     try{ thumb.setPointerCapture(e.pointerId); }catch(err){}
     window.addEventListener('pointermove', onThumbDragMove, { passive:false });
     window.addEventListener('pointerup', onThumbDragEnd);
@@ -2763,7 +3517,8 @@ function updateTlScrollbar(){
   function onThumbDragMove(e){
     if(!drag || (e.pointerId !== undefined && e.pointerId !== drag.pointerId)) return;
     if(e.cancelable) e.preventDefault();
-    var dx = e.clientX - drag.startX;
+    // clientXの差は実画面px、thumbの位置はローカルpxなので、scaleで割って変換する。
+    var dx = (e.clientX - drag.startX) / gameStageScale;
     var maxLeft = Math.max(0, drag.trackW - drag.thumbW);
     var newLeft = Math.max(0, Math.min(maxLeft, drag.startLeft + dx));
     var overflow = wrap.scrollWidth - wrap.clientWidth;
@@ -2780,22 +3535,27 @@ function updateTlScrollbar(){
   }
 })();
 
-/* 手札が画面の幅に収まるように、カードの大きさを実測して決める。
-   これをしないと、スマホで4〜5枚のときに右端がはみ出して左寄せになってしまう。 */
-/* 縦方向にどれだけ余裕があるか実測する。#game-screen の中で手札欄以外が
+/* 手札が#game-stageの幅に収まるように、カードの大きさを実測して決める。
+   これをしないと、4〜5枚のときに右端がはみ出して左寄せになってしまう。
+   #game-stageは固定pxのデザインなので、ここでの実測値は常に同じデザイン上の
+   値になり（実際のウィンドウサイズには左右されない）、最終的な見た目の大きさは
+   #game-stage全体のtransform:scaleで決まる。 */
+/* 縦方向にどれだけ余裕があるか実測する。#game-stage の中で手札欄以外が
    使っている高さ（HUD・対戦相手一覧・年表・ヒント文）を差し引いた残りが、
-   手札欄が使ってよい高さになる。 */
+   手札欄が使ってよい高さになる。clientHeight/clientWidthはtransform:scaleの
+   影響を受けない実寸(デザイン上のpx)を返すので、ここではgetBoundingClientRect
+   ではなくclientHeightを使う。 */
 function availHandHeight(){
-  var gameScreen = document.getElementById('game-screen');
+  var stage = document.getElementById('game-stage');
   var wrap = document.getElementById('hand-wrap');
-  if(!gameScreen || !wrap) return null;
+  if(!stage || !wrap) return null;
   var used = 0;
   ['.hud', '#player-strip', '#timeline-wrap', '#tl-scrollbar', '#hint-bar'].forEach(function(sel){
     var el = document.querySelector(sel);
-    if(el && !el.hidden) used += el.getBoundingClientRect().height;
+    if(el && !el.hidden) used += (sel === '#timeline-wrap') ? Math.max(el.clientHeight, el.scrollHeight) : el.clientHeight;
   });
-  var gsStyle = getComputedStyle(gameScreen);
-  var innerH = gameScreen.clientHeight - parseFloat(gsStyle.paddingTop) - parseFloat(gsStyle.paddingBottom);
+  var stageStyle = getComputedStyle(stage);
+  var innerH = stage.clientHeight - parseFloat(stageStyle.paddingTop) - parseFloat(stageStyle.paddingBottom);
   var wrapStyle = getComputedStyle(wrap);
   var wrapPad = parseFloat(wrapStyle.paddingTop) + parseFloat(wrapStyle.paddingBottom);
   return innerH - used - wrapPad;
@@ -2814,15 +3574,16 @@ function fitHandCards(){
     return;
   }
   var avail = row.clientWidth - 8;                    // 左右のパディングぶん
-  // スマホ幅では、カード間の余白を切りつめて、そのぶんカード自体を大きくする
-  var isNarrow = window.innerWidth <= 600;
+  // #game-stageが縦長テンプレート(is-portrait)のときは、カード間の余白を
+  // 切りつめて、そのぶんカード自体を大きくする
+  var isNarrow = gameStageIsPortrait;
   // 4枚以上のときは2段に折り返して並べる（1段あたりの枚数が減るぶん、1枚を大きくできる）
   var cols = (n <= 3) ? n : Math.ceil(n / 2);
   var gap = isNarrow ? ((cols >= 5) ? 2 : 3) : ((cols >= 5) ? 8 : 12);
   var w = Math.floor((avail - gap * (cols - 1)) / cols);
   if(w < 78 && gap > 2 && !isNarrow){ gap = 8;  w = Math.floor((avail - gap * (cols - 1)) / cols); }
   if(w < 68 && gap > 2 && !isNarrow){ gap = 6;  w = Math.floor((avail - gap * (cols - 1)) / cols); }
-  w = Math.max(52, Math.min(190, w));                 // 小さすぎても大きすぎてもだめ
+  w = Math.max(52, Math.min(230, w));                 // 小さすぎても大きすぎてもだめ
   row.style.setProperty('--handgap', gap + 'px');
   row.style.setProperty('--handw', w + 'px');
   /* 段の間の縦のすき間。.selectedで持ち上がる分(translateY(-16px)+scale(1.14))を
@@ -2859,6 +3620,7 @@ function renderHandOnline(me, myTurn){
   var row = document.getElementById('hand-row');
   row.innerHTML = '';
   row.classList.toggle('is-waiting', !myTurn);          // 自分の番でないときは触れない
+  row.classList.toggle('is-locked', uiLocked);          // 場札が配り終わる/動いている最中は触れない
   if(!me || !(me.hand || []).length){
     row.innerHTML = '<div class="hand-empty-msg">手札がありません</div>';
     fitHandCards();
@@ -2898,6 +3660,7 @@ function renderHandSolo(){
   var row = document.getElementById('hand-row');
   row.innerHTML = '';
   row.classList.remove('is-waiting');
+  row.classList.toggle('is-locked', uiLocked);          // 場札が配り終わる/動いている最中は触れない
   if(!game.current) return;
   var el = document.createElement('div');
   el.className = 'hand-card selected';
@@ -2936,7 +3699,9 @@ function attachCardDrag(el, opts){
     var handWrap = document.getElementById('hand-wrap');
     var hintBar = document.getElementById('hint-bar');
     var limit = null;
-    if(hintBar) limit = hintBar.getBoundingClientRect().bottom;
+    // hintBarがhidden(display:none)だと高さ0の矩形になり、それを基準にすると
+    // どこで指を離しても「手札のあたり」と誤判定されてしまうので、その時はhandWrapで代用する
+    if(hintBar && !hintBar.hidden) limit = hintBar.getBoundingClientRect().bottom;
     else if(handWrap) limit = handWrap.getBoundingClientRect().top;
     if(limit !== null && y > limit) return null;     // 手札のあたりで離したら取り消し
 
@@ -2991,6 +3756,62 @@ function attachCardDrag(el, opts){
   }
   function resetGapPreview(){ setGapPreview(null); }
 
+  /* 指のいる位置に合わせて、▲の強調と「間」の開きを更新する */
+  function updateHover(x, y){
+    var marker = findMarker(x, y, st.markerRects);
+    clearMarkerHighlight();
+    if(marker){
+      marker.el.classList.add('drag-over');
+      setGapPreview(marker.gap);
+    } else {
+      setGapPreview(null);
+    }
+  }
+
+  /* カードを持ったまま年表の左端・右端まで来たら、年表を自動でスクロールする。
+     指が端に近いほど速い。手札のあたりにいるときは動かさない。 */
+  var scrollRaf = null;
+  function edgeScrollRatio(){      // 負=左へ、正=右へ、0=動かさない（大きさは速さ。最大1.5）
+    if(!st) return 0;
+    var wrap = document.getElementById('timeline-wrap');
+    if(!wrap) return 0;
+    var wr = wrap.getBoundingClientRect();
+    var hw = document.getElementById('hand-wrap');
+    if(hw && st.ly > hw.getBoundingClientRect().top) return 0;
+    var zone = Math.min(90, wr.width * 0.12);
+    if(st.lx < wr.left + zone) return -Math.min(1.5, (wr.left + zone - st.lx) / zone);
+    if(st.lx > wr.right - zone) return Math.min(1.5, (st.lx - (wr.right - zone)) / zone);
+    return 0;
+  }
+  function scrollStep(){
+    scrollRaf = null;
+    if(!st || !st.moved) return;
+    var d = edgeScrollRatio();
+    if(!d) return;
+    var wrap = document.getElementById('timeline-wrap');
+    var before = wrap.scrollLeft;
+    wrap.scrollLeft = before + (d < 0 ? -1 : 1) * (4 + 12 * Math.abs(d));
+    var moved = wrap.scrollLeft - before;       // スクロール(デザインpx)した量
+    if(moved){
+      var px = moved * (gameStageScale || 1);   // 画面pxに直して、記録しておいた▲の位置もずらす
+      st.markerRects.forEach(function(m){ m.cx -= px; });
+      updateHover(st.lx, st.ly);
+    }
+    scrollRaf = requestAnimationFrame(scrollStep);
+  }
+  function stopEdgeScroll(){ if(scrollRaf){ cancelAnimationFrame(scrollRaf); scrollRaf = null; } }
+
+  /* ドラッグを途中でやめさせる（画面が切りかわったときなど）。分身を消して手札を元に戻す */
+  function cancelThisDrag(){
+    stopEdgeScroll();
+    if(st && st.ghost) st.ghost.remove();
+    if(st) el.style.visibility = '';
+    clearMarkerHighlight();
+    resetGapPreview();
+    st = null;
+    if(currentDragCancel === cancelThisDrag) currentDragCancel = null;
+  }
+
   el.addEventListener('pointerdown', function(e){
     if(e.button !== undefined && e.button !== 0) return;
     // 前回のドラッグの後片付けが漏れていた場合の保険
@@ -2999,8 +3820,10 @@ function attachCardDrag(el, opts){
     resetGapPreview();
     st = {
       id: e.pointerId, sx: e.clientX, sy: e.clientY, moved: false, ghost: null,
-      startRect: el.getBoundingClientRect(), markerRects: snapshotMarkers()
+      startRect: el.getBoundingClientRect(), markerRects: snapshotMarkers(),
+      lx: e.clientX, ly: e.clientY
     };
+    currentDragCancel = cancelThisDrag;
     try{ el.setPointerCapture(e.pointerId); }catch(err){}
   });
 
@@ -3019,6 +3842,7 @@ function attachCardDrag(el, opts){
       st.ghost.style.top = st.startRect.top + 'px';
       document.body.appendChild(st.ghost);
       setFlyCardFontFromSource(st.ghost, el);   // つまんだ瞬間、文字だけ急に小さくならないように
+      applyHandLookToGhost(st.ghost, el);       // 枠・影・角丸も手札のカードのままにする
       el.style.visibility = 'hidden';
     }
     if(st.moved){
@@ -3026,14 +3850,9 @@ function attachCardDrag(el, opts){
       // 最初につかんだ位置からの移動量ぶんだけ動かす＝カードの中の指の位置はそのまま保たれる
       st.ghost.style.left = (st.startRect.left + dx) + 'px';
       st.ghost.style.top = (st.startRect.top + dy) + 'px';
-      var marker = findMarker(e.clientX, e.clientY, st.markerRects);
-      clearMarkerHighlight();
-      if(marker){
-        marker.el.classList.add('drag-over');
-        setGapPreview(marker.gap);
-      } else {
-        setGapPreview(null);
-      }
+      st.lx = e.clientX; st.ly = e.clientY;
+      updateHover(e.clientX, e.clientY);
+      if(!scrollRaf && edgeScrollRatio()) scrollRaf = requestAnimationFrame(scrollStep);
     }
   });
 
@@ -3041,6 +3860,8 @@ function attachCardDrag(el, opts){
     if(!st || st.id !== e.pointerId) return;
     var wasMoved = st.moved;
     var ghost = st.ghost;
+    stopEdgeScroll();
+    if(currentDragCancel === cancelThisDrag) currentDragCancel = null;
     clearMarkerHighlight();
     try{ el.releasePointerCapture(e.pointerId); }catch(err){}
 
@@ -3063,19 +3884,17 @@ function attachCardDrag(el, opts){
     st = null;
   }
   el.addEventListener('pointerup', endDrag);
-  el.addEventListener('pointercancel', function(e){
-    if(st && st.ghost) st.ghost.remove();
-    if(st) el.style.visibility = '';
-    clearMarkerHighlight();
-    resetGapPreview();
-    st = null;
-  });
+  el.addEventListener('pointercancel', function(e){ cancelThisDrag(); });
 }
 
 function renderGame(dealAnimate, onDealDone){
   if(!game) return;
   // ドラッグ演出の分身が万一残っていた場合の保険的クリーンアップ
   document.querySelectorAll('.fly-card.drag-ghost').forEach(function(g){ g.remove(); });
+  // #game-screenがdisplay:noneの間にリサイズイベントが来ていると、そのときは
+  // clientWidth/Heightが0で倍率を計算できないので、画面を表示するこのタイミングで
+  // 必ずもう一度計算しなおす
+  fitGameStage();
   renderHud();
 
   var hint = document.getElementById('hint-bar');
@@ -3096,9 +3915,10 @@ function renderGame(dealAnimate, onDealDone){
     }, dealAnimate);
     renderPlayerStrip(r);
     // 誰の番かは対戦相手一覧(player-strip)の名前を赤く囲んで示すので、ここでは繰り返さない
-    hint.textContent = (r.status === 'finished' || !myTurn) ? ''
-      : sel ? (sel.name + ' を年表のどこに置くか ▲ をタップ／指でドラッグ')
-            : '手札のカードを選んでね(タップ or ドラッグ)';
+    // 「どこに置くか…ドラッグ」の文章は長すぎて1行に収まらず省略されてしまうので、
+    // カードを選んだあとは何も表示しない（選ぶ前の案内だけ出す）
+    hint.textContent = (r.status === 'finished' || !myTurn || sel) ? ''
+      : '手札のカードを選んでね(タップ or ドラッグ)';
     // hint.hidden は切りかえない：表示/非表示を切りかえると高さが0になり、そのぶん
     // 手札の大きさ・位置が自分の番と相手の番で違って見えてしまう（空でも常に同じ高さ）
     // player-strip・hint-bar を先に確定させてから手札を描く：手札の大きさは残りの高さ
@@ -3112,8 +3932,12 @@ function renderGame(dealAnimate, onDealDone){
       handleSoloPlacement(gapIndex, gapEl, srcEl);
     }, dealAnimate, onDealDone);
     renderHandSolo();
-    hint.textContent = game.current ? (game.current.name + ' を年表のどこに置くか ▲ をタップ／指でドラッグ') : '';
-    hint.hidden = !hint.textContent;
+    // 「どこに置くか…ドラッグ」の文章は長すぎて1行に収まらず省略されてしまうので、
+    // 常に表示していたこの案内はやめる
+    // hint.hidden は切りかえない：display:noneにすると、ドラッグの着地判定
+    // (findMarker)がヒント欄の位置を基準にしているため、高さ0になったぶん
+    // 「手札のあたりで離した」と誤判定されて、どこにもカードを置けなくなってしまう
+    hint.textContent = '';
   }
 }
 
