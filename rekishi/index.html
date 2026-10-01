@@ -791,6 +791,7 @@ h1{ font-size:1.5rem; text-align:center; letter-spacing:.05em; }
 .rank-entry-score b{ font-size:1.7em; color:#3f3a2e; }
 .rank-field-label{ font-size:12px; letter-spacing:.1em; color:#7a7263; margin:8px 0 4px; }
 #rank-name{ min-height:0; cursor:default; caret-color:transparent; -webkit-user-select:none; user-select:none; font-size:max(22px, 3.2vh); letter-spacing:.3em; text-indent:.3em; padding:7px 12px; max-width:none; }
+#rank-name::placeholder{ font-size:max(14px, 2.1vh); letter-spacing:.04em; font-weight:400; color:#a39b86; }   /* 見本の文字と見まちがえないよう、説明文にして小さく薄く */
 #rank-pref{ max-width:none; font-size:max(16px, 2.2vh); letter-spacing:.06em; padding:6px 10px; }
 .rank-kb-tabs{ display:flex; justify-content:center; gap:8px; margin-top:10px; }
 .rank-kb-tab{ min-width:0; flex:1 1 0; max-width:140px; padding:7px 10px; font-size:14px; }
@@ -860,7 +861,7 @@ h1{ font-size:1.5rem; text-align:center; letter-spacing:.05em; }
     <div class="home-inner">
       <h1 class="brand-title">歴史ならべ</h1>
       <div class="brand-rule"></div>
-      <p class="brand-sub">カードを正しい年代の順番にならべよう</p>
+      <p class="brand-sub">カードを正しい年代の順番に並べよう</p>
 
       <div class="home-menu">
         <button class="home-btn" id="play-solo-btn"><span>一人でチャレンジ</span></button>
@@ -1060,17 +1061,17 @@ h1{ font-size:1.5rem; text-align:center; letter-spacing:.05em; }
     <div class="rank-entry-title" id="rank-entry-title">ランクイン！</div>
     <div class="rank-entry-score"><b id="rank-entry-score">0</b>枚</div>
     <ul class="rank-entry-hits" id="rank-entry-hits"></ul>
-    <div class="rank-field-label">なまえ（5もじまで）</div>
-    <input id="rank-name" class="wa-input" type="text" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="ABCDE" readonly tabindex="-1">
+    <div class="rank-field-label">プレーヤー名（英語・記号 5文字まで）</div>
+    <input id="rank-name" class="wa-input" type="text" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="下のキーボードでプレーヤー名を入れてね" readonly tabindex="-1">
     <div class="rank-kb-tabs">
-      <button type="button" class="wa-chip rank-kb-tab selected" data-kb="en">えいご</button>
-      <button type="button" class="wa-chip rank-kb-tab" data-kb="sym">きごう</button>
+      <button type="button" class="wa-chip rank-kb-tab selected" data-kb="en">英語</button>
+      <button type="button" class="wa-chip rank-kb-tab" data-kb="sym">記号</button>
     </div>
     <div class="rank-kb" id="rank-kb"></div>
-    <div class="rank-field-label">すんでいる ところ（えらばなくてもOK）</div>
+    <div class="rank-field-label">住んでいる地域（選んでね）</div>
     <select id="rank-pref" class="wa-input"></select>
-    <button class="wa-start" id="rank-submit">とうろくする</button>
-    <button class="wa-chip rank-skip" id="rank-skip">とうろくしない</button>
+    <button class="wa-start" id="rank-submit">登録する</button>
+    <button class="wa-chip rank-skip" id="rank-skip">登録しない</button>
   </div>
 </div>
 
@@ -2730,9 +2731,17 @@ var RANK_MEM_MS = 2 * 60 * 1000;   // ランキング画面で、同じ表を2�
 var RANK_BOARDS = [ { id:'w', label:'今週' }, { id:'m', label:'今月' }, { id:'a', label:'累計' } ];
 var RANK_ALLOWED = /^[A-Za-z☆★♡♥♪♬♩!?&+.✿◎○△×✦♫♠♣♦❀-]$/;
 var RANK_SYMBOLS = ['☆','★','✦','♡','♥','♪','♬','♫','♠','♣','♦','◎','○','△','×','❀','✿','!','?','&','-','+','.'];
-var PREFS = ['北海道','青森','岩手','宮城','秋田','山形','福島','茨城','栃木','群馬','埼玉','千葉','東京','神奈川',
-  '新潟','富山','石川','福井','山梨','長野','岐阜','静岡','愛知','三重','滋賀','京都','大阪','兵庫','奈良','和歌山',
-  '鳥取','島根','岡山','広島','山口','徳島','香川','愛媛','高知','福岡','佐賀','長崎','熊本','大分','宮崎','鹿児島','沖縄'];
+var PREFS = ['北海道','青森県','岩手県','宮城県','秋田県','山形県','福島県','茨城県','栃木県','群馬県','埼玉県','千葉県','東京都','神奈川県',
+  '新潟県','富山県','石川県','福井県','山梨県','長野県','岐阜県','静岡県','愛知県','三重県','滋賀県','京都府','大阪府','兵庫県','奈良県','和歌山県',
+  '鳥取県','島根県','岡山県','広島県','山口県','徳島県','香川県','愛媛県','高知県','福岡県','佐賀県','長崎県','熊本県','大分県','宮崎県','鹿児島県','沖縄県','海外'];
+var RANK_PREF_NONE = '選ばない';          // 「地域を選ばない」もここから選ぶ（どれかを必ず選ばないと登録できない）
+/* むかし保存した短い名前（東京 など）を、今の名前（東京都 など）にそろえる */
+function normPref(v){
+  if(!v) return '';
+  if(v === RANK_PREF_NONE || PREFS.indexOf(v) >= 0) return v;
+  for(var k = 0; k < PREFS.length; k++){ if(PREFS[k].replace(/[都道府県]$/, '') === v) return PREFS[k]; }
+  return '';
+}
 
 var rankMem = {};          // key -> { entries, at }
 var rankMine = null;       // 直前に登録した記録 { key, t }
@@ -2755,7 +2764,7 @@ function rankPeriodText(id){
     return (mon.getMonth() + 1) + '/' + mon.getDate() + '（月）〜 ' + (sun.getMonth() + 1) + '/' + sun.getDate() + '（日）';
   }
   if(id === 'm') return d.getFullYear() + '年' + (d.getMonth() + 1) + '月';
-  return 'これまでの すべての きろく';
+  return 'これまでの全ての記録';
 }
 function rankCmp(a, b){ return (b.s - a.s) || (a.t - b.t); }   // 点数が高い順。同点は先に取った人が上
 /* この端末を見分けるための番号（同じ端末は、各ランキングに最高記録1件までにするため） */
@@ -2843,7 +2852,7 @@ function rankAfterGame(score){
   }).catch(function(e){
     // 遊びの邪魔にならないよう小さなお知らせだけ。くわしい原因はコンソール(F12)に出す
     try{ console.warn('[ranking] 読みこみ失敗:', e && (e.code || e.message || e)); }catch(_){}
-    showToast('ランキングに つなげませんでした', 'ng');
+    showToast('ランキングにつなげませんでした', 'ng');
   });
 }
 
@@ -2912,7 +2921,7 @@ function openRankEntry(score, hits){
   document.getElementById('rank-entry-score').textContent = score;
   var prof = loadRankProfile();
   document.getElementById('rank-name').value = rankSanitize(prof.name);
-  document.getElementById('rank-pref').value = prof.pref;
+  document.getElementById('rank-pref').value = normPref(prof.pref);   // 記憶がなければ「地域をえらんでね」のまま
   document.getElementById('rank-submit').disabled = false;
   document.getElementById('rank-entry').hidden = false;
 }
@@ -2964,7 +2973,10 @@ function submitRankEntry(){
   if(!rankPending) return;
   var name = rankSanitize(document.getElementById('rank-name').value);
   var pref = document.getElementById('rank-pref').value;
-  if(!name){ showToast('なまえを いれてね（えいご・きごう）', 'ng'); return; }
+  if(!name){ showToast('プレーヤー名を入れてね（英語・記号）', 'ng'); return; }
+  if(!pref){ showToast('地域を選んでね', 'ng'); return; }
+  var prefChoice = pref;                     // 記憶するのは選んだとおり（「選ばない」もそのまま）
+  if(pref === RANK_PREF_NONE) pref = '';      // 「選ばない」を選んだ人は、地域なしで登録する
   if(rankBanned()){ closeRankEntry(); return; }
   if(rankIsBad(name)){
     // 不適切な名前は、登録も名前の記憶もせず、そのままトップ画面へもどす
@@ -2974,7 +2986,7 @@ function submitRankEntry(){
     showScreen('menu-screen');   // 理由は何も言わず、そのままトップへ
     return;
   }
-  saveRankProfile(name, pref);
+  saveRankProfile(name, prefChoice);
   var info = rankPending;
   var btn = document.getElementById('rank-submit');
   btn.disabled = true;
@@ -3001,11 +3013,11 @@ function submitRankEntry(){
     });
     rankMine = { t: entry.t, s: entry.s, n: entry.n };
     closeRankEntry();
-    showToast('ランキングに とうろくしたよ！', 'ok');
+    showToast('ランキングに登録したよ！', 'ok');
     openRankScreen('result-screen', info.hits[0].id);
   }).catch(function(){
     btn.disabled = false;
-    showToast('とうろくできませんでした。もう一度ためしてね', 'ng');
+    showToast('登録できませんでした。もう一度試してね', 'ng');
   });
 }
 
@@ -3039,7 +3051,7 @@ function rankStartLive(id){
   var msg = document.getElementById('rank-msg');
   var mem = rankMem[key];
   if(mem){ msg.textContent = ''; paintRankList(mem.entries); }   // 前に見た内容をとりあえず出しておく（すぐ最新に置きかわる）
-  else { document.getElementById('rank-list').innerHTML = ''; msg.textContent = 'よみこみ中…'; }
+  else { document.getElementById('rank-list').innerHTML = ''; msg.textContent = '読みこみ中…'; }
   var seq = ++rankReqSeq;
   ensureDb().then(function(db){
     if(seq !== rankReqSeq) return;
@@ -3052,15 +3064,15 @@ function rankStartLive(id){
     }, function(err){
       try{ console.warn('[ranking] 購読失敗:', err && (err.code || err.message || err)); }catch(_){}
       if(seq !== rankReqSeq) return;
-      if(!rankMem[key]) msg.textContent = 'ランキングを よみこめませんでした';
+      if(!rankMem[key]) msg.textContent = 'ランキングを読みこめませんでした';
     });
     rankLiveTimer = setTimeout(function(){
       rankStopLive();
-      document.getElementById('rank-msg').textContent = 'しばらく たったので、自動こうしんを とめました（タブを押すと もう一度）';
+      document.getElementById('rank-msg').textContent = 'しばらく経ったので、自動こうしんを止めました（タブを押すともう一度）';
     }, RANK_LIVE_MAX_MS);
   }).catch(function(){
     if(seq !== rankReqSeq) return;
-    if(!rankMem[key]) msg.textContent = 'ランキングを よみこめませんでした';
+    if(!rankMem[key]) msg.textContent = 'ランキングを読みこめませんでした';
   });
 }
 function rankLeave(){
@@ -3078,7 +3090,7 @@ function paintRankList(entries){
   ol.innerHTML = '';
   var msg = document.getElementById('rank-msg');
   msg.textContent = '';
-  if(!entries.length){ msg.textContent = 'まだ きろくが ありません'; return; }
+  if(!entries.length){ msg.textContent = 'まだ記録がありません'; return; }
   entries.forEach(function(e, i){
     var li = document.createElement('li');
     li.className = 'rank-row' + (i < 3 ? ' r' + (i + 1) : '') +
@@ -3095,8 +3107,8 @@ function paintRankList(entries){
 /* --- ボタンの配線 --- */
 (function(){
   var sel = document.getElementById('rank-pref');
-  var o = document.createElement('option'); o.value = ''; o.textContent = 'えらばない'; sel.appendChild(o);
-  PREFS.forEach(function(p){ var op = document.createElement('option'); op.value = p; op.textContent = p; sel.appendChild(op); });
+  var o = document.createElement('option'); o.value = ''; o.textContent = '地域を選んでね'; o.disabled = true; o.selected = true; sel.appendChild(o);
+  PREFS.concat([RANK_PREF_NONE]).forEach(function(p){ var op = document.createElement('option'); op.value = p; op.textContent = p; sel.appendChild(op); });
   /* えいご／きごう を切りかえられる入力キーボード（端末のキーボードは出さず、これで入力できる） */
   var kb = document.getElementById('rank-kb');
   var kbModes = {
@@ -3115,7 +3127,7 @@ function paintRankList(entries){
       kb.appendChild(b);
     });
     var del = document.createElement('button');
-    del.type = 'button'; del.className = 'del'; del.textContent = 'けす'; del.setAttribute('aria-label', '1文字けす');
+    del.type = 'button'; del.className = 'del'; del.textContent = '消す'; del.setAttribute('aria-label', '1文字消す');
     del.addEventListener('click', function(){
       var inp = document.getElementById('rank-name');
       inp.value = Array.from(inp.value).slice(0, -1).join('');
