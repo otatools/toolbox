@@ -29,16 +29,19 @@
   --mincho:"Shippori Mincho","Yu Mincho",YuMincho,"Hiragino Mincho ProN","MS PMincho",serif;
 }
 @supports (height:100dvh){ :root{ --app-h:100dvh; } }
-*{ box-sizing:border-box; touch-action:manipulation; -webkit-touch-callout:none; -webkit-tap-highlight-color:transparent; }
+*{
+  box-sizing:border-box; touch-action:manipulation;
+  -webkit-touch-callout:none; -webkit-tap-highlight-color:transparent;
+  -webkit-user-select:none; user-select:none;   /* iPhoneでは -webkit- 付きでないと長押し選択が防げないことがある */
+}
 html,body{ margin:0; padding:0; background:var(--bg); overscroll-behavior-y:none; }
 body{
   height:var(--app-h);
   font-family:"Hiragino Maru Gothic ProN","Hiragino Sans","Yu Gothic",sans-serif;
   color:var(--ink);
   overflow:hidden;
-  user-select:none;
 }
-input,textarea{ user-select:text; }
+input,textarea{ -webkit-user-select:text; user-select:text; }
 
 #app{ height:100%; width:100%; opacity:0; transition:opacity .25s ease; display:flex; flex-direction:column; }
 #app.ready{ opacity:1; }
@@ -49,7 +52,7 @@ input,textarea{ user-select:text; }
 h1,h2,h3{ margin:0 0 8px; }
 h1{ font-size:1.5rem; text-align:center; letter-spacing:.05em; }
 /* ---- ゲーム画面 ---- */
-#game-screen{ padding:10px 0 0; justify-content:center; }
+#game-screen{ padding:10px 0 0; justify-content:center; position:relative; z-index:0; }
 .hud{
   display:flex; justify-content:space-between; align-items:center;
   padding:0 12px 8px; flex:0 0 auto;
@@ -62,7 +65,31 @@ h1{ font-size:1.5rem; text-align:center; letter-spacing:.05em; }
   flex:1 1 0; min-height:0; max-height:480px; overflow-x:auto; overflow-y:hidden;
   display:flex; align-items:center; padding:6px 12px;
   background:repeating-linear-gradient(90deg,transparent,transparent 40px,rgba(184,134,11,.08) 40px,rgba(184,134,11,.08) 41px);
+  scrollbar-width:none; -ms-overflow-style:none;   /* 下にデザイン済みのスクロールバーを別途用意するので、素のバーは隠す */
 }
+#timeline-wrap::-webkit-scrollbar{ display:none; }
+
+/* 場札のスクロールバー（カードが多くて横に収まらない時だけ表示）
+   ※ 表示/非表示を hidden 属性で切りかえると、その分だけ画面全体の高さが変わり、
+      #game-screen の justify-content:center により場札ごと上下にずれて見えてしまう。
+      なので常に同じ高さの箱を確保しておき、使わない時は visibility だけ消す。 */
+.tl-scrollbar{ flex:0 0 auto; padding:2px 20px 8px; visibility:visible; }
+.tl-scrollbar.is-hidden{ visibility:hidden; pointer-events:none; }
+.tl-scrollbar-track{
+  position:relative; height:11px; border-radius:999px;
+  background:#e9e2cc; border:1px solid #d9d0b3;
+  box-shadow:inset 0 1px 3px rgba(74,68,54,.18);
+  cursor:pointer;
+}
+.tl-scrollbar-thumb{
+  position:absolute; top:-1px; left:0; height:11px; min-width:36px;
+  border-radius:999px;
+  background:linear-gradient(180deg, #d4af37, var(--gold) 55%, #9c7412);
+  border:1px solid #85630f;
+  box-shadow:0 1px 3px rgba(74,68,54,.35), inset 0 1px 0 rgba(255,255,255,.35);
+  touch-action:none; cursor:grab;
+}
+.tl-scrollbar-thumb:active{ cursor:grabbing; filter:brightness(.96); }
 .tl-grid{
   --gapw: 10px; --cardw: 100px;
   display:grid; grid-template-rows:218px 34px; row-gap:3px; align-items:center; justify-items:center;
@@ -81,7 +108,10 @@ h1{ font-size:1.5rem; text-align:center; letter-spacing:.05em; }
 }
 .tl-card .img-ph{ background:#eadfc4; }
 .tl-card .info{ display:flex; flex-direction:column; align-items:center; min-width:0; width:100%; flex:1 1 auto; justify-content:flex-start; }
-.tl-card .yomi{ font-size:.6rem; color:#8a7a5c; line-height:1.1; margin-top:6px; }
+.tl-card .yomi{
+  font-size:.55rem; color:#8a7a5c; line-height:1.1; margin-top:6px;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:100%;
+}
 .tl-card .name{ font-weight:700; font-size:1rem; line-height:1.2; margin-top:1px; }
 .tl-card .event{
   align-self:stretch;
@@ -89,6 +119,32 @@ h1{ font-size:1.5rem; text-align:center; letter-spacing:.05em; }
   display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;
 }
 .tl-card .year{ font-weight:900; color:var(--accent); font-size:1.2rem; flex:0 0 auto; }
+
+/* ---- ゲーム開始時の「配って→めくる」演出 ---- */
+.tl-card{ position:relative; }
+.tl-card.tl-not-dealt{ opacity:0; transform:translateY(10px) scale(.9); }
+.tl-card.tl-dealt{ transition:opacity .24s ease, transform .24s cubic-bezier(.2,1.1,.4,1); }
+.tl-card.tl-face-down > *{ visibility:hidden; }
+.tl-card.tl-face-down::before{
+  content:""; position:absolute; inset:-2px; z-index:3;
+  border-radius:10px; overflow:hidden;
+  /* 元絵は通常のトランプ比率(縦横比が浅い)。この年表カードはとても縦長なので
+     cover(はみ出す分を切り抜く)で敷くと左右が削れる。ただしこの絵は金の枠の
+     外側に十分な余白があるので、削れるのはその余白の中だけで枠自体は欠けない。
+     containだと絵が縮んで表向きカードより一回り小さく見えてしまうため、
+     大きさをそろえるためにあえてcoverを使っている。 */
+  background:rgb(247,240,222) url("data:image/webp;base64,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") center/cover;
+}
+.tl-card.tl-flipping{ animation:tlCardFlip .42s ease; }
+@keyframes tlCardFlip{
+  0%{ transform:scaleX(1); }
+  50%{ transform:scaleX(0); }
+  100%{ transform:scaleX(1); }
+}
+@media (prefers-reduced-motion: reduce){
+  .tl-card.tl-not-dealt{ opacity:1; transform:none; }
+  .tl-card.tl-flipping{ animation:none; }
+}
 
 .tl-marker-cell{ display:flex; align-items:center; justify-content:center; width:100%; }
 .tl-marker-btn{
@@ -128,7 +184,10 @@ h1{ font-size:1.5rem; text-align:center; letter-spacing:.05em; }
   margin-bottom:calc(var(--handw, 132px) * .055); flex:0 0 auto; display:block;
 }
 .hand-card .img-ph{ background:#eadfc4; }
-.hand-card .yomi{ font-size:.62em; color:#8a7a5c; line-height:1.1; }
+.hand-card .yomi{
+  font-size:.62em; color:#8a7a5c; line-height:1.1;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:100%;
+}
 .hand-card .name{ font-weight:700; font-size:1.32em; line-height:1.25; padding:0 calc(var(--handw, 132px) * .033); }
 .hand-card .event{
   font-size:.945em; color:#6b5c42; line-height:1.25; margin-top:.5em;
@@ -159,12 +218,23 @@ h1{ font-size:1.5rem; text-align:center; letter-spacing:.05em; }
   transition:aspect-ratio .45s cubic-bezier(.4,0,.2,1), object-position .45s cubic-bezier(.4,0,.2,1);
 }
 .fly-card .img-ph{ background:#eadfc4; }
-.fly-card .yomi{ font-size:.55rem; color:#8a7a5c; line-height:1.1; }
-.fly-card .name{ font-weight:700; font-size:.7rem; line-height:1.2; padding:0 2px; }
+/* 文字サイズは飛んでいる間、手札での大きさ→場札での大きさへなめらかに変わるよう
+   JS側(setFlyCardFontFromSource/ToTimelineSize)で始点・終点をinline styleにセットする。
+   ここに書いてある値は保険（JSが間に合わなかった時の初期値）。 */
+.fly-card .yomi{
+  font-size:.55rem; color:#8a7a5c; line-height:1.1;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:100%;
+  transition:font-size .45s cubic-bezier(.4,0,.2,1);
+}
+.fly-card .name{
+  font-weight:700; font-size:.7rem; line-height:1.2; padding:0 2px;
+  transition:font-size .45s cubic-bezier(.4,0,.2,1);
+}
 .fly-card .event{
   font-size:.6rem; color:#6b5c42; line-height:1.2; margin-top:4px;
   display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden;
   padding:0 2px;
+  transition:font-size .45s cubic-bezier(.4,0,.2,1);
 }
 .fly-card.drag-ghost{ transition:none; z-index:1000; }
 
@@ -207,6 +277,22 @@ h1{ font-size:1.5rem; text-align:center; letter-spacing:.05em; }
 }
 #toast.ok{ background:rgba(45,106,79,.92); }
 #toast.ng{ background:rgba(192,57,43,.92); }
+
+/* ---- 正解／不正解を、場札の背景にうっすら透かして見せる筆の○× ----
+   カードよりも手前に出てくる派手な演出は「いまいち」だったので、
+   カードの下に隠れる位置（z-index:-1）に、薄い透かしとして出す方式にしている。
+   ○×そのものは自前で描くのをやめ、実際の筆文字の画像（背景を透過済み）を使う。 */
+.judge-mark{
+  position:absolute; inset:0; z-index:-1; display:flex; align-items:flex-end; justify-content:center;
+  padding-bottom:6%;
+  pointer-events:none; opacity:0; transition:opacity .5s ease;
+}
+.judge-mark.show{ opacity:.55; }
+.judge-mark img{
+  position:absolute; width:min(78vw, 66vh, 420px); height:min(78vw, 66vh, 420px);
+  object-fit:contain; display:none;
+}
+.judge-mark img.is-visible{ display:block; }
 
 /* ---- トップページ ---- */
 .home-screen{
@@ -381,6 +467,8 @@ h1{ font-size:1.5rem; text-align:center; letter-spacing:.05em; }
 }
 .solo-highscore span{ font-size:1.15em; }
 .solo-settings-btn{ display:block; margin:clamp(10px, 1.8vh, 18px) auto 0; min-width:0; }
+.result-settings-btn{ display:block; margin:0 auto clamp(14px, 2.6vh, 26px); min-width:0; }
+.settings-reset-btn{ display:block; margin:clamp(24px, 4vh, 40px) auto 0; min-width:0; }
 #setup-solo-screen .wa-group{ margin-bottom:clamp(10px, 2vh, 20px); }
 #setup-solo-screen .wa-start{ margin-top:clamp(10px, 1.8vh, 18px); }
 /* 出題範囲のスライダー（ここからここまで） */
@@ -403,6 +491,7 @@ h1{ font-size:1.5rem; text-align:center; letter-spacing:.05em; }
   position:absolute; top:50%; width:3px; height:3px; margin:-1.5px 0 0 -1.5px;
   border-radius:50%; background:#fbfaf6; opacity:.9;
 }
+.era-tick.is-disabled{ opacity:.3; }
 .era-handle{
   position:absolute; top:50%; width:36px; height:36px; margin:-18px 0 0 -18px;
   -webkit-appearance:none; appearance:none; padding:0;
@@ -428,7 +517,7 @@ h1{ font-size:1.5rem; text-align:center; letter-spacing:.05em; }
 [hidden]{ display:none !important; }
 
 /* ---- みんなで対戦 ---- */
-#online-screen .wa-rule{ margin-bottom:clamp(46px, 8vh, 90px); }
+#online-screen .wa-rule{ margin-bottom:clamp(30px, 5.6vh, 60px); }
 .name-label{
   font-size:clamp(20px, min(4.2vh, 6.2vw), 36px);
   color:#4a4436; font-weight:700;
@@ -449,14 +538,19 @@ h1{ font-size:1.5rem; text-align:center; letter-spacing:.05em; }
 }
 /* みんなで対戦：名前の入力欄を大きくし、下のボタンとの間を広げる */
 #online-name{
-  padding:clamp(20px, 3.6vh, 34px) 14px;
+  padding:clamp(16px, 2.8vh, 26px) 14px;
   font-size:max(19px, min(3.4vh, 5.6vw));
 }
-#online-screen .wa-group{ margin-bottom:clamp(60px, 11vh, 120px); }
+#online-screen .wa-group{ margin-bottom:clamp(36px, 7vh, 76px); }
 .join-panel{ margin-top:clamp(20px, 3.6vh, 36px); }
 .join-panel .wa-start{ margin-top:clamp(12px, 2.2vh, 22px); }
 .join-cancel{ display:block; margin:clamp(12px, 2vh, 20px) auto 0; min-width:0; }
 .wa-opt:disabled{ opacity:.45; cursor:default; }
+/* 名前欄の入力中（キーボード表示中）は、ボタンが隠れてスクロールが要らないよう余白をつめる */
+#online-screen.kb-compact .wa-rule{ margin-bottom:clamp(12px, 2.2vh, 22px); }
+#online-screen.kb-compact .wa-group{ margin-bottom:clamp(12px, 2.2vh, 22px); }
+#online-screen.kb-compact #online-name{ padding:clamp(10px, 1.6vh, 14px) 14px; }
+#online-screen.kb-compact .join-panel{ margin-top:clamp(10px, 1.6vh, 14px); }
 
 .room-code{
   font-family:var(--mincho); font-weight:700; color:#3f3a2e;
@@ -597,6 +691,8 @@ h1{ font-size:1.5rem; text-align:center; letter-spacing:.05em; }
           <div class="era-scale" id="era-scale"></div>
         </div>
       </div>
+
+      <button class="wa-chip settings-reset-btn" id="settings-reset-btn">設定をリセット</button>
     </div>
   </section>
 
@@ -654,6 +750,8 @@ h1{ font-size:1.5rem; text-align:center; letter-spacing:.05em; }
         <ul class="solo-rules">
           <li>制限時間は<b>90秒</b></li>
           <li>まちがえられるのは<b>3回</b>まで</li>
+          <li>出題難易度：<b id="solo-rule-grade">小学生レベル</b></li>
+          <li>出題範囲：<b id="solo-rule-era">〜</b></li>
         </ul>
       </div>
       <div class="wa-group">
@@ -667,6 +765,10 @@ h1{ font-size:1.5rem; text-align:center; letter-spacing:.05em; }
 
   <!-- ===================== ゲーム画面 ===================== -->
   <section id="game-screen" class="screen">
+    <div class="judge-mark" id="judge-mark" aria-hidden="true">
+      <img id="judge-mark-maru" src="data:image/svg+xml;base64,PHN2ZyB2ZXJzaW9uPSIxLjEiIGlkPSJfeDMzXyIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIiB4bWxuczp4bGluaz0iaHR0cDovL3d3dy53My5vcmcvMTk5OS94bGluayIgeD0iMHB4IiB5PSIwcHgiIHZpZXdCb3g9IjAgMCA2NzIgNzIwIiBzdHlsZT0iZW5hYmxlLWJhY2tncm91bmQ6bmV3IDAgMCA2NzIgNzIwOyIgeG1sOnNwYWNlPSJwcmVzZXJ2ZSI+CjxzdHlsZSB0eXBlPSJ0ZXh0L2NzcyI+Cgkuc3Qwe2ZpbGw6dXJsKCNTVkdJRF8xXyk7fQoJLnN0MXtmaWxsOnVybCgjU1ZHSURfMl8pO30KCS5zdDJ7ZmlsbDp1cmwoI1NWR0lEXzNfKTt9Cgkuc3Qze2ZpbGw6dXJsKCNTVkdJRF80Xyk7fQoJLnN0NHtmaWxsOnVybCgjU1ZHSURfNV8pO30KCS5zdDV7ZmlsbDp1cmwoI1NWR0lEXzZfKTt9Cgkuc3Q2e2ZpbGw6dXJsKCNTVkdJRF83Xyk7fQoJLnN0N3tmaWxsOnVybCgjU1ZHSURfOF8pO30KCS5zdDh7ZmlsbDp1cmwoI1NWR0lEXzlfKTt9Cgkuc3Q5e2ZpbGw6dXJsKCNTVkdJRF8xMF8pO30KCS5zdDEwe2ZpbGw6dXJsKCNTVkdJRF8xMV8pO30KCS5zdDExe2ZpbGw6dXJsKCNTVkdJRF8xMl8pO30KPC9zdHlsZT4KPGc+Cgk8bGluZWFyR3JhZGllbnQgaWQ9IlNWR0lEXzFfIiBncmFkaWVudFVuaXRzPSJ1c2VyU3BhY2VPblVzZSIgeDE9IjMzNiIgeTE9Ijc5MC45OTg2IiB4Mj0iMzM2IiB5Mj0iMTgzLjI4NDkiPgoJCTxzdG9wIG9mZnNldD0iMCIgc3R5bGU9InN0b3AtY29sb3I6I0ZGRjFBQSI+PC9zdG9wPgoJCTxzdG9wIG9mZnNldD0iMC40MTYyIiBzdHlsZT0ic3RvcC1jb2xvcjojRkY5RTAwIj48L3N0b3A+CgkJPHN0b3Agb2Zmc2V0PSIwLjc1NyIgc3R5bGU9InN0b3AtY29sb3I6I0ZGNkEwMCI+PC9zdG9wPgoJCTxzdG9wIG9mZnNldD0iMSIgc3R5bGU9InN0b3AtY29sb3I6I0ZGMkEyQSI+PC9zdG9wPgoJPC9saW5lYXJHcmFkaWVudD4KCTxwYXRoIGNsYXNzPSJzdDAiIGQ9Ik02NzEuMjksMzIwLjY5MmMtMC4zMTMsMy4xMy0wLjYyNSw2LjI1Ni0wLjkzNyw5LjM3OGMtMC4zNjgsMy4xMzYtMC43MzUsNi4yNjctMS4xMDMsOS4zOTYKCQljLTAuMzk3LDMuMTE5LTAuODU2LDYuMjE4LTEuMjY4LDkuMzEzYy0wLjQzOCwzLjA5Mi0wLjk2Myw2LjE1OC0xLjQyNiw5LjIyOGMtMi4wMDUsMTIuMjQ5LTQuNDEzLDI0LjI3OS03LjE2NCwzNi4xNDgKCQljLTIuNTg0LDExLjE0Mi01LjIzMywyMi4yOTEtOC44MiwzMi45NDljLTMuNTg3LDEwLjY0Mi04LjA3OCwyMC44MDctMTQuMjUxLDI5LjY0NmwyLjUxMy01Ljk1YzAuODQ3LTEuOTc2LDEuNjA2LTQuMDEsMi40MS02LjAxMwoJCWMxLjYyLTMuOTk5LDMuMDY5LTguMTAyLDQuNTY1LTEyLjE3MmMwLjcyMS0yLjA1MSwxLjQwNy00LjEyMSwyLjEwNy02LjE4MmwxLjA0Mi0zLjA5NmwwLjk3NS0zLjEzMQoJCWMwLjY0NC0yLjA5LDEuMzA0LTQuMTcyLDEuOTI1LTYuMjcxbDEuNzg2LTYuMzM3YzIuMjk3LTguNDgzLDQuMzcxLTE3LjA2Nyw2LjAwNy0yNS43OTVjMC44OTItNC4zNCwxLjU0Ny04Ljc1MywyLjI4My0xMy4xMzkKCQlsMC45MS02LjYzMWMwLjE0NS0xLjEwNywwLjMwOC0yLjIxLDAuNDM0LTMuMzJsMC4zNi0zLjMzNmMxLjAyMi04Ljg3NSwxLjU1MS0xNy44ODYsMS44MTItMjYuODMxbDAuMTA5LTYuNjc0CgkJYzAuMDIzLTIuMjI1LTAuMDMyLTQuNDQ3LTAuMDUxLTYuNjcxbC0wLjA0Ni0zLjMzNmMtMC4wMjMtMS4xMTItMC4wOC0yLjIyMS0wLjEyLTMuMzMybC0wLjI4MS02LjY2MwoJCWMtMC4zMTgtNC40MjktMC41NTItOC44NzMtMS4wMzItMTMuMjg3Yy0wLjIyOC0yLjIwOS0wLjQxMi00LjQyNC0wLjY4OS02LjYyN2wtMC44NC02LjYwN2MtMS4yNDctOC43ODgtMi43MTYtMTcuNTU0LTQuNjY5LTI2LjIxMgoJCWMtMC4yMzctMS4wOTEtMC4zOC0yLjE5NS0wLjQ3NC0zLjMxM2MtMC4xMTUtMS4xMTMtMC4xNzQtMi4yNDEtMC4yMTEtMy4zODdjLTAuMDgzLTIuMjg4LTAuMDQ0LTQuNjU4LTAuMjUzLTcuMDc5CgkJYzIuMTY5LDIuNjYxLDMuMTk0LDQuMDE1LDQuMjU2LDUuMzU1Yy0wLjQ2Ni0yLjA2Ny0wLjk4OC00LjI4OC0xLjY1NS02LjQyNmMtMC42NjItMi4xNDEtMS4zNzgtNC4yMjctMi4wODgtNi4wNjYKCQljLTAuNjk0LTEuODQ1LTEuNDU5LTMuNDE4LTIuMTIxLTQuNTY5Yy0wLjY2Ny0xLjE1LTEuMjU5LTEuODY3LTEuNzEzLTEuOTcxYy0xLjk1Ni0wLjQ0Mi0zLjIwOS0xLjk0OS00LjI1NC0zLjkwMgoJCWMtMS4wNDUtMS45NTItMS44MTItNC4zOC0yLjY1NS02LjY5N2MtMTIuMTk1LTMyLjU2My0yOS41NDgtNjMuMDg4LTUwLjk4Ni05MC42MzNjLTYuNTczLTguNDE4LTEzLjUzLTE2LjU2NS0yMC44NjEtMjQuNDAyCgkJYy03LjM0MS03LjgyNi0xNS4wMzEtMTUuMzczLTIzLjE4My0yMi40NDZjLTE2LjI2Ni0xNC4xNjUtMzQuMDg3LTI2Ljc5OC01My4yOS0zNi45NzVjLTEwLjAwNy01LjMzLTIwLjMwMy0xMC4xMy0zMC44MjYtMTQuMzQ1CgkJYy0xMC41MzYtNC4xOC0yMS4yODUtNy43ODQtMzIuMTY3LTEwLjgwNWwtNC4wODctMS4xMDhjLTEuMzYxLTAuMzczLTIuNzI2LTAuNzM0LTQuMDk5LTEuMDVsLTguMjI4LTEuOTRsLTguMjY4LTEuNjgKCQljLTEuMzc3LTAuMjg5LTIuNzYtMC41MjctNC4xNDMtMC43NTlsLTQuMTUtMC43MDJjLTEuMzg0LTAuMjI2LTIuNzY2LTAuNDc1LTQuMTUxLTAuNjc3bC00LjE1OS0wLjU3MQoJCWMtMi43NzMtMC4zNjUtNS41NDUtMC43NzktOC4zMi0xLjAzNWMtMi43NzUtMC4yODItNS41NS0wLjU4Mi04LjMyNS0wLjgyN2wtOC4zMi0wLjU4MWMtMTEuMDg0LTAuNjExLTIyLjE0LTAuNzIxLTMzLjEwMS0wLjI3NwoJCWMtMTAuOTQ2LDAuNTA0LTIxLjgxMiwxLjQ0LTMyLjUyMywyLjg5NmMtMjEuMzk5LDIuOTY4LTQyLjI0Miw3LjctNjIuMTg5LDE0LjAyMmwtNS45MywxLjg4bC01Ljg0NywyLjAyMmwtNS44NDEsMi4wNQoJCWwtNi4wODMsMi4zMzRjLTIuMDIzLDAuNzg5LTQuMDUzLDEuNTU0LTYuMDY0LDIuMzczbC01Ljk5MiwyLjU2OGMtMS45OSwwLjg3My0zLjk5OCwxLjY5Ni01Ljk2NiwyLjYxOWwtNS44OTIsMi43OTUKCQljLTE1LjY3MSw3LjUyOC0zMC43NTMsMTYuMjktNDUuMDc3LDI2LjEyNGMtMS44MTksMS4xODYtMy41NTEsMi41MDEtNS4zMjIsMy43NTdsLTUuMjc4LDMuODE1CgkJYy0zLjQ2NywyLjYxMy02Ljg4Miw1LjI5Ni0xMC4zMDUsNy45NjNsLTUuMDEsNC4xNTZsLTIuNTAxLDIuMDgyYy0wLjgzMywwLjY5NS0xLjY3MSwxLjM4My0yLjQ3NCwyLjExM2wtNC44NjQsNC4zMjIKCQljLTEuNjE4LDEuNDQ0LTMuMjUxLDIuODcxLTQuODA3LDQuMzgzYy0xMi42ODMsMTEuODM2LTI0LjUwOCwyNC41NjgtMzUuNDM1LDM4LjA1NGwtMi4yOTUsMi44MTYKCQljLTAuNzc0LDAuOTMyLTEuNDg1LDEuOTEyLTIuMjMsMi44NjZsLTQuNDIxLDUuNzY2Yy0wLjc0NywwLjk1NS0xLjQ1NywxLjkzNS0yLjE2MSwyLjkyMWwtMi4xMjIsMi45NDlsLTIuMTIsMi45NTMKCQljLTAuNzA1LDAuOTg2LTEuNDIyLDEuOTYzLTIuMDg3LDIuOTc2bC00LjA1NCw2LjAzOGMtMC42NjksMS4wMTEtMS4zNjEsMi4wMDgtMi4wMDksMy4wMzNsLTEuOTMsMy4wODVsLTMuODQ3LDYuMTg0bC0zLjY1Myw2LjMwNQoJCWMtMi40OCw0LjE4My00LjY4NCw4LjUxOS02Ljk3MSwxMi44MThjLTAuNTc4LDEuMDcyLTEuMTE2LDIuMTYzLTEuNjQ0LDMuMjZsLTEuNTk2LDMuMjg3bC0xLjU4NywzLjI5MwoJCWMtMC41MjcsMS4wOTktMS4wNjIsMi4xOTUtMS41NDIsMy4zMTZsLTIuOTM4LDYuNzA1Yy0wLjQ3OCwxLjEyMy0wLjk4OCwyLjIzMy0xLjQzNSwzLjM2OWwtMS4zNDYsMy40MDlsLTIuNjU2LDYuODM3bC0yLjQxMiw2LjkzNgoJCWwtMS4yNzcsMy44MDZjLTAuMzk2LDEuMjc5LTAuNzYsMi41Ny0xLjEzLDMuODU4Yy0wLjczMiwyLjU4LTEuNDQyLDUuMTY4LTIuMTIxLDcuNzY1Yy0wLjYxMSwyLjYxNy0xLjIwMiw1LjI0MS0xLjc3OSw3Ljg2NQoJCWMtMC4yODIsMS4zMTQtMC41ODgsMi42MjEtMC44NDEsMy45NDFsLTAuNzI5LDMuOTY5Yy0yLjAzOSwxMC41NTktMy4zNTQsMjEuMjMyLTQuODQ2LDMxLjgyNwoJCWMtMi41MDIsMTguOTUtMy4zNjgsMzguMjA3LTIuNDg3LDU3LjQ2N2MwLjk2NSwxOS4yNTQsMy42NTgsMzguNDk0LDguMDYsNTcuMzY4YzguODEyLDM3Ljc2NSwyNC44MSw3My44MjIsNDUuODYsMTA1Ljg2NQoJCWMxLjQxNywyLjEzMiwyLjkwNiw0LjIyLDQuMzk4LDYuMzE5YzAuNzU0LDEuMDQ0LDEuNTA5LDIuMDksMi4yNjQsMy4xMzZsMS4xNDUsMS41NjRjMC4zODUsMC41MTksMC43OTEsMS4wMTYsMS4xODgsMS41MjUKCQljMS41OTYsMi4wMjMsMy4yMDksNC4wMzgsNC44MzEsNi4wNDhsMi40MzksMy4wMTFsMi41MjQsMi45MTdjMS42ODYsMS45MzksMy4zNzIsMy44NzgsNS4wNTUsNS44MTNsMS4yNiwxLjQ1MmwxLjI5MSwxLjQxCgkJYzAuODYsMC45MzgsMS43MiwxLjg3NSwyLjU3OCwyLjgxMWMxLjcxMywxLjg3NSwzLjQxNCwzLjc1Miw1LjA5NSw1LjYzNWMxLjcwOSwxLjg0LDMuNDEyLDMuNjcyLDUuMTA1LDUuNDk1CgkJYzUuNDU4LDQuNTQ4LDExLjE0Nyw4LjYxOSwxNi43MjQsMTIuNjYzYzIuODQ5LDEuOTIsNS42OTEsMy44MDIsOC41MjMsNS42MzhjMS40MjMsMC45MDUsMi44MTQsMS44NTMsNC4yNTYsMi42OTEKCQljMS40MzcsMC44NDEsMi44NjksMS42OCw0LjI5NCwyLjUxNGMxLjk2MSwxLjEzLDMuODU0LDIuMjIzLDUuNjg0LDMuMjc4YzEuODE0LDEuMDc3LDMuNjI4LDEuOTc3LDUuMzQ5LDIuOTA1CgkJYzMuNDYsMS44MTYsNi42NiwzLjUxLDkuNjk1LDQuOTY1YzMuMDU2LDEuNDA2LDUuOTEyLDIuNjUzLDguNjA5LDMuNzMzYzEuMzQ4LDAuNTQsMi42NTcsMS4wMzcsMy45MzEsMS40OTIKCQljMS4yODIsMC40MzYsMi41NDEsMC43OTksMy43NjQsMS4xMzdjMi40NDgsMC42NjYsMi44Miw0Ljk1NCw1LjA3LDUuMjYxYzIuMjU2LDAuMjkyLDYuMDQyLDIuMTA3LDguMjAyLDEuOTUyCgkJYzQuMy0wLjI1Nyw4Ljc2LTYuNzM2LDEzLjA0NC04LjY5MWMyLjM4NC0xLjA5LDcuMzk3LDEuMDM0LDkuMjIsMC4xYzEuODMxLTAuOTU1LDAuNDY0LTQuOTQ5LDIuMjE5LTUuNzQ4CgkJYzMuNTA1LTEuNiwxMi4wNTgsNi4yMTIsMTQuNTc2LDAuNjcyYzUuODU5LTEyLjg4NiwxOS4xMTgtNi4zMzIsMjEuMTcyLTE5LjM5M2MwLjU5Mi0zLjcxMSw4Ljg0NS03LjUsMTAuNDY2LTE0LjU4CgkJYzEuNjE1LTcuMDgyLDE3LjEzLTIwLjQ2NiwxNS4zMDctMjQuMDY0Yy0wLjg0NS0xLjczNC0yLjEyOC0zLjYzOC0zLjcyNC01LjYxNWMtMC43OTctMC45OSwxLjg0NS01LjYwOSwwLjkxNi02LjYzNwoJCWMtMC45MzEtMS4wMjUtMC42NzgtMTAuNTY0LTEuNjYtMTEuNjczYy0xLjk4Ny0yLjE4Ni01Ljk2My05Ljk0LTguMTA1LTEyLjE0N2MtMC41NDItMC41NDMtNC4xMjksMC4yMi00LjY0Mi0wLjM1NAoJCWMtMC41MTUtMC41Ny0xLjAyOC0xLjEzOS0xLjU0LTEuNzA2Yy0xLjAxMi0xLjEzNC00LjE2NiwxLjk4NS01LjE0NSwwLjg4OGMtMS4yMDItMC42MjEtNS4wNzQsMS40MjEtNi4yNDksMC43ODEKCQljLTEuMTgyLTAuNjMyLTIuMzI3LDAuNjExLTMuNTE1LDBjLTEuMTg4LTAuNjExLTMuODgyLTMuMzE2LTUuMDc4LTMuOTA1Yy0wLjYtMC4yOTEtMS43NTMsMy41NzItNS40OTUsMC44MjkKCQljLTUuMTgxLTMuNzk4LDAuNTgxLDAuMzAzLDAsMGMtNC45NTMtNy4wODItMjAuMjU2LTIuOTkzLTI0LjM5NS04LjcyNmMtNy42MzgtMTAuNTc3LTE0LjMyNi0yMS40NC0xOS44OTUtMzIuNDQ4CgkJYy01LjU3Mi0xMS4wMDUtMTIuNzYtMTguMzk2LTE2LjAyMy0yOS40ODdjLTAuMjY0LTAuODc3LTAuNTU3LTEuNzUtMC44NjktMi42MmMtMC4yNzItMC44ODgtMC41NTgtMS43NzYtMC44NTctMi42NTkKCQljLTAuMzA2LTAuODc2LTAuNjE0LTEuNzU3LTAuOTIyLTIuNjM3Yy0wLjMwMy0wLjg4LTAuNjU0LTEuNzM2LTAuODk2LTIuNjMyYy0zLjA3Mi05LjYxNS0yLjgyMS0yMC4wMjEtNi41NDEtMjguODg1CgkJYy0xLjkxMS00LjU1Mi00LjgxOSwzLjQxOS00LjkwNCwyLjUwOGwtMC4xNDUtMS4zNTZjLTAuMDU3LTAuNDQ5LTAuMTAxLTAuOTAzLTAuMTIzLTEuMzYyYy0wLjEyMy0xLjgyOC0wLjI4My0zLjY0My0wLjQ5LTUuNDQKCQljLTAuMjYtMy42MzUtMC43MTUtNy4yLTEuMTAzLTEwLjc0Yy0wLjExNi0wLjg4Mi0wLjI0Ny0xLjc1Ni0wLjM5Ni0yLjYyNmMtMC4xMTQtMC44NzYtMC4yMjEtMS43NTEtMC4zNi0yLjYxNwoJCWMtMC4xMzYtMC44NjYtMC4yOTEtMS43MjctMC40NjUtMi41ODFjLTAuMDkyLTAuNDI3LTAuMTgzLTAuODUzLTAuMjc0LTEuMjc3Yy0wLjA3OC0wLjQyOC0wLjE1Ny0wLjg1NC0wLjIzNS0xLjI3OQoJCWMtMC4zMzEtMS42OTktMC43NTctMy4zNzMtMS4yNTgtNS4wMjRjLTAuNDE3LTEuNjYyLTAuOTI4LTMuMjk5LTEuNTQyLTQuOTEzYy0zLjAwOC04LjMwNiwzLjAyNC0yNi4wNDgsMi43MjgtMzQuOTMyCgkJYy0wLjI5NS04Ljg5OCwwLjQ1OC0xNy45MjQsMS42NzYtMjcuMTI2YzAuMTExLTEuMjA2LDAuMzYxLTIuMzg5LDAuNTQ1LTMuNTg4bDAuNTk5LTMuNTk2YzAuNDY3LTIuMzg3LDEuMDItNC43NjQsMS41MjYtNy4xNjEKCQljMC42NDItMi4zNTksMS4yMzctNC43NCwxLjkxMi03LjEwMWwxLjEwNi0zLjUxNmMwLjM4MS0xLjE2OCwwLjctMi4zNiwxLjE0Ni0zLjUwN2MzLjIxOC05LjMwMiw3LjI4My0xOC4zMTgsMTEuOTE0LTI2Ljg4OQoJCWwxLjE5My0yLjE4M2MwLjQtMC43MjcsMC43ODgtMS40NjMsMS4yMzctMi4xNjNjMC44Ny0xLjQxNiwxLjc0MS0yLjgzNSwyLjYxMy00LjI1NGMwLjQyNC0wLjcxOSwwLjg5My0xLjQwOCwxLjM2Ny0yLjA5NAoJCWwxLjQwOS0yLjA2OWwxLjQwOS0yLjA3MWMwLjQ2LTAuNjk4LDAuOTkxLTEuMzQ1LDEuNDgyLTIuMDIybDIuOTk1LTQuMDI2bDMuMTU4LTMuOTAyYzAuNTMyLTAuNjQ1LDEuMDI5LTEuMzIxLDEuNTg2LTEuOTQ1CgkJbDEuNjUtMS44OTJsMS42NC0xLjljMC41NDMtMC42MzYsMS4wODEtMS4yNzcsMS42NjQtMS44NzhjMS4xNDEtMS4yMjMsMi4yNzMtMi40NTQsMy4zOTctMy42OTJjMC41NS0wLjYzLDEuMTM5LTEuMjIzLDEuNzI4LTEuODE2CgkJbDEuNzQ4LTEuNzk0bDEuNzMzLTEuODA5YzAuNTYzLTAuNjE3LDEuMTkyLTEuMTY4LDEuNzgtMS43NTljMS4xOTQtMS4xNjUsMi4zNzctMi4zNDEsMy41NDctMy41MwoJCWMxLjIxMi0xLjE0MywyLjQzMi0yLjI3NywzLjYyOS0zLjQzN2wxLjc5NS0xLjc0MmwxLjg0Ny0xLjY4YzEuMjE3LTEuMTQyLDIuNDM0LTIuMjgyLDMuNjQ4LTMuNDE5CgkJYzEuMjQ3LTEuMTAyLDIuNDgxLTIuMjIyLDMuNy0zLjM2M2MwLjQ4Ni0wLjQ0NywwLjk2NC0wLjkwOSwxLjQ3LTEuMzM3YzAuNTE1LTAuNDE3LDEuMDMyLTAuODM1LDEuNTUtMS4yNTQKCQljMS4wNDItMC44MzEsMi4xMDEtMS42NTQsMy4xNzItMi40NzJsMC44MDUtMC42MTJsMC44MzYtMC41NzFsMS42ODQtMS4xMzRjMS4xMjktMC43NTEsMi4yNjEtMS41MDUsMy4zOTUtMi4yNgoJCWMxLjE1OC0wLjcxNiwyLjM0MS0xLjQsMy41MDktMi4xMDZjMS4xNzctMC42OTEsMi4zMjYtMS40MzMsMy41MTctMi4xYzEuMTk3LTAuNjU3LDIuMzg3LTEuMzIzLDMuNTY4LTIuMDAxCgkJYzEuMTg2LTAuNjcxLDIuMzM3LTEuMzk4LDMuNTQyLTIuMDIyYzQuNzM2LTIuNjUyLDkuMzY4LTUuMzcxLDEzLjc3Mi04LjM3OGMxLjEwNS0wLjc0NCwyLjE4Ny0xLjUyNSwzLjI0Ni0yLjM0NgoJCWMwLjUyOC0wLjQxOSwxLjA1NC0wLjgzNiwxLjU3Ny0xLjI1MWMwLjUzLTAuNDAzLDEuMDUzLTAuODE4LDEuNTcxLTEuMjQ0YzEuMDM1LTAuODUzLDIuMDQ0LTEuNzUxLDMuMDI3LTIuNzAyCgkJYzAuNDkyLTAuNDc2LDAuOTc3LTAuOTY0LDEuNDU2LTEuNDY1YzAuNTE5LTAuNDkyLDEuMDQzLTAuOTk1LDEuNTUzLTEuNTE0YzEuMDA3LTEuMDE5LDMuMTQ1LTEuNzI4LDQuODAxLTIuNTQxCgkJYzEwLjQ5My01LjAwMiwyMS4zOTEtOS4xMjgsMzIuNTE0LTEyLjIzNGMxMS4xMjMtMy4xMjEsMjIuNDYyLTUuMjg5LDMzLjg1Mi02LjUzNmMxMS4zOTUtMS4yODMsMjIuODIxLTEuNDksMzQuMTctMC44OTMKCQljMTEuMzYyLDAuNTU4LDIyLjYsMi4xNjQsMzMuNzEyLDQuNDQyYzYuMzI5LDEuMzY2LDEyLjYzNywyLjk2NywxOC44NTMsNC45ODFjNi4yMTEsMi4wMjIsMTIuMzY5LDQuMzQxLDE4LjQ2Myw2Ljk4MgoJCWM2LjA2NSwyLjY5NywxMi4wNjQsNS43MDMsMTcuOTg2LDkuMDM0YzUuOTM3LDMuMzEsMTEuNzIsNy4wNTcsMTcuNDQ0LDExLjA3OGMtMC4xOTMtMS40NDUtMC4zODEtMi44NTgtMC41NjctNC4yNDcKCQljLTAuMDk1LTAuNTc0LTAuMTg4LTEuMTQtMC4yODEtMS43MDZjNS4yOTksMi4zNDIsOS45NDYsNS4xMjksMTQuNTM1LDguNWMyLjQ2NiwxLjgwMyw0Ljg5NywzLjc1OCw3LjM1Myw1LjgzMwoJCWMxLjIyNywxLjAzMiwyLjQ2MSwyLjEwNywzLjcwNywzLjE5NmMwLjYyNSwwLjU1MiwxLjI1MSwxLjEwNCwxLjg3OSwxLjY1N2MwLjUzNSwwLjQ2NCwxLjA3MSwwLjkyOCwxLjYwOCwxLjM5M2wwLjUxNSwwLjQ1MwoJCWwwLjI1OCwwLjIyN2wwLjEyOSwwLjExNGwwLjE1MywwLjE0NGwxLjIyNSwxLjE1N2MwLjgwOSwwLjc3OSwxLjYwOSwxLjU3LDIuNCwyLjM3NGMxLjU4MSwxLjYxMSwzLjEyNiwzLjI4NCw0LjY1OCw1LjAzNAoJCWMyLjg3MiwzLjI3Nyw1LjcxNCw2Ljg1OSw4LjU5NSwxMC42ODZjMC42NjYsMS4wNjQsMS4zMDQsMi4wMiwxLjg3NCwyLjgzNGwwLjQ3OSwwLjY3OWwwLjQyLDAuNTc3bDAuNzQ5LDEuMDA4bDAuMTcyLDAuMjI4CgkJbDAuMDM5LDAuMDUxbDAuMDA1LDAuMDA1bDAuMDEsMC4wMWwwLjA0MSwwLjAzOWwwLjA4MywwLjA3OGMwLjIyMSwwLjIwOCwwLjQyNywwLjQzMywwLjU5NywwLjY4MWwwLjAzNSwwLjA0OGwwLjAwOSwwLjAxMgoJCWwtMC4wNjItMC4xMjNsMC4wMDksMC4wMTVsMC4wOCwwLjE0M2MwLjE3LDAuMzE3LDAuMzM4LDAuNjI5LDAuNTA1LDAuOTM4YzAuMTI2LDAuMjI3LDAuMjUxLDAuNDUyLDAuMzc2LDAuNjc3CgkJYzAuMzk0LDAuNjk1LDAuNzg5LDEuMzksMS4xODgsMi4wOTRjMC41MjYsMC45MjgsMS4wNTMsMS44NTYsMS41ODUsMi43OTRjMC41MjIsMC45MywxLjA0NCwxLjg2MSwxLjU3MSwyLjhsMC4zNjEsMC41NDkKCQljMC4xNDIsMC4xNjksMC4yNTgsMC4zNTksMC4zODksMC41MzdsMC43NjksMS4wNzljMC40MjYsMC41ODcsMC44OCwxLjE1MiwxLjMzOCwxLjcxNmMxLjkxOCwzLjc4NSwzLjYzMiw3LjIyNCw1LjA0NCwxMC4yOAoJCWMwLjkzMSwyLjAwOCwxLjc0OCwzLjg3MiwyLjQ4Niw1LjY2YzAuMTc3LDAuNDQ0LDAuMzc0LDAuODk0LDAuNTQsMS4zMjlsMC4yNjEsMC42NTdsMC4xMzQsMC4zMzRsMC4yOTksMC44MzkKCQljMC44NDUsMi4zMzMsMS42OTEsNC42NjMsMi41MzYsNi45OTJsMS41MjEsMi4yOTdjMC4xMjUsMC4zNywwLjI0OCwwLjczLDAuMzcsMS4wNjljMC4zMDcsMC44NTIsMC42MTUsMS42NTMsMC44ODEsMi4zMDMKCQlsMC4xMDMsMC4yNTVsMC4wMzUsMC4wODNsMC4wMTYsMC4wMzNsMC4wNjYsMC4xMzZsMC4xNDIsMC4zMzhsMC41ODEsMS4zODhjMC4zOTMsMC45MjMsMC43OTYsMS44NDIsMS4yMTEsMi43NThsMC42MzEsMS4zNzEKCQlsMC42MzksMS40OTFjMC43MTMsMS42NTYsMS4zNzQsMy4zNTksMi4wMDUsNS4wODhjMC41NzgsMS43NDUsMS4xMTUsMy41MiwxLjY1MSw1LjMwMWMwLjU2MywxLjc3MywwLjk3NywzLjU5NCwxLjQ3Nyw1LjM4OAoJCWMwLjI0OCwwLjg5OCwwLjQ5NSwxLjc5NSwwLjc0MiwyLjY5YzAuMjM1LDAuODk4LDAuNDY5LDEuNzk0LDAuNzAyLDIuNjg4YzAuMjQyLDAuODkyLDAuNDk0LDEuNzc4LDAuNzYsMi42NTcKCQljMC4yNywwLjg3OSwwLjUzOSwxLjc1NCwwLjgwNiwyLjYyNGMwLjUzNCwxLjc0MSwxLjEzNSwzLjQ0OSwxLjgzLDUuMTE0YzAuNjcyLDEuNjcsMS4zOCwzLjMwOCwyLjI0LDQuODg5CgkJYzAuNDI0LDAuNzkyLDAuODg5LDEuNTY5LDEuMzY3LDIuMzM3YzAuNDYzLDAuNzcsMC45NiwxLjUyNiwxLjQ5NCwyLjI2OGMwLjUyNSwwLjczMSwwLjcyOCwyLjEyMiwxLjA1LDMuMjI3CgkJYzEuOTIxLDcuMDEsMy40MDgsMTQuMjExLDQuNDA5LDIxLjUyMmMwLjk2OSw3LjMxNCwxLjUxNywxNC43MjgsMS43MDIsMjIuMTgxYzAuMTMzLDcuNDUzLTAuMTE4LDE0LjkzNi0wLjY0NSwyMi40MTRsLTAuNDY0LDUuNjA1CgkJbC0wLjYsNS41OTZjLTAuMTc1LDEuODcyLTAuNDUyLDMuNzI1LTAuNjk1LDUuNTg4Yy0wLjI0OCwxLjg2MS0wLjQ2NywzLjczMS0wLjc4Miw1LjU4MWMtMi41MSwxNi45OTktNy4wMjksMzMuODEyLTEzLjUyNCw1MC44NTIKCQljMS43MjMtMC43MSwzLjM4Mi0xLjQwNSw1LTIuMDk5YzEuNTkxLTAuNzI1LDMuMTM3LTEuNDMsNC42NjktMi4xMjhjLTAuNDMxLDYuMjkzLTIuNzY1LDEyLjc0NS01LjUwNiwxOS4yMzcKCQljLTEuNDQ0LDMuMjEyLTIuOSw2LjQ5LTQuNDU0LDkuNzA1Yy0wLjM3MiwwLjgxNS0wLjc0NCwxLjYyOC0xLjExNSwyLjQzOWwtMC41NDEsMS4yMjdsLTAuNTM3LDEuMTY3CgkJYy0wLjcwNiwxLjU2MS0xLjM3MiwzLjE0LTEuOTgsNC43NDNsLTAuMzQ2LDAuODk0bC0wLjA0NCwwLjExMmwtMC4wMjIsMC4wNTZsLTAuMTExLDAuMTlsLTAuMjMxLDAuNDA2bC0wLjI3NywwLjUxOQoJCWMtMC4yNzEsMC41MTktMC41MjMsMS4xLTAuNzQxLDEuNjg3Yy0xLjA3Ny0wLjY5OC0xLjM5OS0wLjkwNi0wLjAwMSwwLjAwMmMtMC4xMDcsMC4yODgtMC4yMDcsMC41NzYtMC4yOTMsMC44NgoJCWMtMC4wNjgsMC4yMjEtMC4xMTcsMC40MTEtMC4xNzEsMC42MTljLTAuMDUzLDAuMjA4LTAuMTAyLDAuNDE1LTAuMTMzLDAuNTc0bC0wLjA5OCwwLjUxMWwtMC4wNTcsMC4zOAoJCWMtMC4wMjMsMC4xNTMtMC4wMiwwLjE4LTAuMDI5LDAuMjY0Yy0wLjAwNiwwLjA2MS0wLjAxMiwwLjEyNC0wLjAxLDAuMTQyYy0wLjAwNywwLjAxNC0wLjAxMywwLjAyNy0wLjAyLDAuMDQKCQljLTAuMjI2LTAuMDQxLTAuNDIzLTAuMDc3LDAsMC4wMDFjLTAuMTIyLDAuMjUxLTAuMjQyLDAuNS0wLjM2NCwwLjc1MmMtMC4zMywwLjY3NS0wLjY0LDEuMjgyLTAuOTUzLDEuODg4CgkJYy0wLjMxOCwwLjYwOS0wLjYzOCwxLjIyLTAuOTU4LDEuODMyYy0wLjYzOSwxLjIyNy0xLjMyNSwyLjQzMy0yLjAwOSwzLjY0N2MtMi43NDgsNC44NDgtNS43NDcsOS42MjMtOC42MTIsMTQuMzc0CgkJYy0wLjkxMiwxLjQ4NC0xLjA4MSwzLjI0OC0xLjYzNCw0Ljg2OWwxLjIzMiwwLjM2YzQuMDg1LTQuOTExLDguMDM3LTkuOTM2LDExLjg0NC0xNS4wNzhjLTIuNzU5LDguMTE2LTQuMzIxLDEzLjY5OS03LjIyMSwxOS4wNTgKCQljLTQuNTA1LDguMjg0LTkuOTg2LDE2LjM4OS0xNS45MDQsMjQuMDk2Yy0yLjY1NCwzLjQ1OS01LjM2OCw2Ljg1NS04LjE2MywxMC4yNTFjLTEuNDA0LDEuNjg1LTIuODY5LDMuMzAzLTQuMzA4LDQuOTU4CgkJYy0xLjQ1NCwxLjYzNi0yLjg3OSwzLjMxMy00LjM2Niw0LjkxNmwtNC40NTcsNC44MjVsLTIuMjM4LDIuNDA5bC0yLjI4OSwyLjM2MWwtNC41ODgsNC43MjRjLTEuNTQ2LDEuNTU5LTMuMTI3LDMuMDgzLTQuNjksNC42MjgKCQljLTguMjEsOC4wMTYtMTYuODUzLDE1LjY2NS0yNS43NjEsMjIuOTg0Yy0wLjQ1NSwwLjM3My0wLjQyLDEuMjI0LTAuODcxLDIuNTIxYzIuODcxLTAuMTE3LDUuOTM1LTAuMzE3LDguNjYxLTAuNDgxCgkJYy0xLjAyLDIuMzQxLTEuNjk3LDMuODk2LTMuMDI2LDYuOTQ3YzIuMzctMS44NjQsNC42MjYtMy42MzgsNi43OTctNS4zNDZjMC41NDItMC40MjcsMS4wNzktMC44NSwxLjYxMS0xLjI3CgkJYzAuNTIyLTAuNDMyLDEuMDM5LTAuODU5LDEuNTUyLTEuMjgzYzEuMDI1LTAuODQ5LDIuMDMzLTEuNjgzLDMuMDI2LTIuNTA2YzQuMDEtMy4yNTEsNy42MzEtNi41MDIsMTEuMzIxLTkuNjc0CgkJYzMuMDY4LTIuNzUyLDYuMTE5LTUuNTIzLDkuMTQyLTguMzE4bDQuNDY1LTQuMjZjMS40ODYtMS40MjIsMi45ODctMi44Myw0LjQyNS00LjI5NGw0LjM1OC00LjM1NGwyLjE3Ni0yLjE4M2wyLjE1My0yLjI0NAoJCWMyLjg2Ny0zLDUuNzU4LTUuOTM3LDguNTQ4LTkuMTEzYzEwLjk2Mi0xMi4yNDgsMjEuNDI0LTI1LjA2NiwzMS4xMDctMzguNTc4YzMuNTU0LTQuOTUzLDYuODA1LTEwLjU1NiwxMC4xMzQtMTUuNDM3CgkJYzAuODI5LTEuMjE3LDEuNzA5LTIuNDI3LDIuNDU5LTMuMzkyYzAuMzkzLTAuNTA0LDAuNzkxLTAuOTg5LDEuMTk1LTEuNDU1YzAuMjA2LTAuMjMxLDAuNDEtMC40NTgsMC42MTItMC42ODNsMC4zMS0wLjMzMQoJCWMwLjE0NS0wLjE5NSwwLjM0Ni0wLjQ4NSwwLjUxLTAuNzI2YzAuMDMyLTAuMDQzLDAuMTE4LTAuMTg2LDAuMTc4LTAuMjg0bDAuMTk0LTAuMzI0bDAuMzctMC42NTcKCQljMC4wODItMC4xNTUsMC4xNi0wLjMxNSwwLjIzOS0wLjQ3NGMzLjE5NywyLjEwNyw2LjQ3NSw0LjI2OCw5LjUzNSw2LjI4NWMtMC4yMDcsMC4zOTItMC40MTgsMC43OC0wLjYzOSwxLjE2MmwtMC41NjIsMC45MjYKCQlsLTAuMjE2LDAuMzQzbC0wLjA0LDAuMDdsLTAuMTYxLDAuMjgxbC0wLjMyMiwwLjU2M2wtMC42NDYsMS4xMjVsLTAuNjQ2LDEuMTIzbC0wLjMyNCwwLjU2MmwtMC4zODIsMC42MzkKCQljLTEuMDYyLDEuNzQ1LTIuMDk1LDMuNTEtMy4xODgsNS4yMzdjLTQuMzE0LDYuOTQ3LTguODc0LDEzLjc1MS0xMy42MywyMC4zNzhjLTQuNzYzLDYuNjIyLTkuNzEyLDEzLjA3NC0xNC43NzUsMTkuMzY2CgkJYy0yLjk4MywzLjY5NC02LjExNSw3LjI2NS05LjIxNSwxMC44MTVsLTEuNTM3LDEuNzY3bC0xLjYxNCwxLjgyMWMtMS4wODIsMS4yMS0yLjE2LDIuNDU5LTMuMjUzLDMuNTg4bC02LjU0OCw2LjkyOQoJCWMtNC4zODYsNC40OC04LjczMyw4LjkzNi0xMy4yODEsMTMuMjY3Yy05LjAyOCw4LjY5OC0xOC40MjgsMTcuMTAzLTI4LjIyMywyNS4wOWMtMS42ODMsMS4zNDctMy41MzMsMi41MjUtNS4zNTYsMy43MTYKCQljLTEuODMyLDEuMTgxLTMuNjA5LDIuNDExLTUuMjY2LDMuNzNjLTIwLjc5NywxNy4yODctNDQuMDY1LDMxLjY4Mi02OC40NDcsNDIuODQ0Yy0xLjkzOCwwLjg4Ny00Ljc3NiwyLjg4Ny01LjIxMSwzLjkxMQoJCWMtMC45ODEsMi41ODktMy4yNiw0LjU4Mi02LjAwOSw2LjI2OWMtMC42OTEsMC40MjEtMS4zOTQsMC44MjYtMi4xNDYsMS4yMTFjLTAuNzgzLDAuMzgxLTEuNTgzLDAuNzQ4LTIuMzg3LDEuMTA0CgkJYy0xLjQyNiwwLjYxNS0yLjg1MiwxLjIzLTQuMjE1LDEuODE4Yy02Ljg2NSwzLjAxOS0xMy44NzYsNS45MzktMjAuOTg0LDguNzZjLTMuNTUzLDEuNDEtNy4xMjgsMi43OTUtMTAuNzEyLDQuMTU2bC0zLjExOSwxLjE4OAoJCWMtMS40NTQsMC41OTktMi45NjQsMS4wMjEtNC40NjEsMS40OTdjLTIuMjEzLDAuNjcxLTQuMjg2LDEuMjQ4LTYuMTgyLDEuNzY2Yy0yLjUwMiwwLjY4My00Ljc0NSwxLjE4LTYuNDY0LDIuMDAzCgkJYy0wLjg1LDAuNDA1LTEuNjUxLDAuOTE5LTIuMTQ5LDEuNTIxYy0wLjExNSwwLjE0Ny0wLjIyNCwwLjMwNC0wLjMyNiwwLjQ2OWMtMC4yMjIsMC4yMDctMC40NDMsMC40MjctMC42NTMsMC42NTYKCQljLTAuNDIxLDAuNDU4LTAuODExLDAuOTU5LTEuMTY1LDEuNTA5YzAuODQyLTAuMTQ1LDEuNjM4LTAuMjY3LDIuMzk3LTAuMzgxYzAuMjI4LTAuMDA0LDAuNDEyLDAuMDA2LDAuNjExLDAuMDA3CgkJYzAuMTg2LDAuMDA1LDAuNDc0LTAuMDE5LDAuNjk3LTAuMDI5YzAuOTY3LTAuMDU3LDEuOTA5LTAuMTQ2LDIuOTQxLTAuMzcyYzEuNTg3LTAuMzUsMy40MDItMC43NTQsNS4zOTUtMS4yMjgKCQljMC45OTYtMC4yMzYsMi4wNTEtMC40OTYsMy4xNDQtMC43NzVsMS42ODItMC40NDFsMC44Ni0wLjIzMmwwLjk4OS0wLjI4bDIuNDY1LTAuNzM4YzAuODE4LTAuMjQ3LDEuNjA1LTAuNTcxLDIuNDE0LTAuODU5CgkJbDAuNjAzLTAuMjI0bDAuMzU3LTAuMTI1bDAuNzA0LTAuMjQ3bDEuNDA2LTAuNDk4bDUuNjE1LTIuMDI2YzcuNDcyLTIuNzM2LDE0Ljg2Ni01LjYwNSwyMi4xNDEtOC40NjNsNS40NC0yLjE0bDIuNzc1LTEuMDk0CgkJYzEuMDQ0LTAuNDI0LDIuMTQ4LTAuODQ1LDMuMTQzLTEuMjczbDUuOTI1LTIuNTcybDIuOTY2LTEuMjgybDEuNDg0LTAuNjRsMS40MjQtMC42MzhsNS42NjgtMi41MzUKCQljMS44OTItMC44MzksMy43OS0xLjY2NCw1LjY3Mi0yLjU1MWMxLjg5MS0wLjg2NCwzLjc4Mi0xLjcyNyw1LjY3MS0yLjU5bDIuODQyLTEuMjg4bDIuODMtMS4zMzEKCQljOC4wMDItMy43LDE1Ljc5LTguMjcsMjMuNTI1LTEzLjE3OGMtMC44NjEsMC42MzMtMS42OTgsMS4yODItMi40OTksMS45NTdjLTEuNjUyLDEuMzYtMy4xNywyLjgwOS00LjQ2Miw0LjQzNwoJCWMtMC44NjUsMS4wOTUtMS42MjQsMi4yNy0yLjI3NiwzLjUyNmMtMC4xNywwLjI4NS0wLjMzOCwwLjU3My0wLjQ4OSwwLjg3OWMwLjAyNy0wLjAxNywwLjA1NS0wLjAzMywwLjA4Mi0wLjA1CgkJYy0wLjE2NCwwLjM1NC0wLjMyOCwwLjcwNy0wLjQ3NCwxLjA3NmMyLjY3OC0xLjE4Niw1LjAyNC0yLjIyNiw3LjIyNy0zLjIwMmMxLjEtMC40OTUsMi4xNTctMC45ODYsMy4xODctMS40OTYKCQljMS4wMjQtMC41MTksMi4wMTMtMS4wNjcsMi45OS0xLjY1NmMxMi4xOTItNy4zNDQsMjQuMDYxLTE1LjM0MiwzNS41NjgtMjMuOTNjMTEuNTAxLTguNTk5LDIyLjY2LTE3Ljc1OCwzMy40ODgtMjcuMzkzCgkJYzEwLjgzNy05LjYyNSwyMS4yODktMTkuNzk1LDMxLjQ2LTMwLjM1MWMyLjU2My0yLjYxNiw1LjA0Ni01LjMyOCw3LjU2NS04LjAwNGMyLjUwOS0yLjY4OCw0Ljk2My01LjQ0Miw3LjQ1LTguMTY0CgkJYzQuODk2LTUuNTMyLDkuNzc4LTExLjEsMTQuNTI5LTE2LjgzOGM3LjkzNC05LjUwMywxNS4xNjctMTkuOTQ5LDIxLjg2LTMwLjk5OGM2LjY5Ni0xMS4wNTEsMTIuODUyLTIyLjcsMTguNzA3LTM0LjcwNAoJCWMxLjExMiwxLjY4MiwyLjg2NCwxLjQ0OSw0LjgzMi0wLjMzM2MwLjk3OS0wLjg5MywyLjAyLTIuMTY2LDMuMDc0LTMuNzU3YzEuMDU3LTEuNTg5LDIuMTMxLTMuNDkzLDMuMTEyLTUuNjk0bDIuNzA1LTUuOTg1CgkJbDIuNTcxLTYuMDc5YzAuNDIzLTEuMDE3LDAuODU5LTIuMDI1LDEuMjY4LTMuMDVsMS4yMTEtMy4wODdjMC43OTgtMi4wNjQsMS42MjMtNC4xMTIsMi4zODYtNi4xOTYKCQljMS41MDgtNC4xODEsMy4wMzctOC4zNTEsNC4zOTEtMTIuNjE3YzEuNDI4LTQuMjI2LDIuNjc1LTguNTQ2LDMuOTQzLTEyLjg1NGM0Ljg2NS0xNy4zMjIsOC40NjMtMzUuMjU3LDEwLjMzLTUzLjU1OQoJCUM2NzIuNDkzLDM0My4zMiw2NzEuOTE5LDMzMS43NzgsNjcxLjI5LDMyMC42OTJ6IE01ODQuNzc5LDE0OS45OTNjMC4zMjUsMC40MjgsMC42MzUsMC44NjYsMC45NSwxLjMwMWwtMC42MzMsMC40MjUKCQljLTAuODE4LDAuNTUyLTEuNjQ1LDEuMDkzLTIuNDc4LDEuNjI0bC0xLjk2NiwxLjI0OWMtMC41MTgsMC4zMjgtMS4wNDMsMC42NDgtMS41NzMsMC45NmwtMS4xNjMsMC42OTIKCQljLTAuMzQsMC4xOTktMC42ODUsMC4zOTItMS4wMzQsMC41NzlsLTAuNjk5LDAuMzg1Yy0wLjIyMSwwLjExOC0wLjQ0NiwwLjIzMS0wLjY3MywwLjM0MWw5LjA2LTcuODM0TDU4NC43NzksMTQ5Ljk5M3oKCQkgTTU2OS4yNzIsMjI4LjU1NWwwLjAwMy0wLjAwMkM1NjkuMjg0LDIyOC41NDksNTY5LjI4MSwyMjguNTUsNTY5LjI3MiwyMjguNTU1eiBNNTY4LjA5Miw0NzUuOTQ3bC0wLjQxNi0wLjEwNwoJCWMtMC4wMDQtMC4wMDEtMC4wMDctMC4wMDItMC4wMTEtMC4wMDNjMC4wODMsMC4wMjEsMC4yMDIsMC4wNTEsMC40NDYsMC4xMTRDNTY4LjEwNSw0NzUuOTUsNTY4LjA5OCw0NzUuOTQ5LDU2OC4wOTIsNDc1Ljk0N3oKCQkgTTU2Ny4yMjMsNDc1LjcxYzAuMDAxLDAuMDAxLDAuMDAyLDAuMDAxLDAuMDAzLDAuMDAyTDU2Ny4yMjMsNDc1LjcxTDU2Ny4yMjMsNDc1LjcxeiBNNTY3LjM2Miw0NzUuNzg1CgkJYzAuMDAzLDAuMDAyLDAuMDA3LDAuMDA1LDAuMDEyLDAuMDA3Yy0wLjAwNi0wLjAwNC0wLjAxMy0wLjAwOC0wLjAxOS0wLjAxMUM1NjcuMzU3LDQ3NS43ODIsNTY3LjM1OSw0NzUuNzg0LDU2Ny4zNjIsNDc1Ljc4NXoKCQkgTTU2Ny40NTcsNDc1LjgzM2MtMC4wMjItMC4wMDktMC4wNDMtMC4wMTgtMC4wNTgtMC4wMjZDNTY3LjQxNiw0NzUuODE1LDU2Ny40MzYsNDc1LjgyNCw1NjcuNDU3LDQ3NS44MzN6IE01NjcuNjU4LDQ3NS45MTYKCQlsMC4xMzMsMC4wNjFjLTAuMDk3LTAuMDQ2LTAuMTk3LTAuMDg5LTAuMy0wLjEzTDU2Ny42NTgsNDc1LjkxNnogTTU2Ny44MDcsNDc1Ljk4NGwwLjAyMSwwLjAxYzAsMC0wLjAwMS0wLjAwMS0wLjAwMS0wLjAwMQoJCWwwLjAwNSwwLjAwM2MwLjAwMSwwLDAuMDAxLDAuMDAxLDAuMDAyLDAuMDAxbC0wLjAzMS0wLjAxNUw1NjcuODA3LDQ3NS45ODR6IE01NjguNTksNDc2LjQ5NmMwLjcxOSwwLjQ3NCwxLjQ2OSwwLjk2OSwyLjI0NiwxLjQ4MQoJCWMtMC42OTUtMC40NTgtMS40MTYtMC45MzMtMi4xNi0xLjQyNEM1NjguNjUsNDc2LjUzNSw1NjguNjIxLDQ3Ni41MTYsNTY4LjU5LDQ3Ni40OTZ6IE01NzAuOTE5LDQ3Ni41NDZsLTAuMjQ4LTAuMDUKCQljMC4yODcsMC4wNTcsMC41NzUsMC4xMDcsMC44NjMsMC4xNjFDNTcxLjMyOSw0NzYuNjE5LDU3MS4xMjQsNDc2LjU4Niw1NzAuOTE5LDQ3Ni41NDZ6IE01NjcuNTM4LDQ3NS44MDFjMCwwLTAuMDAxLDAtMC4wMDEsMAoJCUM1NjYuODM2LDQ3NS4zMzgsNTY2LjMzNyw0NzUuMDA5LDU2Ny41MzgsNDc1LjgwMXogTTU2Ny41MzYsNDc1LjhjLTAuMDAxLDAtMC4wMDItMC4wMDEtMC4wMDMtMC4wMDEKCQlDNTU2LjMyLDQ2OC40MDYsNTU5LjU2NSw0NzAuNTQ1LDU2Ny41MzYsNDc1Ljh6IE01NjcuMTQ2LDQ3NS42NzRsMC4wMDMsMC4wMDFsLTAuMDA4LTAuMDAzTDU2Ny4xNDYsNDc1LjY3NHogTTU3MC45MzMsNDc4LjA0CgkJYzAuMjMxLDAuMTUyLDAuNDY1LDAuMzA2LDAuNywwLjQ2MkM1NzEuNDAzLDQ3OC4zNSw1NzEuMTY4LDQ3OC4xOTUsNTcwLjkzMyw0NzguMDR6IE01NzguNzIxLDQ4My4xNzQKCQlDNTc4LjcyMSw0ODMuMTc0LDU3OC43MjEsNDgzLjE3Myw1NzguNzIxLDQ4My4xNzRjMC4wNywwLjA0NiwwLjEzNSwwLjA4OSwwLjIwNSwwLjEzNWwwLjAwNi0wLjAwNgoJCWMwLjI0My0wLjIxMywwLjQ4OS0wLjQxOSwwLjczNy0wLjYxOWMwLjk5Mi0wLjc5NywyLjAyLTEuNDg0LDMuMDkyLTIuMDQxYzAuNDAyLTAuNTc5LDAuNzk5LTEuMTUsMS4xOTQtMS43MTkKCQljLTMuMjI3LTAuNTktNi44MDgtMS4yNDUtMTAuNzg0LTEuOTcyYy0wLjAxMS0wLjAwMi0wLjAyMy0wLjAwNC0wLjAzNC0wLjAwNmwwLjAxLDAuMDAyYzQuNTA0LDAuODIzLDguMDQzLDEuNDcsMTAuODA4LDEuOTc1CgkJYzAuNTQ3LTAuNzg3LDEuMDg4LTEuNTY3LDEuNjIxLTIuMzM1YzAuODQ4LTEuMjg3LDEuNjc4LTIuNTQ3LDIuNDkzLTMuNzg0YzAuODExLTEuMjQxLDEuNjI2LTIuNDUxLDIuMzk2LTMuNjYxCgkJYzAuNzUzLTEuMjIsMS40OTUtMi40MjEsMi4yMjctMy42MDdjMC43My0xLjE5LDEuNDUxLTIuMzYzLDIuMTY0LTMuNTI2YzAuNjc5LTEuMTgzLDEuMzUxLTIuMzU0LDIuMDE5LTMuNTE4CgkJYzAuNjY1LTEuMTY4LDEuMzI1LTIuMzI4LDEuOTgzLTMuNDg0YzAuNjQ5LTEuMTYyLDEuMjUtMi4zNDMsMS44NzMtMy41MTZjNC45MjEtOS4zLDkuNDY1LTE4Ljg1NywxMy4wNzEtMjguNzkzCgkJYzMuNTk5LTkuOTMxLDYuMjE5LTIwLjI1MSw3LjMwMS0zMC44MzljMC4zMzYtMi43NzgsMC43MDEtNS42NDMsMS41ODEtOC4xNDRjMC44ODktMi41LDIuMTAxLTQuNjc3LDQuMDM5LTYuMTEKCQljLTAuNTQ2LDYuOTk2LTEuNjgxLDEzLjkzMS0zLjA1NiwyMC44MTljLTAuMzYxLDEuNzE4LTAuNzY4LDMuNDI3LTEuMTYzLDUuMTM4Yy0wLjQxMywxLjcwNy0wLjc3NiwzLjQyNy0xLjI1Nyw1LjExNwoJCWMtMC45MzQsMy4zODYtMS44MTIsNi43OTEtMi44OTgsMTAuMTMybC0xLjU3OCw1LjAyN2wtMS43MTUsNC45OGMtMS4xMTMsMy4zMzEtMi4zODcsNi42MDMtMy42MTQsOS44OQoJCWMtMC41OTcsMS42NS0xLjI2NCwzLjI3My0xLjkxOCw0LjlsLTEuOTQ2LDQuODg4bC0yLjAzOSw0Ljg0OGMtMC42ODgsMS42MTItMS4zMTgsMy4yNTEtMi4wNDQsNC44NDZsLTIuNTA4LDUuNjYzCgkJYy0wLjgzMiwxLjg5My0xLjc3MiwzLjczMy0yLjY2MSw1LjYwMmMtMS43NiwzLjc0Ni0zLjc1LDcuMzc5LTUuNjc3LDExLjA1MmMtMC4zMjMtMC4wNi0wLjgxNy0wLjE1LTEuMzEzLTAuMjQybC0wLjAwMSwwLjAwNAoJCWMwLjYyNSwwLjExNCwxLjA0OSwwLjE5MSwxLjMxMywwLjIzOWMwLDAsMCwwLjAwMSwwLDAuMDAxYzAsMC4wMDEtMC4wMDEsMC4wMDEtMC4wMDEsMC4wMDJjLTAuNDI4LTAuMDc4LTAuODY1LTAuMTU4LTEuMzExLTAuMjQKCQlsLTAuMDE0LDAuMDg1bC0wLjExOSwwLjY2N2wtMC4wOTQsMC40NzdsLTAuMTQ5LDAuNjc3bC0wLjE2NiwwLjY4OWwtMC4yMjYsMC44MzJsLTAuMjUsMC44MzVjLTAuMDIsMC4wNjQtMC4wNDQsMC4xMzMtMC4wNjUsMC4yCgkJYy0wLjI5MiwwLjUwOS0wLjU4NiwxLjAxOS0wLjg3NiwxLjUyNWwtMC44MzEsMS40MzlsLTAuNDE3LDAuNzE5bC0wLjIwOSwwLjM2bC0wLjEwNCwwLjE4bC0wLjA1MiwwLjA5bC0wLjAyNiwwLjA0NQoJCWMtMy40OS0yLjI5OC0xLjE2Ni0wLjc2MSwwLjUyMiwwLjM1NmMtMC4wMDEsMC4wMDItMC4wMDIsMC4wMDUtMC4wMDQsMC4wMDdDNTg2Ljc4MSw0ODguNDg1LDU4My44ODMsNDg2LjU3Niw1NzguNzIxLDQ4My4xNzR6Ij48L3BhdGg+Cgk8bGluZWFyR3JhZGllbnQgaWQ9IlNWR0lEXzJfIiBncmFkaWVudFVuaXRzPSJ1c2VyU3BhY2VPblVzZSIgeDE9IjI5NC4yNTUiIHkxPSI3OTAuOTk4NiIgeDI9IjI5NC4yNTUiIHkyPSIxODMuMjg0OSI+CgkJPHN0b3Agb2Zmc2V0PSIwIiBzdHlsZT0ic3RvcC1jb2xvcjojRkZGMUFBIj48L3N0b3A+CgkJPHN0b3Agb2Zmc2V0PSIwLjQxNjIiIHN0eWxlPSJzdG9wLWNvbG9yOiNGRjlFMDAiPjwvc3RvcD4KCQk8c3RvcCBvZmZzZXQ9IjAuNzU3IiBzdHlsZT0ic3RvcC1jb2xvcjojRkY2QTAwIj48L3N0b3A+CgkJPHN0b3Agb2Zmc2V0PSIxIiBzdHlsZT0ic3RvcC1jb2xvcjojRkYyQTJBIj48L3N0b3A+Cgk8L2xpbmVhckdyYWRpZW50PgoJPHBhdGggY2xhc3M9InN0MSIgZD0iTTI4Ni42ODgsNzIwYzUuMDczLTAuOTM4LDEwLjExNy0xLjk2NywxNS4xMzQtMy4wNzJjLTUuMDA5LDAuOTQ1LTEwLjAzOCwxLjgxNC0xNS4wOTEsMi41OTNMMjg2LjY4OCw3MjB6Ij48L3BhdGg+Cgk8bGluZWFyR3JhZGllbnQgaWQ9IlNWR0lEXzNfIiBncmFkaWVudFVuaXRzPSJ1c2VyU3BhY2VPblVzZSIgeDE9IjMzMC4xNDA3IiB5MT0iNzkwLjk5ODYiIHgyPSIzMzAuMTQwNyIgeTI9IjE4My4yODQ5Ij4KCQk8c3RvcCBvZmZzZXQ9IjAiIHN0eWxlPSJzdG9wLWNvbG9yOiNGRkYxQUEiPjwvc3RvcD4KCQk8c3RvcCBvZmZzZXQ9IjAuNDE2MiIgc3R5bGU9InN0b3AtY29sb3I6I0ZGOUUwMCI+PC9zdG9wPgoJCTxzdG9wIG9mZnNldD0iMC43NTciIHN0eWxlPSJzdG9wLWNvbG9yOiNGRjZBMDAiPjwvc3RvcD4KCQk8c3RvcCBvZmZzZXQ9IjEiIHN0eWxlPSJzdG9wLWNvbG9yOiNGRjJBMkEiPjwvc3RvcD4KCTwvbGluZWFyR3JhZGllbnQ+Cgk8cGF0aCBjbGFzcz0ic3QyIiBkPSJNMzU4LjM2Niw3MDIuNjM5bDAuMDkzLTEuOTA3Yy0xOC40NTMsNi40ODYtMzcuMzQxLDExLjk0NC01Ni42MzcsMTYuMTk2CgkJQzMyMS4wMDksNzEzLjMwNiwzMzkuODcxLDcwOC40ODgsMzU4LjM2Niw3MDIuNjM5eiI+PC9wYXRoPgoJPGxpbmVhckdyYWRpZW50IGlkPSJTVkdJRF80XyIgZ3JhZGllbnRVbml0cz0idXNlclNwYWNlT25Vc2UiIHgxPSI2MjguNDU5NSIgeTE9Ijc5MC45OTg2IiB4Mj0iNjI4LjQ1OTUiIHkyPSIxODMuMjg0OSI+CgkJPHN0b3Agb2Zmc2V0PSIwIiBzdHlsZT0ic3RvcC1jb2xvcjojRkZGMUFBIj48L3N0b3A+CgkJPHN0b3Agb2Zmc2V0PSIwLjQxNjIiIHN0eWxlPSJzdG9wLWNvbG9yOiNGRjlFMDAiPjwvc3RvcD4KCQk8c3RvcCBvZmZzZXQ9IjAuNzU3IiBzdHlsZT0ic3RvcC1jb2xvcjojRkY2QTAwIj48L3N0b3A+CgkJPHN0b3Agb2Zmc2V0PSIxIiBzdHlsZT0ic3RvcC1jb2xvcjojRkYyQTJBIj48L3N0b3A+Cgk8L2xpbmVhckdyYWRpZW50PgoJPHBhdGggY2xhc3M9InN0MyIgZD0iTTYyNS4xNDgsMTUzLjcyOWwxLjUyNiwyLjkxN2wxLjQ4MiwyLjk0M2MwLjk5MywxLjk2LDIuMDE0LDMuOTA2LDMuMDU4LDUuODQ1CgkJYzEuMDEsMS45NTcsMi4wNiwzLjg5OCwzLjE2Nyw1LjgyMWMxLjEyNSwxLjkxMywyLjI0LDMuODM5LDMuNDM3LDUuNzRjMS4xODksMS45MDUsMi41MDIsMy43NjUsMy44MjgsNS42MzkKCQljLTAuNDU3LTIuMjI4LTEuMTAyLTQuMzc4LTEuNzg1LTYuNTEzYy0wLjY5NS0yLjEzLTEuNDYyLTQuMjMtMi4zNzYtNi4yNThjLTAuODk1LTIuMDM4LTEuODYyLTQuMDQyLTIuODg2LTYuMDE1CgkJYy0xLjA0OS0xLjk2LTIuMTg1LTMuODc0LTMuMzQ4LTUuNzcxYy0wLjU4My0wLjk0Ny0xLjE3Ny0xLjg4OC0xLjc3OS0yLjgyM2MtMC42MjMtMC45MjQtMS4yNTctMS44NDEtMS44OTctMi43NTQKCQljLTEuMjg0LTEuODIzLTIuNTgzLTMuNjM0LTMuOTIzLTUuNDE4Yy0yLjc1MS0zLjUyNi01LjQ5Mi03LjA0MS04LjM4LTEwLjQ1NWMyLjUxMywzLjYxNCw0LjY1OCw3LjQ1MSw2LjgxLDExLjI3NAoJCUM2MjMuMTMsMTQ5LjgzLDYyNC4xMjksMTUxLjc4NSw2MjUuMTQ4LDE1My43Mjl6Ij48L3BhdGg+Cgk8bGluZWFyR3JhZGllbnQgaWQ9IlNWR0lEXzVfIiBncmFkaWVudFVuaXRzPSJ1c2VyU3BhY2VPblVzZSIgeDE9IjYxOS4yOTc3IiB5MT0iNzkwLjk5ODYiIHgyPSI2MTkuMjk3NyIgeTI9IjE4My4yODQ5Ij4KCQk8c3RvcCBvZmZzZXQ9IjAiIHN0eWxlPSJzdG9wLWNvbG9yOiNGRkYxQUEiPjwvc3RvcD4KCQk8c3RvcCBvZmZzZXQ9IjAuNDE2MiIgc3R5bGU9InN0b3AtY29sb3I6I0ZGOUUwMCI+PC9zdG9wPgoJCTxzdG9wIG9mZnNldD0iMC43NTciIHN0eWxlPSJzdG9wLWNvbG9yOiNGRjZBMDAiPjwvc3RvcD4KCQk8c3RvcCBvZmZzZXQ9IjEiIHN0eWxlPSJzdG9wLWNvbG9yOiNGRjJBMkEiPjwvc3RvcD4KCTwvbGluZWFyR3JhZGllbnQ+Cgk8cGF0aCBjbGFzcz0ic3Q0IiBkPSJNNjE2LjE3Myw1MDIuMjkyYy0xLjQ2NCwyLjQ3Ny0yLjczNCw1LjAzNi0zLjczNCw3LjY1OGMtMS4wMDIsMi42Mi0xLjY3Myw1LjM2Mi0xLjg0Niw4LjMwNAoJCWM2LjE2My05LjY0NiwxMS45ODYtMTkuNjAxLDE3LjQwOS0yOS44NjhjLTAuOTY3LTAuMzctMS45My0wLjczOS0yLjg5Ny0xLjEwOUM2MjIuNTI3LDQ5Mi40NDIsNjE5LjA1NSw0OTcuMzAzLDYxNi4xNzMsNTAyLjI5MnoiPjwvcGF0aD4KCTxsaW5lYXJHcmFkaWVudCBpZD0iU1ZHSURfNl8iIGdyYWRpZW50VW5pdHM9InVzZXJTcGFjZU9uVXNlIiB4MT0iMzg4LjgxNzgiIHkxPSI3OTAuOTk4NiIgeDI9IjM4OC44MTc4IiB5Mj0iMTgzLjI4NDkiPgoJCTxzdG9wIG9mZnNldD0iMCIgc3R5bGU9InN0b3AtY29sb3I6I0ZGRjFBQSI+PC9zdG9wPgoJCTxzdG9wIG9mZnNldD0iMC40MTYyIiBzdHlsZT0ic3RvcC1jb2xvcjojRkY5RTAwIj48L3N0b3A+CgkJPHN0b3Agb2Zmc2V0PSIwLjc1NyIgc3R5bGU9InN0b3AtY29sb3I6I0ZGNkEwMCI+PC9zdG9wPgoJCTxzdG9wIG9mZnNldD0iMSIgc3R5bGU9InN0b3AtY29sb3I6I0ZGMkEyQSI+PC9zdG9wPgoJPC9saW5lYXJHcmFkaWVudD4KCTxwYXRoIGNsYXNzPSJzdDUiIGQ9Ik0zODguMjk1LDY4My4xNzdjLTAuOTI3LDAuNjY1LTEuODQxLDEuMzIxLTIuNzUxLDEuOTc1Yy0wLjkyMSwwLjYzOS0xLjgzOSwxLjI3Ny0yLjc2NSwxLjkxOQoJCWMtMS44NTksMS4yNzktMy43MzYsMi42MTYtNS43NzksMy45NzRjNi44OTItMS42NTQsMTAuMzYyLTIuNTI3LDEzLjMzMS00LjY3NGMxLjQ4Ni0xLjA3MiwyLjg2Ny0yLjQzMiw0LjQ3MS00LjM5NAoJCWMxLjU5NS0xLjk3NiwzLjQzOS00LjUxLDUuODMzLTcuOTA0Yy0yLjM4NiwxLjc4Ni00LjU0MiwzLjQwMS02LjU1Niw0LjkxQzM5Mi4wNiw2ODAuNDk0LDM5MC4xNDIsNjgxLjgzNywzODguMjk1LDY4My4xNzd6Ij48L3BhdGg+Cgk8bGluZWFyR3JhZGllbnQgaWQ9IlNWR0lEXzdfIiBncmFkaWVudFVuaXRzPSJ1c2VyU3BhY2VPblVzZSIgeDE9IjY2Ny45NzQ3IiB5MT0iNzkwLjk5ODYiIHgyPSI2NjcuOTc0NyIgeTI9IjE4My4yODQ5Ij4KCQk8c3RvcCBvZmZzZXQ9IjAiIHN0eWxlPSJzdG9wLWNvbG9yOiNGRkYxQUEiPjwvc3RvcD4KCQk8c3RvcCBvZmZzZXQ9IjAuNDE2MiIgc3R5bGU9InN0b3AtY29sb3I6I0ZGOUUwMCI+PC9zdG9wPgoJCTxzdG9wIG9mZnNldD0iMC43NTciIHN0eWxlPSJzdG9wLWNvbG9yOiNGRjZBMDAiPjwvc3RvcD4KCQk8c3RvcCBvZmZzZXQ9IjEiIHN0eWxlPSJzdG9wLWNvbG9yOiNGRjJBMkEiPjwvc3RvcD4KCTwvbGluZWFyR3JhZGllbnQ+Cgk8cGF0aCBjbGFzcz0ic3Q2IiBkPSJNNjcxLjE2NywyODcuMTg0Yy0wLjc2Ni00LjM5My0xLjE0Ny05LjA1My0xLjg1Ni0xMy44ODFjLTAuODA1LTQuODAzLTEuOTMyLTkuNzgyLTQuNTI3LTE0LjU4MgoJCWMxLjg0OSwxMS4yMzksMi44MjIsMTkuOTM0LDMuNDg2LDI4LjY0N0w2NzEuMTY3LDI4Ny4xODR6Ij48L3BhdGg+Cgk8bGluZWFyR3JhZGllbnQgaWQ9IlNWR0lEXzhfIiBncmFkaWVudFVuaXRzPSJ1c2VyU3BhY2VPblVzZSIgeDE9IjU5MC41MTI2IiB5MT0iNzkwLjk5ODYiIHgyPSI1OTAuNTEyNiIgeTI9IjE4My4yODQ5Ij4KCQk8c3RvcCBvZmZzZXQ9IjAiIHN0eWxlPSJzdG9wLWNvbG9yOiNGRkYxQUEiPjwvc3RvcD4KCQk8c3RvcCBvZmZzZXQ9IjAuNDE2MiIgc3R5bGU9InN0b3AtY29sb3I6I0ZGOUUwMCI+PC9zdG9wPgoJCTxzdG9wIG9mZnNldD0iMC43NTciIHN0eWxlPSJzdG9wLWNvbG9yOiNGRjZBMDAiPjwvc3RvcD4KCQk8c3RvcCBvZmZzZXQ9IjEiIHN0eWxlPSJzdG9wLWNvbG9yOiNGRjJBMkEiPjwvc3RvcD4KCTwvbGluZWFyR3JhZGllbnQ+Cgk8cGF0aCBjbGFzcz0ic3Q3IiBkPSJNNTkxLjM0OSw0ODAuMTkzbC0wLjAxMSwwLjA0N2wtMC4wMDYsMC4wMjNjLTIuODctMC41MjQtMS40MzYtMC4yNiwwLjAwNSwwLjAwNWwwLjAwMy0wLjAyTDU5MS4zNDksNDgwLjE5M3oiPjwvcGF0aD4KCTxsaW5lYXJHcmFkaWVudCBpZD0iU1ZHSURfOV8iIGdyYWRpZW50VW5pdHM9InVzZXJTcGFjZU9uVXNlIiB4MT0iNTg3LjY0NTYiIHkxPSI3OTAuOTk4NiIgeDI9IjU4Ny42NDU2IiB5Mj0iMTgzLjI4NDkiPgoJCTxzdG9wIG9mZnNldD0iMCIgc3R5bGU9InN0b3AtY29sb3I6I0ZGRjFBQSI+PC9zdG9wPgoJCTxzdG9wIG9mZnNldD0iMC40MTYyIiBzdHlsZT0ic3RvcC1jb2xvcjojRkY5RTAwIj48L3N0b3A+CgkJPHN0b3Agb2Zmc2V0PSIwLjc1NyIgc3R5bGU9InN0b3AtY29sb3I6I0ZGNkEwMCI+PC9zdG9wPgoJCTxzdG9wIG9mZnNldD0iMSIgc3R5bGU9InN0b3AtY29sb3I6I0ZGMkEyQSI+PC9zdG9wPgoJPC9saW5lYXJHcmFkaWVudD4KCTxwYXRoIGNsYXNzPSJzdDgiIGQ9Ik01OTEuMzM3LDQ4MC4yNzJjLTEuMzU4LTAuMjQ4LTMuNjY3LTAuNjY5LTcuMzgyLTEuMzQ4YzAsMCwwLDAuMDAxLTAuMDAxLDAuMDAxCgkJYzIuNzA1LDAuNDk1LDUuMTU5LDAuOTQzLDcuMzgyLDEuMzVMNTkxLjMzNyw0ODAuMjcyeiI+PC9wYXRoPgoJPGxpbmVhckdyYWRpZW50IGlkPSJTVkdJRF8xMF8iIGdyYWRpZW50VW5pdHM9InVzZXJTcGFjZU9uVXNlIiB4MT0iMjM3LjM1NzMiIHkxPSI3OTAuOTk4NiIgeDI9IjIzNy4zNTczIiB5Mj0iMTgzLjI4NDkiPgoJCTxzdG9wIG9mZnNldD0iMCIgc3R5bGU9InN0b3AtY29sb3I6I0ZGRjFBQSI+PC9zdG9wPgoJCTxzdG9wIG9mZnNldD0iMC40MTYyIiBzdHlsZT0ic3RvcC1jb2xvcjojRkY5RTAwIj48L3N0b3A+CgkJPHN0b3Agb2Zmc2V0PSIwLjc1NyIgc3R5bGU9InN0b3AtY29sb3I6I0ZGNkEwMCI+PC9zdG9wPgoJCTxzdG9wIG9mZnNldD0iMSIgc3R5bGU9InN0b3AtY29sb3I6I0ZGMkEyQSI+PC9zdG9wPgoJPC9saW5lYXJHcmFkaWVudD4KCTxwYXRoIGNsYXNzPSJzdDkiIGQ9Ik0yMzIuOTk3LDcxMC4zMTNsLTAuMDY2LDAuMjk2YzIuOTQ2LTAuMDYyLDUuODk4LTAuMTU4LDguODUzLTAuMjc1CgkJQzIzOC44NDksNzEwLjM1MiwyMzUuOTE5LDcxMC4zNDksMjMyLjk5Nyw3MTAuMzEzeiI+PC9wYXRoPgoJPGxpbmVhckdyYWRpZW50IGlkPSJTVkdJRF8xMV8iIGdyYWRpZW50VW5pdHM9InVzZXJTcGFjZU9uVXNlIiB4MT0iMjU4LjkxOCIgeTE9Ijc5MC45OTg2IiB4Mj0iMjU4LjkxOCIgeTI9IjE4My4yODQ5Ij4KCQk8c3RvcCBvZmZzZXQ9IjAiIHN0eWxlPSJzdG9wLWNvbG9yOiNGRkYxQUEiPjwvc3RvcD4KCQk8c3RvcCBvZmZzZXQ9IjAuNDE2MiIgc3R5bGU9InN0b3AtY29sb3I6I0ZGOUUwMCI+PC9zdG9wPgoJCTxzdG9wIG9mZnNldD0iMC43NTciIHN0eWxlPSJzdG9wLWNvbG9yOiNGRjZBMDAiPjwvc3RvcD4KCQk8c3RvcCBvZmZzZXQ9IjEiIHN0eWxlPSJzdG9wLWNvbG9yOiNGRjJBMkEiPjwvc3RvcD4KCTwvbGluZWFyR3JhZGllbnQ+Cgk8cGF0aCBjbGFzcz0ic3QxMCIgZD0iTTI3NS43NzcsNzA4LjcxM2wwLjI3NC0xLjE2N2MtMTEuNDQzLDEuNDU1LTIyLjg4MywyLjMzNC0zNC4yNjgsMi43ODcKCQlDMjUzLjA0Nyw3MTAuMjYsMjY0LjM5NCw3MDkuNzY4LDI3NS43NzcsNzA4LjcxM3oiPjwvcGF0aD4KCTxsaW5lYXJHcmFkaWVudCBpZD0iU1ZHSURfMTJfIiBncmFkaWVudFVuaXRzPSJ1c2VyU3BhY2VPblVzZSIgeDE9IjI5NS45MTg2IiB5MT0iNzkwLjk5ODYiIHgyPSIyOTUuOTE4NiIgeTI9IjE4My4yODQ5Ij4KCQk8c3RvcCBvZmZzZXQ9IjAiIHN0eWxlPSJzdG9wLWNvbG9yOiNGRkYxQUEiPjwvc3RvcD4KCQk8c3RvcCBvZmZzZXQ9IjAuNDE2MiIgc3R5bGU9InN0b3AtY29sb3I6I0ZGOUUwMCI+PC9zdG9wPgoJCTxzdG9wIG9mZnNldD0iMC43NTciIHN0eWxlPSJzdG9wLWNvbG9yOiNGRjZBMDAiPjwvc3RvcD4KCQk8c3RvcCBvZmZzZXQ9IjEiIHN0eWxlPSJzdG9wLWNvbG9yOiNGRjJBMkEiPjwvc3RvcD4KCTwvbGluZWFyR3JhZGllbnQ+Cgk8cGF0aCBjbGFzcz0ic3QxMSIgZD0iTTI5OS40NjUsNzAxLjI1NmMxLjE4LTAuOTc0LDIuNTc4LTIuMjQyLDQuNDA3LTMuOTc2Yy02LjQ2NywyLjk2Mi0xMC41MDksNC43MjUtMTUuOTA2LDYuOTI1CgkJYzQuMjIxLDAuMDI3LDYuMzM5LTAuMDU5LDguMzQ0LTAuOTAzQzI5Ny4zMTMsNzAyLjg4LDI5OC4yODMsNzAyLjIyOCwyOTkuNDY1LDcwMS4yNTZ6Ij48L3BhdGg+CjwvZz4KPC9zdmc+" alt="">
+      <img id="judge-mark-batsu" src="data:image/svg+xml;base64,PHN2ZyB2ZXJzaW9uPSIxLjEiIGlkPSJfeDMzXyIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIiB4bWxuczp4bGluaz0iaHR0cDovL3d3dy53My5vcmcvMTk5OS94bGluayIgeD0iMHB4IiB5PSIwcHgiIHZpZXdCb3g9IjAgMCA3MjAgNzEyIiBzdHlsZT0iZW5hYmxlLWJhY2tncm91bmQ6bmV3IDAgMCA3MjAgNzEyOyIgeG1sOnNwYWNlPSJwcmVzZXJ2ZSI+CjxzdHlsZSB0eXBlPSJ0ZXh0L2NzcyI+Cgkuc3Qwe2ZpbGw6dXJsKCNTVkdJRF8xXyk7fQo8L3N0eWxlPgo8Zz4KCTxsaW5lYXJHcmFkaWVudCBpZD0iU1ZHSURfMV8iIGdyYWRpZW50VW5pdHM9InVzZXJTcGFjZU9uVXNlIiB4MT0iMzYwIiB5MT0iODE5LjUyNTYiIHgyPSIzNjAiIHkyPSI3LjEwNjgiPgoJCTxzdG9wIG9mZnNldD0iMCIgc3R5bGU9InN0b3AtY29sb3I6I0ZGRjFBQSI+PC9zdG9wPgoJCTxzdG9wIG9mZnNldD0iMC40MTYyIiBzdHlsZT0ic3RvcC1jb2xvcjojRkY5RTAwIj48L3N0b3A+CgkJPHN0b3Agb2Zmc2V0PSIwLjc1NyIgc3R5bGU9InN0b3AtY29sb3I6I0ZGNkEwMCI+PC9zdG9wPgoJCTxzdG9wIG9mZnNldD0iMSIgc3R5bGU9InN0b3AtY29sb3I6I0ZGMkEyQSI+PC9zdG9wPgoJPC9saW5lYXJHcmFkaWVudD4KCTxwYXRoIGNsYXNzPSJzdDAiIGQ9Ik03MTcuNTM0LDQ1Ljk1NWMtMS42MjctMi40MjctMy43MDctNS4wODctNS44NTYtOC4xNDFjLTIuMDc4LTMuMDQ0LTQuMjMyLTYuNDY2LTUuODAzLTEwLjMwNwoJCWMtMS41ODktMy44MzctMi42NDEtOC4xMTItMy4wMzMtMTIuNzU0Yy0wLjU3Ny00LjYxNy0xLjg5OC03Ljc3My0zLjIxMy0xMC4wNTdjLTAuNzI3LTEuMTMtMS41NjctMi4wMjEtMi40MDctMi43MjIKCQljLTEuMDMzLTAuNjc5LTEuOTU2LTEuMTg1LTMuMzE1LTEuNDg5Yy0yLjUyOS0wLjYzNC01Ljk4OS0wLjU3Ny0xMC4wMjMtMC4yMTljLTMuOTU5LDAuMzM1LTguNjA5LDEuMDUyLTEyLjI0NywxLjQwMgoJCWMtMC45MjksMC4wOTQtMS44NDMsMC4yNDgtMi43NDYsMC40NThjLTAuOTEzLDAuMjE1LTEuOTA5LDAuNTMtMi44NDYsMC44NzZjLTEuODQ0LDAuNjczLTMuODk1LDEuNjg2LTUuODk4LDIuODcKCQljLTAuOTc1LDAuNTc1LTIuMTE1LDEuMy0zLjE3MSwyLjAxOGMtMS4wODYsMC43MzgtMi4xMjgsMS40ODctMy4zMTcsMi4zODJjLTEuMTU5LDAuODczLTIuMzI4LDEuNzkzLTMuNTA5LDIuNzU5CgkJYy0xLjAyNiwwLjk0My0yLjAyNCwxLjkyLTMuMDYxLDIuOTQxYy00LjEwNCw0LjA5Mi04LjY1MSw4Ljc0NC0xMy4wNjIsMTQuMTI4Yy0xLjEzMywxLjMxNy0yLjMwNSwyLjY3OS0zLjUxOCw0LjA4OAoJCWMtMC42MDIsMC42OTEtMS4yMTQsMS4zOTQtMS44MzcsMi4xMWMtMC41NzcsMC43MTktMS4xNjMsMS40NS0xLjc2LDIuMTk0Yy0yLjM3NiwyLjk1Ni00LjkxNSw2LjAyMS03LjYzMyw5LjE4NQoJCWMtMS40MDksMS43OS0zLjQ2OCwzLjk4NC02LjExMyw2LjU1OGMtMi41ODIsMi40OTEtNS42OCw1LjQ3Ny05LjI1Nyw4LjkyNmMtMy42NDEsMy4zNDUtNy4zMTMsNy4xMzMtMTEuNjExLDExLjIzMQoJCWMtMi4xLDIuMDU2LTQuMTcxLDQuMjEyLTYuNDE0LDYuNDQyYy0xLjEwOSwxLjExMy0yLjI0MiwyLjI1LTMuMzk5LDMuNDExYy0xLjExLDEuMTU2LTIuMjQzLDIuMzM2LTMuMzk5LDMuNTM5CgkJYy05LjI5NCw5LjU4NC0xOS4zMzYsMjAuNDg1LTI5LjgyNywzMi4xMDdjLTEwLjQ5NywxMS41OTUtMjEuNTA0LDIzLjk1NS0zMi45MDYsMzUuNzkzYy0yNS40LDI1Ljg5My01NC4wNDgsNTUuNTU4LTgzLjYzNyw4Ni44ODIKCQljLTcuNDAzLDcuODM0LTE0Ljg2LDE1Ljc1MS0yMi4zNjUsMjMuNzE0Yy01LjIzNS03LjIwMi0xMC4zODYtMTQuMzkxLTE1LjQwOS0yMS41MTljLTYuNTE3LTkuMTY4LTEyLjI5NS0xNy42MDMtMTguMDE1LTI2LjI3MgoJCWMtMi44NTEtNC4yNzQtNS42MjctOC42MTctOC4zNTktMTIuODE4Yy0yLjcxNy00LjI4MS01LjM4Ni04LjQ4Ni03Ljk5OC0xMi42MDRjLTEwLjQxNi0xNi41OTUtMTkuODg0LTMyLjI0LTI4LjA4NS00NS43OQoJCWMtMTYuMzM0LTI3LjEzLTI3Ljc1OC00NS43NDgtMjguMzM0LTQ3Ljk4MWMtMS4xNDctNC41MjktNC41NjgtNy40MDYtNy40MDctMTEuMDQ0Yy0yLjgxNS0zLjY0NC01LjItOC4wNDEtNC4zODgtMTUuNzcxCgkJYzAuODE4LTcuNzQzLTQuOTQ1LTguOTE0LTkuMTM3LTkuNzM4Yy0yLjEyOC0wLjQzMS0zLjgzMy0wLjcyMi00LjM0Ni0xLjg2NmMtMC41ODktMS4yMTksMC4xNjQtMy4xNDIsMy4xOS02LjYwNwoJCWMxMi4wOTEtMTMuODQtMC4xMS0wLjIzOC0xLjMyNS0xMi41NThjLTAuMjM3LTIuOTcyLTAuMzU5LTUuNDk4LTAuNDA3LTcuMzI5Yy0wLjA1NC0xLjg0LTAuMTgzLTMuMTc3LTAuNjM2LTQuMDI1CgkJYy0wLjIyNS0wLjQyMi0wLjUzOC0wLjczMi0wLjk1LTAuOTA0Yy0wLjM5Ni0wLjE1Ni0wLjkwNi0wLjE5Mi0xLjU2LTAuMTFjLTEuMzA3LDAuMTY0LTMuMTg4LDAuOC01Ljg4OCwxLjkwMQoJCWMtNS40MDYsMi4xOTgtOC4yNjUsNS44NDgtOS41MjcsNi41MzRjLTAuNjE4LDAuMzU2LTAuODEzLTAuMDAzLTAuNjU5LTEuNTg3YzAuMDc3LTAuNzkxLDAuMjQxLTEuODg5LDAuNDg0LTMuMzUzCgkJYzAuMjcxLTEuNDQsMC42OTMtMy4xODEsMS4xODQtNS4zNTFjMC40Ni0yLjE5NCwwLjk3OS0zLjY4OSwxLjI5Ni00LjgzMmMwLjMyOS0xLjEzMiwwLjUyMy0xLjg1NywwLjU5Ni0yLjI5CgkJYzAuMTQ2LTAuODY1LTAuMTk3LTAuNTY2LTAuODg0LDAuMDMxYy0wLjY4MywwLjYtMS43MzYsMS40NzktMi45MTEsMS44NDdjLTAuNTkxLDAuMTgxLTEuMjIzLDAuMjI4LTEuODcxLDAuMDM2CgkJYy0wLjMyNS0wLjA5Ni0wLjY1My0wLjI1Mi0wLjk4NC0wLjQ3OWMtMC4xNjUtMC4xMTQtMC4zMzEtMC4yNDUtMC40OTYtMC4zOTZjLTAuMTQ0LTAuMTM2LTAuMjgxLTAuMjg1LTAuNDItMC40NTcKCQljLTAuNTUtMC42ODUtMS4yMjUtMS4wMzItMS45ODgtMS4xNDFjLTAuNzA3LTAuMDcyLTEuNDkyLDAuMTAxLTIuMzUxLDAuNDA5Yy0xLjcxLDAuNjItMy42NDQsMS44MTktNS40MTYsMi45NzcKCQljLTMuNTQzLDIuMzI5LTYuNTEyLDQuNDA1LTUuNzQ1LDEuMjg5YzAuMzI5LTEuNDcxLTAuMzkxLTEuMjI1LTEuOTM0LTAuMjkyYy0xLjUxMSwwLjk1MS0zLjY5LDIuNjkxLTUuODcsNC40ODQKCQljLTIuMTk0LDEuNzg2LTQuMzQ2LDMuNjQtNS45NzIsNC42NDJjLTEuNjQ1LDEuMDAxLTIuNjkxLDEuMTQzLTIuNjE0LTAuMzg2YzAuMDQyLTEuNTI4LTAuMjA0LTIuNDY0LTEuMDM4LTIuOTU0CgkJYy0wLjg2LTAuNDkyLTIuMTM3LTAuNTE0LTMuOTk4LTAuMTM5Yy0zLjcxNiwwLjc2Ny05Ljc1MiwzLjA1Ny0xNy44NjcsNy4xMzNjLTQuMDc4LDIuMDQ1LTcuNDk4LDQuMzIzLTEwLjQ1LDYuNjM4CgkJYy0yLjk1NSwyLjMwOC01LjQ0Niw0LjY0Ni03Ljc0Niw2LjYxNGMtNC42MDgsMy45MS04LjQ1OCw2LjQtMTQuMzIsMy4xMzFjLTUuNjUyLTMuNDAyLTExLjAzMy0yLjA1LTE2Ljg1MSwyLjcKCQljLTIuOTA2LDIuMzc1LTUuOTEyLDUuNjExLTkuMTAzLDkuNDhjLTMuMTkzLDMuODY5LTYuNDcxLDguMjQ3LTEwLjE0NSwxMi45NjFjMCwwLTEuNjExLDEuMzI2LTMuODI5LDMuNjcyCgkJYy0yLjIxMiwyLjMzOS01LjAwNSw1LjY0MS03LjMzNyw5LjcyNGMtMS4xNjUsMi4wMjgtMi4yMTMsNC4yODQtMy4wMDksNi42MTZjLTAuNzk2LDIuMy0xLjM0NSw0LjczNi0xLjUyLDcuMjUKCQljLTAuMTY5LDIuNTU5LDAuMDEsNS4wMTcsMC42NjksNy40NzdjMC4zMzEsMS4yMzIsMC43ODEsMi40NjIsMS4zNjQsMy42NzNjMC41NjQsMS4xNDEsMS4yNTcsMi4yNjUsMi4wOTQsMy4zNTYKCQljMy44MDUsOC45NDgsNy41NjksMTYuOTgsMTAuNzU2LDI0LjE1NGM0Ljk5OSw1LjU0OSw5LjM1NywxMC4xODUsMTIuOTQxLDE0LjExYzAsMCwxLjE2MS0wLjA3MiwzLjAyMS0wLjA1MwoJCWMwLjkyMSwwLjAwMSwyLjA1NywwLjA2LDMuMjM3LDAuMTAxYzEuMTUyLDAuMDE4LDIuNDE2LDAuMDc0LDMuNzM2LDAuMTljMS4zNjIsMC4xNDgsMi41NzUsMC4yMDIsMy44NzgsMC40MDQKCQljMC42NTEsMC4xMDcsMS4yNiwwLjE3NiwxLjkzNywwLjM3MmMwLjczMSwwLjI3MiwxLjQ1MiwwLjU2OCwyLjE1OCwwLjg4OGMyLjgyLDEuMjc5LDUuMzc3LDIuOTUxLDcuMTU2LDUuMTA4CgkJYzAuNDQ5LDAuNTIzLDEuNzg2LDIuMjkxLDMuOTIxLDUuMDcyYzEuMDY2LDEuMzk0LDIuMzMsMy4wNDgsMy43OCw0Ljk0M2MxLjQ0MSwxLjkzNSwzLjA2Nyw0LjExNiw0Ljg2MSw2LjUyNAoJCWM3LjE4Miw5LjY2NSwxNi45OTQsMjMuMjg0LDI4Ljc1LDQwLjA3MmMxMS43OCwxNi43NjEsMjUuNTAyLDM2Ljc1Niw0MS4xMDksNTguNTQxYzcuNzc5LDEwLjg3NywxNi4wODcsMjIuMjE2LDI0Ljg3NiwzMy43MzIKCQljNC40NjcsNS44OTgsOC42MzYsMTEuMTk2LDEyLjk1LDE2Ljc0NmM0LjI4NSw1LjUxMyw4LjYsMTEuMDI4LDEyLjk0OSwxNi40ODljNC4xOTMsNS4zMDgsOC40MDEsMTAuNTkyLDEyLjYwOCwxNS44MzgKCQljLTIyLjU4OSwyMi42ODEtNDUuMTM4LDQ0LjY5OC02Ni45MDMsNjUuNDc1Yy0xNC45NDEsMTQuMjA5LTI5LjMzNiwyNy44NjEtNDMuMjY5LDQwLjkyNQoJCWMtMTMuODgzLDEzLjA0NS0yNy4yMTUsMjUuNjMyLTM5LjQxOCwzNy42MTdjLTI0LjQ0LDIzLjk4Mi00My45MDIsNDQuNjg4LTU3Ljc1MSw1OS42MTNjLTcuNTgzLDguMjAzLTEzLjQ1NiwxNC43MDMtMTcuMzgyLDE5LjIyOAoJCWMtNS4zMTYsNC45NTQtMTAuMjI4LDkuNjA4LTE0LjczMSwxMy45NzFjLTEyLjE5MSwxMS44NDgtMjEuMjM1LDIxLjM2OS0yOC40NzQsMjkuMzg0Yy0xNC40MjMsMTYuMDU5LTIyLjAxMSwyNi40MTEtMzIuMTM0LDQwLjIwMQoJCWMtMTAuMDMzLDEzLjc4OSw1LjcyNywxLjcwMywyNS43OTktMTUuMjc5YzYuOTY1LTUuODc3LDE0LjQ3LTEyLjMzNSwyMS42MjktMTguNTA2Yy0xLjAxNywwLjk0LTIuMDQsMS44ODktMy4wNzMsMi44NTMKCQlDMzkuNjAzLDY1OC45NywxNC44MjQsNjgzLjgsMy45NzksNjk2Ljc0MWMtMTAuODM2LDEyLjk0NCwyLjIyNiw3Ljk4MSwxNy45NzYtMC4xNzdjNy44OS00LjA3NSwxNi40NTQtOC45NDcsMjMuMDcyLTEyLjc4MgoJCWM2LjU5Ny0zLjg0NSwxMS4yNTktNi42NDksMTEuMjU5LTYuNjQ5cy0zLjA5OSw0LjgzMy01LjMwMSwxMC41MTJjLTIuMjEsNS42NzctMy41NTYsMTIuMTc2LTAuMTM5LDE1LjQ5NwoJCWMzLjQyNCwzLjMzMSwxNC4zMDctMy42MTcsMjYuODI0LTEzLjc3YzEyLjUxNi0xMC4xNjQsMjYuNzMzLTIzLjQsMzYuNzU3LTMyLjk0MWMxLjQ0OC0xLjM2OCwyLjUwOC0yLjM3MiwzLjI0NS0zLjA3CgkJYzAuMDE0LDAuMDEyLDAuMDI4LDAuMDI2LDAuMDQzLDAuMDM4Yy0yLjI0OSwyLjIzNS03LjMwMSw3LjI2Ni0xMy4zMzYsMTMuNTZjLTExLjk4NywxMi41MDctMjcuNzI0LDMwLjIxMS0zMy43OTksMzkuODQzCgkJYy02LjA2Nyw5LjY0OSwyLjQzMSw0LjI5NCwxMi40NjItMy4zNDljNS4wMTEtMy44NDEsMTAuNDE3LTguMjEyLDE0LjU2LTExLjY1MmM0LjE1My0zLjQwNiw3LjA0OC01Ljg3Miw3LjA0OC01Ljg3MgoJCXM0LjQ3NywwLjU4NCwxMS42NDgtMS44NzNjNy4yLTIuNDU3LDE2Ljk2NS03Ljg2NiwyOC4wNy0xOS44MTFjMS44MjItMS45NjgsNS44NDYtNS43MzUsMTEuNzk2LTExLjAyOAoJCWM0Ljg1LTEuMDI1LDEwLjI1LTEuOTY5LDE1Ljk1NS0yLjYwN2MxMC4yMDEtMS4xNjQsMTIuMDMyLTUuNzk3LDEzLjE4Ni0xMS4xNGMxLjE1LTUuMzQ4LDEuNjIyLTExLjM4Myw5LjAxNi0xNS4xMzYKCQljMy42OTctMS44OTMsNy4zODktMy45ODMsMTEuNTA2LTYuNzZjNC4xMi0yLjgxLDguNjY1LTYuMjYzLDE0LjA2OC0xMC44OTZjNS40MDgtNC42MDcsMTEuNjU5LTEwLjM0NiwxOS4yNzgtMTcuNjE5CgkJYzcuNjEyLTcuMjg3LDE2LjYzNi0xNi4wODQsMjcuODk1LTI3LjE5OGM4LjU5NS04LjY4OCwxNy45MTgtMTcuODQ2LDI3LjczOS0yNy4zOTJjOS44NTItOS42NTEsMjAuMTk2LTE5LjUyLDMwLjgwNS0yOS43NTEKCQljMTkuMzQ0LTE4LjYxLDM5LjY1Ny0zOC4xNTIsNjAuMzUzLTU4LjA2MmM1LjYyNCw2LjQ5NCwxMS4wMzcsMTIuNjY5LDE2LjE3OCwxOC40NTZjMjcuNzMxLDMxLjIwNSw0Ny42MTIsNTEuMzk2LDUxLjcwMyw1MC42MDYKCQljMCwwLDUuMjk4LDYuMjQxLDEyLjEwMiwxMy41NTRjNi43OCw3LjMsMTUuMDgyLDE1LjY3NSwyMS4wNzQsMTkuOTQ4YzExLjk5MSw4LjU1MSwxNy45OTctMTIuNTQ5LDI4LjUzOC0wLjA3MwoJCWMxMC41MTUsMTIuNDc2LDI2LjU4LDIwLjI4MSwzNC41OTQsMjQuMjEyYzguMDMsMy45MjgsNy4yNDMtMTQuMDQzLDcuMjQzLTE0LjA0M2M4LjAzNSwzLjkzNCwxNS4yNzItMTAuMTE2LDE1LjI3Mi0xMC4xMTYKCQlzMjAuMjIsNy4xMzQsMjUuNDQ4LDEzLjQ3MWM1LjIzMiw2LjMwMywyNC4zMzQsNi41MTUsMjAuNTc1LTMuNzE2Yy0zLjcyNy0xMC4yOC0zNC4wNzgtNDYuNTc4LTM5LjM5Ni01Mi44MjgKCQljLTIuNjQ2LTMuMTQ1LDUuMzYsMy41NDQsMTQuMDMzLDExLjAyOGM4LjY2LDcuNTAyLDE3Ljk3OCwxNS44MTcsMTcuOTc4LDE1LjgxN3MtNi4yOTItMTguOTAyLTExLjU5OS0yNS4yMDIKCQljLTUuMjg5LTYuMzExLTI1LjA1NC0zNS40MTEtMzUuNjg1LTQ3LjkxM2MtMTAuNjIyLTEyLjUzOS03LjcyMi0yMC4zNTgtMTQuNjAyLTE3LjIxNmMtNy40MjUtMy4xMjEtMTkuNzgxLTEzLjQ1Ny0zMC4yODEtMjMuMDEzCgkJYy0xMC40ODYtOS41NTMtMTkuMTItMTguMzMxLTE5LjEyLTE4LjMzMXMxMi4zMzMsMTAuMzMxLDI0LjU0NiwxOS4wOThjMTIuMjE4LDguNzY2LDI0LjMwOSwxNS45NzcsMjMuNzY5LDkuNzE1CgkJYy0xOC41ODgtMTYuNTQtNDIuOTgxLTQzLjMxLTY4Ljk1OC03NC42NzNjMTUuNzk2LTE1LjQ3NywzMS4yMDUtMzAuNDc0LDQ2LjA4OC00NC42MjFjMjAuNzYtMTkuNzYzLDQwLjYzNC0zNy45NjgsNTguOTAyLTU0LjI3MwoJCWM0LjU3NS00LjA2Myw5LjAzMS04LjAyMiwxMy4zNTctMTEuODY0YzIuNDEtMi4xNjEsNC43ODMtNC4yODksNy4xMTktNi4zODNjMi4zODUtMi4xMjksNC40OTctNC4xMDUsNi43MDItNi4xMTIKCQljOC4yMzEtNy42LDE1Ljg4Mi0xNC42NjQsMjIuODU3LTIxLjEwM2MxMy4zNjMtMTIuMjk3LDIzLjQxNy0yMC45MDYsMzAuMjUxLTI2LjMwNWMwLjg1NS0wLjY5LDEuNjYyLTEuMzQxLDIuNDItMS45NTMKCQljMC43NDUtMC41NjQsMS40NDEtMS4wOTIsMi4wODYtMS41ODJjMS4yODktMC45ODEsMi4zNzktMS44MSwzLjI2LTIuNDhjMC44NzktMC42NjksMS41NTEtMS4xOTUsMS45ODgtMS40ODQKCQljMC40NDItMC4zMSwwLjY2Ny0wLjQ2OCwwLjY2Ny0wLjQ2OHMxLjAwNC0wLjE3NSwyLjY1My0wLjQ2M2MwLjgxMS0wLjE1LDEuNzgtMC4zMjgsMi44NjQtMC41MjcKCQljMC41MzQtMC4xMDMsMS4wOTctMC4yMSwxLjY4Mi0wLjMyMmMwLjU2OS0wLjA3OCwxLjE2MS0wLjE1OSwxLjc2OS0wLjI0MmMyLjQwNS0wLjI5Miw1LjA0OS0wLjc4Nyw3LjQ0OS0xLjA3OAoJCWMyLjM4Mi0wLjIzMSw0LjU5MS0wLjUyNyw2LjMzMy0wLjkyNWMzLjMxNy0wLjM5OCwxLjYzLTQuNzExLDAuNTkxLTguNjMxYy0xLjA3Ni0zLjk4MS0xLjQ2My03LjMwMSwzLjY3NC01LjYzMgoJCWMxLjI4NSwwLjM2NSwyLjI5NSwwLjgxOCwzLjE5OSwwLjk3MmMwLjg5OSwwLjE3NCwxLjY1NiwwLjE1OCwyLjMxMi0wLjAzNGMwLjMyNy0wLjA5NiwwLjYyOS0wLjIzNiwwLjkwOS0wLjQxOAoJCWMwLjI2Ny0wLjE3MiwwLjMzNy0wLjI2MywwLjQ4Ny0wLjQ2N2MwLjIwMy0wLjM3MiwwLjU0LTAuOTI5LDAuODItMS42MzFjMS4xNzEtMi44MiwyLjc5OC04LjA0OCw1Ljk4My0xNC4yNQoJCWMzLjI3Mi02LjIyMiwyLjY1Ny0xNS40NDIsMS4xNjMtMjUuMTIyYy0xLjQ0Ni05LjY5My0zLjMxMi0xOS45MzItMS4zMDgtMjguNTM1YzIuMDExLTguNjE3LDIuNzctMTUuNjE3LDMuMTk0LTIxLjU1NQoJCWMwLjIxOS0yLjk2MywwLjM2NS01LjY2LDAuNTE1LTguMTc0YzAuMTc2LTIuNDk4LDAuMzQzLTQuODIxLDAuNTk2LTcuMDA4QzcyMC4yMjMsNTAuNTgxLDcxOS4xNDYsNDguMzg2LDcxNy41MzQsNDUuOTU1egoJCSBNMjQzLjk1OCw1NzAuNjA5Yy0xNC43LDExLjk0NS0yMy44ODgsMjEuMTM0LTMwLjMxOSwyNS43MjhjLTYuNDMxLDQuNTk0LTIyLjA1LDIxLjEzNC0zMC4zMTksMjcuNTY1CgkJYy04LjI2OSw2LjQzMi0yLjIyMyw4LjI3LTE4LjM3NSwxMS4wMjZjLTE2LjE1MywyLjc1Ny0zNC45MTMsMjcuNTY2LTQyLjI2NCwzMi4xNmMtNy4zNSw0LjU5NCwxMS45NDQtMTYuNTQsMTEuOTQ0LTE2LjU0CgkJYzAuNjU1LTAuNzI3LDY2LjQ0Mi01Ni4wMDQsODMuNDgxLTY2LjE1OEMyMzYuNjA4LDU3My4zNjYsMjU4LjY1OCw1NTguNjY0LDI0My45NTgsNTcwLjYwOXogTTMyMS44MywzODkuMzk2CgkJYy0xMS41ODIsMTEuMzE4LTIzLjI1OCwyMi4zMDctMzQuMjg4LDMyLjYyM2MtMTEuMTIzLDEwLjIyNi0yMS41ODUsMTkuNzkyLTMxLjAxNiwyNy45OTFjLTkuNDI4LDguMjA1LTE3LjY4NSwxNS4xNjctMjQuMjY5LDIwLjM0CgkJYy02LjYwNSw1LjE2OC0xMS41MDQsOC41Ni0xNC4xNTMsOS42NDJjNS41NjItNS45MDUsMjMuMTQ0LTIzLjA5Miw0NS44NC00NS4yMzJjMTguNDQxLTE3Ljk0NCw0MC4xMDItMzkuMjgsNjEuNDg5LTYwLjQ5MwoJCWMxLjc1NSwyLjE2OCwzLjUwOSw0LjMzMiw1LjI1OSw2LjQ4MUMzMjcuNzQ2LDM4My42NDEsMzI0Ljc4OSwzODYuNTI4LDMyMS44MywzODkuMzk2eiBNNDI4LjcyMSwyNzguNzMKCQljLTEuMzk4LDEuNTY2LTMuMTAyLDMuNDU3LTUuMDY5LDUuNjE5Yy0wLjg1LTEuMTQxLTEuNjk4LTIuMjgyLTIuNTQ1LTMuNDI0QzQyOC43NzYsMjc0LjQyNiw0MzEuOTkzLDI3Mi45NjQsNDI4LjcyMSwyNzguNzN6Ij48L3BhdGg+CjwvZz4KPC9zdmc+" alt="">
+    </div>
     <div class="hud">
       <div class="turn-label" id="turn-label">プレイヤー1の番</div>
       <div class="deck-count" id="deck-count">山札:0 残り時間:--</div>
@@ -674,6 +776,11 @@ h1{ font-size:1.5rem; text-align:center; letter-spacing:.05em; }
     <div class="player-strip" id="player-strip" hidden></div>
 
     <div id="timeline-wrap"></div>
+    <div class="tl-scrollbar is-hidden" id="tl-scrollbar">
+      <div class="tl-scrollbar-track" id="tl-scrollbar-track">
+        <div class="tl-scrollbar-thumb" id="tl-scrollbar-thumb"></div>
+      </div>
+    </div>
     <div class="hint-bar" id="hint-bar">手札のカードを選んでね</div>
 
     <div id="hand-wrap">
@@ -695,6 +802,7 @@ h1{ font-size:1.5rem; text-align:center; letter-spacing:.05em; }
         <div class="wa-group-title" id="result-best-label">ハイスコア</div>
         <div class="result-best" id="result-best-text"></div>
       </div>
+      <button class="wa-chip result-settings-btn" id="result-settings-btn" hidden>難易度・出題範囲を変える</button>
       <div class="wa-choice">
         <button class="wa-opt" id="retry-btn">もう一度遊ぶ</button>
         <button class="wa-opt" id="menu-back-btn">トップにもどる</button>
@@ -1052,7 +1160,8 @@ function escapeHtml(str){
 function showScreen(id){
   document.querySelectorAll('.screen').forEach(function(s){ s.classList.remove('active'); });
   document.getElementById(id).classList.add('active');
-  if(id === 'settings-screen') paintEraRange();      // スライダーの位置を今の設定に合わせる
+  if(id === 'settings-screen') paintEraRange();       // スライダーの位置を今の設定に合わせる
+  if(id === 'setup-solo-screen') updateSoloRuleSettings();  // ルールの下に今の設定（難易度・出題範囲）を表示する
   var inner = document.querySelector('#' + id + ' .wa-inner');
   if(inner) inner.scrollTop = 0;
 }
@@ -1066,6 +1175,30 @@ function showToast(msg, kind){
   toastTimer = setTimeout(function(){ el.classList.remove('show'); }, 1100);
 }
 
+/* ---- 正解／不正解を、場札の背景にうっすら透かして見せる筆の○× ----
+   ○×は自前で描かず、実際の筆文字の画像（背景を透過済み）を出し分ける。 */
+var judgeMarkEl = document.getElementById('judge-mark');
+var judgeMarkMaruImg = document.getElementById('judge-mark-maru');
+var judgeMarkBatsuImg = document.getElementById('judge-mark-batsu');
+var judgeMarkHideTimer = null;
+function playJudgeMark(correct){
+  if(judgeMarkHideTimer){ clearTimeout(judgeMarkHideTimer); judgeMarkHideTimer = null; }
+  // 連続で出たときも毎回ゼロから出し直す（前のフェード途中でも、いったん瞬時に消してから）
+  judgeMarkEl.style.transition = 'none';
+  judgeMarkEl.classList.remove('show');
+  void judgeMarkEl.offsetWidth;
+  judgeMarkEl.style.transition = '';
+
+  judgeMarkMaruImg.classList.toggle('is-visible', correct);
+  judgeMarkBatsuImg.classList.toggle('is-visible', !correct);
+
+  requestAnimationFrame(function(){ judgeMarkEl.classList.add('show'); });
+  judgeMarkHideTimer = setTimeout(function(){
+    judgeMarkEl.classList.remove('show');
+    judgeMarkHideTimer = null;
+  }, 1300);
+}
+
 /* ============================================================
    3. 状態(state)
    ============================================================ */
@@ -1076,6 +1209,8 @@ var settings = {
 };
 settings.eraEndIndex = ERAS.length - 1;    // 初期値は 縄文〜令和（ぜんぶ）
 settings.eraStartIndex = 0;
+settings.eraStartIndex = nearestSelectableEra(settings.eraStartIndex, 1);   // カードが無い時代からは始まらないようにする
+settings.eraEndIndex = nearestSelectableEra(settings.eraEndIndex, -1);
 
 var game = null; // 対局中の状態オブジェクト（ソロ：initSoloGame、みんなで：Firestoreの部屋から組み立てる）
 var uiLocked = false; // 配置アニメーション中に連打で二重処理されるのを防ぐロック
@@ -1094,11 +1229,48 @@ function wireOptionGroup(containerId, dataAttr, onSelect){
     onSelect(btn.getAttribute(dataAttr));
   });
 }
-wireOptionGroup('grade-options', 'data-grade', function(v){ settings.grade = v; });
+wireOptionGroup('grade-options', 'data-grade', function(v){
+  settings.grade = v;
+  // 難易度が変わると、その時代にカードがあるかどうかも変わる（例：古墳時代は中学生レベルにしかいない）
+  // ので、今の出題範囲の両端が新しい難易度でも選べる時代かどうか確認し、必要なら近い方へ寄せる
+  settings.eraStartIndex = nearestSelectableEra(settings.eraStartIndex, 1);
+  settings.eraEndIndex = nearestSelectableEra(settings.eraEndIndex, -1);
+  if(settings.eraStartIndex > settings.eraEndIndex){
+    var lo = Math.min(settings.eraStartIndex, settings.eraEndIndex);
+    var hi = Math.max(settings.eraStartIndex, settings.eraEndIndex);
+    settings.eraStartIndex = lo; settings.eraEndIndex = hi;
+  }
+  paintEraRange();
+});
 
 /* ---- 出題範囲のスライダー（◯◯時代 〜 ◯◯時代） ---- */
 var eraDrag = null;
 function eraPct(i){ return (i / (ERAS.length - 1)) * 100; }
+
+/* その時代(のバケット)に、今の難易度でカードが1枚でもあるか */
+function eraHasCards(i){
+  var lo = (i > 0) ? ERAS[i - 1].endYear : -999999;
+  var hi = ERAS[i].endYear;
+  return CHARACTERS.some(function(c){
+    var gradeOk = settings.grade === 'extended' ? true : c.grade === 'e';
+    return gradeOk && c.year > lo && c.year <= hi;
+  });
+}
+/* idxの時代にカードが無ければ、いちばん近い「カードがある時代」まで寄せる。
+   dirは同じ距離で迷ったときにどちら向きへ寄せるかのヒント（-1:前へ / 1:後ろへ）。 */
+function nearestSelectableEra(idx, dir){
+  idx = Math.max(0, Math.min(ERAS.length - 1, idx));
+  if(eraHasCards(idx)) return idx;
+  for(var d = 1; d < ERAS.length; d++){
+    var down = idx - d, up = idx + d;
+    var downOk = down >= 0 && eraHasCards(down);
+    var upOk = up <= ERAS.length - 1 && eraHasCards(up);
+    if(downOk && upOk) return (dir < 0) ? down : up;
+    if(downOk) return down;
+    if(upOk) return up;
+  }
+  return idx;   // 万一すべての時代でカードが0件のとき用の保険（実際には起こらない想定）
+}
 
 function paintEraRange(){
   var fill = document.getElementById('era-fill');
@@ -1112,6 +1284,10 @@ function paintEraRange(){
   ht.style.left = b + '%';
   document.getElementById('era-from-label').textContent = ERAS[settings.eraStartIndex].label;
   document.getElementById('era-to-label').textContent = ERAS[settings.eraEndIndex].label;
+  // カードが無い時代の目盛りは薄く表示し、選べないことが見た目でも分かるようにする
+  document.querySelectorAll('#era-ticks .era-tick').forEach(function(tickEl, i){
+    tickEl.classList.toggle('is-disabled', !eraHasCards(i));
+  });
 }
 
 function eraIndexFromX(x){
@@ -1124,8 +1300,14 @@ function eraIndexFromX(x){
   return Math.round(t * (ERAS.length - 1));
 }
 
-function setEraIndex(which, idx){
+function setEraIndex(which, idx, dir){
   idx = Math.max(0, Math.min(ERAS.length - 1, idx));
+  // dir（寄せる向き）が渡されなかったときは、今の値との比較で仮に決める
+  // （キーボード操作や、バーを1回タップしたときのような「一発もの」の呼び出し用のフォールバック）。
+  if(dir === undefined){
+    dir = (idx >= (which === 'from' ? settings.eraStartIndex : settings.eraEndIndex)) ? 1 : -1;
+  }
+  idx = nearestSelectableEra(idx, dir);
   if(which === 'from'){ settings.eraStartIndex = Math.min(idx, settings.eraEndIndex); }
   else { settings.eraEndIndex = Math.max(idx, settings.eraStartIndex); }
   paintEraRange();
@@ -1162,7 +1344,7 @@ function setupEraSlider(){
       if(e.button !== undefined && e.button !== 0) return;
       // 2つのつまみが重なっているときは、動かした向きでどちらを掴んだか決める
       var undecided = (settings.eraStartIndex === settings.eraEndIndex);
-      eraDrag = { which: undecided ? null : which, fallback: which, id: e.pointerId, el: el };
+      eraDrag = { which: undecided ? null : which, fallback: which, id: e.pointerId, el: el, lastRawIdx: null, lastDir: 1 };
       el.classList.add('is-active');
       try{ el.setPointerCapture(e.pointerId); }catch(err){}
       e.preventDefault();
@@ -1176,7 +1358,17 @@ function setupEraSlider(){
         else if(idx > settings.eraEndIndex) eraDrag.which = 'to';
         else return;
       }
-      setEraIndex(eraDrag.which, idx);
+      // 指/マウスの生の位置（スナップ前）の変化だけで方向を決める。
+      // スナップ後の設定値を基準にすると、無効な時代の上で指が止まっているだけなのに
+      // 「寄せた結果」がまた次の判定の基準になってしまい、隣どうしを行ったり来たりする
+      // ちらつき（例：明治⇄昭和）が起きるため。
+      var dir = (eraDrag.lastRawIdx == null) ? eraDrag.lastDir
+              : (idx > eraDrag.lastRawIdx) ? 1
+              : (idx < eraDrag.lastRawIdx) ? -1
+              : eraDrag.lastDir;
+      eraDrag.lastRawIdx = idx;
+      eraDrag.lastDir = dir;
+      setEraIndex(eraDrag.which, idx, dir);
     });
     function finish(e){
       if(!eraDrag || eraDrag.id !== e.pointerId) return;
@@ -1211,6 +1403,19 @@ function setupEraSlider(){
 setupEraSlider();
 
 document.getElementById('solo-settings-btn').addEventListener('click', function(){ showScreen('settings-screen'); });
+document.getElementById('result-settings-btn').addEventListener('click', function(){ showScreen('settings-screen'); });
+
+document.getElementById('settings-reset-btn').addEventListener('click', function(){
+  // リセット＝小学生レベルで、選べる時代をぜんぶ（弥生〜昭和）にする
+  settings.grade = 'elementary';
+  document.querySelectorAll('#grade-options button').forEach(function(b){
+    b.classList.toggle('selected', b.getAttribute('data-grade') === 'elementary');
+  });
+  settings.eraStartIndex = nearestSelectableEra(0, 1);
+  settings.eraEndIndex = nearestSelectableEra(ERAS.length - 1, -1);
+  paintEraRange();
+  showToast('設定をリセットしました', 'ok');
+});
 
 document.getElementById('play-multi-btn').addEventListener('click', function(){
   document.getElementById('online-name').value = loadName();
@@ -1307,6 +1512,38 @@ function insertCardWithAnimation(card, insertIndex, sourceEl, onLanded, ghostEl)
   }, ghostEl, card.id);
 }
 
+/* 飛んでいく分身(.fly-card)の文字サイズを、元の手札カードの実際の大きさに合わせる。
+   .fly-card の文字サイズは固定値なので、これをしないと手札の大きさとズレて
+   飛び始めた瞬間に文字だけ急に小さく(または大きく)なって見えてしまう。 */
+function setFlyCardFontFromSource(clone, sourceEl){
+  if(!clone || !sourceEl) return;
+  ['.name', '.yomi', '.event'].forEach(function(sel){
+    var src = sourceEl.querySelector(sel);
+    var dst = clone.querySelector(sel);
+    if(!src || !dst) return;
+    /* ここは「開始値」を決めるだけなので、transitionをつけたまま値を変えると
+       CSSの.7rem等（前の値）からいきなりトランジションが始まってしまい、
+       本来なめらかにしたい場面の直前に一瞬すり替わって見える。
+       いったんtransitionを切って値を確定させ、reflowしてから戻す。 */
+    dst.style.transition = 'none';
+    dst.style.fontSize = getComputedStyle(src).fontSize;
+    void dst.offsetWidth;   // 確定させるための強制reflow
+    dst.style.transition = '';
+  });
+}
+/* 着地間際に、本物の場札カード(.tl-card)と同じ文字サイズへなめらかに収束させる。
+   ここで合わせておかないと、着地して本物のカードに差し替わった瞬間に文字サイズが
+   カクッと変わって見えてしまう。値は .tl-card .name/.yomi/.event のCSSと合わせてある。 */
+function setFlyCardFontToTimelineSize(clone){
+  if(!clone) return;
+  var nameEl = clone.querySelector('.name');
+  var yomiEl = clone.querySelector('.yomi');
+  var eventEl = clone.querySelector('.event');
+  if(nameEl) nameEl.style.fontSize = '1rem';
+  if(yomiEl) yomiEl.style.fontSize = '.55rem';
+  if(eventEl) eventEl.style.fontSize = '.64rem';
+}
+
 /* 着地位置(target)へスーッと移動させ、そこで実際の年表カードと同じサイズへ収束させる。
    target は DOM要素、または {left,top,width,height} のどちらでもよい。
    ghostEl があれば（ドラッグ中に指へ追従していた分身があれば）それをそのまま使って、
@@ -1334,6 +1571,8 @@ function playFlyAnimation(sourceEl, target, onDone, ghostEl, cardId){
     clone.style.width = bigW + 'px';
     clone.style.height = bigH + 'px';
   }
+  // 手札での実際の文字の大きさから始める（飛び始めた瞬間に文字だけ小さくならないように）
+  setFlyCardFontFromSource(clone, sourceEl);
 
   if(sourceEl) sourceEl.style.visibility = 'hidden';
 
@@ -1344,6 +1583,8 @@ function playFlyAnimation(sourceEl, target, onDone, ghostEl, cardId){
       clone.style.width = tRect.width + 'px';
       clone.style.height = tRect.height + 'px';
       clone.style.borderRadius = '10px';
+      // 場札での実際の文字の大きさへなめらかに収束させる（着地時に文字だけ急に変わらないように）
+      setFlyCardFontToTimelineSize(clone);
       var clonePic = clone.querySelector('.card-pic');
       if(clonePic){
         clonePic.style.aspectRatio = '1.05';   // 場札のイラスト比率へなめらかに合わせる
@@ -1533,6 +1774,15 @@ function describeSettings(st){
   return (st.grade === 'extended' ? '中学生レベル' : '小学生レベル') + '\n' +
          ERAS[a].label + '〜' + ERAS[b].label;
 }
+/* 「一人でチャレンジ」画面のルール欄に、今選ばれている難易度・出題範囲を表示する */
+function updateSoloRuleSettings(){
+  var gradeEl = document.getElementById('solo-rule-grade');
+  var eraEl = document.getElementById('solo-rule-era');
+  if(!gradeEl || !eraEl) return;
+  var desc = describeSettings(currentSettingsForRoom()).split('\n');
+  gradeEl.textContent = desc[0] || '';
+  eraEl.textContent = desc[1] || '';
+}
 /* 親が手札の枚数や出題範囲をかえたら、部屋のみんなにも見えるようにする */
 function pushRoomSettings(){
   if(!(online.code && online.isHost && online.db && online.room && online.room.status === 'lobby')) return;
@@ -1691,8 +1941,9 @@ function applyRoom(room){
   online.room = room; online.seenSeq = room.seq || 0;
   syncGameFromRoom(room);
   if(room.status === 'finished'){ showOnlineResult(room); return; }
-  if(!isActive('game-screen')) showScreen('game-screen');
-  renderGame();
+  var freshEntry = !isActive('game-screen');   // 対戦画面に入った直後だけ「配って→めくる」演出を見せる
+  if(freshEntry) showScreen('game-screen');
+  renderGame(freshEntry);
 }
 function syncGameFromRoom(room){
   game = {
@@ -1711,6 +1962,7 @@ function playRoomMove(prev, room){
   var mine = (mv.by === online.myKey);
   var who = mine ? '' : (playerName(room, mv.by) + '：');
   showToast(who + (mv.correct ? '正解！' : '残念…正しい位置に入れたよ'), mv.correct ? 'ok' : 'ng');
+  playJudgeMark(mv.correct);
 
   syncGameFromRoom(prev);                                  // ひとつ前の年表から、この1枚を差し込む
   var ghostEl = online.pendingGhosts[mv.cardId] || null;    // 自分がドラッグしていた分身があれば、それを引き継ぐ
@@ -1995,6 +2247,7 @@ function showOnlineResult(room){
   subEl.textContent = sub;
   document.getElementById('result-score-group').hidden = true;
   document.getElementById('result-best-group').hidden = true;
+  document.getElementById('result-settings-btn').hidden = true;
   var retry = document.getElementById('retry-btn');
   retry.hidden = !online.isHost;
   retry.textContent = 'もう一度（この部屋で）';
@@ -2008,6 +2261,7 @@ function setSoloResultButtons(){
   retry.textContent = 'もう一度遊ぶ';
   document.getElementById('menu-back-btn').textContent = 'トップにもどる';
   document.getElementById('result-wait').hidden = true;
+  document.getElementById('result-settings-btn').hidden = false;
 }
 
 /* ---------------- ボタンの配線 ---------------- */
@@ -2044,6 +2298,26 @@ document.getElementById('player-strip').addEventListener('click', function(e){
   if(online.isHost && key && key !== online.myKey) kickPlayer(key);
 });
 
+/* 名前・部屋番号の入力中はキーボードで画面が狭くなるので、余白をつめてボタンが隠れないようにする */
+(function(){
+  var scr = document.getElementById('online-screen');
+  var blurTimer = null;
+  function onFocus(){
+    if(blurTimer){ clearTimeout(blurTimer); blurTimer = null; }
+    scr.classList.add('kb-compact');
+  }
+  function onBlur(){
+    // ボタンをタップした瞬間に入力欄がblurになり、その場でレイアウトが動くと
+    // 指を離す前にボタンが動いてタップが外れてしまうので、少し待ってから戻す
+    blurTimer = setTimeout(function(){ scr.classList.remove('kb-compact'); blurTimer = null; }, 250);
+  }
+  ['online-name', 'join-room-input'].forEach(function(id){
+    var el = document.getElementById(id);
+    el.addEventListener('focus', onFocus);
+    el.addEventListener('blur', onBlur);
+  });
+})();
+
 /* ============================================================
    7. ソロチャレンジモード
    ============================================================ */
@@ -2065,26 +2339,46 @@ function initSoloGame(){
     current: current,
     correctCount: 0,
     missCount: 0,
+    timeTotal: 90,
     timeLeft: 90,
     timerId: null,
+    timerStartedAt: 0,
     ended: false
   };
 
   showScreen('game-screen');
-  renderGame();
-
-  game.timerId = setInterval(function(){
-    if(!game || game.ended) return;
-    game.timeLeft--;
-    if(game.timeLeft <= 0){
-      game.timeLeft = 0;
-      renderHud();
-      endSoloGame();
-    } else {
-      renderHud();
-    }
-  }, 1000);
+  // 場札を配ってめくり終える演出が終わってから、カウントダウンを始める
+  renderGame(true, startSoloTimer);
 }
+
+/* ---- 残り時間のカウントダウン ----
+   setIntervalの発火回数をそのまま数えて1秒ずつ引くと、タブを最小化／非アクティブに
+   した間はブラウザがタイマーの発火を間引く（＝表示が止まって見える）ため、
+   「開始時刻からの経過時間」を毎回計算しなおして残り時間を出す方式にする。 */
+function startSoloTimer(){
+  if(!game || game.type !== 'solo' || game.ended) return;
+  game.timerStartedAt = Date.now();
+  if(game.timerId){ clearInterval(game.timerId); }
+  tickSoloTimer();
+  game.timerId = setInterval(tickSoloTimer, 1000);
+}
+function tickSoloTimer(){
+  if(!game || game.type !== 'solo' || game.ended) return;
+  var elapsedSec = Math.floor((Date.now() - game.timerStartedAt) / 1000);
+  game.timeLeft = Math.max(0, game.timeTotal - elapsedSec);
+  if(game.timeLeft <= 0){
+    renderHud();
+    endSoloGame();
+  } else {
+    renderHud();
+  }
+}
+// タブが再びアクティブになった瞬間に、実際に経過した時間へすぐ補正する
+document.addEventListener('visibilitychange', function(){
+  if(!document.hidden && game && game.type === 'solo' && !game.ended && game.timerId){
+    tickSoloTimer();
+  }
+});
 
 function finishSoloStep(){
   if(game.missCount >= 3){
@@ -2107,6 +2401,7 @@ function handleSoloPlacement(gapIndex, gapEl, sourceEl, ghostEl){
 
   if(gapIndex === correct){
     showToast('正解！', 'ok');
+    playJudgeMark(true);
     game.correctCount++;
     insertCardWithAnimation(card, correct, sourceEl, function(){
       finishSoloStep();
@@ -2118,6 +2413,7 @@ function handleSoloPlacement(gapIndex, gapEl, sourceEl, ghostEl){
   // まちがえたときは、そのカードを正しい位置に入れて見せる
   game.missCount++;
   showToast('残念…正しい位置に入れたよ', 'ng');
+  playJudgeMark(false);
   insertCardWithAnimation(card, correct, sourceEl, function(){
     finishSoloStep();
     uiLocked = false;
@@ -2168,7 +2464,7 @@ document.getElementById('retry-btn').addEventListener('click', function(){
    クロップされる。ほとんどの人物は素材の左寄りに描かれているため左端基準
    （0%）で十分だが、例外的に人物が右寄りに描かれているものだけ位置を指定する。
    （手札・飛んでいる最中のカードは今までどおり中央基準のまま変えない） */
-var TL_IMG_POSX = { 7: 20, 31: 40 };
+var TL_IMG_POSX = { 7: 20, 31: 40, 92: 30 };
 function tlImgPosX(id){
   return (TL_IMG_POSX[id] !== undefined) ? TL_IMG_POSX[id] : 0;
 }
@@ -2178,7 +2474,9 @@ function cardPicHtml(c){
     : '<div class="card-pic img-ph"></div>';
 }
 function cardYomiHtml(c){
-  return c.yomi ? '<div class="yomi">' + escapeHtml(c.yomi) + '</div>' : '';
+  /* よみが無い人物（外国語表記の名前など）でも、名前の位置が他のカードとそろうように
+     同じ高さの空の行を確保しておく（&nbsp;で行の高さを維持） */
+  return '<div class="yomi">' + (c.yomi ? escapeHtml(c.yomi) : '&nbsp;') + '</div>';
 }
 function cardInnerHtml(c){
   var img = cardPicHtml(c);
@@ -2217,7 +2515,7 @@ function renderHud(){
   }
 }
 
-function renderTimeline(onGapTap){
+function renderTimeline(onGapTap, dealAnimate, onDealDone){
   var wrap = document.getElementById('timeline-wrap');
   var keepScroll = wrap.scrollLeft;   // 描き直すと先頭に戻ってしまうので覚えておく
   wrap.innerHTML = '';
@@ -2247,21 +2545,136 @@ function renderTimeline(onGapTap){
     grid.appendChild(cell);
   }
 
-  // 上段：カード本体
+  // 上段：カード本体（ゲーム開始直後は裏向きで配って→めくる演出をつける）
+  var dealCards = [];
   game.timeline.forEach(function(c, i){
     var card = document.createElement('div');
-    card.className = 'tl-card';
+    card.className = 'tl-card' + (dealAnimate ? ' tl-not-dealt tl-face-down' : '');
     card.dataset.id = c.id;
     card.dataset.idx = i;
     card.style.gridColumn = (2 * (i + 1));
     card.style.gridRow = 1;
     card.innerHTML = cardInnerHtml(c);
     grid.appendChild(card);
+    if(dealAnimate) dealCards.push(card);
   });
 
   wrap.appendChild(grid);
   wrap.scrollLeft = keepScroll;       // 見ていた位置に戻す
+  updateTlScrollbar();
+
+  if(dealAnimate && dealCards.length) playDealAnimation(dealCards, onDealDone);
 }
+
+/* ---- ゲーム開始時、場のカードを裏向きに配ってから1枚ずつめくる演出 ----
+   まず3枚とも裏向きで配り終える → 少し静止する → それから1枚ずつ
+   「ぱたぱたぱた」と順番にめくる、の3段階に分ける。 */
+function playDealAnimation(cardEls, onDone){
+  uiLocked = true;
+  var DEAL_STAGGER = 150, POP_MS = 240, SETTLE_MS = 350, FLIP_STAGGER = 150, FLIP_MS = 420;
+
+  // 1段階目：3枚とも裏向きのまま、順に配り終える
+  cardEls.forEach(function(card, i){
+    var dealAt = i * DEAL_STAGGER;
+    T(function(){
+      card.classList.add('tl-dealt');
+      card.classList.remove('tl-not-dealt');
+    }, dealAt);
+  });
+  var dealEndMs = (cardEls.length - 1) * DEAL_STAGGER + POP_MS;
+
+  // 2段階目：配り終えたところで一拍静止（何もしない、待つだけ）
+
+  // 3段階目：静止のあと、1枚ずつ順にめくっていく
+  var flipPhaseStart = dealEndMs + SETTLE_MS;
+  cardEls.forEach(function(card, i){
+    var flipAt = flipPhaseStart + i * FLIP_STAGGER;
+    T(function(){ card.classList.add('tl-flipping'); }, flipAt);
+    // 真横を向いた瞬間（アニメーションの半分）で裏から表に切りかえる
+    T(function(){ card.classList.remove('tl-face-down'); }, flipAt + FLIP_MS / 2);
+    T(function(){ card.classList.remove('tl-flipping'); }, flipAt + FLIP_MS);
+  });
+  var totalMs = flipPhaseStart + (cardEls.length - 1) * FLIP_STAGGER + FLIP_MS;
+  T(function(){ uiLocked = false; if(onDone) onDone(); }, totalMs + 30);
+}
+
+/* ---- 場札のスクロールバー（カードが増えて横に収まらない時、下のバーでも操作できるようにする） ---- */
+function updateTlScrollbar(){
+  var wrap = document.getElementById('timeline-wrap');
+  var bar = document.getElementById('tl-scrollbar');
+  var track = document.getElementById('tl-scrollbar-track');
+  var thumb = document.getElementById('tl-scrollbar-thumb');
+  if(!wrap || !bar || !track || !thumb) return;
+  var overflow = wrap.scrollWidth - wrap.clientWidth;
+  if(overflow <= 1){
+    bar.classList.add('is-hidden');
+    return;
+  }
+  bar.classList.remove('is-hidden');
+  var trackW = track.clientWidth;
+  var ratio = wrap.clientWidth / wrap.scrollWidth;
+  var thumbW = Math.max(36, Math.min(trackW, trackW * ratio));
+  var maxThumbLeft = Math.max(0, trackW - thumbW);
+  var scrollRatio = overflow > 0 ? (wrap.scrollLeft / overflow) : 0;
+  thumb.style.width = thumbW + 'px';
+  thumb.style.left = (maxThumbLeft * scrollRatio) + 'px';
+}
+(function(){
+  var wrap = document.getElementById('timeline-wrap');
+  var track = document.getElementById('tl-scrollbar-track');
+  var thumb = document.getElementById('tl-scrollbar-thumb');
+  if(!wrap || !track || !thumb) return;
+
+  // 指でカードを直接スクロールしたときも、下のバーの位置を追従させる
+  wrap.addEventListener('scroll', function(){
+    requestAnimationFrame(updateTlScrollbar);
+  }, { passive:true });
+  window.addEventListener('resize', function(){ requestAnimationFrame(updateTlScrollbar); });
+
+  // トラックの、つまみ以外の場所をタップ／クリックしたら、その位置へジャンプする
+  track.addEventListener('pointerdown', function(e){
+    if(e.target === thumb) return;   // つまみ自体は下のドラッグ処理へ
+    var rect = track.getBoundingClientRect();
+    var trackW = rect.width;
+    var thumbW = thumb.offsetWidth;
+    var x = e.clientX - rect.left - thumbW / 2;
+    x = Math.max(0, Math.min(trackW - thumbW, x));
+    var overflow = wrap.scrollWidth - wrap.clientWidth;
+    var ratio = (trackW - thumbW) > 0 ? x / (trackW - thumbW) : 0;
+    wrap.scrollLeft = overflow * ratio;
+    updateTlScrollbar();
+  });
+
+  // つまみのドラッグ
+  var drag = null;
+  thumb.addEventListener('pointerdown', function(e){
+    e.preventDefault();
+    var rect = track.getBoundingClientRect();
+    drag = { startX: e.clientX, startLeft: thumb.offsetLeft, trackW: rect.width, thumbW: thumb.offsetWidth, pointerId: e.pointerId };
+    try{ thumb.setPointerCapture(e.pointerId); }catch(err){}
+    window.addEventListener('pointermove', onThumbDragMove, { passive:false });
+    window.addEventListener('pointerup', onThumbDragEnd);
+    window.addEventListener('pointercancel', onThumbDragEnd);
+  });
+  function onThumbDragMove(e){
+    if(!drag || (e.pointerId !== undefined && e.pointerId !== drag.pointerId)) return;
+    if(e.cancelable) e.preventDefault();
+    var dx = e.clientX - drag.startX;
+    var maxLeft = Math.max(0, drag.trackW - drag.thumbW);
+    var newLeft = Math.max(0, Math.min(maxLeft, drag.startLeft + dx));
+    var overflow = wrap.scrollWidth - wrap.clientWidth;
+    var ratio = maxLeft > 0 ? newLeft / maxLeft : 0;
+    wrap.scrollLeft = overflow * ratio;
+    thumb.style.left = newLeft + 'px';
+  }
+  function onThumbDragEnd(e){
+    if(drag && e.pointerId !== undefined && e.pointerId !== drag.pointerId) return;
+    drag = null;
+    window.removeEventListener('pointermove', onThumbDragMove);
+    window.removeEventListener('pointerup', onThumbDragEnd);
+    window.removeEventListener('pointercancel', onThumbDragEnd);
+  }
+})();
 
 /* 手札が画面の幅に収まるように、カードの大きさを実測して決める。
    これをしないと、スマホで4〜5枚のときに右端がはみ出して左寄せになってしまう。 */
@@ -2449,6 +2862,7 @@ function attachCardDrag(el, opts){
       st.ghost.style.left = st.startRect.left + 'px';
       st.ghost.style.top = st.startRect.top + 'px';
       document.body.appendChild(st.ghost);
+      setFlyCardFontFromSource(st.ghost, el);   // つまんだ瞬間、文字だけ急に小さくならないように
       el.style.visibility = 'hidden';
     }
     if(st.moved){
@@ -2502,7 +2916,7 @@ function attachCardDrag(el, opts){
   });
 }
 
-function renderGame(){
+function renderGame(dealAnimate, onDealDone){
   if(!game) return;
   // ドラッグ演出の分身が万一残っていた場合の保険的クリーンアップ
   document.querySelectorAll('.fly-card.drag-ghost').forEach(function(g){ g.remove(); });
@@ -2523,7 +2937,7 @@ function renderGame(){
       if(!sel){ showToast('先に手札のカードを選んでね', 'ng'); return; }
       var srcEl = document.querySelector('#hand-row .hand-card[data-id="' + sel.id + '"]');
       onlinePlace(sel.id, gapIndex, srcEl);
-    });
+    }, dealAnimate);
     renderHandOnline(me, myTurn);
     renderPlayerStrip(r);
     hint.textContent = (r.status === 'finished') ? ''
@@ -2535,7 +2949,7 @@ function renderGame(){
     renderTimeline(function(gapIndex, gapEl){
       var srcEl = document.querySelector('#hand-row .hand-card');
       handleSoloPlacement(gapIndex, gapEl, srcEl);
-    });
+    }, dealAnimate, onDealDone);
     renderHandSolo();
     hint.textContent = game.current ? (game.current.name + ' を年表のどこに置くか ▲ をタップ／指でドラッグ') : '';
   }
