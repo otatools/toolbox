@@ -172,6 +172,7 @@ body { word-break: keep-all; overflow-wrap: break-word; }
     font-size: clamp(15px, 2.6vh, 26px); font-weight: 900; flex-shrink: 0; box-shadow: 0 2px 0 rgba(0,0,0,0.15);
 }
 .stepper-btn:active { transform: translateY(2px); box-shadow: none; }
+.stepper-value.is-text { font-size: clamp(13px, 2.1vh, 20px); font-weight: 700; color: #8a8fb0; }
 .stepper-value { font-size: clamp(15px, 2.6vh, 28px); font-weight: 900; min-width: clamp(36px, 5.8vh, 76px); text-align: center; }
 /* パソコンなど横幅にゆとりがある画面では、項目を2列にならべて縦長になりすぎないようにする */
 @media (min-width: 640px) {
@@ -332,7 +333,18 @@ canvas { touch-action: none; -webkit-user-select: none; user-select: none; }
 .tag-bubble::after { content: ''; position: absolute; top: 50%; transform: translateY(-50%); border-width: 8px; border-style: solid; }
 .player-sidebar.left .tag-bubble::after { left: -16px; border-color: transparent var(--tag-bubble-border, #ff5c5c) transparent transparent; }
 .player-sidebar.right .tag-bubble::after { right: -16px; border-color: transparent transparent transparent var(--tag-bubble-border, #ff5c5c); }
-@media (max-width: 900px) { .player-sidebar { display: none; } }
+@media (max-width: 900px) { .player-sidebar, .bubble-stack { display: none; } }
+/* ===== 人数がとても多いとき（40人など）の表示 =====
+   名前タグは出さない。ふきだしは名前つきで、画面の上の方にある「ふきだし置き場」に
+   古いものが上・新しいものが下の順でならべる。消えたら下のものが上へつまる。
+   どちらもpointer-events:noneなので、キーボードの「決定」などを押す邪魔にならない。 */
+:root { --side-w: 150px; }
+.bubble-stack { position: fixed; top: 66px; z-index: 5200; display: flex; flex-direction: column; gap: 6px; width: 230px; pointer-events: none; }
+.bubble-stack.left { left: calc(var(--side-w, 150px) + 8px); align-items: flex-start; }
+.bubble-stack.right { right: calc(var(--side-w, 150px) + 8px); align-items: flex-end; }
+.stack-bubble { max-width: 230px; box-sizing: border-box; background: #ffffff; border: 3px solid var(--sb-color, #ff5c5c); border-radius: 14px; padding: 4px 12px; font-weight: 800; font-size: 14px; color: var(--sb-text, #d40000); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; box-shadow: 0 4px 14px rgba(60,50,120,0.2); opacity: 0; transition: opacity 0.2s ease; }
+.stack-bubble.show { opacity: 1; }
+.stack-bubble .sb-name { font-weight: 700; margin-right: 4px; }
 #kbdWrapper { position: fixed; bottom: 0; left: 0; width: 100%; background: rgba(255,255,255,0.72); backdrop-filter: blur(3px); z-index: 5000; display: none; flex-direction: column; padding: 5px 0 env(safe-area-inset-bottom) 0; border-top: 3px solid #3ed6c6; box-shadow: 0 -4px 20px rgba(60,50,120,0.12); }
 .input-display { display: flex; width: 95%; margin: 5px auto; gap: 8px; align-items: center; position: relative; }
 /* min-width:0 がないと、テキスト入力欄が中身の初期サイズより縮められず、
@@ -366,11 +378,17 @@ canvas { touch-action: none; -webkit-user-select: none; user-select: none; }
 .k-special { background: #dfe3f7; font-size: 16px; }
 .k-bs { background: #ef5f6b; color: white; width: 100px; height: 50px; font-size: 16px; }
 .k-decide { background: #29b36b; color: #ffffff; flex: 1; font-size: 22px; }
+#triesBadge { position: fixed; right: 15px; bottom: 70px; z-index: 4500; display: none; padding: 4px 14px; border-radius: 16px; background: #ffffff; border: 2px solid #3ed6c6; color: #0c6b5c; font-weight: 800; font-size: 14px; box-shadow: 0 3px 10px rgba(60,50,120,0.2); pointer-events: none; }
+#triesBadge.empty { border-color: #ef5f6b; color: #d40000; }
+#typeBar { position: fixed; bottom: 15px; left: 50%; transform: translateX(-50%); width: min(560px, calc(100% - 330px)); z-index: 4500; display: none; }
+#typeInput { width: 100%; box-sizing: border-box; height: 50px; font-size: 26px; text-align: center; border-radius: 25px; border: 3px solid #3ed6c6; background: #ffffff; color: #22204a; font-weight: 700; box-shadow: 0 4px 16px rgba(60,50,120,0.2); outline: none; }
+#typeInput:focus { border-color: #1fa89a; }
+@media (max-width: 700px) { #typeBar { width: calc(100% - 20px); bottom: 75px; } }
 #drawTools { position: fixed; bottom: 0; left: 0; width: 100%; background: rgba(255,255,255,0.97); z-index: 4000; display: none; flex-direction: column; padding: 10px 5px env(safe-area-inset-bottom) 5px; gap: 10px; border-top: 2px solid rgba(60,50,120,0.1); box-shadow: 0 -4px 20px rgba(60,50,120,0.12); }
 /* 名前タグを左右に出す画面幅では、キーボードや色パレットを内側にせばめて、名前と重ならないようにする */
 @media (min-width: 901px) {
-    #kbdWrapper { left: 150px; width: calc(100% - 300px); border-radius: 20px 20px 0 0; }
-    #drawTools { left: 150px; width: calc(100% - 300px); border-radius: 20px 20px 0 0; }
+    #kbdWrapper { left: var(--side-w, 150px); width: calc(100% - 2 * var(--side-w, 150px)); border-radius: 20px 20px 0 0; }
+    #drawTools { left: var(--side-w, 150px); width: calc(100% - 2 * var(--side-w, 150px)); border-radius: 20px 20px 0 0; }
     /* パソコン版は画面が横に広いぶん、canvasBox（4:3）も縦方向に大きく表示されやすく、
        スマホ版と同じキーボードの不透明度・ぼかしだと、描いている絵の半分以上が
        隠れてしまっていた（スマホ版は縦長の画面でキャンバスの下に余白ができやすく、
@@ -522,6 +540,25 @@ canvas { touch-action: none; -webkit-user-select: none; user-select: none; }
                     <input type="hidden" id="allowChangeSel" value="1">
                 </div>
 
+                <div class="field" id="allowTypingField">
+                    <div class="field-label">キーボードでタイピングして答える？</div>
+                    <div class="choice-group" id="allowTypingGroup">
+                        <button type="button" class="choice-btn" data-value="0">しない</button>
+                        <button type="button" class="choice-btn" data-value="1">する</button>
+                    </div>
+                    <input type="hidden" id="allowTypingSel" value="0">
+                </div>
+
+                <div class="field" id="answerLimitField">
+                    <div class="field-label">答える回数制限（1つのお題で、ひとり）</div>
+                    <div class="stepper">
+                        <button type="button" class="stepper-btn" onclick="stepSetting('answerLimitIn', -1, 0, 20)">－</button>
+                        <div class="stepper-value is-text" id="answerLimitInDisplay">なし</div>
+                        <button type="button" class="stepper-btn" onclick="stepSetting('answerLimitIn', 1, 0, 20)">＋</button>
+                    </div>
+                    <input type="hidden" id="answerLimitIn" value="0">
+                </div>
+
                 <div class="field" id="roundsField">
                     <div class="field-label">ひとり何回描く？</div>
                     <div class="stepper">
@@ -550,7 +587,7 @@ canvas { touch-action: none; -webkit-user-select: none; user-select: none; }
         </div>
         <button type="button" class="btn btn-sub" style="margin-top:10px;" onclick="leaveRoomToMenu()">メインメニューへもどる</button>
     </div>
-    <div class="lobby-version-footer">お絵かきクイズ フレンズ | Ver 2.2 | ota tools</div>
+    <div class="lobby-version-footer">お絵かきクイズ フレンズ | Ver 3.0 | ota tools</div>
     </div>
 </div>
 
@@ -578,6 +615,8 @@ canvas { touch-action: none; -webkit-user-select: none; user-select: none; }
     <div id="odaiChangeBubble"></div>
     <div class="player-sidebar left" id="sidebarLeft"></div>
     <div class="player-sidebar right" id="sidebarRight"></div>
+    <div class="bubble-stack left" id="bubbleStackLeft"></div>
+    <div class="bubble-stack right" id="bubbleStackRight"></div>
     <div id="stage">
         <div id="canvasBox">
             <canvas id="canvas"></canvas>
@@ -656,6 +695,12 @@ canvas { touch-action: none; -webkit-user-select: none; user-select: none; }
          その人自身の色で「わかった！」と出て、みんな（特に描いている人）に伝わる。
          これを見れば、描いている人はお題をむやみにチェンジしなくてよいと判断できる。 -->
     <button id="gotItBtn" onclick="sendGotIt()" style="display:none; position: fixed; bottom: 15px; left: 15px; z-index: 4500; padding: 12px 24px; border-radius: 30px; background: #ffcc00; color: #5a4600; font-weight: bold; border: 2px solid #fff;">わかった！</button>
+    <!-- タイピング入力欄：部屋の設定で「タイピングする」にしたとき、答える人の画面の下に出しっぱなしにする。
+         ふつうのキーボードを開いている間は、そちらの入力欄とかぶるので隠す。 -->
+    <div id="triesBadge"></div>
+    <div id="typeBar">
+        <input type="text" id="typeInput" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" maxlength="30" placeholder="ここにタイピングして Enter">
+    </div>
     <div id="kbdWrapper">
         <div class="input-display">
             <button class="k-close-x" onclick="toggleKeyboard()">×</button>
@@ -740,7 +785,7 @@ const db = firebase.database();
 // 通常index.html側のチェックを通ってからしか来ないはずだが、ブックマークや
 // タブを開いたままにしていた場合など、直接ここに来るケースの保険として
 // こちらにも同じチェックを入れておく。
-const APP_VERSION = "2.2";
+const APP_VERSION = "3.0";
 function isVersionOlder(a, b) {
     const pa = String(a).split('.').map(n => parseInt(n, 10) || 0);
     const pb = String(b).split('.').map(n => parseInt(n, 10) || 0);
@@ -1233,6 +1278,8 @@ function updateStageLayout() {
 
     let bottomReserve = 12;
     if (getComputedStyle(drawTools).display !== 'none') bottomReserve += drawTools.offsetHeight;
+    // タイピング入力欄は出しっぱなしなので、そのぶんの場所をあらかじめ空けておく（開閉でキャンバスがガタつかない）
+    if (document.getElementById('typeBar').style.display === 'block') bottomReserve += 70;
 
     const sidePadding = 16; // #stageの左右のpadding(8px×2)ぶん
     const availW = Math.max(0, stage.clientWidth - sidePadding);
@@ -1256,7 +1303,20 @@ function updateStageLayout() {
 function updateToggleKbdBtn() {
     const btn = document.getElementById('toggleKbd');
     if (!btn || getComputedStyle(btn).display === 'none') return;
+    if (answerLimitUsedUp()) {
+        btn.innerText = '回数オーバー';
+        btn.style.background = '#cfd3e6';
+        btn.style.color = '#6a6f8f';
+        return;
+    }
     const kbdOpen = document.getElementById('kbdWrapper').style.display === 'flex';
+    // タイピング入力をする設定で、入力欄に文字を打ちはじめたら、「答えを入力」は「OK」（送信）になる
+    if (typingEnabled() && !kbdOpen && document.getElementById('typeInput').value.trim() !== '') {
+        btn.innerText = 'OK';
+        btn.style.background = '#29b36b';
+        btn.style.color = '#ffffff';
+        return;
+    }
     if (window.innerWidth > 900 && kbdOpen) {
         btn.innerText = '決定';
         btn.style.background = '#29b36b'; // キーボード側の「決定」ボタンと同じ色にする
@@ -1272,7 +1332,9 @@ function updateToggleKbdBtn() {
 // キーボードの開閉状態から毎回判定する（固定のonclickを2種類作って差しかえるより単純）。
 function onToggleKbdBtnClick() {
     const kbdOpen = document.getElementById('kbdWrapper').style.display === 'flex';
-    if (window.innerWidth > 900 && kbdOpen) {
+    if (typingEnabled() && !kbdOpen && document.getElementById('typeInput').value.trim() !== '') {
+        checkAnswer();
+    } else if (window.innerWidth > 900 && kbdOpen) {
         checkAnswer();
     } else {
         toggleKeyboard();
@@ -1506,7 +1568,9 @@ function broadcastPendingSettings() {
         endType: document.getElementById('endTypeSel').value,
         roundsPerPerson: parseInt(document.getElementById('roundsIn').value) || 1,
         timeLimitMinutes: parseInt(document.getElementById('timeLimitIn').value) || 5,
-        allowChangeOdai: document.getElementById('allowChangeSel').value === '1'
+        allowChangeOdai: document.getElementById('allowChangeSel').value === '1',
+        allowTyping: document.getElementById('allowTypingSel').value === '1',
+        answerLimit: parseInt(document.getElementById('answerLimitIn').value) || 0
     };
     authReady.then(() => { db.ref(`casual_rooms/${myRoom}/pendingSettings`).set(pendingSettings); });
 }
@@ -1518,6 +1582,8 @@ async function hostStartGame() {
     const roundsPerPerson = parseInt(document.getElementById('roundsIn').value) || 1;
     const timeLimitMinutes = parseInt(document.getElementById('timeLimitIn').value) || 5;
     const allowChangeOdai = document.getElementById('allowChangeSel').value === '1';
+    const allowTyping = document.getElementById('allowTypingSel').value === '1';
+    const answerLimit = parseInt(document.getElementById('answerLimitIn').value) || 0;
     const snap = await db.ref(`casual_rooms/${myRoom}`).once('value');
     const data = snap.val();
     // ホストのタブを誤って複製していた場合、古いほうのタブからは開始できないようにする
@@ -1538,7 +1604,7 @@ async function hostStartGame() {
     trackWordShown(firstWord);
 
     const updates = {
-        settings: { difficulty: difficulty, roundsPerPerson: roundsPerPerson, gameMode: gameMode, endType: endType, timeLimitMinutes: timeLimitMinutes, allowChangeOdai: allowChangeOdai },
+        settings: { difficulty: difficulty, roundsPerPerson: roundsPerPerson, gameMode: gameMode, endType: endType, timeLimitMinutes: timeLimitMinutes, allowChangeOdai: allowChangeOdai, allowTyping: allowTyping, answerLimit: answerLimit },
         turnOrder: turnOrder,
         usedWords: { [firstWord]: true },
         // turnIndexは「いまturnOrderの何番目の人が描いているか」を覚えておく場所。
@@ -2015,7 +2081,9 @@ function renderGuestSettingsPreview(ps) {
     const modeLabel = ps.gameMode === 'coop' ? '協力' : '対戦';
     const endLabel = ps.endType === 'time' ? `制限時間 ${ps.timeLimitMinutes || 5}分` : `ひとり ${ps.roundsPerPerson || 1}回`;
     const changeLabel = ps.allowChangeOdai ? 'お題チェンジ：できる' : 'お題チェンジ：できない';
-    el.textContent = `むずかしさ：${ps.difficulty || ''}\nあそびかた：${modeLabel}\n${endLabel}\n${changeLabel}`;
+    const limitLabel = ps.answerLimit ? `答える回数制限：${ps.answerLimit}回まで` : '答える回数制限：なし';
+    const typingLabel = ps.allowTyping ? 'タイピング入力：する' : 'タイピング入力：しない';
+    el.textContent = `むずかしさ：${ps.difficulty || ''}\nあそびかた：${modeLabel}\n${endLabel}\n${changeLabel}\n${typingLabel}\n${limitLabel}`;
 }
 
 // ゲーム中、パソコンなど横に余裕がある画面では名前タグを左右に出す（スマホでは非表示・CSSで制御）。
@@ -2030,18 +2098,38 @@ function computeSidebarCapacity() {
     const tagStep = 54; // タグ1個ぶんの高さ＋すき間のめやす
     return Math.max(3, Math.floor((window.innerHeight - topOffset - bottomReserve) / tagStep));
 }
+// 人数に応じた並べかた：
+//  ・通常サイズで左1列に入る人数まで → 左だけ（これまでどおり）
+//  ・それより多く、左右半分ずつなら通常サイズで入る → 左右に半分ずつ
+//  ・それでも入らない（40人など） → 名前タグは出さない。ふきだしは画面上の「ふきだし置き場」に
+//    名前つきで出す（crowdedMode=true）。キーボードなどは左右いっぱいまで使える。
+let crowdedMode = false;
+let crowdedSide = {}; // 名前タグを出さないとき、ふきだしを左右どちらの置き場に出すか（uid -> 'Left'/'Right'）
+let lastSidebarData = null;
 function renderPlayerSidebar(data) {
-    const uids = (data.turnOrder && data.turnOrder.length) ? data.turnOrder : Object.keys(usersData);
+    lastSidebarData = data;
+    const uids = ((data.turnOrder && data.turnOrder.length) ? data.turnOrder : Object.keys(usersData)).filter(uid => usersData[uid]);
+    const n = uids.length;
     const capacity = computeSidebarCapacity();
-    const key = uids.join(",") + "|" + capacity;
+    let mode = 'single', perSide = n;
+    if (n > capacity) {
+        perSide = Math.ceil(n / 2);
+        mode = (perSide > capacity) ? 'crowded' : 'split';
+    }
+    const key = uids.join(",") + "|" + mode + "|" + capacity;
     const left = document.getElementById('sidebarLeft');
     const right = document.getElementById('sidebarRight');
     if (key !== lastSidebarKey) {
         lastSidebarKey = key;
+        crowdedMode = (mode === 'crowded');
         left.innerHTML = ""; right.innerHTML = "";
+        left.style.display = right.style.display = crowdedMode ? 'none' : '';
+        document.documentElement.style.setProperty('--side-w', crowdedMode ? '0px' : '150px');
+        crowdedSide = {};
         uids.forEach((uid, i) => {
+            crowdedSide[uid] = (i < perSide) ? 'Left' : 'Right';
+            if (crowdedMode) return;
             const u = usersData[uid];
-            if (!u) return;
             const tag = document.createElement('div');
             tag.className = 'player-tag' + (uid === myUid ? ' me' : '');
             tag.id = `playerTag-${uid}`;
@@ -2056,9 +2144,9 @@ function renderPlayerSidebar(data) {
             bubble.className = 'tag-bubble';
             bubble.id = `tagBubble-${uid}`;
             tag.appendChild(bubble);
-            (i < capacity ? left : right).appendChild(tag);
+            (mode === 'single' || i < perSide ? left : right).appendChild(tag);
         });
-    } else {
+    } else if (!crowdedMode) {
         uids.forEach(uid => {
             const u = usersData[uid];
             const tag = document.getElementById(`playerTag-${uid}`);
@@ -2070,6 +2158,12 @@ function renderPlayerSidebar(data) {
         });
     }
 }
+// ウィンドウの高さが変わったら、タグの並べかたも作り直す
+let sidebarResizeTimer = null;
+window.addEventListener('resize', () => {
+    clearTimeout(sidebarResizeTimer);
+    sidebarResizeTimer = setTimeout(() => { if (lastSidebarData && wideScreenQuery.matches) renderPlayerSidebar(lastSidebarData); }, 200);
+});
 
 // プルダウンだと子どもが選び間違えやすいので、代わりに大きなボタンをタップして
 // えらぶ方式にしている。ボタンをクリックしたら、これまで通りのhidden inputの
@@ -2116,7 +2210,11 @@ function stepSetting(id, delta, min, max) {
     let v = (parseInt(hidden.value) || min) + delta;
     v = Math.max(min, Math.min(max, v));
     hidden.value = v;
-    if (display) display.innerText = v;
+    if (display) {
+        const isNone = (id === 'answerLimitIn' && v === 0); // 回数制限は0＝なし（数字より小さめ・細めの文字で出す）
+        display.innerText = isNone ? 'なし' : v;
+        display.classList.toggle('is-text', isNone);
+    }
     hidden.dispatchEvent(new Event('change'));
 }
 
@@ -2136,9 +2234,10 @@ window.onload = () => {
     initChoiceGroup('modeGroup', 'modeSel', 'competitive');
     initChoiceGroup('endTypeGroup', 'endTypeSel', 'rounds');
     initChoiceGroup('allowChangeGroup', 'allowChangeSel', '1');
+    initChoiceGroup('allowTypingGroup', 'allowTypingSel', '0');
 
     // ホストが設定をかえたら、他の端末にもすぐ伝わるようにする
-    ['difficultySel', 'modeSel', 'roundsIn', 'timeLimitIn', 'allowChangeSel'].forEach(id => {
+    ['difficultySel', 'modeSel', 'roundsIn', 'timeLimitIn', 'allowChangeSel', 'allowTypingSel', 'answerLimitIn'].forEach(id => {
         document.getElementById(id).addEventListener('change', broadcastPendingSettings);
     });
     document.getElementById('endTypeSel').addEventListener('change', onEndTypeChange);
@@ -2518,7 +2617,7 @@ authReady.then(async () => {
         if (state.phase !== lastStatePhase) {
             if (state.phase !== "playing") {
                 closeKeyboard();
-                document.getElementById('answerInput').value = "";
+                clearAnswerInputs();
             }
             if (state.phase === "countdown") {
                 canvasGen++; ctx.clearRect(0, 0, canvas.width, canvas.height); resetDrawToolsToDefault();
@@ -2585,6 +2684,8 @@ authReady.then(async () => {
         const isGuessingNow = currentIsPlaying && !isDrawer && !(usersData[myUid] && usersData[myUid].isCorrect);
         document.getElementById('toggleKbd').style.display = isGuessingNow ? 'block' : 'none';
         document.getElementById('gotItBtn').style.display = isGuessingNow ? 'block' : 'none';
+        updateTypeBar(isGuessingNow);
+        updateAnswerLimitUI();
         updateToggleKbdBtn();
         // 「おしい！」ボタンは#drawTools（描いている人のツール一式）の中に置いてあるので、
         // drawTools自体の表示・非表示（isDrawer && currentIsPlayingで切り替え）に
@@ -2875,9 +2976,85 @@ function animateScoreCountUp(el, target, onDone) {
 // （次のラウンドでisCorrectがリセットされれば、自動でこちらも戻る）。
 let answerSubmitInFlight = false;
 let myAnswerConfirmed = false;
+/* ===== タイピング入力（部屋の設定で「する」にしたとき） =====
+   入力欄は2つある：画面の下に出しっぱなしの#typeInput（実際のキーボードで打つ）と、
+   これまでの画面上キーボードの中の#answerInput。同時に見えるのはどちらか片方だけにして
+   （画面上キーボードを開いている間は#typeBarを隠す）、いま見えているほうを答えとして使う。 */
+function typingEnabled() { return !!(roomSettings && roomSettings.allowTyping); }
+function isKbdOpen() { return document.getElementById('kbdWrapper').style.display === 'flex'; }
+function getAnswerText() {
+    if (typingEnabled() && !isKbdOpen()) return document.getElementById('typeInput').value.trim();
+    return document.getElementById('answerInput').value;
+}
+function clearAnswerInputs() {
+    document.getElementById('answerInput').value = "";
+    document.getElementById('typeInput').value = "";
+    updateToggleKbdBtn();
+}
+function focusTypeInputIfShown() {
+    const bar = document.getElementById('typeBar');
+    // タブレットなどタッチ中心の端末では、勝手にフォーカスすると画面のキーボードが出てしまうので、しない
+    if (bar.style.display !== 'block' || !window.matchMedia('(hover: hover)').matches) return;
+    document.getElementById('typeInput').focus();
+}
+// 答える人の画面で、タイピング入力欄を出すか隠すか決める（画面の状態が変わるたびに呼ぶ）
+function updateTypeBar(isGuessingNow) {
+    const bar = document.getElementById('typeBar');
+    const show = isGuessingNow && typingEnabled() && !isKbdOpen();
+    const wasShown = bar.style.display === 'block';
+    bar.style.display = show ? 'block' : 'none';
+    if (wasShown !== show) {
+        scheduleStageLayout();
+        if (show) focusTypeInputIfShown();
+    }
+}
+(function initTypeInput() {
+    const input = document.getElementById('typeInput');
+    input.addEventListener('input', updateToggleKbdBtn);
+    input.addEventListener('keydown', (e) => {
+        if (e.key !== 'Enter') return;
+        // 日本語入力の「変換の確定」のEnterでは送信しない（もう一度Enterを押したときだけ送信）
+        if (e.isComposing || e.keyCode === 229) return;
+        e.preventDefault();
+        checkAnswer();
+    });
+})();
+/* ===== 答えられる回数の制限 =====
+   部屋の設定（roomSettings.answerLimit、0＝なし）。1つのお題（ラウンド）ごとに、ひとりが
+   まちがえて送れる回数を数える。正解したらそのお題は終わりなので、数えるのは「まちがい」だけ。
+   お題が変わる（ラウンド番号が変わる）と、数え直しになる。 */
+let answerTries = { round: -1, count: 0 };
+function getAnswerTries() {
+    if (answerTries.round !== currentProgressRoundNumber) answerTries = { round: currentProgressRoundNumber, count: 0 };
+    return answerTries;
+}
+function answerLimitValue() { return (roomSettings && roomSettings.answerLimit) || 0; }
+function answerLimitUsedUp() {
+    const lim = answerLimitValue();
+    return lim > 0 && getAnswerTries().count >= lim;
+}
+function updateAnswerLimitUI() {
+    const badge = document.getElementById('triesBadge');
+    const input = document.getElementById('typeInput');
+    const lim = answerLimitValue();
+    const guessing = document.getElementById('toggleKbd').style.display === 'block';
+    if (!lim || !guessing) {
+        badge.style.display = 'none';
+        input.disabled = false;
+        input.placeholder = 'ここにタイピングして Enter';
+        return;
+    }
+    const left = Math.max(0, lim - getAnswerTries().count);
+    badge.style.display = 'block';
+    badge.classList.toggle('empty', left === 0);
+    badge.innerText = left === 0 ? 'もう答えられないよ' : `のこり ${left}回`;
+    input.disabled = (left === 0);
+    input.placeholder = left === 0 ? 'もう答えられないよ' : 'ここにタイピングして Enter';
+}
 async function checkAnswer() {
     if (answerSubmitInFlight || myAnswerConfirmed) return;
-    const val = document.getElementById('answerInput').value;
+    if (answerLimitUsedUp()) { updateAnswerLimitUI(); return; }
+    const val = getAnswerText();
     if (!val) return;
     // 「決定」を押した時点でのラウンド番号を覚えておく。回線が遅いと、この後の
     // once('value')の返事が届くまでの間に、実は次のラウンド（お題）にもう進んで
@@ -2920,10 +3097,15 @@ async function checkAnswer() {
                 }
             });
             closeKeyboard();
+            clearAnswerInputs();
         } else {
             showJudge("×", "red");
+            getAnswerTries().count++;
+            updateAnswerLimitUI();
+            if (answerLimitUsedUp()) closeKeyboard();
             db.ref(`casual_rooms/${myRoom}/state/wrongGuess`).set({ text: val, name: myName, uid: myUid, ts: Date.now() });
-            document.getElementById('answerInput').value = "";
+            clearAnswerInputs();
+            focusTypeInputIfShown();
         }
     } finally {
         answerSubmitInFlight = false;
@@ -2940,6 +3122,64 @@ const wideScreenQuery = window.matchMedia('(min-width: 901px)');
 // まちがえた答え・「おしい！」のふきだしは、以前は2.5秒で消えていたが、
 // ヒントとして活用しやすいよう、もう少し長めに表示しておく。
 const GUESS_BUBBLE_DISPLAY_MS = 8000;
+// ===== 人数が多いとき用の「ふきだし置き場」 =====
+// 古いふきだしが上、新しいふきだしが下。消えたら下のふきだしがスッと上へつまる。
+// 同じ人のふきだしは、新しいものが来たら古いものと入れかえる（数が増えすぎないように）。
+// 同時に出す数にも上限があり、超えたら一番古いものから消す（ぱっぱと変わりすぎないように）。
+const STACK_MAX_VISIBLE = 5;
+const STACK_DISPLAY_MS = 5000; // 人数が多いときは、8秒より短めにして入れかわりを早める
+function removeStackBubble(el, animate) {
+    if (!el || !el.parentNode) return;
+    clearTimeout(el._timer);
+    const stack = el.parentNode;
+    const before = new Map();
+    [...stack.children].forEach(c => { if (c !== el) before.set(c, c.getBoundingClientRect().top); });
+    el.remove();
+    if (!animate) return;
+    // 残ったふきだしが、前の位置から新しい位置へスッと動く（FLIP）
+    before.forEach((top, c) => {
+        const d = top - c.getBoundingClientRect().top;
+        if (!d) return;
+        c.style.transition = 'none';
+        c.style.transform = `translateY(${d}px)`;
+        requestAnimationFrame(() => requestAnimationFrame(() => {
+            c.style.transition = 'opacity 0.2s ease, transform 0.25s ease';
+            c.style.transform = '';
+        }));
+    });
+}
+function fadeAndRemoveStackBubble(el) {
+    if (!el || !el.parentNode || el._leaving) return;
+    el._leaving = true;
+    el.classList.remove('show');
+    setTimeout(() => removeStackBubble(el, true), 200);
+}
+function pushStackBubble(uid, text, borderColor, textColor, ms) {
+    const side = crowdedSide[uid] || 'Left';
+    const stack = document.getElementById('bubbleStack' + side);
+    if (!stack) return;
+    // 同じ人の古いふきだしは、すぐに消して入れかえる
+    [...stack.children].filter(c => c._uid === uid).forEach(c => removeStackBubble(c, false));
+    const el = document.createElement('div');
+    el.className = 'stack-bubble';
+    el._uid = uid;
+    el.style.setProperty('--sb-color', borderColor);
+    el.style.setProperty('--sb-text', textColor);
+    const u = usersData[uid];
+    if (u && u.name) {
+        const nm = document.createElement('span');
+        nm.className = 'sb-name';
+        nm.innerText = u.name + '：';
+        el.appendChild(nm);
+    }
+    el.appendChild(document.createTextNode(text));
+    stack.appendChild(el);
+    requestAnimationFrame(() => requestAnimationFrame(() => el.classList.add('show')));
+    // 上限をこえたら、いちばん古いものから消す
+    const active = [...stack.children].filter(c => !c._leaving);
+    for (let i = 0; i < active.length - STACK_MAX_VISIBLE; i++) fadeAndRemoveStackBubble(active[i]);
+    el._timer = setTimeout(() => fadeAndRemoveStackBubble(el), Math.min(ms, STACK_DISPLAY_MS));
+}
 // 名前タグから出すふきだし（#tagBubble-{uid}）の色を、種類ごとに指定する
 // （CSS変数--tag-bubble-border/--tag-bubble-textを、表示するたびにここで設定しなおす。
 // 表示のたびに毎回両方指定しておけば、前に別の種類のふきだしを出していた色が
@@ -2952,6 +3192,10 @@ function showWrongGuessBubble(uid, name, text) {
     // パソコンなど横に余裕がある画面では、その人の名前タグから吹き出しを出す。
     // 名前タグが見つからない・スマホ表示のときは、これまでどおり画面上部に出す。
     const tagBubble = document.getElementById(`tagBubble-${uid}`);
+    if (wideScreenQuery.matches && crowdedMode) {
+        pushStackBubble(uid, `× ${text}`, '#ff5c5c', '#d40000', GUESS_BUBBLE_DISPLAY_MS);
+        return;
+    }
     if (wideScreenQuery.matches && tagBubble) {
         setTagBubbleColor(tagBubble, '#ff5c5c', '#d40000');
         tagBubble.innerText = `× ${text}`;
@@ -2981,6 +3225,10 @@ let oshiiHideTimer = null;
 // senderName: 描いている人の名前（フォールバック表示の文言に使う）
 function showOshiiBubble(drawerUid, senderName) {
     const tagBubble = document.getElementById(`tagBubble-${drawerUid}`);
+    if (wideScreenQuery.matches && crowdedMode) {
+        pushStackBubble(drawerUid, 'おしい！', '#29b36b', '#128a4d', GUESS_BUBBLE_DISPLAY_MS);
+        return;
+    }
     if (wideScreenQuery.matches && tagBubble) {
         setTagBubbleColor(tagBubble, '#29b36b', '#128a4d');
         tagBubble.innerText = 'おしい！';
@@ -3011,6 +3259,10 @@ let gotItHideTimer = null;
 function showGotItBubble(uid, name) {
     const color = (usersData[uid] && usersData[uid].color) || '#3ed6c6';
     const tagBubble = document.getElementById(`tagBubble-${uid}`);
+    if (wideScreenQuery.matches && crowdedMode) {
+        pushStackBubble(uid, 'わかった！', color, color, GUESS_BUBBLE_DISPLAY_MS);
+        return;
+    }
     if (wideScreenQuery.matches && tagBubble) {
         setTagBubbleColor(tagBubble, color, color);
         tagBubble.innerText = 'わかった！';
@@ -3059,6 +3311,10 @@ const ODAI_CHANGE_COLOR = '#7c6bff';
 const ODAI_CHANGE_BUBBLE_DISPLAY_MS = 2000;
 function showOdaiChangeBubble(drawerUid) {
     const tagBubble = document.getElementById(`tagBubble-${drawerUid}`);
+    if (wideScreenQuery.matches && crowdedMode) {
+        pushStackBubble(drawerUid, 'お題チェンジ！', ODAI_CHANGE_COLOR, ODAI_CHANGE_COLOR, ODAI_CHANGE_BUBBLE_DISPLAY_MS);
+        return;
+    }
     if (wideScreenQuery.matches && tagBubble) {
         setTagBubbleColor(tagBubble, ODAI_CHANGE_COLOR, ODAI_CHANGE_COLOR);
         tagBubble.innerText = 'お題チェンジ！';
@@ -3149,14 +3405,24 @@ function toggleKbdType() {
 }
 function bs() { const el = document.getElementById('answerInput'); el.value = el.value.slice(0, -1); }
 function closeKeyboard() {
+    const wasOpen = isKbdOpen();
+    // タイピング入力の設定のときは、画面上キーボードで打っていた文字を下の入力欄へ引きつぐ
+    if (wasOpen && typingEnabled()) document.getElementById('typeInput').value = document.getElementById('answerInput').value;
     document.getElementById('kbdWrapper').style.display = 'none';
     document.getElementById('stage').classList.remove('kbd-open');
     scheduleStageLayout();
+    if (typingEnabled()) updateTypeBar(document.getElementById('toggleKbd').style.display === 'block');
+    updateToggleKbdBtn();
 }
 function toggleKeyboard(){
     const k = document.getElementById('kbdWrapper');
     if (k.style.display === 'flex') { closeKeyboard(); return; }
+    if (answerLimitUsedUp()) return;
+    // タイピング入力の設定のときは、下の入力欄に打っていた文字を画面上キーボードの入力欄へ引きつぐ
+    if (typingEnabled()) document.getElementById('answerInput').value = document.getElementById('typeInput').value;
     k.style.display = 'flex';
+    if (typingEnabled()) updateTypeBar(false);
+    updateToggleKbdBtn();
     // スマホ版だけ：キーボードを出している間はキャンバスを上へスライドする
     // （パソコン版は横に余裕があるのでそのまま中央表示にしておく）
     if (window.innerWidth <= 900) document.getElementById('stage').classList.add('kbd-open');
