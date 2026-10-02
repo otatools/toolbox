@@ -587,7 +587,7 @@ canvas { touch-action: none; -webkit-user-select: none; user-select: none; }
         </div>
         <button type="button" class="btn btn-sub" style="margin-top:10px;" onclick="leaveRoomToMenu()">メインメニューへもどる</button>
     </div>
-    <div class="lobby-version-footer">お絵かきクイズ フレンズ | Ver 3.1 | ota tools</div>
+    <div class="lobby-version-footer">お絵かきクイズ フレンズ | Ver 3.2 | ota tools</div>
     </div>
 </div>
 
@@ -785,7 +785,7 @@ const db = firebase.database();
 // 通常index.html側のチェックを通ってからしか来ないはずだが、ブックマークや
 // タブを開いたままにしていた場合など、直接ここに来るケースの保険として
 // こちらにも同じチェックを入れておく。
-const APP_VERSION = "3.1";
+const APP_VERSION = "3.2";
 function isVersionOlder(a, b) {
     const pa = String(a).split('.').map(n => parseInt(n, 10) || 0);
     const pb = String(b).split('.').map(n => parseInt(n, 10) || 0);
@@ -1501,20 +1501,11 @@ function updateViewerImage() {
     const sImg = document.getElementById('sharedImg');
     if (!isDrawer && (currentIsPlaying || currentPhase === "result")) {
         viewer.style.display = 'block';
-        if (currentPhase === "result") {
-            // 結果発表は今までどおりcasual_rooms側の最終版（きれいな画質）を、画像として表示する。
-            viewerCanvasEl.style.display = 'none';
-            sImg.style.display = 'block';
-            const sharedDrawUser = usersData[currentDrawerUid] || {};
-            const newSrc = (sharedDrawUser.image && sharedDrawUser.imageRound === currentProgressRoundNumber) ? sharedDrawUser.image : "";
-            if (sImg.src !== newSrc) { if (!newSrc) sImg.removeAttribute('src'); else sImg.src = newSrc; }
-        } else {
-            // 描いている最中は、live_draws側から届いた小さな情報をもとに自分の画面で
-            // 線を再現しているviewerCanvasを見せる（on('value')・on('child_added')側で
-            // 中身は常に更新ずみ）。
-            sImg.style.display = 'none';
-            viewerCanvasEl.style.display = 'block';
-        }
+        // 描いている最中も、結果発表のときも、live_draws側から届いた小さな情報をもとに
+        // 自分の画面で線を再現しているviewerCanvasを見せる。結果発表の絵も画像として
+        // 送りなおさず、この再現した絵をそのまま使う（getResultImageSrc参照）。
+        sImg.style.display = 'none';
+        viewerCanvasEl.style.display = 'block';
     } else {
         viewer.style.display = 'none';
     }
@@ -1539,15 +1530,16 @@ async function changeOdai() {
 
     const updates = { usedWords: usedWords, 'state/correctAnswer': nextWord, 'state/correctCount': 0 };
     Object.keys(data.users || {}).forEach(uid => { updates[`users/${uid}/isCorrect`] = false; });
-    // 「お題チェンジ！」を自分（描いている人）の名前タグから伝える。
-    updates['state/odaiChange'] = { ts: Date.now() };
-    // お題が変わったので、それまでの「わかった！」表示はいったん役目を終えたことにする
-    // （前のお題への「わかった」が、新しいお題にも当てはまるとは限らないため）。
-    updates['state/gotIt'] = null;
-
     canvasGen++;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
+    // 見ている人の画面の絵も、いっしょに白紙にもどす（線の情報の中に「ぜんぶ消す」を入れて送る）
+    liveSegBuffer.push({ t: 'clearall', g: strokeGen });
     await db.ref(`casual_rooms/${myRoom}`).update(updates);
+    // 「お題チェンジ！」を自分（描いている人）の名前タグから伝える。
+    // また、お題が変わったので、それまでの「わかった！」表示・回数を使いきった記録は
+    // 役目を終えたことにする（前のお題への「わかった」が、新しいお題にも当てはまるとは限らないため）。
+    // これらは、部屋の情報（casual_rooms）ではなく、小さな別の場所（live_draws/ev）に置く。
+    db.ref(`live_draws/${myRoom}/ev`).update({ odaiChange: { ts: Date.now() }, gotIt: null, outOfTries: null }).catch(() => {});
     upload();
 }
 
@@ -1694,16 +1686,17 @@ function hostRunRoundTimer(roundEndAt) {
 }
 
 // 回数制限（roomSettings.answerLimit）がある部屋で、描いている人以外の全員（つながっている人だけ）が
-// いまのお題で答える回数を使いきったか。users/{uid}/outOfTries には、使いきった時点のお題キー
+// いまのお題で答える回数を使いきったか。live_draws/{room}/ev/outOfTries/{uid} には、使いきった時点のお題キー
 // （ラウンド番号|答え）が入っているので、いまのお題のキーと同じものだけを数える（前のお題の分は無視される）。
-function allGuessersOutOfTries(data) {
+function allGuessersOutOfTries(data, outMap) {
     const settings = data.settings || {};
     if (!settings.answerLimit) return false;
     const state = data.state || {};
     const key = `${(data.progress && data.progress.roundNumber) || 0}|${state.correctAnswer || ""}`;
     const users = data.users || {};
+    outMap = outMap || {};
     const guessers = Object.keys(users).filter(uid => uid !== state.currentDrawer && (users[uid] || {}).connected !== false);
-    return guessers.length > 0 && guessers.every(uid => users[uid].outOfTries === key);
+    return guessers.length > 0 && guessers.every(uid => outMap[uid] === key);
 }
 async function hostFinishRound() {
     // 見回りタイマー(hostRunRoundTimer)とリアルタイムリスナー側の即時判定が、通信の
@@ -1726,7 +1719,7 @@ async function hostFinishRound() {
     const curDrawnUser = curUsers[curState.currentDrawer] || {};
     const curRoundNumber = (curData.progress && curData.progress.roundNumber) || 0;
     const winners = Object.values(curUsers).filter(u => u.isCorrect).map(u => ({ name: u.name || "", color: u.color || null }));
-    const drawnSrc = (curDrawnUser.image && curDrawnUser.imageRound === curRoundNumber) ? curDrawnUser.image : "";
+    const drawnSrc = ""; // 絵は各端末が自分の画面から作るので、ここには保存しない
     await db.ref(`casual_rooms/${myRoom}/state`).update({
         phase: "result", active: false, resultEndAt,
         lastResult: { answer: curState.correctAnswer || "", drawerName: curState.drawerName || "", winners, image: drawnSrc, ts: Date.now() }
@@ -1998,6 +1991,26 @@ function hexToRgba(hex, alpha) {
 // 「正解発表」画面（#answerOverlay）の中身を組み立てる。ふだんのresultフェーズの表示と、
 // 見のがした人への救済表示（showMissedResultOverlay）の両方から、同じ見た目になるように
 // これ1つを共通で使う。resultData = { answer, winners:[{name,color}], image }
+// 正解発表で見せる絵。画像を通信で送りなおす代わりに、描いた本人は自分のキャンバス、
+// 見ている人は線の情報から再現した絵（viewerCanvas）を、その場で画像にして使う。
+// お題ごとに1回だけ作る（正解発表の間、部屋の情報が変わるたびに作りなおさない）。
+let resultSnapCache = { key: "", src: "" };
+function getResultImageSrc() {
+    const key = currentProgressRoundNumber + '|' + currentCorrectAnswer;
+    if (resultSnapCache.key === key) return resultSnapCache.src;
+    let src = "";
+    try {
+        const srcCanvas = isDrawer ? canvas : viewerCanvasEl;
+        if (srcCanvas && srcCanvas.width > 0 && srcCanvas.height > 0) {
+            const t = document.createElement('canvas');
+            t.width = 640; t.height = 480;
+            t.getContext('2d').drawImage(srcCanvas, 0, 0, 640, 480);
+            src = t.toDataURL('image/webp', 0.8);
+        }
+    } catch (e) { src = ""; }
+    resultSnapCache = { key, src };
+    return src;
+}
 function renderAnswerOverlay(resultData) {
     const answerContentEl = document.getElementById('answerContent');
     const winners = resultData.winners || [];
@@ -2115,6 +2128,17 @@ function computeSidebarCapacity() {
 //  ・それより多く、左右半分ずつなら通常サイズで入る → 左右に半分ずつ
 //  ・それでも入らない（40人など） → 名前タグは出さない。ふきだしは画面上の「ふきだし置き場」に
 //    名前つきで出す（crowdedMode=true）。キーボードなどは左右いっぱいまで使える。
+let latestRoomData = null;     // 部屋の情報の最新のコピー（部屋のリスナーが更新する）
+let hostOutOfTriesMap = {};    // ホストだけ：いまのお題で答える回数を使いきった人（uid -> お題キー）
+// 出来事（回数を使いきった人）が変わった時にも、部屋の情報が変わった時と同じ判定をする
+function hostCheckAllOutOfTries() {
+    if (!isHost || !latestRoomData || !latestRoomData.state) return;
+    if (latestRoomData.hostSessionId && latestRoomData.hostSessionId !== hostSessionId) return; // 複製された古いホストタブでは何もしない
+    if (latestRoomData.state.phase !== "playing") return;
+    if (!allGuessersOutOfTries(latestRoomData, hostOutOfTriesMap)) return;
+    if (hostTimerInterval) { clearInterval(hostTimerInterval); hostTimerInterval = null; }
+    hostFinishRound();
+}
 let crowdedMode = false;
 let crowdedSide = {}; // 名前タグを出さないとき、ふきだしを左右どちらの置き場に出すか（uid -> 'Left'/'Right'）
 let lastSidebarData = null;
@@ -2306,26 +2330,17 @@ authReady.then(async () => {
     // 再現できるので、もうここを置きかえる必要が無い）。ここが変わるのは新しい
     // ラウンドが始まったときだけなので、そのときだけ見ている側のキャンバスを
     // 白紙から作りなおす（resetViewerCanvasFor）。
-    db.ref(`live_draws/${myRoom}`).on('value', lsnap => {
-        latestLiveDraw = lsnap.val();
-        const key = latestLiveDraw ? `${latestLiveDraw.uid}_${latestLiveDraw.round}_${latestLiveDraw.seq}` : "";
-        if (key !== viewerRoundKey) {
-            viewerRoundKey = key;
-            viewerSegLog = [];
-            resetViewerCanvasFor(latestLiveDraw);
-        }
-        updateViewerImage();
-    });
-    // segs（線・塗りつぶし・戻る・全消しの小さなきろく）は.push()で追加されるので、
-    // ずっとつないでいる人には増えた分（child_added）だけが届く。新しく参加した
-    // 人には、今たまっている分がまとめて1回で、もともとの順番どおりに届く
-    // （Firebaseの標準の動き）ので、途中からでも同じ見た目を再現できる。
-    // 新しいラウンドが始まるとlive_draws/{room}がまるごと置きかわり、前のsegsは
-    // 自動的に消えるので、ここで古いものを気にして消す必要はない。seq・roundが
-    // 今のラウンドと一致するものだけ描き足す（回線遅延で前のラウンドぶんが
-    // 混ざって届くのを防ぐ）。
-    db.ref(`live_draws/${myRoom}/segs`).on('child_added', csnap => {
-        const batch = csnap.val();
+    // 【通信量の大事な注意】ここで live_draws/{room} 全体を .on('value') で見てはいけない。
+    // Firebaseの'value'リスナーは、そのパスより下（segs）もすべて含めて受け取るので、
+    // 線の情報（segs）が1回追加されるたびに「それまでの全部」が見ている人全員へ再送され、
+    // 描いた量の2乗に比例して通信量がふくらんでしまう（ベクター化しても通信量が減らなかった原因）。
+    // そこで、ルートが持つ小さな値（uid・round・seq）だけを、1つずつ別々に見る。
+    // segsは下の child_added で、増えた分だけを受け取る。
+    const liveRootParts = {};
+    const liveRootLoaded = {};
+    let liveRootDirty = false;
+    let pendingSegBatches = [];
+    function processSegBatch(batch) {
         if (!batch || !latestLiveDraw) return;
         if (batch.seq !== latestLiveDraw.seq || batch.round !== latestLiveDraw.round) return;
         const box = document.getElementById('canvasBox');
@@ -2344,10 +2359,108 @@ authReady.then(async () => {
             viewerSegLog.push(seg);
             if (box) drawViewerSeg(seg, w, h);
         });
+    }
+    function onLiveRootChanged() {
+        liveRootDirty = false;
+        // 3つの値がそろうまでは、中途半端な状態で判断しない
+        if (!(liveRootLoaded.uid && liveRootLoaded.round && liveRootLoaded.seq)) return;
+        const p = liveRootParts;
+        latestLiveDraw = (p.uid === null || p.uid === undefined) ? null : { uid: p.uid, round: p.round, seq: p.seq };
+        const key = latestLiveDraw ? `${latestLiveDraw.uid}_${latestLiveDraw.round}_${latestLiveDraw.seq}` : "";
+        if (key !== viewerRoundKey) {
+            viewerRoundKey = key;
+            viewerSegLog = [];
+            resetViewerCanvasFor(latestLiveDraw);
+        }
+        // ルートがまだ届いていなかったときに先に届いたsegsがあれば、ここで描き足す
+        if (latestLiveDraw && pendingSegBatches.length) {
+            const list = pendingSegBatches;
+            pendingSegBatches = [];
+            list.forEach(processSegBatch);
+        }
+        updateViewerImage();
+    }
+    ['uid', 'round', 'seq'].forEach(k => {
+        db.ref(`live_draws/${myRoom}/${k}`).on('value', vsnap => {
+            liveRootParts[k] = vsnap.val();
+            liveRootLoaded[k] = true;
+            // 1回の更新で3つ続けて呼ばれるので、まとめて1回だけ処理する
+            if (!liveRootDirty) { liveRootDirty = true; Promise.resolve().then(onLiveRootChanged); }
+        });
     });
+    // segs（線・塗りつぶし・戻る・全消しの小さなきろく）は.push()で追加されるので、
+    // ずっとつないでいる人には増えた分（child_added）だけが届く。新しく参加した
+    // 人には、今たまっている分がまとめて1回で、もともとの順番どおりに届く
+    // （Firebaseの標準の動き）ので、途中からでも同じ見た目を再現できる。
+    // 新しいラウンドが始まるとlive_draws/{room}がまるごと置きかわり、前のsegsは
+    // 自動的に消えるので、ここで古いものを気にして消す必要はない。seq・roundが
+    // 今のラウンドと一致するものだけ描き足す（回線遅延で前のラウンドぶんが
+    // 混ざって届くのを防ぐ）。
+    db.ref(`live_draws/${myRoom}/segs`).on('child_added', csnap => {
+        const batch = csnap.val();
+        if (!batch) return;
+        // ルート（uid・round・seq）がまだそろっていない間に届いたものは、そろうまで預かっておく
+        if (!latestLiveDraw) { pendingSegBatches.push(batch); return; }
+        processSegBatch(batch);
+    });
+
+    // ===== ふきだしになる出来事（まちがえた答え・おしい・わかった・お題チェンジ）の受け取り =====
+    // 以前は部屋の情報（casual_rooms）の中に置いていたので、だれかが答えるたびに「部屋の情報まるごと」が
+    // 参加者全員へ送りなおされていた（人数が多いほど2乗でふえる）。小さな別の場所（live_draws/{room}/ev）に
+    // 移したので、ここで受け取るのは、その出来事ひとつぶんだけ。
+    // 最初に届いたものは「基準」にするだけで表示しない（途中参加・リロード直後に、過去のふきだしが出ないように）。
+    db.ref(`live_draws/${myRoom}/ev/wrongGuess`).on('value', esnap => {
+        const wg = esnap.val();
+        if (!wrongGuessInitialized) { wrongGuessInitialized = true; lastWrongGuessTs = wg ? wg.ts : 0; return; }
+        if (currentIsPlaying && wg && wg.ts > lastWrongGuessTs) {
+            lastWrongGuessTs = wg.ts;
+            showWrongGuessBubble(wg.uid, wg.name, wg.text || "");
+        }
+    });
+    db.ref(`live_draws/${myRoom}/ev/oshii`).on('value', esnap => {
+        const og = esnap.val();
+        if (!oshiiInitialized) { oshiiInitialized = true; lastOshiiTs = og ? og.ts : 0; return; }
+        if (currentIsPlaying && og && og.ts > lastOshiiTs) {
+            lastOshiiTs = og.ts;
+            showOshiiBubble(currentDrawerUid, og.name);
+        }
+    });
+    db.ref(`live_draws/${myRoom}/ev/odaiChange`).on('value', esnap => {
+        const oc = esnap.val();
+        if (!odaiChangeInitialized) { odaiChangeInitialized = true; lastOdaiChangeTs = oc ? oc.ts : 0; return; }
+        if (currentIsPlaying && oc && oc.ts > lastOdaiChangeTs) {
+            lastOdaiChangeTs = oc.ts;
+            showOdaiChangeBubble(currentDrawerUid);
+        }
+    });
+    // 「わかった！」は複数人がほぼ同時に押しても消し合わないよう、押した人ごと（uidをキー）に受け取る。
+    // 全員ぶんをまとめて受け取ると再送がふえるので、変わった人のぶんだけ届く child_added / child_changed を使う。
+    // 先に1回だけ今ある分を読んで基準にしてから、つなぐ。
+    db.ref(`live_draws/${myRoom}/ev/gotIt`).once('value').then(gsnap => {
+        const gi = gsnap.val() || {};
+        Object.keys(gi).forEach(uid => { lastGotItTs[uid] = gi[uid] ? gi[uid].ts : 0; });
+        gotItInitialized = true;
+        const onGotIt = csnap => {
+            const uid = csnap.key, entry = csnap.val();
+            if (currentIsPlaying && entry && entry.ts > (lastGotItTs[uid] || 0)) {
+                lastGotItTs[uid] = entry.ts;
+                showGotItBubble(uid, entry.name);
+            }
+        };
+        db.ref(`live_draws/${myRoom}/ev/gotIt`).on('child_added', onGotIt);
+        db.ref(`live_draws/${myRoom}/ev/gotIt`).on('child_changed', onGotIt);
+    }).catch(() => {});
+    // 回数制限の部屋で「もう答えられない」人がそろったか見るのは、ホストだけでよい
+    if (isHost) {
+        db.ref(`live_draws/${myRoom}/ev/outOfTries`).on('value', osnap => {
+            hostOutOfTriesMap = osnap.val() || {};
+            hostCheckAllOutOfTries();
+        });
+    }
 
     db.ref(`casual_rooms/${myRoom}`).on('value', snap => {
         const data = snap.val();
+        latestRoomData = data;
         // data.stateが無い場合も「部屋が無い」のと同じあつかいにする。ロビー中に
         // 更新（リロード）すると、切断のごく一瞬だけ「部屋ごと自動削除」onDisconnectが
         // 働いてしまい、部屋がまるごと消えることがある。ところが、このタブ自身が
@@ -2504,7 +2617,7 @@ authReady.then(async () => {
                 clearInterval(hostTimerInterval);
                 hostTimerInterval = null;
                 hostFinishRound();
-            } else if (state.phase === "playing" && allGuessersOutOfTries(data)) {
+            } else if (state.phase === "playing" && allGuessersOutOfTries(data, hostOutOfTriesMap)) {
                 // 回数制限がある部屋で、答える人が全員「もう答えられない」になったら、
                 // 残り時間を待たずに正解発表へ進む（残り時間を0にするのと同じ）。
                 clearInterval(hostTimerInterval);
@@ -2565,55 +2678,8 @@ authReady.then(async () => {
 
         renderPlayerSidebar(data);
 
-        // だれかが間違った答えを送ったら、ふきだしで数秒だけみんなに見せる（自分がまちがえたときも自分の名前タグから出す）
-        const wg = state.wrongGuess;
-        if (!wrongGuessInitialized) {
-            // 途中参加・リロード直後は、過去の間違い表示を出さずに基準だけ合わせる
-            wrongGuessInitialized = true;
-            lastWrongGuessTs = wg ? wg.ts : 0;
-        } else if (currentIsPlaying && wg && wg.ts > lastWrongGuessTs) {
-            lastWrongGuessTs = wg.ts;
-            showWrongGuessBubble(wg.uid, wg.name, wg.text || "");
-        }
-
-        // 描いている人が「おしい！」ボタンを押したら、その名前タグからふきだしを出す。
-        // これは答えていない人たちへの手がかり（ヒント）として機能する。
-        const og = state.oshii;
-        if (!oshiiInitialized) {
-            oshiiInitialized = true;
-            lastOshiiTs = og ? og.ts : 0;
-        } else if (currentIsPlaying && og && og.ts > lastOshiiTs) {
-            lastOshiiTs = og.ts;
-            showOshiiBubble(state.currentDrawer, og.name);
-        }
-
-        // 答えている人が「わかった！」ボタンを押したら、その人の名前タグからふきだしを出す。
-        // oshii/wrongGuessは「最後の1件だけ」を覚える単一の値だが、こちらは複数人がほぼ
-        // 同時に押しても互いを消し合わないよう、押した人ごと（uidをキーに）に記録・比較する。
-        const gi = state.gotIt || {};
-        if (!gotItInitialized) {
-            gotItInitialized = true;
-            Object.keys(gi).forEach(uid => { lastGotItTs[uid] = gi[uid] ? gi[uid].ts : 0; });
-        } else if (currentIsPlaying) {
-            Object.keys(gi).forEach(uid => {
-                const entry = gi[uid];
-                if (entry && entry.ts > (lastGotItTs[uid] || 0)) {
-                    lastGotItTs[uid] = entry.ts;
-                    showGotItBubble(uid, entry.name);
-                }
-            });
-        }
-
-        // 描いている人が「お題をチェンジ」したら、その人の名前タグから「お題チェンジ！」の
-        // ふきだしを出す（answerCountがリセットされたことに気づきやすくするため）。
-        const oc = state.odaiChange;
-        if (!odaiChangeInitialized) {
-            odaiChangeInitialized = true;
-            lastOdaiChangeTs = oc ? oc.ts : 0;
-        } else if (currentIsPlaying && oc && oc.ts > lastOdaiChangeTs) {
-            lastOdaiChangeTs = oc.ts;
-            showOdaiChangeBubble(state.currentDrawer);
-        }
+        // （まちがえた答え・おしい・わかった・お題チェンジのふきだしは、通信量を減らすため、
+        // 部屋の情報とは別の小さな場所（live_draws/ev）で受け取る。setupEventListenersを参照）
 
         // タブがバックグラウンド化するなどして通信が一瞬とぎれると、Firebaseの
         // リアルタイム更新は「その間の全部の変化」ではなく「再接続した時点の最新状態」
@@ -2659,10 +2725,8 @@ authReady.then(async () => {
                 // 描いていた本人だけ、この瞬間に1回だけきれいな画質で送り直す
                 // （「正解発表」でみんなが見る絵をきれいにするため。uploadAt参照）。
                 // 同じラウンドで2回以上呼ばれないよう、ラウンド番号で1回だけに制限する。
-                if (isDrawer && finalUploadedForRound !== currentProgressRoundNumber) {
-                    finalUploadedForRound = currentProgressRoundNumber;
-                    uploadFinal();
-                }
+                // （以前はここで描いた本人が高画質の絵を送っていたが、通信量が大きいので
+                // やめた。結果発表の絵は、各端末の画面にある絵から作る＝getResultImageSrc）
             }
             lastStatePhase = state.phase;
         }
@@ -2686,14 +2750,10 @@ authReady.then(async () => {
         document.getElementById('answerOverlay').style.display = (state.phase === "result" || missedResultActive) ? 'flex' : 'none';
         if (state.phase === "result") {
             const winnerUsers = Object.values(usersData).filter(u => u.isCorrect);
-            const drawnUser = usersData[state.currentDrawer] || {};
-            // imageRoundが今のラウンド番号と一致する画像だけを信用する（回線が遅いと、
-            // 前のラウンドの最後の描き戻しが、ラウンド交代のリセットより後に届くことがあるため）。
-            const drawnSrc = (drawnUser.image && drawnUser.imageRound === currentProgressRoundNumber) ? drawnUser.image : "";
             renderAnswerOverlay({
                 answer: state.correctAnswer || "？",
                 winners: winnerUsers.map(u => ({ name: u.name, color: u.color })),
-                image: drawnSrc
+                image: getResultImageSrc()
             });
         }
 
@@ -3216,14 +3276,18 @@ async function checkAnswer() {
     const roundNumberAtSubmit = currentProgressRoundNumber;
     answerSubmitInFlight = true;
     try {
-        const snap = await db.ref(`casual_rooms/${myRoom}`).once('value');
-        const data = snap.val();
-        if (!data) return;
-        const state = data.state || {};
+        // 部屋まるごとではなく、判定に必要な3つの小さな値だけを読む（通信量を減らすため）
+        const [stateSnap, roundSnap, meSnap] = await Promise.all([
+            db.ref(`casual_rooms/${myRoom}/state`).once('value'),
+            db.ref(`casual_rooms/${myRoom}/progress/roundNumber`).once('value'),
+            db.ref(`casual_rooms/${myRoom}/users/${myUid}/isCorrect`).once('value')
+        ]);
+        const state = stateSnap.val();
+        if (!state) return;
         if (state.phase !== "playing") return;
-        const freshRoundNumber = (data.progress && typeof data.progress.roundNumber === 'number') ? data.progress.roundNumber : 0;
+        const freshRoundNumber = (typeof roundSnap.val() === 'number') ? roundSnap.val() : 0;
         if (freshRoundNumber !== roundNumberAtSubmit) return;
-        if (data.users && data.users[myUid] && data.users[myUid].isCorrect) { myAnswerConfirmed = true; return; }
+        if (meSnap.val()) { myAnswerConfirmed = true; return; }
 
         if (toHira(val) === toHira(state.correctAnswer)) {
             myAnswerConfirmed = true;
@@ -3254,12 +3318,11 @@ async function checkAnswer() {
             if (answerLimitUsedUp()) {
                 closeKeyboard();
                 // 「この人はこのお題でもう答えられない」をホストに伝える（全員がそうなったら、ホストが正解発表に進める）
-                // （state/の下に新しい項目を作ると、Firebaseのルールで書きこみを断られることがあるので、
-                // 画像・接続状態などと同じ「自分のユーザー情報」の下に書く）
-                db.ref(`casual_rooms/${myRoom}/users/${myUid}/outOfTries`).set(`${freshRoundNumber}|${state.correctAnswer}`)
+                // （部屋の情報に書くと全員に再送されてしまうので、小さな別の場所に書く）
+                db.ref(`live_draws/${myRoom}/ev/outOfTries/${myUid}`).set(`${freshRoundNumber}|${state.correctAnswer}`)
                     .catch(err => console.error('outOfTriesの書きこみに失敗', err));
             }
-            db.ref(`casual_rooms/${myRoom}/state/wrongGuess`).set({ text: val, name: myName, uid: myUid, ts: Date.now() });
+            db.ref(`live_draws/${myRoom}/ev/wrongGuess`).set({ text: val, name: myName, uid: myUid, ts: Date.now() });
             clearAnswerInputs();
             focusTypeInputIfShown();
         }
@@ -3372,7 +3435,7 @@ function showWrongGuessBubble(uid, name, text) {
 // （ボタン自体は描いている人にしか表示されない）
 function sendOshii() {
     if (!isDrawer || !currentIsPlaying) return;
-    db.ref(`casual_rooms/${myRoom}/state/oshii`).set({ uid: myUid, name: myName, ts: Date.now() });
+    db.ref(`live_draws/${myRoom}/ev/oshii`).set({ uid: myUid, name: myName, ts: Date.now() });
 }
 let lastOshiiTs = 0;
 let oshiiInitialized = false;
@@ -3407,7 +3470,7 @@ function showOshiiBubble(drawerUid, senderName) {
 function sendGotIt() {
     if (isDrawer || !currentIsPlaying) return;
     if (usersData[myUid] && usersData[myUid].isCorrect) return; // もう正解した人には不要
-    db.ref(`casual_rooms/${myRoom}/state/gotIt/${myUid}`).set({ name: myName, ts: Date.now() });
+    db.ref(`live_draws/${myRoom}/ev/gotIt/${myUid}`).set({ name: myName, ts: Date.now() });
 }
 let lastGotItTs = {}; // uid -> このタブで最後に表示した時刻（oshii/wrongGuessと違い、押した人ごとに覚えておく）
 let gotItInitialized = false;
