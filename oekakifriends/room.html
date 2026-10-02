@@ -587,7 +587,7 @@ canvas { touch-action: none; -webkit-user-select: none; user-select: none; }
         </div>
         <button type="button" class="btn btn-sub" style="margin-top:10px;" onclick="leaveRoomToMenu()">メインメニューへもどる</button>
     </div>
-    <div class="lobby-version-footer">お絵かきクイズ フレンズ | Ver 3.0 | ota tools</div>
+    <div class="lobby-version-footer">お絵かきクイズ フレンズ | Ver 3.1 | ota tools</div>
     </div>
 </div>
 
@@ -785,7 +785,7 @@ const db = firebase.database();
 // 通常index.html側のチェックを通ってからしか来ないはずだが、ブックマークや
 // タブを開いたままにしていた場合など、直接ここに来るケースの保険として
 // こちらにも同じチェックを入れておく。
-const APP_VERSION = "3.0";
+const APP_VERSION = "3.1";
 function isVersionOlder(a, b) {
     const pa = String(a).split('.').map(n => parseInt(n, 10) || 0);
     const pb = String(b).split('.').map(n => parseInt(n, 10) || 0);
@@ -1693,6 +1693,18 @@ function hostRunRoundTimer(roundEndAt) {
     }, 1000);
 }
 
+// 回数制限（roomSettings.answerLimit）がある部屋で、描いている人以外の全員（つながっている人だけ）が
+// いまのお題で答える回数を使いきったか。users/{uid}/outOfTries には、使いきった時点のお題キー
+// （ラウンド番号|答え）が入っているので、いまのお題のキーと同じものだけを数える（前のお題の分は無視される）。
+function allGuessersOutOfTries(data) {
+    const settings = data.settings || {};
+    if (!settings.answerLimit) return false;
+    const state = data.state || {};
+    const key = `${(data.progress && data.progress.roundNumber) || 0}|${state.correctAnswer || ""}`;
+    const users = data.users || {};
+    const guessers = Object.keys(users).filter(uid => uid !== state.currentDrawer && (users[uid] || {}).connected !== false);
+    return guessers.length > 0 && guessers.every(uid => users[uid].outOfTries === key);
+}
 async function hostFinishRound() {
     // 見回りタイマー(hostRunRoundTimer)とリアルタイムリスナー側の即時判定が、通信の
     // タイミングによってはほぼ同時にどちらもこの関数を呼んでしまうことがある。その場合
@@ -2492,6 +2504,12 @@ authReady.then(async () => {
                 clearInterval(hostTimerInterval);
                 hostTimerInterval = null;
                 hostFinishRound();
+            } else if (state.phase === "playing" && allGuessersOutOfTries(data)) {
+                // 回数制限がある部屋で、答える人が全員「もう答えられない」になったら、
+                // 残り時間を待たずに正解発表へ進む（残り時間を0にするのと同じ）。
+                clearInterval(hostTimerInterval);
+                hostTimerInterval = null;
+                hostFinishRound();
             }
             // 正解発表（result）の3秒待ちの間にホストがリロードされると、その待ち時間を
             // 覚えていたsetTimeoutも消えてしまい、いつまでも次のラウンドに進まなくなって
@@ -2976,6 +2994,95 @@ function animateScoreCountUp(el, target, onDone) {
 // （次のラウンドでisCorrectがリセットされれば、自動でこちらも戻る）。
 let answerSubmitInFlight = false;
 let myAnswerConfirmed = false;
+/* ===== タイピング入力を「ひらがなだけ」にする =====
+   お題の答えはひらがな（カタカナは自動でひらがなとして照合）。漢字・英数字は使えないので、
+   次の3つで、変換を使わなくても・使ってしまっても、ひらがなの答えになるようにする。
+   ①ローマ字を打ったら、その場でひらがなに直す（IMEオフのまま「inu」→「いぬ」）
+   ②カタカナ・全角英字は、ひらがな・半角英字に直す
+   ③日本語入力（IME）で変換して漢字になってしまったら、変換前のひらがな（読み）に戻す
+   漢字・数字・記号など、使えない文字は消す。 */
+const ROMAJI_MAP = (() => {
+    const m = {};
+    const V = 'aiueo';
+    const rows = { k:'かきくけこ', s:'さしすせそ', t:'たちつてと', n:'なにぬねの', h:'はひふへほ', m:'まみむめも', r:'らりるれろ',
+                   g:'がぎぐげご', z:'ざじずぜぞ', d:'だぢづでど', b:'ばびぶべぼ', p:'ぱぴぷぺぽ' };
+    for (let i = 0; i < 5; i++) m[V[i]] = 'あいうえお'[i];
+    Object.keys(rows).forEach(c => { for (let i = 0; i < 5; i++) m[c + V[i]] = rows[c][i]; });
+    m.ya = 'や'; m.yu = 'ゆ'; m.yo = 'よ';
+    m.wa = 'わ'; m.wo = 'を'; m.wi = 'うぃ'; m.we = 'うぇ'; m.wu = 'う';
+    m.shi = 'し'; m.chi = 'ち'; m.tsu = 'つ'; m.fu = 'ふ'; m.ji = 'じ';
+    const small = { a:'ゃ', u:'ゅ', o:'ょ', e:'ぇ' };
+    Object.keys(rows).concat([]).forEach(c => {
+        if (c === 'y' || c === 'w') return;
+        Object.keys(small).forEach(v => { m[c + 'y' + v] = rows[c][1] + small[v]; });
+    });
+    const dig = (pre, base, vs) => { Object.keys(vs).forEach(v => { m[pre + v] = base + vs[v]; }); };
+    dig('sh', 'し', { a:'ゃ', u:'ゅ', o:'ょ', e:'ぇ' });
+    dig('ch', 'ち', { a:'ゃ', u:'ゅ', o:'ょ', e:'ぇ' });
+    dig('cy', 'ち', { a:'ゃ', u:'ゅ', o:'ょ', e:'ぇ' });
+    dig('chy', 'ち', { a:'ゃ', u:'ゅ', o:'ょ', e:'ぇ' });
+    dig('shy', 'し', { a:'ゃ', u:'ゅ', o:'ょ', e:'ぇ' });
+    dig('j', 'じ', { a:'ゃ', u:'ゅ', o:'ょ', e:'ぇ' });
+    dig('jy', 'じ', { a:'ゃ', u:'ゅ', o:'ょ', e:'ぇ' });
+    dig('f', 'ふ', { a:'ぁ', i:'ぃ', e:'ぇ', o:'ぉ' });
+    dig('v', 'ゔ', { a:'ぁ', i:'ぃ', e:'ぇ', o:'ぉ' });
+    m.vu = 'ゔ';
+    dig('th', 'て', { a:'ゃ', i:'ぃ', u:'ゅ', e:'ぇ', o:'ょ' });
+    dig('dh', 'で', { a:'ゃ', i:'ぃ', u:'ゅ', e:'ぇ', o:'ょ' });
+    m.tsa = 'つぁ'; m.tsi = 'つぃ'; m.tse = 'つぇ'; m.tso = 'つぉ';
+    ['l', 'x'].forEach(p => {
+        'aiueo'.split('').forEach((v, i) => { m[p + v] = 'ぁぃぅぇぉ'[i]; });
+        m[p + 'ya'] = 'ゃ'; m[p + 'yu'] = 'ゅ'; m[p + 'yo'] = 'ょ';
+        m[p + 'tu'] = 'っ'; m[p + 'tsu'] = 'っ';
+    });
+    return m;
+})();
+const ROMAJI_PREFIXES = (() => {
+    const set = new Set();
+    Object.keys(ROMAJI_MAP).forEach(k => { for (let i = 1; i < k.length; i++) set.add(k.slice(0, i)); });
+    return set;
+})();
+function romajiToKana(str, final) {
+    let out = '', i = 0;
+    const n = str.length;
+    while (i < n) {
+        const c = str[i];
+        if (!/[a-z\-']/.test(c)) { out += c; i++; continue; } // かな・その他の文字はそのまま
+        if (c === '-') { out += 'ー'; i++; continue; }
+        if (c === "'") { i++; continue; }
+        if (c === 'n') {
+            const nx = str[i + 1];
+            if (nx === undefined) { out += final ? 'ん' : 'n'; i++; continue; } // 末尾のnは、まだ「な」行の途中かもしれない
+            if (nx === "'") { out += 'ん'; i += 2; continue; }
+            if (nx === 'n') {
+                const after = str[i + 2];
+                if (after !== undefined && 'aiueoy'.includes(after)) { out += 'ん'; i += 1; continue; } // 「konna」→「こんな」
+                out += 'ん'; i += 2; continue; // 「nn」→「ん」
+            }
+            if (!'aiueoy'.includes(nx)) { out += 'ん'; i++; continue; }
+        }
+        // 同じ子音が2つ続いたら「っ」（kk, tt など）
+        if (c !== 'n' && 'bcdfghjklmpqrstvwxyz'.includes(c) && str[i + 1] === c) { out += 'っ'; i++; continue; }
+        let matched = false;
+        for (let len = 4; len >= 1; len--) {
+            const key = str.substr(i, len);
+            if (key.length === len && ROMAJI_MAP[key]) { out += ROMAJI_MAP[key]; i += len; matched = true; break; }
+        }
+        if (matched) continue;
+        const rest = str.slice(i);
+        if (rest.length <= 3 && ROMAJI_PREFIXES.has(rest)) { out += rest; break; } // 打っている途中（「k」「sh」など）
+        i++; // ローマ字にならない文字は捨てる
+    }
+    return out;
+}
+// text → ひらがなだけの文字列。final=falseは入力中の表示用（打っている途中のローマ字は残す）、
+// final=trueは送信用（途中のローマ字は捨てる。末尾のnは「ん」にする）。
+function normalizeAnswer(text, final) {
+    let t = String(text).normalize('NFKC').toLowerCase();
+    t = t.replace(/[ァ-ヶ]/g, m => String.fromCharCode(m.charCodeAt(0) - 0x60)); // カタカナ→ひらがな
+    t = romajiToKana(t, final);
+    return t.replace(final ? /[^ぁ-ゖー]/g : /[^ぁ-ゖーa-z]/g, '');
+}
 /* ===== タイピング入力（部屋の設定で「する」にしたとき） =====
    入力欄は2つある：画面の下に出しっぱなしの#typeInput（実際のキーボードで打つ）と、
    これまでの画面上キーボードの中の#answerInput。同時に見えるのはどちらか片方だけにして
@@ -2983,7 +3090,7 @@ let myAnswerConfirmed = false;
 function typingEnabled() { return !!(roomSettings && roomSettings.allowTyping); }
 function isKbdOpen() { return document.getElementById('kbdWrapper').style.display === 'flex'; }
 function getAnswerText() {
-    if (typingEnabled() && !isKbdOpen()) return document.getElementById('typeInput').value.trim();
+    if (typingEnabled() && !isKbdOpen()) return normalizeAnswer(document.getElementById('typeInput').value, true);
     return document.getElementById('answerInput').value;
 }
 function clearAnswerInputs() {
@@ -2993,9 +3100,9 @@ function clearAnswerInputs() {
 }
 function focusTypeInputIfShown() {
     const bar = document.getElementById('typeBar');
-    // タブレットなどタッチ中心の端末では、勝手にフォーカスすると画面のキーボードが出てしまうので、しない
-    if (bar.style.display !== 'block' || !window.matchMedia('(hover: hover)').matches) return;
-    document.getElementById('typeInput').focus();
+    if (bar.style.display !== 'block') return;
+    const input = document.getElementById('typeInput');
+    if (document.activeElement !== input) input.focus();
 }
 // 答える人の画面で、タイピング入力欄を出すか隠すか決める（画面の状態が変わるたびに呼ぶ）
 function updateTypeBar(isGuessingNow) {
@@ -3005,12 +3112,50 @@ function updateTypeBar(isGuessingNow) {
     bar.style.display = show ? 'block' : 'none';
     if (wasShown !== show) {
         scheduleStageLayout();
-        if (show) focusTypeInputIfShown();
     }
+    // 出ている間は、どこかをクリックしてカーソルが外れていても、何もしていない状態（body）なら入力欄に戻す
+    if (show && (!document.activeElement || document.activeElement === document.body)) focusTypeInputIfShown();
 }
 (function initTypeInput() {
     const input = document.getElementById('typeInput');
-    input.addEventListener('input', updateToggleKbdBtn);
+    // 入力のたびに、ひらがなだけの表示に直す（IMEで変換中は、変換が終わるまで手をつけない）
+    function applyLive() {
+        const v = normalizeAnswer(input.value, false);
+        if (v !== input.value) { input.value = v; try { input.setSelectionRange(v.length, v.length); } catch (_) {} }
+        updateToggleKbdBtn();
+    }
+    let preText = '', lastKana = '';
+    input.addEventListener('input', (e) => { if (e.isComposing) { updateToggleKbdBtn(); return; } applyLive(); });
+    input.addEventListener('compositionstart', () => { preText = input.value; lastKana = ''; });
+    // 変換中の文字がひらがな・カタカナ・ローマ字だけの間は、それを「読み」として覚えておく
+    input.addEventListener('compositionupdate', (e) => {
+        if (/^[\u3041-\u3096\u30A1-\u30FA\u30FCa-zA-Z\uFF41-\uFF5A\uFF21-\uFF3A']*$/.test(e.data || '')) lastKana = e.data;
+    });
+    // 確定した文字に漢字などが入っていたら、変換前の読み（ひらがな）に戻す
+    input.addEventListener('compositionend', () => { setTimeout(() => {
+        const now = input.value;
+        if (preText && now.startsWith(preText) || !preText) {
+            const composed = now.slice(preText.length);
+            if (/[^\u3041-\u3096\u30A1-\u30FA\u30FCa-zA-Z\uFF41-\uFF5A\uFF21-\uFF3A']/.test(composed) && lastKana) input.value = preText + lastKana;
+        }
+        applyLive();
+    }, 0); });
+    // 画面のどこかをクリック／タップしてカーソルが外れても、すぐ入力欄に戻す
+    // （ボタンなど、入力が必要な別の部品を押したときは、押した部品の動作が終わってから戻す）
+    document.addEventListener('pointerup', () => { setTimeout(() => {
+        const a = document.activeElement;
+        if (!a || a === document.body) focusTypeInputIfShown();
+    }, 0); });
+    window.addEventListener('focus', () => setTimeout(focusTypeInputIfShown, 0));
+    // 入力欄にカーソルがない状態でキーを打ち始めても、打った文字が入力欄に入るようにする
+    document.addEventListener('keydown', (e) => {
+        if (e.ctrlKey || e.metaKey || e.altKey) return;
+        const bar = document.getElementById('typeBar');
+        if (bar.style.display !== 'block' || document.activeElement === input) return;
+        const a = document.activeElement;
+        if (a && (a.tagName === 'INPUT' || a.tagName === 'TEXTAREA')) return;
+        if (e.key.length === 1 || e.key === 'Enter') input.focus();
+    });
     input.addEventListener('keydown', (e) => {
         if (e.key !== 'Enter') return;
         // 日本語入力の「変換の確定」のEnterでは送信しない（もう一度Enterを押したときだけ送信）
@@ -3024,8 +3169,12 @@ function updateTypeBar(isGuessingNow) {
    まちがえて送れる回数を数える。正解したらそのお題は終わりなので、数えるのは「まちがい」だけ。
    お題が変わる（ラウンド番号が変わる）と、数え直しになる。 */
 let answerTries = { round: -1, count: 0 };
+const TYPE_PLACEHOLDER = 'ここにタイピングして Enter';
+// 「いまのお題」を表すキー。ラウンドが進んだときだけでなく、お題チェンジで答えが変わったときも変わる。
+function currentOdaiKey() { return `${currentProgressRoundNumber}|${currentCorrectAnswer}`; }
 function getAnswerTries() {
-    if (answerTries.round !== currentProgressRoundNumber) answerTries = { round: currentProgressRoundNumber, count: 0 };
+    const key = currentOdaiKey();
+    if (answerTries.round !== key) answerTries = { round: key, count: 0 };
     return answerTries;
 }
 function answerLimitValue() { return (roomSettings && roomSettings.answerLimit) || 0; }
@@ -3041,7 +3190,7 @@ function updateAnswerLimitUI() {
     if (!lim || !guessing) {
         badge.style.display = 'none';
         input.disabled = false;
-        input.placeholder = 'ここにタイピングして Enter';
+        input.placeholder = TYPE_PLACEHOLDER;
         return;
     }
     const left = Math.max(0, lim - getAnswerTries().count);
@@ -3049,7 +3198,7 @@ function updateAnswerLimitUI() {
     badge.classList.toggle('empty', left === 0);
     badge.innerText = left === 0 ? 'もう答えられないよ' : `のこり ${left}回`;
     input.disabled = (left === 0);
-    input.placeholder = left === 0 ? 'もう答えられないよ' : 'ここにタイピングして Enter';
+    input.placeholder = left === 0 ? 'もう答えられないよ' : TYPE_PLACEHOLDER;
 }
 async function checkAnswer() {
     if (answerSubmitInFlight || myAnswerConfirmed) return;
@@ -3102,7 +3251,14 @@ async function checkAnswer() {
             showJudge("×", "red");
             getAnswerTries().count++;
             updateAnswerLimitUI();
-            if (answerLimitUsedUp()) closeKeyboard();
+            if (answerLimitUsedUp()) {
+                closeKeyboard();
+                // 「この人はこのお題でもう答えられない」をホストに伝える（全員がそうなったら、ホストが正解発表に進める）
+                // （state/の下に新しい項目を作ると、Firebaseのルールで書きこみを断られることがあるので、
+                // 画像・接続状態などと同じ「自分のユーザー情報」の下に書く）
+                db.ref(`casual_rooms/${myRoom}/users/${myUid}/outOfTries`).set(`${freshRoundNumber}|${state.correctAnswer}`)
+                    .catch(err => console.error('outOfTriesの書きこみに失敗', err));
+            }
             db.ref(`casual_rooms/${myRoom}/state/wrongGuess`).set({ text: val, name: myName, uid: myUid, ts: Date.now() });
             clearAnswerInputs();
             focusTypeInputIfShown();
