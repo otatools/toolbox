@@ -1,0 +1,491 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-YTH979WTKL"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+  gtag('config', 'G-YTH979WTKL');
+</script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no">
+<title>電車タイピング データ引継ぎ｜ota tools</title>
+<meta name="description" content="大阪環状線タイピング・山手線タイピングのセーブデータを、別のパソコンに引き継ぐためのバックアップ・復元ツールです。">
+<link rel="icon" type="image/png" sizes="64x64" href="favicon.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="theme-color" content="#1f2937">
+<meta name="robots" content="noindex">
+<style>
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; touch-action: manipulation; -webkit-touch-callout: none; }
+    html, body {
+        margin: 0; padding: 0;
+        background: #1f2937;
+        color: #f3f4f6;
+        font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Noto Sans JP", sans-serif;
+        min-height: 100vh;
+        min-height: 100dvh;
+    }
+    body {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        padding: 24px 16px calc(24px + env(safe-area-inset-bottom, 0px));
+    }
+    .wrap { width: 100%; max-width: 440px; margin: auto 0; }
+    h1 {
+        font-size: 1.35rem;
+        font-weight: 900;
+        text-align: center;
+        margin: 4px 0 2px;
+    }
+    .sub {
+        text-align: center;
+        font-size: 0.8rem;
+        color: #9ca3af;
+        margin-bottom: 18px;
+        line-height: 1.6;
+    }
+    .notice {
+        background: #374151;
+        border: 1px solid #4b5563;
+        border-radius: 14px;
+        padding: 14px 16px;
+        font-size: 0.78rem;
+        line-height: 1.75;
+        color: #d1d5db;
+        margin-bottom: 20px;
+    }
+    .notice b { color: #fbbf24; }
+    .notice-item + .notice-item { margin-top: 12px; }
+    .notice-item .ni-title { display: block; color: #fbbf24; font-weight: 800; }
+    .tabs {
+        display: flex;
+        gap: 8px;
+        margin-bottom: 16px;
+        background: #111827;
+        border-radius: 14px;
+        padding: 4px;
+    }
+    .tab-btn {
+        flex: 1 1 0;
+        border: none;
+        background: transparent;
+        color: #9ca3af;
+        font-weight: 700;
+        font-size: 0.95rem;
+        padding: 12px 8px;
+        border-radius: 10px;
+        cursor: pointer;
+    }
+    .tab-btn.active { background: #4b5563; color: #fff; }
+    .panel { display: none; }
+    .panel.active { display: block; }
+    .card {
+        background: #27303f;
+        border-radius: 18px;
+        padding: 20px;
+        box-shadow: 0 4px 16px rgba(0,0,0,0.25);
+        display: flex;
+        flex-direction: column;
+    }
+    .card-title { display: none; font-size: 1.1rem; font-weight: 900; margin: 0 0 14px; }
+    .card-title small { display: block; font-size: 0.75rem; font-weight: 700; color: #9ca3af; margin-top: 2px; }
+    .fields { margin-bottom: 18px; }
+    .card .action-btn { margin-top: auto; white-space: nowrap; }
+    .hint { margin-top: 14px; font-size: 0.78rem; line-height: 1.7; color: #9ca3af; background: #1f2937; border-radius: 10px; padding: 10px 12px; }
+    label {
+        display: block;
+        font-size: 0.8rem;
+        font-weight: 700;
+        color: #d1d5db;
+        margin: 14px 0 6px;
+    }
+    label:first-of-type { margin-top: 0; }
+    input[type="text"], input[type="password"] {
+        width: 100%;
+        font-size: max(16px, 1rem);
+        padding: 13px 14px;
+        border-radius: 10px;
+        border: 1px solid #4b5563;
+        background: #1f2937;
+        color: #fff;
+        -webkit-appearance: none;
+        appearance: none;
+    }
+    input:focus { outline: 2px solid #60a5fa; }
+    .action-btn {
+        width: 100%;
+        margin-top: 18px;
+        border: none;
+        border-radius: 12px;
+        padding: 15px;
+        font-size: 1rem;
+        font-weight: 800;
+        margin-top: 0;
+        color: #fff;
+        cursor: pointer;
+        -webkit-appearance: none;
+    }
+    .action-btn:disabled { opacity: 0.5; }
+    #backup-panel .action-btn { background: #16a34a; }
+    #restore-panel .action-btn { background: #2563eb; }
+    .status-msg {
+        margin-top: 14px;
+        font-size: 0.85rem;
+        line-height: 1.7;
+        border-radius: 10px;
+        padding: 12px 14px;
+        display: none;
+        white-space: pre-wrap;
+    }
+    .status-msg.show { display: block; }
+    .status-msg.ok { background: #14532d; color: #bbf7d0; }
+    .status-msg.err { background: #7f1d1d; color: #fecaca; }
+    .status-msg.info { background: #1e3a5f; color: #bfdbfe; }
+    .back-links {
+        display: flex;
+        justify-content: center;
+        gap: 18px;
+        margin-top: 22px;
+        font-size: 0.8rem;
+    }
+    .back-links a { color: #9ca3af; text-decoration: underline; }
+    .spinner {
+        display: inline-block;
+        width: 14px; height: 14px;
+        border: 2px solid rgba(255,255,255,0.4);
+        border-top-color: #fff;
+        border-radius: 50%;
+        animation: spin 0.7s linear infinite;
+        margin-right: 6px;
+        vertical-align: -2px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ===== 広い画面（パソコン・タブレット横向き）：タブをやめて横に並べ、スクロールせずに見渡せるようにする ===== */
+    @media (min-width: 760px) {
+        body { padding: 20px 24px; }
+        .wrap { max-width: 1180px; }
+        h1 { font-size: 1.9rem; }
+        .sub { font-size: 0.95rem; margin-bottom: 20px; }
+        .sub br { display: none; }
+        .tabs { display: none; }
+        .panel, .panel.active { display: block; }
+        .card-title { display: block; }
+        .layout { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; align-items: stretch; }
+        .layout .notice { grid-column: 1 / -1; margin-bottom: 0; display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; font-size: 0.85rem; line-height: 1.65; }
+        .notice-item + .notice-item { margin-top: 0; }
+        .panel .card { height: 100%; padding: 22px 24px; }
+        label { font-size: 0.88rem; margin: 12px 0 6px; }
+        input[type="text"], input[type="password"] { padding: 11px 14px; }
+        .action-btn { font-size: 1.05rem; padding: 14px; }
+        .back-links { margin-top: 18px; font-size: 0.9rem; }
+    }
+    /* さらに広い画面：説明・バックアップ・復元を3列に */
+    @media (min-width: 1000px) {
+        .layout { grid-template-columns: 1fr 1.15fr 1.15fr; gap: 22px; }
+        .layout .notice { grid-column: auto; display: block; padding: 22px 22px; font-size: 0.88rem; line-height: 1.75; }
+        .notice-item + .notice-item { margin-top: 16px; }
+    }
+    /* 大きいモニター：文字ごと少し大きく */
+    @media (min-width: 1500px) and (min-height: 850px) {
+        html { font-size: 18px; }
+        .wrap { max-width: 1320px; }
+    }
+    /* 背の低いウィンドウ：余白を詰める */
+    @media (min-width: 760px) and (max-height: 640px) {
+        body { padding-top: 12px; padding-bottom: 12px; }
+        h1 { font-size: 1.55rem; margin-top: 0; }
+        .sub { margin-bottom: 12px; }
+        .card-title { margin-bottom: 8px; }
+        label { margin: 8px 0 4px; }
+        input[type="text"], input[type="password"] { padding: 9px 12px; }
+        .fields { margin-bottom: 14px; }
+        .back-links { margin-top: 10px; }
+    }
+    @media (min-width: 760px) and (max-height: 560px) {
+        .sub { display: none; }
+        .hint { display: none; }
+    }
+</style>
+</head>
+<body>
+<div class="wrap">
+    <h1>🚃 電車タイピング データ引継ぎ</h1>
+    <div class="sub">大阪環状線タイピング・山手線タイピングの<br>セーブデータを、別のパソコンに引き継ぎます</div>
+
+    <div class="layout">
+    <div class="notice">
+        <div class="notice-item"><span class="ni-title">📦 仕組み</span>「バックアップ」すると、このパソコンのデータがいったん消えて、クラウドに預けられます。新しいパソコンで同じIDとパスワードを入力して「復元」すると、データが戻ってきます（戻すと同時にクラウド側のデータは消えます）。</div>
+        <div class="notice-item"><span class="ni-title">📝 IDとパスワードは自分で決める</span>忘れてしまうと元に戻せません。必ずメモしておいてください。</div>
+        <div class="notice-item"><span class="ni-title">⚠️ ゲームのタブは先に閉じる</span>開いたままだと、ゲーム側が古いデータで上書きしてしまうことがあります。</div>
+    </div>
+
+    <div class="tabs">
+        <button type="button" class="tab-btn active" id="tab-backup-btn" onclick="switchTab('backup')">📤 バックアップ</button>
+        <button type="button" class="tab-btn" id="tab-restore-btn" onclick="switchTab('restore')">📥 復元</button>
+    </div>
+
+    <div class="panel active" id="backup-panel">
+        <div class="card">
+            <h2 class="card-title">📤 バックアップ<small>いま使っているパソコンで</small></h2>
+            <div class="fields">
+            <label for="backup-id">ID（好きな文字・数字）</label>
+            <input type="text" id="backup-id" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="例：taro2026">
+            <label for="backup-pw">パスワード</label>
+            <input type="password" id="backup-pw" autocomplete="new-password" placeholder="4文字以上">
+            <label for="backup-pw2">パスワード（確認のためもう一度）</label>
+            <input type="password" id="backup-pw2" autocomplete="new-password" placeholder="同じパスワードをもう一度">
+            </div>
+            <button type="button" class="action-btn" id="backup-btn" onclick="handleBackup()">データをバックアップする</button>
+            <div class="status-msg" id="backup-status"></div>
+        </div>
+    </div>
+
+    <div class="panel" id="restore-panel">
+        <div class="card">
+            <h2 class="card-title">📥 復元<small>新しいパソコンで</small></h2>
+            <div class="fields">
+            <label for="restore-id">ID</label>
+            <input type="text" id="restore-id" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="バックアップした時のID">
+            <label for="restore-pw">パスワード</label>
+            <input type="password" id="restore-pw" autocomplete="off" placeholder="バックアップした時のパスワード">
+            <div class="hint">💡 古いパソコンでバックアップした時の、IDとパスワードを入れてください。IDの全角・半角、大文字・小文字は区別しません。</div>
+            </div>
+            <button type="button" class="action-btn" id="restore-btn" onclick="handleRestore()">このパソコンに復元する</button>
+            <div class="status-msg" id="restore-status"></div>
+        </div>
+    </div>
+    </div>
+
+    <div class="back-links">
+        <a href="../loopline/">大阪環状線タイピングへ</a>
+        <a href="../yamanote/">山手線タイピングへ</a>
+    </div>
+</div>
+
+<script>
+    // Firebaseを使わない部分（タブ切替・拡大防止）と、
+    // Firebaseの読み込みに失敗した時の代わりの処理。読み込めれば下のmoduleが上書きする
+    function switchTab(which) {
+        document.getElementById('backup-panel').classList.toggle('active', which === 'backup');
+        document.getElementById('restore-panel').classList.toggle('active', which === 'restore');
+        document.getElementById('tab-backup-btn').classList.toggle('active', which === 'backup');
+        document.getElementById('tab-restore-btn').classList.toggle('active', which === 'restore');
+    }
+    function showLoadError(elId) {
+        const el = document.getElementById(elId);
+        el.className = 'status-msg show err';
+        el.textContent = '通信の準備ができていません。インターネットにつながっているか確認して、ページを再読み込みしてください。';
+    }
+    window.handleBackup = () => showLoadError('backup-status');
+    window.handleRestore = () => showLoadError('restore-status');
+
+    ['gesturestart', 'gesturechange', 'gestureend'].forEach(type => {
+        document.addEventListener(type, (e) => e.preventDefault(), { passive: false });
+    });
+</script>
+
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+    import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+    import { getDatabase, ref, set, get, remove } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-database.js";
+
+    const firebaseConfig = {
+        apiKey: "AIzaSyBjnWqAcunbf_TBPraMHZRmI1bPjTnFhQU",
+        authDomain: "typing-48f95.firebaseapp.com",
+        databaseURL: "https://typing-48f95-default-rtdb.asia-southeast1.firebasedatabase.app",
+        projectId: "typing-48f95",
+        storageBucket: "typing-48f95.firebasestorage.app",
+        messagingSenderId: "1045024853093",
+        appId: "1:1045024853093:web:3484649a3b1544bb51ca8c"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getDatabase(app);
+    const auth = getAuth(app);
+
+    // 匿名サインイン。失敗しても（オフラインなど）次のボタン操作で再挑戦できるようにする
+    async function ensureAuth() {
+        if (auth.currentUser) return;
+        await signInAnonymously(auth);
+    }
+    ensureAuth().catch(e => console.log('initial sign-in failed', e));
+
+    // ===== 対象のlocalStorageキー =====
+    const SHARED_KEYS = ['total_fare_all_time'];
+    const TIME_LIMITS = [60, 90, 120];
+    const DIRS = ['inner', 'outer'];
+
+    function buildAppKeys(suffix) {
+        const keys = ['purchasedTrains' + suffix, 'equippedTrain' + suffix, 'bgmLevels' + suffix];
+        TIME_LIMITS.forEach(t => {
+            DIRS.forEach(d => keys.push(`best_${d}_${t}${suffix}`));
+            keys.push(`best_fare_${t}${suffix}`);
+        });
+        return keys;
+    }
+    const YAMANOTE_KEYS = buildAppKeys('_yamanote');
+    const LOOPLINE_KEYS = buildAppKeys('');
+    const ALL_KEYS = [...SHARED_KEYS, ...YAMANOTE_KEYS, ...LOOPLINE_KEYS];
+
+    function showStatus(elId, type, text) {
+        const el = document.getElementById(elId);
+        el.className = 'status-msg show ' + type;
+        el.textContent = text;
+    }
+    function hideStatus(elId) {
+        document.getElementById(elId).className = 'status-msg';
+    }
+
+    // 全角・半角の打ち間違いで別人扱いにならないよう正規化する（IDは大文字小文字も区別しない）
+    function normalizeId(s) { return s.normalize('NFKC').trim().toLowerCase(); }
+    function normalizePw(s) { return s.normalize('NFKC'); }
+
+    async function backupKeyFor(id, pw) {
+        const enc = new TextEncoder().encode(JSON.stringify([id, pw]));
+        const buf = await crypto.subtle.digest('SHA-256', enc);
+        return [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, '0')).join('');
+    }
+
+    function gatherLocalData() {
+        const payload = {};
+        let hasAny = false;
+        ALL_KEYS.forEach(k => {
+            const v = localStorage.getItem(k);
+            if (v !== null) { payload[k] = v; hasAny = true; }
+        });
+        return { payload, hasAny };
+    }
+    function clearLocalData() {
+        ALL_KEYS.forEach(k => localStorage.removeItem(k));
+    }
+    function applyLocalData(payload) {
+        Object.keys(payload).forEach(k => {
+            if (ALL_KEYS.includes(k) && typeof payload[k] === 'string') localStorage.setItem(k, payload[k]);
+        });
+    }
+
+    function isPermissionError(e) {
+        return !!e && String(e.code || e.message || '').toUpperCase().includes('PERMISSION');
+    }
+    function isAuthError(e) {
+        return !!e && String(e.code || '').startsWith('auth/');
+    }
+    function networkErrorText(e) {
+        if (isAuthError(e)) return 'サインインに失敗しました。インターネット接続を確認して、もう一度お試しください。';
+        return '通信エラーが発生しました。インターネット接続を確認して、もう一度お試しください。';
+    }
+
+    let busy = false;
+    function setBusy(btnId, on, label) {
+        busy = on;
+        ['backup-btn', 'restore-btn'].forEach(id => { document.getElementById(id).disabled = on; });
+        const btn = document.getElementById(btnId);
+        if (on) {
+            btn.dataset.origText = btn.textContent;
+            btn.innerHTML = '<span class="spinner"></span>' + label;
+        } else if (btn.dataset.origText) {
+            btn.textContent = btn.dataset.origText;
+        }
+    }
+
+    window.handleBackup = async function () {
+        if (busy) return;
+        hideStatus('backup-status');
+        const id = normalizeId(document.getElementById('backup-id').value);
+        const pw = normalizePw(document.getElementById('backup-pw').value);
+        const pw2 = normalizePw(document.getElementById('backup-pw2').value);
+
+        if (id.length < 2) { showStatus('backup-status', 'err', 'IDは2文字以上で入力してください。'); return; }
+        if (pw.length < 4) { showStatus('backup-status', 'err', 'パスワードは4文字以上で入力してください。'); return; }
+        if (pw !== pw2) { showStatus('backup-status', 'err', '確認用のパスワードが一致しません。もう一度入力してください。'); return; }
+
+        const { payload, hasAny } = gatherLocalData();
+        if (!hasAny) {
+            showStatus('backup-status', 'err', 'このパソコンには、まだバックアップできるデータがありません。');
+            return;
+        }
+        if (!confirm(`ID「${id}」でバックアップします。\nバックアップすると、このパソコンのデータは消えます。\nIDとパスワードはメモしましたか？`)) return;
+
+        setBusy('backup-btn', true, '処理中…');
+        try {
+            await ensureAuth();
+            const key = await backupKeyFor(id, pw);
+            const backupRef = ref(db, 'train_backups/' + key);
+
+            const existing = await get(backupRef);
+            if (existing.exists()) {
+                showStatus('backup-status', 'err', 'そのIDとパスワードの組み合わせは、すでにバックアップ済みです。別のIDかパスワードを使うか、新しいパソコンで先に「復元」をしてください。');
+                return;
+            }
+
+            await set(backupRef, { createdAt: Date.now(), payload });
+            clearLocalData();
+            document.getElementById('backup-pw').value = '';
+            document.getElementById('backup-pw2').value = '';
+            showStatus('backup-status', 'ok',
+                `✅ バックアップが完了しました！\nこのパソコンのデータは消去しました。\n新しいパソコンでは、ID「${id}」と同じパスワードで「復元」してください。`);
+        } catch (e) {
+            console.log('backup error', e);
+            if (isPermissionError(e)) {
+                showStatus('backup-status', 'err', 'そのIDとパスワードの組み合わせは、すでにバックアップ済みか、保存が許可されませんでした。別のIDかパスワードでお試しください。');
+            } else {
+                showStatus('backup-status', 'err', networkErrorText(e) + '\n（データはこのパソコンに残っています）');
+            }
+        } finally {
+            setBusy('backup-btn', false);
+        }
+    };
+
+    window.handleRestore = async function () {
+        if (busy) return;
+        hideStatus('restore-status');
+        const id = normalizeId(document.getElementById('restore-id').value);
+        const pw = normalizePw(document.getElementById('restore-pw').value);
+
+        if (!id || !pw) { showStatus('restore-status', 'err', 'IDとパスワードを入力してください。'); return; }
+
+        setBusy('restore-btn', true, '処理中…');
+        try {
+            await ensureAuth();
+            const key = await backupKeyFor(id, pw);
+            const backupRef = ref(db, 'train_backups/' + key);
+            const snap = await get(backupRef);
+            if (!snap.exists()) {
+                showStatus('restore-status', 'err', '見つかりませんでした。IDとパスワードを確認してください。');
+                return;
+            }
+            const data = snap.val() || {};
+
+            // 見つかった後で、上書きの確認をする（見つからない時に余計な確認を出さない）
+            if (gatherLocalData().hasAny) {
+                const ok = confirm('このパソコンには、すでにゲームのデータがあります。復元すると今のデータは上書きされます。よろしいですか？');
+                if (!ok) return;
+            }
+
+            // 先にこのパソコンへ書き戻し、成功してからクラウド側を消す（途中で失敗してもデータを失わない）
+            clearLocalData();
+            applyLocalData(data.payload || {});
+
+            try {
+                await remove(backupRef);
+            } catch (e2) {
+                console.log('remove error', e2);
+                showStatus('restore-status', 'err', 'データの復元はできましたが、クラウド側のバックアップを消せませんでした。\nもう一度「復元」ボタンを押してください（同じデータで上書きされるだけなので安全です）。');
+                return;
+            }
+            document.getElementById('restore-pw').value = '';
+            showStatus('restore-status', 'ok', '✅ 復元が完了しました！\nクラウド側のバックアップは削除しました。\n下のリンクからゲームを開いて確認してみてください。');
+        } catch (e) {
+            console.log('restore error', e);
+            showStatus('restore-status', 'err', networkErrorText(e));
+        } finally {
+            setBusy('restore-btn', false);
+        }
+    };
+</script>
+</body>
+</html>
