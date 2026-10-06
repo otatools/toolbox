@@ -1,0 +1,578 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-YTH979WTKL"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+  gtag('config', 'G-YTH979WTKL');
+</script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>あいうえお タッチ｜50音表で もじあそび</title>
+    <meta name="description" content="大きな50音表の文字をタッチすると、上に文字が並ぶシンプルなひらがなアプリ。1もじけす・ぜんぶけす付き。幼稚園・小学生向け。">
+    <meta name="theme-color" content="#ffffff">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Klee+One:wght@600&family=Zen+Maru+Gothic:wght@700&display=swap" rel="stylesheet">
+<style>
+    * {
+        touch-action: manipulation;
+        -webkit-touch-callout: none;
+        box-sizing: border-box;
+    }
+    [hidden] { display: none !important; }
+
+    :root { --app-h: 100vh; --ch-fs: 60px; }
+    @supports (height: 100dvh) { :root { --app-h: 100dvh; } }
+
+    html { background: #fff; height: 100%; -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+    body {
+        margin: 0;
+        height: var(--app-h);
+        overflow: hidden;
+        overscroll-behavior: none;
+        position: relative;
+        background: #fff;
+        font-family: 'Zen Maru Gothic', 'Hiragino Maru Gothic ProN', 'BIZ UDPGothic', sans-serif;
+        color: #3a2a1a;
+        -webkit-user-select: none;
+        user-select: none;
+        -webkit-tap-highlight-color: transparent;
+    }
+
+    .sr-only {
+        position: absolute; width: 1px; height: 1px; margin: -1px;
+        overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap;
+    }
+
+    /* ===== 全体：固定デザインを丸ごと拡大縮小 ===== */
+    #app {
+        position: absolute; top: 50%; left: 50%;
+        transform: translate(-50%, -50%) scale(1);
+        transform-origin: center center;
+        display: grid;
+        opacity: 0;
+    }
+    #app.is-ready { opacity: 1; transition: opacity .25s ease-out; }
+
+    #app.is-landscape {
+        width: 1200px; height: 844px;
+        padding: 18px; column-gap: 16px; row-gap: 18px;
+        grid-template-columns: 170px 1fr 170px;
+        grid-template-rows: 236px 1fr;
+        grid-template-areas:
+            "clear disp back"
+            "ext   grid grid";
+    }
+    #app.is-portrait {
+        width: 760px; height: 1200px;
+        padding: 16px; column-gap: 12px; row-gap: 16px;
+        grid-template-columns: 120px 1fr 1fr;
+        grid-template-rows: 210px 90px 1fr;
+        grid-template-areas:
+            "disp disp  disp"
+            "ext  clear back"
+            "ext  grid  grid";
+    }
+
+    /* ===== ボタン共通 ===== */
+    button {
+        -webkit-appearance: none; appearance: none;
+        border: 0; padding: 0; margin: 0;
+        font: inherit; color: inherit; background: none;
+        cursor: pointer; position: relative; line-height: 0;
+    }
+    .key {
+        display: block;
+        width: 100%; height: 100%;
+        border-radius: 18px;
+        background: var(--bg);
+        box-shadow: 0 6px 0 var(--sh);
+        transform: translateY(0);
+        transition: transform .05s, box-shadow .05s;
+    }
+    .key.pressed {
+        transform: translateY(5px);
+        box-shadow: 0 1px 0 var(--sh);
+        filter: brightness(.96);
+    }
+    .key .inner {
+        position: absolute; left: 50%; top: 50%;
+        transform: translate(-50%, -50%);
+        display: flex; flex-direction: column; align-items: center; justify-content: center;
+        line-height: 1; white-space: nowrap;
+        pointer-events: none;
+    }
+    .key .inner > * + * { margin-top: 6px; }
+    .key.disabled { opacity: .4; }
+
+    /* ===== 入力表示 ===== */
+    #display {
+        grid-area: disp;
+        position: relative;
+        background: #fff;
+        border: 6px solid #f2b84b;
+        border-radius: 30px;
+        box-shadow: 0 6px 0 #e09b2d;
+        overflow: hidden;
+    }
+    #textWrap {
+        position: absolute; top: 0; bottom: 0; left: 22px; right: 22px;
+        display: flex; align-items: center; justify-content: center;
+        overflow: hidden;
+    }
+    #textWrap.overflow {
+        justify-content: flex-end;
+        -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 70px);
+        mask-image: linear-gradient(90deg, transparent 0, #000 70px);
+    }
+    #text {
+        flex-shrink: 0;
+        display: flex; align-items: center;
+        white-space: nowrap;
+        font-family: 'Klee One', 'Hiragino Mincho ProN', serif;
+        font-weight: 600; line-height: 1;
+        color: #2b2118;
+    }
+    #text .c { display: inline-block; }
+
+    #hint {
+        position: absolute; top: 0; right: 0; bottom: 0; left: 0;
+        display: flex; align-items: center; justify-content: center;
+        font-size: 36px; color: #cbb69c; letter-spacing: .04em;
+        pointer-events: none;
+    }
+    #undo {
+        position: absolute; left: 50%; top: 50%;
+        transform: translate(-50%, -50%);
+        width: 230px; height: 80px;
+        --bg: #fff1c2; --sh: #e2bf55;
+    }
+    #undo.pressed { transform: translate(-50%, calc(-50% + 5px)); }
+    #undo .inner { flex-direction: row; font-size: 32px; color: #7a5a12; }
+    #undo .inner > * + * { margin-top: 0; margin-left: 10px; }
+
+    /* ===== 左右の消すボタン ===== */
+    #btnClear { grid-area: clear; --bg: #ffd6d6; --sh: #e39494; }
+    #btnBack  { grid-area: back;  --bg: #d6e8ff; --sh: #88ade3; }
+    #btnClear .inner, #btnBack .inner { font-size: 28px; }
+    #btnClear .inner > * + *, #btnBack .inner > * + * { margin-top: 10px; }
+    #btnClear .inner { color: #a33a3a; }
+    #btnBack .inner { color: #2d5a9c; }
+    .is-portrait #btnClear .inner, .is-portrait #btnBack .inner { flex-direction: row; font-size: 26px; }
+    .is-portrait #btnClear .inner > * + *, .is-portrait #btnBack .inner > * + * { margin-top: 0; margin-left: 8px; }
+    .is-portrait #btnClear svg, .is-portrait #btnBack svg { width: 38px; height: 38px; }
+    #btnClear svg, #btnBack svg { width: 56px; height: 56px; }
+
+    /* ===== てんてん・まる など ===== */
+    #extras {
+        grid-area: ext;
+        display: flex; flex-direction: column;
+        padding-bottom: 6px;   /* 一番下のボタンの影が切れないように */
+    }
+    #extras .key { width: 100%; height: auto; flex: 1 1 0; min-height: 0; --bg: #ece3ff; --sh: #b5a2e0; }
+    #extras .key + .key { margin-top: 14px; }
+    #extras .g {
+        font-family: 'Klee One', serif; font-weight: 600;
+        font-size: 50px; color: #4a3485;
+    }
+    #extras .cap { font-size: 20px; color: #6a55a8; }
+    .is-portrait #extras .cap { font-size: 17px; }
+    /* ゛゜ は文字だと小さく上に寄るので、図形で描く */
+    #extras .mk { width: 50px; height: 50px; color: #4a3485; }
+
+    /* ===== 50音表 ===== */
+    #grid {
+        grid-area: grid;
+        display: grid;
+        column-gap: 8px; row-gap: 12px;
+    }
+    .is-landscape #grid {
+        grid-template-columns: repeat(10, 1fr);
+        grid-template-rows: repeat(5, 1fr);
+    }
+    /* 縦向き：上段 あ〜な、下段 は〜わ（どちらも5列）。右の列から縦に読む */
+    .is-portrait #grid {
+        grid-template-columns: repeat(5, 1fr);
+        grid-template-rows: repeat(5, 1fr) 14px repeat(5, 1fr);
+        row-gap: 10px;
+    }
+    #grid .key { border-radius: 16px; }
+    #grid .ch {
+        font-family: 'Klee One', 'Hiragino Mincho ProN', serif;
+        font-weight: 600;
+        font-size: var(--ch-fs);
+        color: #33251a;
+        margin-top: -0.06em;
+    }
+</style>
+</head>
+<body>
+<h1 class="sr-only">あいうえお タッチ（50音表の文字をタッチして入力するアプリ）</h1>
+
+<div id="app" class="is-landscape">
+    <div id="display" aria-live="polite">
+        <div id="textWrap"><div id="text"></div></div>
+        <div id="hint">したの もじを タッチしてね</div>
+        <button id="undo" class="key" hidden aria-label="もとにもどす">
+            <span class="inner">
+                <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></svg>
+                <span>もどす</span>
+            </span>
+        </button>
+    </div>
+
+    <button id="btnClear" class="key" aria-label="ぜんぶけす">
+        <span class="inner">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/></svg>
+            <span>ぜんぶ けす</span>
+        </span>
+    </button>
+
+    <button id="btnBack" class="key" aria-label="1もじけす">
+        <span class="inner">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 5H9l-6 7 6 7h12a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1z"/><path d="M17 9l-6 6M11 9l6 6"/></svg>
+            <span>1もじ けす</span>
+        </span>
+    </button>
+
+    <div id="grid"></div>
+
+    <div id="extras">
+        <button class="key" data-op="daku" aria-label="てんてん"><span class="inner"><svg class="mk" viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="5.5" stroke-linecap="round"><path d="M13 9l5 11"/><path d="M24 7l5 11"/></svg><span class="cap">てんてん</span></span></button>
+        <button class="key" data-op="handaku" aria-label="まる"><span class="inner"><svg class="mk" viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="5"><circle cx="20" cy="17" r="8.5"/></svg><span class="cap">まる</span></span></button>
+        <button class="key" data-op="small" aria-label="ちいさく"><span class="inner"><span class="g">っ</span><span class="cap">ちいさく</span></span></button>
+        <button class="key" data-op="bar" aria-label="のばす"><span class="inner"><span class="g">ー</span><span class="cap">のばす</span></span></button>
+    </div>
+</div>
+
+<script>
+(function () {
+    'use strict';
+
+    /* ---------- 拡大対策（webapp §1） ---------- */
+    ['gesturestart', 'gesturechange', 'gestureend'].forEach(function (type) {
+        document.addEventListener(type, function (e) { e.preventDefault(); }, { passive: false });
+    });
+    function resetZoomIfNeeded() {
+        if (!window.visualViewport || window.visualViewport.scale <= 1.02) return;
+        var meta = document.querySelector('meta[name="viewport"]');
+        if (!meta) return;
+        var original = meta.getAttribute('content');
+        meta.setAttribute('content', original + ', maximum-scale=1.0');
+        requestAnimationFrame(function () { meta.setAttribute('content', original); });
+    }
+    if (window.visualViewport) {
+        visualViewport.addEventListener('resize', resetZoomIfNeeded);
+        visualViewport.addEventListener('scroll', resetZoomIfNeeded);
+    }
+    document.addEventListener('gestureend', function () { setTimeout(resetZoomIfNeeded, 50); }, { passive: true });
+
+    /* ---------- データ ---------- */
+    var ROWS = [
+        ['あ','い','う','え','お'],
+        ['か','き','く','け','こ'],
+        ['さ','し','す','せ','そ'],
+        ['た','ち','つ','て','と'],
+        ['な','に','ぬ','ね','の'],
+        ['は','ひ','ふ','へ','ほ'],
+        ['ま','み','む','め','も'],
+        ['や','','ゆ','','よ'],
+        ['ら','り','る','れ','ろ'],
+        ['わ','を','ん','','']
+    ];
+    var COLORS = [
+        ['#ffd9dc', '#e9a0a7'], ['#ffe3cc', '#ecaf7e'], ['#fff0b8', '#e3c35a'],
+        ['#e9f7c4', '#b3d26a'], ['#d3f3d6', '#86c98f'], ['#cdf1ec', '#7fcdc1'],
+        ['#d4ecff', '#86b6e6'], ['#dcdfff', '#9da4e6'], ['#eadbff', '#b597e3'],
+        ['#ffdcf3', '#e39ccb']
+    ];
+
+    var DAKU = { か:'が',き:'ぎ',く:'ぐ',け:'げ',こ:'ご',さ:'ざ',し:'じ',す:'ず',せ:'ぜ',そ:'ぞ',
+                 た:'だ',ち:'ぢ',つ:'づ',て:'で',と:'ど',は:'ば',ひ:'び',ふ:'ぶ',へ:'べ',ほ:'ぼ' };
+    var HANDAKU = { は:'ぱ',ひ:'ぴ',ふ:'ぷ',へ:'ぺ',ほ:'ぽ' };
+    var SMALL = { あ:'ぁ',い:'ぃ',う:'ぅ',え:'ぇ',お:'ぉ',つ:'っ',や:'ゃ',ゆ:'ゅ',よ:'ょ',わ:'ゎ' };
+    function invert(o) { var r = {}; for (var k in o) r[o[k]] = k; return r; }
+    var DAKU_INV = invert(DAKU), HANDAKU_INV = invert(HANDAKU), SMALL_INV = invert(SMALL);
+    var MAX_LEN = 40;
+
+    /* ---------- 要素 ---------- */
+    var app = document.getElementById('app');
+    var grid = document.getElementById('grid');
+    var display = document.getElementById('display');
+    var textWrap = document.getElementById('textWrap');
+    var textEl = document.getElementById('text');
+    var hint = document.getElementById('hint');
+    var undoBtn = document.getElementById('undo');
+    var btnClear = document.getElementById('btnClear');
+    var btnBack = document.getElementById('btnBack');
+
+    var chars = [];
+    var undoBuf = null, undoTimer = null;
+    var isPortrait = null;
+
+    /* ---------- 押した感触 ---------- */
+    var HAS_POINTER = !!window.PointerEvent;
+    var lastPressAt = 0;   // 指・マウスで押した時刻（直後の click を無視するため）
+    function bindPress(el, action) {
+        function press(e) {
+            if (e.button !== undefined && e.button > 0) return;   // 右クリック等は無視
+            if (e.cancelable) e.preventDefault();
+            lastPressAt = Date.now();
+            el.classList.add('pressed');
+            setTimeout(function () { el.classList.remove('pressed'); }, 160);
+            action();
+        }
+        if (HAS_POINTER) {
+            el.addEventListener('pointerdown', press);
+        } else {
+            // iOS 12 以前など Pointer Event がない端末
+            el.addEventListener('touchstart', press, { passive: false });
+            el.addEventListener('mousedown', function (e) {
+                if (Date.now() - lastPressAt < 800) return;   // タッチ後に来るマウスイベントは無視
+                press(e);
+            });
+        }
+        // キーボード操作（Enter/スペース）用。指で押した直後の click では二重に入力しない
+        el.addEventListener('click', function (e) {
+            if (Date.now() - lastPressAt < 800) return;
+            if (e.detail === 0) action();
+        });
+    }
+    // 長押しメニュー（Android など）を出さない
+    document.addEventListener('contextmenu', function (e) { e.preventDefault(); });
+
+    function shake(el) {
+        if (!el.animate) return;
+        el.animate([
+            { translate: '0 0' }, { translate: '-10px 0' }, { translate: '10px 0' },
+            { translate: '-6px 0' }, { translate: '6px 0' }, { translate: '0 0' }
+        ], { duration: 320, easing: 'ease-out' });
+    }
+
+    /* ---------- 50音のキーを作る ---------- */
+    var keys = [];
+    ROWS.forEach(function (row, g) {
+        row.forEach(function (ch, d) {
+            if (!ch) return;
+            var b = document.createElement('button');
+            b.className = 'key';
+            b.setAttribute('aria-label', ch);
+            b.style.setProperty('--bg', COLORS[g][0]);
+            b.style.setProperty('--sh', COLORS[g][1]);
+            b.innerHTML = '<span class="inner"><span class="ch">' + ch + '</span></span>';
+            b._g = g; b._d = d;
+            bindPress(b, function () { typeChar(ch); });
+            grid.appendChild(b);
+            keys.push(b);
+        });
+    });
+
+    function layoutKeys() {
+        keys.forEach(function (b) {
+            if (isPortrait) {           // たて書き・2段：上段 あ〜な、下段 は〜ん（どちらも右から）
+                if (b._g < 5) {
+                    b.style.gridColumn = String(5 - b._g);
+                    b.style.gridRow = String(b._d + 1);
+                } else {
+                    b.style.gridColumn = String(10 - b._g);
+                    b.style.gridRow = String(b._d + 7);
+                }
+            } else {                    // たて書き：あ の列がいちばん右
+                b.style.gridColumn = String(10 - b._g);
+                b.style.gridRow = String(b._d + 1);
+            }
+        });
+    }
+
+    function sizeKeyFont() {
+        var k = keys[0];
+        var w = k.offsetWidth, h = k.offsetHeight;
+        if (!w || !h) return;
+        var fs = Math.min(w * 0.7, h * 0.72);
+        app.style.setProperty('--ch-fs', Math.round(fs) + 'px');
+    }
+
+    /* ---------- 入力 ---------- */
+    function clearUndo() {
+        undoBuf = null;
+        if (undoTimer) { clearTimeout(undoTimer); undoTimer = null; }
+    }
+
+    function typeChar(ch) {
+        clearUndo();
+        if (chars.length >= MAX_LEN) { shake(display); return; }
+        chars.push(ch);
+        render(true);
+    }
+
+    function backspace() {
+        clearUndo();
+        if (!chars.length) { shake(btnBack); return; }
+        chars.pop();
+        render(false);
+    }
+
+    function clearAll() {
+        if (!chars.length) { shake(btnClear); return; }
+        undoBuf = chars.slice();
+        chars = [];
+        if (undoTimer) clearTimeout(undoTimer);
+        undoTimer = setTimeout(function () { undoBuf = null; undoTimer = null; render(false); }, 6000);
+        render(false);
+    }
+
+    function restore() {
+        if (!undoBuf) return;
+        chars = undoBuf;
+        clearUndo();
+        render(false);
+    }
+
+    function modifyLast(op, btn) {
+        if (op === 'bar') {
+            if (!chars.length) { shake(btn); return; }
+            typeChar('ー');
+            return;
+        }
+        var last = chars[chars.length - 1];
+        var next = null;
+        if (last !== undefined) {
+            if (op === 'daku') {
+                next = DAKU[last] || DAKU_INV[last] || (HANDAKU_INV[last] ? DAKU[HANDAKU_INV[last]] : null);
+            } else if (op === 'handaku') {
+                var base = HANDAKU_INV[last] || DAKU_INV[last] || last;
+                next = HANDAKU_INV[last] ? HANDAKU_INV[last] : (HANDAKU[base] || null);
+            } else if (op === 'small') {
+                next = SMALL[last] || SMALL_INV[last] || null;
+            }
+        }
+        if (!next) { shake(btn); return; }
+        clearUndo();
+        chars[chars.length - 1] = next;
+        render(true);
+    }
+
+    /* ---------- 表示 ---------- */
+    function render(popLast) {
+        var html = '';
+        for (var i = 0; i < chars.length; i++) html += '<span class="c">' + chars[i] + '</span>';
+        textEl.innerHTML = html;
+
+        var empty = chars.length === 0;
+        undoBtn.hidden = !(empty && undoBuf);
+        hint.hidden = !empty || !!undoBuf;
+        textWrap.style.visibility = empty ? 'hidden' : 'visible';
+        btnBack.classList.toggle('disabled', empty);
+        btnClear.classList.toggle('disabled', empty);
+
+        fitText();
+
+        if (popLast && !empty && textEl.children.length >= chars.length) {
+            var el = textEl.children[chars.length - 1];
+            if (el.animate) {
+                el.animate([
+                    { transform: 'scale(.3) translateY(30%)', opacity: 0 },
+                    { transform: 'scale(1.18)', opacity: 1, offset: .6 },
+                    { transform: 'scale(1)', opacity: 1 }
+                ], { duration: 260, easing: 'ease-out' });
+            }
+        }
+    }
+
+    function fitText() {
+        var availW = textWrap.clientWidth;
+        var h = display.clientHeight;
+        if (!availW || !h) return;
+        var maxFs = Math.round(h * 0.66);
+        var minFs = isPortrait ? 46 : 50;
+        var n = Math.max(1, chars.length) + 0.2;
+        var fs = Math.max(minFs, Math.min(maxFs, Math.floor(availW / n)));
+        textEl.style.fontSize = fs + 'px';
+        textWrap.classList.toggle('overflow', textEl.scrollWidth > availW + 1);
+    }
+
+    /* ---------- 画面サイズ（webapp §5・§7） ---------- */
+    function setAppHeight() {
+        var vv = window.visualViewport;
+        var h = vv ? vv.height * (vv.scale > 1 ? vv.scale : 1) : window.innerHeight;
+        if (h > 0) document.documentElement.style.setProperty('--app-h', Math.round(h) + 'px');
+    }
+
+    function fitToWindow() {
+        setAppHeight();
+        var vv = window.visualViewport;
+        // ピンチで拡大中は visualViewport が縮むので、倍率を掛けて等倍の大きさに戻す
+        var zs = (vv && vv.scale > 1) ? vv.scale : 1;
+        var vw = vv ? vv.width * zs : window.innerWidth;
+        var vh = vv ? vv.height * zs : window.innerHeight;
+        if (!vw || !vh) return;
+
+        // 横向き：高さ844固定・幅は画面比率に合わせて1200〜1700
+        var LW = Math.max(1200, Math.min(1700, Math.round(844 * vw / vh)));
+        var sL = Math.min((vw - 8) / LW, (vh - 8) / 844);
+        // 縦向き：幅760固定・高さは画面比率に合わせて1200〜1700
+        var PH = Math.max(1200, Math.min(1700, Math.round(760 * vh / vw)));
+        var sP = Math.min((vw - 8) / 760, (vh - 8) / PH);
+
+        var portrait = sP > sL;
+        if (portrait !== isPortrait) {
+            isPortrait = portrait;
+            app.classList.toggle('is-portrait', portrait);
+            app.classList.toggle('is-landscape', !portrait);
+            layoutKeys();
+        }
+        if (portrait) { app.style.width = '760px'; app.style.height = PH + 'px'; }
+        else          { app.style.width = LW + 'px'; app.style.height = '844px'; }
+
+        app.style.transform = 'translate(-50%, -50%) scale(' + (portrait ? sP : sL) + ')';
+        sizeKeyFont();
+        fitText();
+    }
+
+    ['resize', 'pageshow'].forEach(function (t) { window.addEventListener(t, fitToWindow); });
+    window.addEventListener('orientationchange', function () { setTimeout(fitToWindow, 250); });
+    if (window.visualViewport) {
+        visualViewport.addEventListener('resize', fitToWindow);
+        visualViewport.addEventListener('scroll', setAppHeight);
+    }
+
+    /* ---------- ボタンをつなぐ ---------- */
+    bindPress(btnBack, backspace);
+    bindPress(btnClear, clearAll);
+    bindPress(undoBtn, restore);
+    Array.prototype.forEach.call(document.querySelectorAll('#extras .key'), function (b) {
+        bindPress(b, function () { modifyLast(b.getAttribute('data-op'), b); });
+    });
+
+    /* ---------- 起動：サイズとフォントが決まってから表示 ---------- */
+    fitToWindow();
+    render(false);
+
+    var shown = false;
+    function reveal() {
+        if (shown) return;
+        shown = true;
+        fitToWindow();
+        app.classList.add('is-ready');
+    }
+    setTimeout(function () { fitToWindow(); }, 300);
+    var fontWait = (document.fonts && document.fonts.load)
+        ? Promise.all([
+            document.fonts.load('600 60px "Klee One"', 'あいうえおん'),
+            document.fonts.load('700 28px "Zen Maru Gothic"', 'ぜんぶけす')
+          ])
+        : Promise.resolve();
+    fontWait.then(function () { setTimeout(reveal, 300); }, function () { setTimeout(reveal, 300); });
+    setTimeout(reveal, 1800);
+    if (document.fonts && document.fonts.addEventListener) {
+        document.fonts.addEventListener('loadingdone', function () { fitToWindow(); });
+    }
+    window.addEventListener('load', fitToWindow);
+})();
+</script>
+</body>
+</html>
