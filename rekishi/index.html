@@ -291,7 +291,7 @@ h1{ font-size:1.5rem; text-align:center; letter-spacing:.05em; }
 .hand-card .event{
   font-size:.945em; color:#6b5c42; line-height:1.25; margin-top:.5em;
   padding:0 calc(var(--handw, 132px) * .033);
-  align-self:stretch; text-align:left;
+  align-self:stretch; text-align:left; text-wrap:pretty;   /* 最後の行が1文字だけにならないように（対応ブラウザのみ） */
 }
 .hand-card.selected{
   border-color:var(--accent);
@@ -454,6 +454,11 @@ h1{ font-size:1.5rem; text-align:center; letter-spacing:.05em; }
   background:radial-gradient(circle at 50% 50%, #fcfbf7 0 97%, rgba(252,251,247,0) 100%);
 }
 /* 前面のコンテンツ */
+.home-ver{            /* 丸の一番下に、さりげなくバージョン表示 */
+  position:absolute; left:0; right:0; bottom:clamp(14px, 6%, 48px); text-align:center;
+  font-family:var(--mincho); font-size:clamp(10px, min(1.7vh, 2.8vw), 14px); letter-spacing:.12em;
+  color:#a39b86; white-space:nowrap; pointer-events:none;
+}
 .home-inner{ position:relative; z-index:2; width:100%; max-width:min(94%, 900px); }
 .brand-title{
   font-family:var(--mincho);
@@ -492,6 +497,7 @@ h1{ font-size:1.5rem; text-align:center; letter-spacing:.05em; }
   border:2px solid #4a4436; z-index:-1;
 }
 .home-btn:active{ background:#efe9da; }
+@media (orientation:portrait) and (min-width:600px){ .home-btn{ font-size:min(3vh, 3.5vw); } }   /* タブレット縦：2つ並んだボタンの文字が枠いっぱいにならないように */
 /* ---- 設定・選択画面（トップページと同じ意匠） ---- */
 .wa-screen{
   position:relative; overflow:hidden;
@@ -587,11 +593,11 @@ h1{ font-size:1.5rem; text-align:center; letter-spacing:.05em; }
 /* 一人でチャレンジのルール説明・ハイスコア表示 */
 .solo-rules{
   list-style:none; margin:0; padding:0; text-align:left;
-  max-width:360px; margin-left:auto; margin-right:auto;
+  width:-webkit-fit-content; width:fit-content; max-width:100%; margin-left:auto; margin-right:auto;
 }
 .solo-rules li{
   font-family:var(--mincho); font-size:clamp(15px, min(2.7vh, 4vw), 23px);
-  letter-spacing:.06em; color:#4a4436; line-height:1.8;
+  letter-spacing:.06em; color:#4a4436; line-height:1.8; white-space:nowrap;   /* 「出題範囲：〜」が2行に割れないように */
   padding-left:1.3em; position:relative;
 }
 .solo-rules li::before{
@@ -760,18 +766,27 @@ h1{ font-size:1.5rem; text-align:center; letter-spacing:.05em; }
 .rank-tabs{ display:flex; justify-content:center; gap:clamp(6px, 1.4vw, 12px); margin-bottom:clamp(8px, 1.6vh, 16px); }
 .rank-tab{ min-width:84px; flex:1 1 0; max-width:130px; }
 .rank-period{ margin-bottom:clamp(8px, 1.6vh, 16px); }
-.rank-list{ list-style:none; margin:0 auto; padding:0; max-width:460px; text-align:left; }
+.rank-list{ list-style:none; margin:0 auto; padding:0; max-width:19.5em; font-size:clamp(14px, min(2.55vh, 4.2vw), 22px); text-align:left; }   /* 名前は5文字までなので、横に広げすぎない（行と同じ文字サイズ基準） */
 .rank-row{
-  display:grid; grid-template-columns:2.4em 1fr auto auto 3.6em; align-items:center; column-gap:8px;
-  padding:clamp(7px, 1.2vh, 12px) 8px; border-bottom:1px dashed #cdc4ac;
-  font-family:var(--mincho); font-weight:700; color:#3f3a2e;
-  font-size:clamp(15px, min(2.8vh, 4.2vw), 24px);
+  display:grid; grid-template-columns:1.7em minmax(0,1fr) 2.8em 2.8em 2.8em; align-items:center; column-gap:5px;   /* 地域・日付・点数は決まった幅にそろえる */
+  padding:clamp(3px, .85vh, 9px) 8px; border-bottom:1px dashed #cdc4ac;
+  font-family:var(--mincho); font-weight:700; color:#3f3a2e; line-height:1.25;
+  font-size:clamp(14px, min(2.55vh, 4.2vw), 22px);
 }
+/* 10位までが、スクロールしなくても1画面に収まるように、ランキング画面だけ縦を詰める */
+#ranking-screen .wa-inner{ padding-top:clamp(44px, 6.5vh, 80px); padding-bottom:8px; }
+#ranking-screen .wa-title{ font-size:clamp(20px, min(4.6vh, 6.4vw), 40px); margin-bottom:clamp(4px, 1vh, 10px); }
+#ranking-screen .wa-rule{ margin-bottom:clamp(6px, 1.3vh, 14px); }
+#ranking-screen .rank-tab{ padding-top:clamp(4px, .9vh, 9px); padding-bottom:clamp(4px, .9vh, 9px); font-size:clamp(13px, 2.2vh, 18px); }
+#ranking-screen .rank-tabs{ margin-bottom:clamp(4px, 1vh, 10px); }
+#ranking-screen .rank-period{ margin-bottom:clamp(4px, 1vh, 10px); line-height:1.4; }
+.rank-msg:empty{ min-height:0; margin:0; }
+@media (max-width:420px){ #ranking-screen .wa-inner{ padding-left:4px; padding-right:4px; } }   /* 狭いスマホでも5文字の名前が切れないよう、左右の余白を詰める */
 .rank-row .rk{ text-align:center; color:#7a7263; }
 .rank-row.r1 .rk{ color:#c79a1a; } .rank-row.r2 .rk{ color:#8d94a0; } .rank-row.r3 .rk{ color:#b0703c; }
-.rank-row .nm{ letter-spacing:.08em; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.rank-row .nm{ letter-spacing:.04em; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .rank-row .pf{ font-size:.66em; font-weight:400; color:#7a7263; white-space:nowrap; }
-.rank-row .dt{ font-size:.55em; font-weight:400; color:#a39b86; white-space:nowrap; }   /* 記録した日。目立たせない */
+.rank-row .dt{ text-align:right; font-size:.55em; font-weight:400; color:#a39b86; white-space:nowrap; }   /* 記録した日。目立たせない */
 .rank-row .sc{ text-align:right; white-space:nowrap; }
 .rank-row.mine{ background:#fff3cd; }
 .rank-msg{ margin-top:clamp(10px, 2vh, 20px); margin-bottom:0; min-height:1.7em; }
@@ -806,6 +821,40 @@ h1{ font-size:1.5rem; text-align:center; letter-spacing:.05em; }
 .rank-kb button.del{ font-size:11px; background:#f3ecd8; }
 #rank-entry .wa-start{ margin-top:12px; width:100%; padding-top:11px; padding-bottom:11px; }
 .rank-skip{ display:block; margin:14px auto 2px; min-width:0; }
+
+/* ---- スマホを横にしたときなど、画面の高さが低いとき ----
+   縦に積むと「チャレンジスタート」やリザルトのボタン、名前入力の「登録する」が画面の外に出てしまうので詰める */
+@media (orientation:landscape) and (max-height:500px){
+  .wa-inner{ padding-top:10px; padding-bottom:8px; }
+  .wa-title, .result-title{ font-size:clamp(18px, 6vh, 24px); margin-bottom:4px; }
+  .wa-rule{ margin-bottom:6px; }
+  .wa-group{ margin-bottom:6px; }
+  .wa-group-title{ margin-bottom:1px; }
+  .wa-note{ margin-bottom:8px; }
+  .solo-rules{ display:grid; grid-template-columns:auto auto; column-gap:2.2em; justify-content:center; max-width:none; }
+  .solo-rules li{ font-size:14px; line-height:1.6; }
+  .solo-rules li + li{ margin-top:0; }
+  .solo-highscore{ font-size:24px; }
+  .solo-settings-btn{ margin-top:4px; }
+  .wa-start{ margin-top:10px; padding-top:8px; padding-bottom:8px; font-size:16px; }
+  .solo-rank-btn{ margin-top:14px; }
+  .result-settings-btn{ margin-bottom:8px; }
+  .result-rank-btn{ margin-top:14px; }
+  .wa-opt{ padding-top:8px; padding-bottom:8px; }
+  .era-group{ margin-top:8px; }
+  .era-scale{ margin-top:16px; }
+  #ranking-screen .wa-inner{ padding-top:8px; }
+  /* 名前入力：左に名前・地域・ボタン、右にキーボードの2列にする */
+  #rank-entry{ padding:8px; }
+  .rank-entry-card{ max-width:min(96vw, 720px); display:grid; grid-template-columns:1fr 1.15fr; column-gap:18px; align-content:start; padding:10px 14px; }
+  .rank-entry-card > *{ grid-column:1; }
+  .rank-entry-card > .rank-kb-tabs{ grid-column:2; grid-row:1 / span 2; align-self:start; margin-top:0; }
+  .rank-entry-card > .rank-kb{ grid-column:2; grid-row:3 / span 9; align-self:start; }
+  .rank-entry-title{ font-size:20px; }
+  .rank-field-label{ margin:4px 0 2px; }
+  #rank-entry .wa-start{ margin-top:8px; padding-top:8px; padding-bottom:8px; }
+  .rank-skip{ margin:8px auto 0; }
+}
 
 /* ---- デバッグ：場札イラスト一覧（?ichiranzenbu などで表示） ---- */
 .debug-cards-meta{ text-align:center; font-size:.8rem; color:#6b5c42; padding-bottom:8px; flex:0 0 auto; }
@@ -856,7 +905,7 @@ h1{ font-size:1.5rem; text-align:center; letter-spacing:.05em; }
         </g>
       </svg>
 
-      <div class="home-circle"></div>
+      <div class="home-circle"><div class="home-ver">歴史ならべ｜ver.β.1｜ota tools</div></div>
     </div>
 
     <div class="home-inner">
@@ -1103,6 +1152,56 @@ var DEBUG_CARDS = !!DEBUG_LIST;
 });
 /* PCのトラックパッドのピンチ（Ctrl+ホイール）による拡大も止める */
 document.addEventListener('wheel', function(e){ if(e.ctrlKey) e.preventDefault(); }, { passive:false });
+
+/* ============================================================
+   更新の確認：トップに戻ったときと、トップのボタンを押したときに、サーバーにある
+   いちばん新しい index.html を調べて、このページより新しければ自動で読みこみ直す。
+   ・BUILD_ID は公開のたびに書きかえる（これが違えば「新しい版がある」と判断）
+   ・つながらないとき（オフライン／ファイルを直接開いているとき）は何もしない
+   ・同じ版へ何度も読みこみ直して止まらなくならないよう、1つの版につき1回だけ
+   ============================================================ */
+var BUILD_ID = '20261005-1630';
+var updateCheckBusy = false;
+var updateCheckLast = 0;
+function checkForUpdate(waitMs){
+  return new Promise(function(resolve){
+    if(updateCheckBusy || !/^https?:$/.test(location.protocol)){ resolve(false); return; }
+    var now = Date.now();
+    if(now - updateCheckLast < 3000){ resolve(false); return; }   // 連打しても通信しすぎない
+    updateCheckLast = now; updateCheckBusy = true;
+    var done = false;
+    function finish(reloading){ if(done) return; done = true; updateCheckBusy = false; resolve(!!reloading); }
+    var timer = setTimeout(function(){ finish(false); }, waitMs || 1500);
+    var url = location.pathname + '?_chk=' + now;      // 途中のキャッシュにあたらないよう毎回ちがうURLで取る
+    fetch(url, { cache:'no-store' }).then(function(r){ return r.ok ? r.text() : ''; }).then(function(txt){
+      clearTimeout(timer);
+      var m = /var BUILD_ID = '([^']+)'/.exec(txt || '');
+      var latest = m && m[1];
+      var already = null;
+      try{ already = sessionStorage.getItem('rekishi.reloadedFor'); }catch(e){}
+      if(latest && latest !== BUILD_ID && already !== latest){
+        try{ sessionStorage.setItem('rekishi.reloadedFor', latest); }catch(e){}
+        finish(true);
+        location.reload();
+      } else { finish(false); }
+    }).catch(function(){ clearTimeout(timer); finish(false); });
+  });
+}
+/* トップの「一人でチャレンジ」「みんなで対戦」を押したときも、先に新しい版がないか確認する。
+   新しい版があれば読みこみ直し、なければ（待たせすぎないよう最大1.5秒で）そのまま進む。 */
+['play-solo-btn', 'play-multi-btn'].forEach(function(id){
+  var b = document.getElementById(id);
+  if(!b) return;
+  var pass = false;
+  b.addEventListener('click', function(e){
+    if(pass){ pass = false; return; }
+    e.stopImmediatePropagation(); e.preventDefault();
+    checkForUpdate(1500).then(function(reloading){
+      if(reloading) return;
+      pass = true; b.click();
+    });
+  }, true);
+});
 /* 2本指タッチでの拡大の保険 */
 document.addEventListener('touchmove', function(e){ if(e.touches && e.touches.length > 1) e.preventDefault(); }, { passive:false });
 
@@ -1490,6 +1589,7 @@ function escapeHtml(str){
 var currentDragCancel = null;
 function showScreen(id){
   try{ applyRankBan(); }catch(e){}
+  try{ var prevScr = document.querySelector('.screen.active'); if(id === 'menu-screen' && prevScr && prevScr.id !== 'menu-screen') checkForUpdate(0); }catch(e){}   // トップに戻ったら新しい版がないか確認
   if(id !== 'game-screen' && currentDragCancel){ try{ currentDragCancel(); }catch(e){} currentDragCancel = null; }
   document.querySelectorAll('.screen').forEach(function(s){ s.classList.remove('active'); });
   document.getElementById(id).classList.add('active');
