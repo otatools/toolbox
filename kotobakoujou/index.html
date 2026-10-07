@@ -1,0 +1,3149 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-YTH979WTKL"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+  gtag('config', 'G-YTH979WTKL');
+</script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>ことばこうじょう｜ことばが イラストに かわる！</title>
+    <meta name="description" content="50音表でことばを入力して「できた！」を押すと、文字がもにゃもにゃ動いてイラストに変身し、コレクションできるひらがなアプリ。幼稚園・小学生向け。">
+    <meta name="theme-color" content="#ffffff">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="preconnect" href="https://api.iconify.design" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Klee+One:wght@600&family=Zen+Maru+Gothic:wght@700&display=swap" rel="stylesheet">
+<style>
+    * {
+        touch-action: manipulation;
+        -webkit-touch-callout: none;
+        box-sizing: border-box;
+    }
+    [hidden] { display: none !important; }
+
+    :root { --app-h: 100vh; --ch-fs: 60px; }
+    @supports (height: 100dvh) { :root { --app-h: 100dvh; } }
+
+    html { background: #fff; height: 100%; -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+    body {
+        margin: 0;
+        height: var(--app-h);
+        overflow: hidden;
+        overscroll-behavior: none;
+        position: relative;
+        background: #fff;
+        font-family: 'Zen Maru Gothic', 'Hiragino Maru Gothic ProN', 'BIZ UDPGothic', sans-serif;
+        color: #3a2a1a;
+        -webkit-user-select: none;
+        user-select: none;
+        -webkit-tap-highlight-color: transparent;
+    }
+
+    .sr-only {
+        position: absolute; width: 1px; height: 1px; margin: -1px;
+        overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap;
+    }
+
+    /* ===== 全体：固定デザインを丸ごと拡大縮小 ===== */
+    #app {
+        position: absolute; top: 50%; left: 50%;
+        transform: translate(-50%, -50%) scale(1);
+        transform-origin: center center;
+        display: grid;
+        opacity: 0;
+    }
+    #app.is-ready { opacity: 1; transition: opacity .25s ease-out; }
+
+    #app.is-landscape {
+        width: 1200px; height: 844px;
+        padding: 18px; column-gap: 16px; row-gap: 18px;
+        grid-template-columns: 170px 98px 1fr 134px 134px;
+        grid-template-rows: 118px 118px 1fr;
+        grid-template-areas:
+            "done done disp clear coll"
+            "done done disp back  coll"
+            "ext  grid grid grid  grid";
+    }
+    #app.is-portrait {
+        width: 760px; height: 1200px;
+        padding: 16px; column-gap: 12px; row-gap: 16px;
+        grid-template-columns: 120px 1fr 1fr 1fr;
+        grid-template-rows: 97px 97px 96px 1fr;
+        grid-template-areas:
+            "disp disp disp  clear"
+            "disp disp disp  back"
+            "done done done  coll"
+            "ext  grid grid  grid";
+    }
+
+    /* ===== ボタン共通 ===== */
+    button {
+        -webkit-appearance: none; appearance: none;
+        border: 0; padding: 0; margin: 0;
+        font: inherit; color: inherit; background: none;
+        cursor: pointer; position: relative; line-height: 0;
+    }
+    .key {
+        display: block;
+        width: 100%; height: 100%;
+        border-radius: 18px;
+        background: var(--bg);
+        box-shadow: 0 6px 0 var(--sh);
+        transform: translateY(0);
+        transition: transform .05s, box-shadow .05s;
+    }
+    .key.pressed {
+        transform: translateY(5px);
+        box-shadow: 0 1px 0 var(--sh);
+        filter: brightness(.96);
+    }
+    .key .inner {
+        position: absolute; left: 50%; top: 50%;
+        transform: translate(-50%, -50%);
+        display: flex; flex-direction: column; align-items: center; justify-content: center;
+        line-height: 1; white-space: nowrap;
+        pointer-events: none;
+    }
+    .key .inner > * + * { margin-top: 6px; }
+    .key.disabled { opacity: .4; }
+
+    /* ===== 入力表示 ===== */
+    /* 機械の外わく（鉄の板・ボルト・しましま） */
+    #display {
+        grid-area: disp;
+        position: relative; z-index: 4;
+        background: linear-gradient(#8a99a9, #6b7987);
+        border-radius: 26px;
+        padding: 34px 14px 28px;
+        box-shadow: 0 6px 0 #4a5663, inset 0 2px 0 rgba(255,255,255,.35);
+    }
+    #display::after {
+        content: ""; position: absolute; left: 16px; right: 16px; bottom: 7px; height: 14px;
+        border-radius: 7px;
+        background: repeating-linear-gradient(-45deg, #ffcf3a 0 12px, #3a3a3a 12px 24px);
+    }
+    #screen {
+        position: relative; width: 100%; height: 100%;
+        background: #fffdf5;
+        border-radius: 16px;
+        box-shadow: inset 0 0 0 4px #4f5b68, inset 0 8px 0 rgba(0,0,0,.08);
+        overflow: hidden;
+    }
+    .plate {
+        position: absolute; top: 6px; left: 50%; transform: translateX(-50%);
+        height: 24px; line-height: 24px; padding: 0 18px; border-radius: 12px;
+        background: #4f5b68; color: #fff; font-size: 18px; letter-spacing: .25em; white-space: nowrap;
+    }
+    .bolt {
+        position: absolute; top: 12px; width: 13px; height: 13px; border-radius: 50%;
+        background: radial-gradient(circle at 35% 35%, #eef2f6, #8f9ca9 70%);
+        box-shadow: 0 1px 0 rgba(0,0,0,.35);
+    }
+    .bolt.b1 { left: 52px; } .bolt.b2 { right: 52px; }
+    .gear { position: absolute; color: #aab6c2; pointer-events: none; }
+    .gear svg { display: block; width: 100%; height: 100%; }
+    #display .gear.g1 { left: -20px; top: -22px; width: 66px; height: 66px; }
+    #display .gear.g2 { right: -16px; top: -16px; width: 50px; height: 50px; color: #c3ccd5; }
+    .working .gear.g1 { animation: spin 1s linear infinite; }
+    .working .gear.g2 { animation: spin .7s linear infinite reverse; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .lamp {
+        position: absolute; top: 9px; width: 18px; height: 18px; border-radius: 50%;
+        background: #c9d2db; box-shadow: inset 0 -3px 0 rgba(0,0,0,.15);
+    }
+    .lamp.l1 { left: 22px; } .lamp.l2 { right: 22px; }
+    .working .lamp { animation: lamp .3s steps(1) infinite; }
+    .working .lamp.l2 { animation-delay: .15s; }
+    @keyframes lamp { 0% { background: #ffb020; } 50% { background: #ff5a3c; } }
+    #textWrap {
+        position: absolute; top: 0; bottom: 0; left: 22px; right: 22px;
+        display: flex; align-items: center; justify-content: center;
+        overflow: hidden;
+    }
+    #textWrap.overflow {
+        justify-content: flex-end;
+        -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 70px);
+        mask-image: linear-gradient(90deg, transparent 0, #000 70px);
+    }
+    #text {
+        flex-shrink: 0;
+        display: flex; align-items: center;
+        white-space: nowrap;
+        font-family: 'Klee One', 'Hiragino Mincho ProN', serif;
+        font-weight: 600; line-height: 1;
+        color: #2b2118;
+    }
+    #text .c { display: inline-block; }
+
+    #hint {
+        position: absolute; top: 0; right: 0; bottom: 0; left: 0;
+        display: flex; align-items: center; justify-content: center;
+        font-size: 36px; color: #cbb69c; letter-spacing: .04em;
+        pointer-events: none;
+    }
+
+    /* ===== けすボタン ===== */
+    #blockMsg {
+        position: absolute; left: 0; top: 0; width: 100%; height: 100%; z-index: 6;
+        display: flex; align-items: center; justify-content: center; text-align: center;
+        background: #fffaf0; border-radius: 12px; color: #a33a3a; font-size: 44px; font-weight: 700; line-height: 1.3;
+    }
+    #blockMsg[hidden] { display: none; }
+    #btnClear { grid-area: clear; --bg: #ffd6d6; --sh: #e39494; }
+    #btnBack  { grid-area: back;  --bg: #d6e8ff; --sh: #88ade3; }
+    #btnClear .inner, #btnBack .inner { font-size: 22px; }
+    #btnClear .inner { color: #a33a3a; }
+    #btnBack .inner { color: #2d5a9c; }
+    #btnClear svg, #btnBack svg { width: 44px; height: 44px; }
+    .is-portrait #btnClear .inner, .is-portrait #btnBack .inner { flex-direction: row; font-size: 24px; }
+    .is-portrait #btnClear .inner > * + *, .is-portrait #btnBack .inner > * + * { margin-top: 0; margin-left: 8px; }
+    .is-portrait #btnClear svg, .is-portrait #btnBack svg { width: 36px; height: 36px; }
+
+    /* ===== できた！ボタン（赤いスイッチ） ===== */
+    #btnDone {
+        grid-area: done; border-radius: 26px; --sh: #3f4a55;
+        background:
+            repeating-linear-gradient(-45deg, #ffcf3a 0 12px, #3a3a3a 12px 24px) left top / 100% 16px no-repeat,
+            repeating-linear-gradient(-45deg, #ffcf3a 0 12px, #3a3a3a 12px 24px) left bottom / 100% 16px no-repeat,
+            linear-gradient(#7d8b99, #5f6c79);
+    }
+    #btnDone .knob {
+        display: flex; align-items: center; justify-content: center;
+        width: 112px; height: 112px; border-radius: 50%;
+        background: radial-gradient(circle at 35% 30%, #ffb3a8 0, #ff5241 40%, #cf281b 100%);
+        box-shadow: 0 7px 0 #8a1a12, 0 0 0 6px #3f4a55;
+        transition: transform .05s, box-shadow .05s;
+    }
+    #btnDone.pressed .knob { transform: translateY(5px); box-shadow: 0 2px 0 #8a1a12, 0 0 0 6px #3f4a55; }
+    #btnDone .knob svg { width: 56px; height: 56px; color: #fff; }
+    #btnDone .lbl {
+        margin-top: 16px; font-size: 36px; color: #fff;
+        text-shadow: 0 3px 0 rgba(0, 0, 0, .35);
+    }
+    .is-portrait #btnDone .inner { flex-direction: row; }
+    .is-portrait #btnDone .knob { width: 62px; height: 62px; box-shadow: 0 5px 0 #8a1a12, 0 0 0 4px #3f4a55; }
+    .is-portrait #btnDone .knob svg { width: 32px; height: 32px; }
+    .is-portrait #btnDone .lbl { margin: 0 0 0 18px; font-size: 40px; }
+    #btnDone.disabled { opacity: .55; }
+
+    /* ===== コレクション ボタン（だんボール箱） ===== */
+    #btnColl { grid-area: coll; --bg: #f3d6a6; --sh: #c99a5b; }
+    #btnColl .inner { color: #6b4a1e; font-size: 20px; }
+    #btnColl .inner > * + * { margin-top: 10px; }
+    #btnColl svg { width: 74px; height: 74px; }
+    .is-portrait #btnColl .inner { font-size: 18px; }
+    .is-portrait #btnColl .inner > * + * { margin-top: 4px; }
+    .is-portrait #btnColl svg { width: 44px; height: 44px; }
+    #collBadge {
+        position: absolute; top: -12px; right: -10px; z-index: 2;
+        min-width: 48px; height: 48px; padding: 0 10px; border-radius: 24px;
+        background: #ff5a4e; color: #fff; font-size: 24px; line-height: 48px; text-align: center;
+        box-shadow: 0 3px 0 #b8322a;
+    }
+
+    /* ===== てんてん・まる など ===== */
+    #extras {
+        grid-area: ext;
+        display: flex; flex-direction: column;
+        padding-bottom: 6px;
+    }
+    #extras .key { width: 100%; height: auto; flex: 1 1 0; min-height: 0; --bg: #ece3ff; --sh: #b5a2e0; }
+    #extras .key + .key { margin-top: 14px; }
+    #extras .g {
+        font-family: 'Klee One', serif; font-weight: 600;
+        font-size: 50px; color: #4a3485;
+    }
+    #extras .cap { font-size: 20px; color: #6a55a8; }
+    .is-portrait #extras .cap { font-size: 17px; }
+    #extras .mk { width: 50px; height: 50px; color: #4a3485; }
+
+    /* ===== 50音表 ===== */
+    #grid {
+        grid-area: grid;
+        display: grid;
+        column-gap: 8px; row-gap: 12px;
+    }
+    .is-landscape #grid {
+        grid-template-columns: repeat(10, 1fr);
+        grid-template-rows: repeat(5, 1fr);
+    }
+    .is-portrait #grid {
+        grid-template-columns: repeat(5, 1fr);
+        grid-template-rows: repeat(5, 1fr) 14px repeat(5, 1fr);
+        row-gap: 10px;
+    }
+    #grid .key { border-radius: 16px; }
+    #grid .ch {
+        font-family: 'Klee One', 'Hiragino Mincho ProN', serif;
+        font-weight: 600;
+        font-size: var(--ch-fs);
+        color: #33251a;
+        margin-top: -0.06em;
+    }
+
+    /* ===== 変身の結果（ベルトコンベア） ===== */
+    #result {
+        position: absolute; top: 0; right: 0; bottom: 0; left: 0;
+        background: #fff;
+        z-index: 10;
+        display: flex; flex-direction: column; align-items: center; justify-content: center;
+    }
+    .scene { position: relative; width: 100%; height: 470px; flex: 0 0 auto; }
+    .is-portrait .scene { height: 600px; }
+    .belt {
+        position: absolute; left: 150px; right: 30px; bottom: 14px; height: 46px; border-radius: 23px;
+        background: repeating-linear-gradient(90deg, #5e6873 0 26px, #78838f 26px 52px);
+        box-shadow: inset 0 4px 0 rgba(255,255,255,.18), 0 6px 0 #3e464f;
+    }
+    .is-portrait .belt { left: 90px; right: 10px; }
+    .machine {
+        position: absolute; left: 24px; bottom: 14px; width: 220px; height: 290px;
+        border-radius: 26px 26px 14px 14px;
+        transform-origin: 50% 100%;
+        z-index: 2;   /* イラストは きかいの うしろから でてくる */
+        background: linear-gradient(#8a99a9, #6b7987);
+        box-shadow: 0 6px 0 #4a5663, inset 0 2px 0 rgba(255,255,255,.35);
+    }
+    .machine::after {
+        content: ""; position: absolute; left: 14px; right: 14px; bottom: 10px; height: 14px; border-radius: 7px;
+        background: repeating-linear-gradient(-45deg, #ffcf3a 0 12px, #3a3a3a 12px 24px);
+    }
+    .machine .win {
+        position: absolute; left: 50%; top: 52px; width: 104px; height: 104px; margin-left: -52px; border-radius: 50%;
+        background: #fffdf5; box-shadow: inset 0 0 0 8px #4f5b68;
+    }
+    .machine .mouth {
+        position: absolute; right: 0; bottom: 46px; width: 54px; height: 104px;
+        border-radius: 14px 0 0 14px; background: #2e353d;
+    }
+    .machine .gear.g1 { left: -22px; top: -26px; width: 72px; height: 72px; }
+    .machine .gear.g2 { right: 30px; top: -18px; width: 46px; height: 46px; color: #c3ccd5; }
+    .machine .lamp.l1 { left: 50%; margin-left: -9px; top: 18px; }
+    .chimney {
+        position: absolute; left: 46px; bottom: 100%; margin-bottom: -2px; width: 44px; height: 72px;
+        border-radius: 6px 6px 0 0; background: linear-gradient(90deg, #5f6c79, #7d8b99);
+        z-index: 2;
+    }
+    .is-portrait .machine { left: 6px; width: 150px; height: 220px; }
+    .is-portrait .machine .win { width: 76px; height: 76px; margin-left: -38px; top: 44px; }
+    .is-portrait .machine .mouth { width: 40px; height: 84px; }
+    .is-portrait .chimney { left: 34px; height: 58px; }
+    #stage {
+        position: absolute; left: 50%; bottom: 60px;
+        width: 420px; height: 420px; margin-left: -210px;
+        transform-origin: 50% 100%;
+        z-index: 1;
+        mix-blend-mode: multiply;   /* jpgの しろい はいけいを すかす（ベルトが かくれない） */
+    }
+    .is-portrait #stage { width: 440px; height: 440px; margin-left: -160px; }
+    #pic {
+        position: absolute; top: 0; left: 0;
+        width: 100%; height: 100%;
+        display: block;
+        object-fit: contain;
+    }
+    #picText {
+        position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+        display: flex; align-items: center; justify-content: center;
+        font-size: 300px; line-height: 1;
+        font-family: 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji', sans-serif;
+    }
+    .puff {
+        position: absolute; z-index: 3; width: 44px; height: 44px; margin: -22px 0 0 -22px;
+        border-radius: 50%; color: #e8edf2; background: currentColor; pointer-events: none;
+        box-shadow: -26px 10px 0 -5px currentColor, 25px 9px 0 -7px currentColor, -4px -17px 0 -3px currentColor, 10px 14px 0 -2px currentColor;
+        filter: drop-shadow(0 4px 0 rgba(100, 116, 134, .5));
+    }
+    .spark {
+        position: absolute; z-index: 3; width: 34px; height: 34px; margin: -17px 0 0 -17px;
+        pointer-events: none;
+    }
+    #word {
+        margin-top: 6px;
+        font-family: 'Klee One', 'Hiragino Mincho ProN', serif;
+        font-weight: 600; font-size: 92px; line-height: 1.1;
+        color: #2b2118; white-space: nowrap;
+    }
+    #msg { margin-top: 8px; font-size: 32px; color: #8a7560; line-height: 1.3; }
+    #msg.ok { color: #2f8a49; }
+    #msg:empty { display: none; }
+    #resultBtns { display: flex; margin-top: 26px; }
+    #resultBtns .key { width: 340px; height: 100px; flex: 0 0 auto; }
+    #resultBtns .key + .key { margin-left: 22px; }
+    #resultBtns .inner { flex-direction: row; font-size: 36px; }
+    #resultBtns .inner > * + * { margin-top: 0; margin-left: 10px; }
+    #btnNext { --bg: #c9f0cf; --sh: #78c487; }
+    #btnNext .inner { color: #22693a; }
+    #btnFix  { --bg: #d6e8ff; --sh: #88ade3; }
+    #btnFix .inner { color: #2d5a9c; }
+    /* 縦向きはボタンを縦に並べる */
+    .is-portrait #resultBtns { flex-direction: column; align-items: center; }
+    .is-portrait #resultBtns .key { width: 440px; height: 96px; }
+    .is-portrait #resultBtns .key + .key { margin-left: 0; margin-top: 18px; }
+    .is-portrait #btnMaybe { width: 440px !important; padding: 0; }
+    .is-portrait #btnMaybe .inner { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); height: auto; }
+    #btnMaybe { --bg: #fff1c2; --sh: #e2bf55; width: auto !important; padding: 0 30px; }
+    #btnMaybe .inner { position: static; transform: none; height: 100%; color: #7a5a12; }
+
+    /* ===== コレクション ===== */
+    #coll {
+        position: absolute; top: 0; right: 0; bottom: 0; left: 0; z-index: 12;
+        background: #fff; display: flex; flex-direction: column; padding: 18px;
+    }
+    .collHead { display: flex; align-items: center; flex: 0 0 92px; }
+    .collHead .key { flex: 0 0 auto; height: 84px; }
+    #btnCollBack { width: 180px; --bg: #d6e8ff; --sh: #88ade3; }
+    #btnCollBack .inner { flex-direction: row; font-size: 30px; color: #2d5a9c; }
+    #btnCollBack .inner > * + * { margin: 0 0 0 8px; }
+    #btnEdit { width: 260px; --bg: #ffe3a3; --sh: #d9a93f; }
+    #btnEdit .inner { font-size: 26px; color: #7a5a12; }
+    .collTitle { flex: 1 1 0; text-align: center; font-size: 44px; color: #5a4426; line-height: 1.1; white-space: nowrap; }
+    .collTitle small { font-size: 28px; color: #9a8566; margin-left: 8px; }
+    .is-portrait .collTitle { font-size: 36px; }
+    .is-portrait .collTitle small { display: block; margin: 4px 0 0; font-size: 24px; }
+    .is-portrait #btnCollBack { width: 150px; }
+    .is-portrait #btnEdit { width: 220px; }
+    .is-portrait #btnEdit .inner { font-size: 22px; }
+    .collTools { display: flex; justify-content: center; flex: 0 0 auto; margin-top: 14px; }
+    .collTools .key { width: 230px; height: 70px; flex: 0 0 auto; }
+    .collTools .key + .key { margin-left: 16px; }
+    .collTools .inner { font-size: 24px; }
+    #btnSortAiu, #btnSortNew { --bg: #e4ecf6; --sh: #a9b9cc; }
+    #btnSortAiu .inner, #btnSortNew .inner { color: #36536f; }
+    #btnClearAll { --bg: #ffd6d6; --sh: #e39494; }
+    #btnClearAll .inner { color: #a33a3a; }
+    .is-portrait .collTools .key { width: 220px; }
+    .is-portrait .collTools .inner { font-size: 22px; }
+    #collList {
+        flex: 1 1 0; min-height: 0; margin-top: 14px;
+        overflow-y: auto; overflow-x: hidden; -webkit-overflow-scrolling: touch; touch-action: pan-y;
+        display: grid; grid-template-columns: repeat(5, 1fr); grid-gap: 22px 18px;
+        align-content: start; padding: 14px 10px 40px;
+    }
+    .is-portrait #collList { grid-template-columns: repeat(3, 1fr); }
+    .card {
+        position: relative; display: flex; flex-direction: column; align-items: center;
+        padding: 14px 8px 12px; border-radius: 22px;
+        background: #fff; border: 4px solid #eadcc6; box-shadow: 0 5px 0 #ddcbb0;
+        cursor: pointer;
+    }
+    #coll.editing .card { border-color: #ffd27a; box-shadow: 0 5px 0 #e9b54a; }
+    .card .pic { width: 150px; height: 150px; display: flex; align-items: center; justify-content: center; pointer-events: none; }
+    .card .pic img { width: 100%; height: 100%; object-fit: contain; display: block; }
+    .card .pic .em { font-size: 120px; line-height: 1; font-family: 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji', sans-serif; }
+    .card .w {
+        margin-top: 8px; font-family: 'Klee One', 'Hiragino Mincho ProN', serif; font-weight: 600;
+        font-size: 34px; line-height: 1.15; color: #2b2118; white-space: nowrap; pointer-events: none;
+    }
+    .card .num {
+        position: absolute; top: 8px; left: 10px; font-size: 18px; color: #b9a78c; pointer-events: none;
+    }
+    .card .del {
+        display: none; position: absolute; top: -14px; right: -14px; width: 60px; height: 60px; border-radius: 50%;
+        background: #ff5a4e; color: #fff; box-shadow: 0 4px 0 #b8322a;
+    }
+    .card .del svg { position: absolute; left: 50%; top: 50%; width: 30px; height: 30px; transform: translate(-50%, -50%); }
+    .card .mv { display: none; margin-top: 10px; }
+    .card .mv button {
+        width: 76px; height: 54px; margin: 0 6px; border-radius: 14px;
+        background: #e4ecf6; color: #36536f; box-shadow: 0 4px 0 #a9b9cc;
+    }
+    .card .mv svg { position: absolute; left: 50%; top: 50%; width: 30px; height: 30px; transform: translate(-50%, -50%); }
+    #coll.editing .card .del { display: block; }
+    #coll.editing .card .mv { display: flex; }
+    .card.moved { animation: moved .45s ease-out; }
+    @keyframes moved { 0% { transform: scale(1.08); background: #fff4c7; } 100% { transform: none; } }
+    .collEmpty {
+        grid-column: 1 / -1; text-align: center; font-size: 34px; color: #a08c70;
+        padding-top: 110px; line-height: 1.7;
+    }
+
+    /* 1つを大きく見る */
+    #collView {
+        position: absolute; top: 0; right: 0; bottom: 0; left: 0; z-index: 14;
+        background: rgba(255,255,255,.97);
+        display: flex; flex-direction: column; align-items: center; justify-content: center;
+    }
+    #cvPic { width: 420px; height: 420px; display: flex; align-items: center; justify-content: center; }
+    #cvPic img { width: 100%; height: 100%; object-fit: contain; }
+    #cvPic .em { font-size: 320px; line-height: 1; font-family: 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji', sans-serif; }
+    #cvWord { margin-top: 16px; font-family: 'Klee One', 'Hiragino Mincho ProN', serif; font-weight: 600; font-size: 92px; line-height: 1.1; white-space: nowrap; }
+    #btnCvClose { margin-top: 30px; width: 260px; height: 96px; --bg: #d6e8ff; --sh: #88ade3; }
+    #btnCvClose .inner { font-size: 34px; color: #2d5a9c; }
+
+    /* かくにん */
+    #confirm {
+        position: absolute; top: 0; right: 0; bottom: 0; left: 0; z-index: 16;
+        background: rgba(40, 40, 40, .45);
+        display: flex; align-items: center; justify-content: center;
+    }
+    #confirm .box { background: #fff; border-radius: 28px; padding: 40px 50px 46px; text-align: center; box-shadow: 0 10px 0 rgba(0,0,0,.15); }
+    #confirm p { margin: 0 0 32px; font-size: 36px; line-height: 1.5; color: #3a2a1a; }
+    #confirm .key { display: inline-block; width: 210px; height: 90px; margin: 0 12px; vertical-align: top; }
+    #confirm .inner { font-size: 34px; }
+    #btnYes { --bg: #ffd6d6; --sh: #e39494; }
+    #btnYes .inner { color: #a33a3a; }
+    #btnNo { --bg: #e4ecf6; --sh: #a9b9cc; }
+    #btnNo .inner { color: #36536f; }
+</style>
+</head>
+<body>
+<h1 class="sr-only">ことばこうじょう（ことばを入力するとイラストに変わるアプリ）</h1>
+
+<div id="app" class="is-landscape">
+    <div id="display" aria-live="polite">
+        <div class="gear g1"><svg viewBox="0 0 100 100"><path fill="currentColor" d="M43 4h14l2 12a35 35 0 0 1 9 4l10-7 10 10-7 10a35 35 0 0 1 4 9l12 2v14l-12 2a35 35 0 0 1-4 9l7 10-10 10-10-7a35 35 0 0 1-9 4l-2 12H43l-2-12a35 35 0 0 1-9-4l-10 7-10-10 7-10a35 35 0 0 1-4-9L3 57V43l12-2a35 35 0 0 1 4-9l-7-10 10-10 10 7a35 35 0 0 1 9-4z"/><circle cx="50" cy="50" r="15" fill="#fff" opacity=".9"/></svg></div>
+        <div class="gear g2"><svg viewBox="0 0 100 100"><path fill="currentColor" d="M43 4h14l2 12a35 35 0 0 1 9 4l10-7 10 10-7 10a35 35 0 0 1 4 9l12 2v14l-12 2a35 35 0 0 1-4 9l7 10-10 10-10-7a35 35 0 0 1-9 4l-2 12H43l-2-12a35 35 0 0 1-9-4l-10 7-10-10 7-10a35 35 0 0 1-4-9L3 57V43l12-2a35 35 0 0 1 4-9l-7-10 10-10 10 7a35 35 0 0 1 9-4z"/><circle cx="50" cy="50" r="15" fill="#fff" opacity=".9"/></svg></div>
+        <span class="lamp l1"></span><span class="lamp l2"></span>
+        <span class="bolt b1"></span><span class="bolt b2"></span>
+        <div class="plate">ことばこうじょう</div>
+        <div id="screen">
+            <div id="textWrap"><div id="text"></div></div>
+            <div id="hint">ことばを いれてね</div>
+            <div id="blockMsg" role="alert" hidden>その ことばは つかえないよ</div>
+        </div>
+    </div>
+
+    <button id="btnClear" class="key" aria-label="ぜんぶけす">
+        <span class="inner">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/></svg>
+            <span>ぜんぶ けす</span>
+        </span>
+    </button>
+
+    <button id="btnBack" class="key" aria-label="1もじけす">
+        <span class="inner">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 5H9l-6 7 6 7h12a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1z"/><path d="M17 9l-6 6M11 9l6 6"/></svg>
+            <span>1もじ けす</span>
+        </span>
+    </button>
+
+    <button id="btnDone" class="key" aria-label="できた">
+        <span class="inner">
+            <span class="knob"><svg viewBox="0 0 48 48" fill="currentColor"><path d="M24 3l5.2 13.3L43 18l-10.6 9.1L35.8 41 24 33.6 12.2 41l3.4-13.9L5 18l13.8-1.7z"/></svg></span>
+            <span class="lbl">できた！</span>
+        </span>
+    </button>
+
+    <button id="btnColl" class="key" aria-label="コレクション">
+        <span id="collBadge" hidden>0</span>
+        <span class="inner">
+            <svg viewBox="0 0 64 64"><path fill="#c98d47" d="M6 24l26 10v26L6 50z"/><path fill="#b07434" d="M58 24L32 34v26l26-10z"/><path fill="#e2ad6a" d="M6 24L32 14l26 10-26 10z"/><path fill="#f6dfb8" d="M6 24l-4 8 26 10 4-8zM58 24l4 8-26 10-4-8z"/><path fill="#fff" opacity=".7" d="M27 42l10-4v5l-10 4z"/></svg>
+            <span>コレクション</span>
+        </span>
+    </button>
+
+    <div id="grid"></div>
+
+    <div id="extras">
+        <button class="key" data-op="daku" aria-label="てんてん"><span class="inner"><svg class="mk" viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="5.5" stroke-linecap="round"><path d="M13 9l5 11"/><path d="M24 7l5 11"/></svg><span class="cap">てんてん</span></span></button>
+        <button class="key" data-op="handaku" aria-label="まる"><span class="inner"><svg class="mk" viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="5"><circle cx="20" cy="17" r="8.5"/></svg><span class="cap">まる</span></span></button>
+        <button class="key" data-op="small" aria-label="ちいさく"><span class="inner"><span class="g">っ</span><span class="cap">ちいさく</span></span></button>
+        <button class="key" data-op="bar" aria-label="のばす"><span class="inner"><span class="g">ー</span><span class="cap">のばす</span></span></button>
+    </div>
+
+    <div id="result" hidden>
+        <div class="scene" id="scene">
+            <div class="belt" id="belt"></div>
+            <div class="machine" id="machine">
+                <div class="chimney" id="chimney"></div>
+                <div class="gear g1"><svg viewBox="0 0 100 100"><path fill="currentColor" d="M43 4h14l2 12a35 35 0 0 1 9 4l10-7 10 10-7 10a35 35 0 0 1 4 9l12 2v14l-12 2a35 35 0 0 1-4 9l7 10-10 10-10-7a35 35 0 0 1-9 4l-2 12H43l-2-12a35 35 0 0 1-9-4l-10 7-10-10 7-10a35 35 0 0 1-4-9L3 57V43l12-2a35 35 0 0 1 4-9l-7-10 10-10 10 7a35 35 0 0 1 9-4z"/><circle cx="50" cy="50" r="15" fill="#fff" opacity=".9"/></svg></div>
+                <div class="gear g2"><svg viewBox="0 0 100 100"><path fill="currentColor" d="M43 4h14l2 12a35 35 0 0 1 9 4l10-7 10 10-7 10a35 35 0 0 1 4 9l12 2v14l-12 2a35 35 0 0 1-4 9l7 10-10 10-10-7a35 35 0 0 1-9 4l-2 12H43l-2-12a35 35 0 0 1-9-4l-10 7-10-10 7-10a35 35 0 0 1-4-9L3 57V43l12-2a35 35 0 0 1 4-9l-7-10 10-10 10 7a35 35 0 0 1 9-4z"/><circle cx="50" cy="50" r="15" fill="#fff" opacity=".9"/></svg></div>
+                <span class="lamp l1"></span>
+                <div class="win"></div>
+                <div class="mouth"></div>
+            </div>
+            <div id="stage">
+                <img id="pic" alt="" draggable="false">
+                <div id="picText" hidden></div>
+            </div>
+        </div>
+        <div id="word"></div>
+        <div id="msg"></div>
+        <div id="resultBtns">
+            <button id="btnMaybe" class="key" hidden><span class="inner"></span></button>
+            <button id="btnFix" class="key" hidden><span class="inner">
+                <svg width="46" height="46" viewBox="0 0 64 64"><g transform="rotate(-35 32 32)"><rect x="6" y="20" width="52" height="26" rx="6" fill="#ff8fa3"/><path d="M34 20h18a6 6 0 0 1 6 6v14a6 6 0 0 1-6 6H34z" fill="#ff6f8a"/><rect x="6" y="20" width="52" height="8" rx="4" fill="#ffb3c1" opacity=".7"/><path d="M34 20h-8v26h8z" fill="#4a90e2"/><path d="M26 20h8v26h-8z" fill="#3a78c2" opacity=".0"/></g></svg>
+                <span>なおす</span></span></button>
+            <button id="btnNext" class="key"><span class="inner">
+                <svg width="46" height="46" viewBox="0 0 64 64"><g transform="rotate(45 32 32) translate(32 32) scale(1.3) translate(-32 -32)"><rect x="25" y="4" width="14" height="9" rx="3" fill="#ff8fa3"/><rect x="25" y="12" width="14" height="4" fill="#c9ced6"/><rect x="25" y="16" width="14" height="30" fill="#ffd23f"/><rect x="25" y="16" width="5" height="30" fill="#ffe680"/><rect x="34" y="16" width="5" height="30" fill="#f0b400"/><path d="M25 46h14L32 60z" fill="#f6d9b0"/><path d="M29 54h6L32 60z" fill="#3b3b4f"/></g></svg>
+                <span>つぎの ことば</span></span></button>
+        </div>
+    </div>
+
+    <div id="coll" hidden>
+        <div class="collHead">
+            <button id="btnCollBack" class="key" aria-label="もどる"><span class="inner">
+                <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5"/><path d="M11 6l-6 6 6 6"/></svg>
+                <span>もどる</span></span></button>
+            <div class="collTitle">コレクション<small id="collCount"></small></div>
+            <button id="btnEdit" class="key"><span class="inner" id="editLbl">ならべかえ・けす</span></button>
+        </div>
+        <div class="collTools" id="collTools" hidden>
+            <button id="btnSortAiu" class="key"><span class="inner">あいうえお じゅん</span></button>
+            <button id="btnSortNew" class="key"><span class="inner">つくった じゅん</span></button>
+            <button id="btnClearAll" class="key"><span class="inner">ぜんぶ けす</span></button>
+        </div>
+        <div id="collList"></div>
+    </div>
+
+    <div id="collView" hidden>
+        <div id="cvPic"></div>
+        <div id="cvWord"></div>
+        <button id="btnCvClose" class="key"><span class="inner">とじる</span></button>
+    </div>
+
+    <div id="confirm" hidden>
+        <div class="box">
+            <p id="cfMsg"></p>
+            <button id="btnNo" class="key"><span class="inner">やめる</span></button>
+            <button id="btnYes" class="key"><span class="inner">けす</span></button>
+        </div>
+    </div>
+</div>
+
+<script>
+(function () {
+    'use strict';
+
+    /* ---------- 拡大対策（webapp §1） ---------- */
+    ['gesturestart', 'gesturechange', 'gestureend'].forEach(function (type) {
+        document.addEventListener(type, function (e) { e.preventDefault(); }, { passive: false });
+    });
+    function resetZoomIfNeeded() {
+        if (!window.visualViewport || window.visualViewport.scale <= 1.02) return;
+        var meta = document.querySelector('meta[name="viewport"]');
+        if (!meta) return;
+        var original = meta.getAttribute('content');
+        meta.setAttribute('content', original + ', maximum-scale=1.0');
+        requestAnimationFrame(function () { meta.setAttribute('content', original); });
+    }
+    if (window.visualViewport) {
+        visualViewport.addEventListener('resize', resetZoomIfNeeded);
+        visualViewport.addEventListener('scroll', resetZoomIfNeeded);
+    }
+    document.addEventListener('gestureend', function () { setTimeout(resetZoomIfNeeded, 50); }, { passive: true });
+    document.addEventListener('contextmenu', function (e) { e.preventDefault(); });
+
+    /* ---------- ことば辞書（絵文字 → よみかた） ---------- */
+    var DICT_SRC = `🍎=red-apple りんご くだもの
+🍏=green-apple あおりんご
+🍐=pear なし ようなし
+🍊=tangerine みかん おれんじ ぐれーぷふるーつ でこぽん ぽんかん
+🍋=lemon れもん
+🍌=banana ばなな
+🍉=watermelon すいか
+🍇=grapes ぶどう ますかっと きょほう
+🍓=strawberry いちご
+🫐=blueberries ぶるーべりー
+🍈=melon めろん
+🍒=cherries さくらんぼ ちぇりー
+🍑=peach もも
+🥭=mango まんごー
+🍍=pineapple ぱいなっぷる ぱいん
+🥥=coconut ここなっつ
+🥝=kiwi-fruit きうい きういふるーつ
+🍅=tomato とまと みにとまと
+🍆=eggplant なす なすび
+🥑=avocado あぼかど
+🥦=broccoli ぶろっこりー
+🥬=leafy-green れたす きゃべつ はくさい ほうれんそう こまつな
+🥒=cucumber きゅうり
+🌶️=hot-pepper とうがらし
+🫑=bell-pepper ぴーまん ぱぷりか
+🌽=ear-of-corn とうもろこし こーん
+🥕=carrot にんじん
+🧄=garlic にんにく
+🧅=onion たまねぎ
+🥔=potato じゃがいも いも ぽてと
+🍠=roasted-sweet-potato さつまいも やきいも いもほり
+🍄=mushroom きのこ しいたけ まいたけ
+🥜=peanuts ぴーなっつ
+🌰=chestnut くり
+🍞=bread ぱん しょくぱん とーすと あんぱん かれーぱん
+🥐=croissant くろわっさん
+🥖=baguette-bread ふらんすぱん ぱんや
+🥨=pretzel ぷれっつぇる
+🥞=pancakes ほっとけーき ぱんけーき
+🧇=waffle わっふる
+🧀=cheese-wedge ちーず
+🍖=meat-on-bone にく ほねつきにく
+🍗=poultry-leg からあげ ふらいどちきん とりにく
+🥩=cut-of-meat すてーき やきにく
+🥓=bacon べーこん
+🍔=hamburger はんばーがー
+🍟=french-fries ふらいどぽてと
+🍕=pizza ぴざ
+🌭=hot-dog ほっとどっぐ そーせーじ うぃんなー
+🥪=sandwich さんどいっち
+🌮=taco たこす
+🥚=egg たまご ゆでたまご
+🍳=cooking めだまやき たまごやき りょうり ふらいぱん
+🥗=green-salad さらだ やさい
+🍿=popcorn ぽっぷこーん
+🍙=rice-ball おにぎり おむすび
+🍘=rice-cracker せんべい おせんべい
+🍚=cooked-rice ごはん おこめ こめ おかゆ どんぶり ちゃーはん ちゃわん ぎゅうどん
+🍛=curry-rice かれー かれーらいす はやしらいす
+🍜=steaming-bowl らーめん うどん そば
+🍝=spaghetti すぱげってぃ すぱげてぃ ぱすた やきそば
+🍣=sushi すし おすし てまきずし
+🍤=fried-shrimp えびふらい てんぷら
+🍥=fish-cake-with-swirl なると
+🍡=dango だんご おだんご
+🍢=oden おでん やきとり
+🥟=dumpling ぎょうざ しゅうまい
+🍱=bento-box おべんとう べんとう きゅうしょく
+🍦=soft-ice-cream そふとくりーむ
+🍧=shaved-ice かきごおり
+🍨=ice-cream あいす あいすくりーむ ぱふぇ
+🍩=doughnut どーなつ
+🍪=cookie くっきー びすけっと
+🎂=birthday-cake けーき ばーすでーけーき たんじょうびけーき おたんじょうび たんじょうび
+🍰=shortcake しょーとけーき ちーずけーき ろーるけーき もんぶらん
+🧁=cupcake かっぷけーき
+🍮=custard ぷりん
+🍫=chocolate-bar ちょこ ちょこれーと
+🍬=candy あめだま きゃんでぃー どろっぷ おかし
+🍭=lollipop ぺろぺろきゃんでぃー
+🍯=honey-pot はちみつ
+🍼=baby-bottle ほにゅうびん みるく
+🥛=glass-of-milk ぎゅうにゅう こっぷ
+☕=hot-beverage こーひー ここあ かふぇ まぐかっぷ
+🍵=teacup-without-handle おちゃ りょくちゃ まっちゃ むぎちゃ
+🧃=beverage-box じゅーす おれんじじゅーす りんごじゅーす
+🥢=chopsticks はし おはし
+🥄=spoon すぷーん
+🍴=fork-and-knife ふぉーく ないふ たべる
+🍽️=fork-and-knife-with-plate おさら さら れすとらん
+🧂=salt しお
+🫖=teapot きゅうす こうちゃ やかん
+🧊=ice こおり
+🐟=fish さかな おさかな まぐろ しゃけ めだか こい さんま いわし たい
+🐠=tropical-fish ねったいぎょ きんぎょ くまのみ きんぎょすくい
+🐡=blowfish ふぐ
+🦈=shark さめ
+🐙=octopus たこ
+🦑=squid いか
+🦀=crab かに
+🦞=lobster ろぶすたー いせえび ざりがに
+🦐=shrimp えび
+🐚=spiral-shell かいがら かい
+🪼=jellyfish くらげ
+🐳=spouting-whale くじら
+🐬=dolphin いるか すいぞくかん
+🦭=seal あざらし おっとせい
+🦦=otter らっこ かわうそ
+🐢=turtle かめ
+🐊=crocodile わに
+🐸=frog かえる
+🐍=snake へび
+🦎=lizard とかげ やもり かめれおん いぐあな
+🦕=sauropod きょうりゅう ぶらきおさうるす くびながりゅう
+🦖=t-rex てぃらのさうるす てぃらのざうるす かいじゅう
+🐉=dragon どらごん りゅう
+🐶=dog-face いぬ わんちゃん わんわん こいぬ
+🐱=cat-face ねこ にゃんこ にゃんにゃん こねこ
+🐭=mouse-face ねずみ
+🐹=hamster はむすたー
+🐰=rabbit-face うさぎ うさちゃん
+🦊=fox きつね
+🐻=bear くま
+🐼=panda ぱんだ
+🐻‍❄️=polar-bear しろくま ほっきょくぐま
+🐨=koala こあら
+🐯=tiger-face とら
+🦁=lion らいおん どうぶつえん
+🐮=cow-face うし
+🐷=pig-face ぶた こぶた
+🐵=monkey-face さる おさる ちんぱんじー
+🦍=gorilla ごりら
+🐔=chicken にわとり
+🐤=baby-chick ひよこ
+🐧=penguin ぺんぎん
+🐦=bird とり ことり すずめ つばめ うぐいす ぶんちょう
+🦆=duck あひる かも
+🦅=eagle わし たか
+🦉=owl ふくろう
+🦇=bat こうもり
+🐺=wolf おおかみ
+🐗=boar いのしし
+🐴=horse-face うま ぽにー
+🦄=unicorn ゆにこーん
+🐘=elephant ぞう ぞうさん
+🦒=giraffe きりん
+🦓=zebra しまうま
+🦏=rhinoceros さい
+🦛=hippopotamus かば
+🐪=camel らくだ
+🦘=kangaroo かんがるー
+🐿️=chipmunk りす
+🦔=hedgehog はりねずみ
+🐑=ewe ひつじ
+🐐=goat やぎ
+🦌=deer しか となかい
+🦃=turkey しちめんちょう
+🦚=peacock くじゃく
+🦜=parrot いんこ おうむ
+🦢=swan はくちょう
+🦩=flamingo ふらみんご
+🕊️=dove はと
+🦥=sloth なまけもの
+🦫=beaver びーばー
+🦙=llama あるぱか
+🐝=honeybee はち みつばち
+🐛=bug けむし いもむし あおむし むし
+🦋=butterfly ちょう ちょうちょ ちょうちょう もんしろちょう あげはちょう
+🐌=snail かたつむり
+🐞=lady-beetle てんとうむし
+🐜=ant あり
+🦗=cricket こおろぎ ばった すずむし きりぎりす
+🪲=beetle かぶとむし くわがた
+🪱=worm みみず
+🐾=paw-prints あしあと どうぶつ
+🌸=cherry-blossom さくら おはなみ はる
+🌷=tulip ちゅーりっぷ
+🌹=rose ばら
+🌻=sunflower ひまわり なつ なつやすみ
+🌼=blossom はな おはな たんぽぽ
+🌺=hibiscus はいびすかす
+🍀=four-leaf-clover よつば くろーばー
+🍁=maple-leaf もみじ あき
+🍂=fallen-leaf おちば
+🌳=deciduous-tree き はやし
+🌲=evergreen-tree もみのき もり
+🌴=palm-tree やしのき
+🌵=cactus さぼてん
+🌱=seedling ふたば
+🎄=christmas-tree くりすますつりー くりすます
+🌾=sheaf-of-rice いね たんぼ すすき
+🍃=leaf-fluttering-in-wind はっぱ
+🌿=herb くさ
+💐=bouquet はなたば はなや
+🪴=potted-plant うえきばち
+🎋=tanabata-tree たなばた ささ
+🎍=pine-decoration かどまつ おしょうがつ
+☀️=sun たいよう おひさま はれ ひる
+🌙=crescent-moon つき おつきさま みかづき
+⭐=star ほし おほしさま
+☁️=cloud くも
+☔=umbrella-with-rain-drops あめ
+⛅=sun-behind-cloud くもり
+⛄=snowman-without-snow ゆきだるま ふゆ
+❄️=snowflake ゆき ゆきがっせん
+⚡=high-voltage かみなり
+🌈=rainbow にじ
+🌊=water-wave なみ うみ つなみ
+🌋=volcano かざん
+🗻=mount-fuji ふじさん
+⛰️=mountain やま
+🏝️=desert-island しま
+🔥=fire ひ ほのお
+💧=droplet みず しずく
+🌪️=tornado たつまき
+🌀=cyclone たいふう
+🌍=globe-showing-europe-africa ちきゅう
+🪐=ringed-planet どせい わくせい うちゅう
+☄️=comet すいせい
+☂️=umbrella かさ
+🌅=sunrise あさひ ひので あさ
+🌃=night-with-stars よる よぞら
+🚗=automobile くるま じどうしゃ みにかー
+🚕=taxi たくしー
+🚌=bus ばす
+🚓=police-car ぱとかー
+🚑=ambulance きゅうきゅうしゃ
+🚒=fire-engine しょうぼうしゃ しょうぼうしょ
+🚚=delivery-truck とらっく
+🚜=tractor とらくたー
+🏎️=racing-car れーしんぐかー すぽーつかー
+🏍️=motorcycle ばいく おーとばい
+🚲=bicycle じてんしゃ
+🛴=kick-scooter きっくぼーど
+🦽=manual-wheelchair くるまいす
+🚃=railway-car でんしゃ
+🚄=high-speed-train しんかんせん
+🚂=locomotive きしゃ じょうききかんしゃ きかんしゃ
+🚇=metro ちかてつ
+🚝=monorail ものれーる
+🚁=helicopter へりこぷたー
+✈️=airplane ひこうき じぇっとき
+🚀=rocket ろけっと
+🛸=flying-saucer ゆーふぉー
+⛵=sailboat よっと
+🚢=ship ふね
+⛴️=ferry ふぇりー
+🚤=speedboat ぼーと
+🛶=canoe かぬー
+🚏=bus-stop ばすてい
+🚦=vertical-traffic-light しんごう
+🚧=construction こうじ
+⚓=anchor いかり みなと
+🏠=house いえ おうち へや
+🏫=school がっこう しょうがっこう ようちえん ほいくえん きょうしつ
+🏥=hospital びょういん
+🏰=castle おしろ
+🗼=tokyo-tower とうきょうたわー たわー
+⛩️=shinto-shrine じんじゃ とりい
+🏪=convenience-store こんびに
+🏢=office-building びる まんしょん あぱーと
+🏭=factory こうじょう
+⛺=tent てんと きゃんぷ
+🎡=ferris-wheel かんらんしゃ ゆうえんち
+🎢=roller-coaster じぇっとこーすたー
+🎠=carousel-horse めりーごーらんど
+⛲=fountain ふんすい
+🛝=playground-slide すべりだい
+🏖️=beach-with-umbrella すなはま
+🏟️=stadium すたじあむ
+🏦=bank ぎんこう
+🏨=hotel ほてる
+⛪=church きょうかい
+🗾=map-of-japan にほん
+✏️=pencil えんぴつ いろえんぴつ
+🖍️=crayon くれよん
+🖊️=pen ぺん まじっく
+📏=straight-ruler じょうぎ ものさし
+📐=triangular-ruler さんかくじょうぎ
+✂️=scissors はさみ
+📎=paperclip くりっぷ
+📕=closed-book ほん えほん
+📓=notebook のーと
+🎒=backpack らんどせる りゅっく えんそく
+🖌️=paintbrush ふで
+🎨=artist-palette えのぐ ずこう おえかき
+🧸=teddy-bear ぬいぐるみ てでぃべあ おもちゃ
+🪀=yo-yo よーよー
+🪁=kite たこあげ
+⚽=soccer-ball さっかー さっかーぼーる ぼーる
+⚾=baseball やきゅう
+🏀=basketball ばすけっとぼーる ばすけ
+🏐=volleyball ばれーぼーる
+🎾=tennis てにす
+🏓=ping-pong たっきゅう
+🏸=badminton ばどみんとん
+🎳=bowling ぼうりんぐ
+⛳=flag-in-hole ごるふ
+🎣=fishing-pole つり
+🛹=skateboard すけぼー すけーとぼーど
+⛸️=ice-skate すけーと
+🎿=skis すきー
+🛷=sled そり
+🎯=bullseye まと だーつ
+🎮=video-game げーむ
+🎲=game-die さいころ すごろく
+🧩=puzzle-piece ぱずる
+🃏=joker とらんぷ かるた
+🎈=balloon ふうせん
+🎁=wrapped-gift ぷれぜんと
+🎀=ribbon りぼん
+🎉=party-popper くらっかー おめでとう
+🎊=confetti-ball くすだま
+🎃=jack-o-lantern かぼちゃ はろうぃん
+🎅=santa-claus さんたくろーす さんた
+🎆=fireworks はなび
+🎐=wind-chime ふうりん
+🎏=carp-streamer こいのぼり こどものひ
+🎎=japanese-dolls ひなにんぎょう ひなまつり おひなさま
+🎑=moon-viewing-ceremony おつきみ
+🎪=circus-tent さーかす
+🏆=trophy とろふぃー ゆうしょう
+🥇=1st-place-medal めだる きんめだる
+🚩=triangular-flag はた
+🎌=crossed-flags にほんのはた
+🎵=musical-note おんぷ うた
+🎹=musical-keyboard ぴあの おるがん
+🎸=guitar ぎたー
+🥁=drum たいこ
+🎺=trumpet とらんぺっと らっぱ
+🎻=violin ばいおりん
+🔔=bell すず かね べる
+🎤=microphone まいく うたう
+📷=camera かめら
+📺=television てれび
+📱=mobile-phone すまほ けいたい たぶれっと
+☎️=telephone でんわ
+💻=laptop ぱそこん
+⌚=watch うでどけい
+⏰=alarm-clock とけい めざましどけい
+⏳=hourglass-not-done すなどけい
+💡=light-bulb でんきゅう でんき
+🔦=flashlight かいちゅうでんとう
+🕯️=candle ろうそく
+🔑=key かぎ
+🚪=door どあ とびら
+🪑=chair いす
+🛏️=bed べっど ふとん
+🛁=bathtub おふろ
+🚿=shower しゃわー
+🚽=toilet といれ
+🪥=toothbrush はぶらし はみがき
+🧼=soap せっけん
+🧻=roll-of-paper といれっとぺーぱー てぃっしゅ
+🧹=broom ほうき そうじ
+🧺=basket かご せんたく
+🪣=bucket ばけつ
+🧽=sponge すぽんじ
+🪞=mirror かがみ
+🫧=bubbles しゃぼんだま あわ
+👓=glasses めがね
+🕶️=sunglasses さんぐらす
+👕=t-shirt てぃーしゃつ しゃつ ふく ようふく
+👖=jeans ずぼん じーんず
+👗=dress わんぴーす どれす
+👘=kimono きもの ゆかた
+👟=running-shoe くつ すにーかー
+👢=womans-boot ながぐつ ぶーつ
+🧦=socks くつした
+🧤=gloves てぶくろ
+🧣=scarf まふらー
+🧢=billed-cap ぼうし きゃっぷ
+👑=crown おうかん
+💍=ring ゆびわ
+👜=handbag かばん ばっぐ
+👛=purse さいふ
+📮=postbox ぽすと
+✉️=envelope てがみ
+📦=package はこ だんぼーる
+🗑️=wastebasket ごみばこ
+🧲=magnet じしゃく
+🔨=hammer かなづち とんかち
+🪚=carpentry-saw のこぎり
+⚙️=gear はぐるま きかい
+🪜=ladder はしご
+🔭=telescope ぼうえんきょう
+🔬=microscope けんびきょう
+💊=pill くすり
+🩹=adhesive-bandage ばんそうこう けが
+💉=syringe ちゅうしゃ
+🏮=red-paper-lantern ちょうちん おまつり なつまつり
+💰=money-bag おかね
+💎=gem-stone ほうせき だいや
+🪨=rock いし いわ
+🧱=brick れんが つみき ぶろっく
+🪄=magic-wand まほうのつえ
+🔮=crystal-ball すいしょう
+👀=eyes め
+👂=ear みみ
+👄=mouth くち
+🦷=tooth は
+✋=raised-hand て ぱー
+🦶=foot あし
+💪=flexed-biceps うで ちからこぶ
+🦴=bone ほね
+❤️=red-heart はーと すき だいすき こころ あい
+👶=baby あかちゃん
+👦=boy おとこのこ おにいちゃん おにいさん おとうと
+👧=girl おんなのこ おねえちゃん おねえさん いもうと
+👨=man おとうさん ぱぱ おじさん
+👩=woman おかあさん まま おばさん
+👴=old-man おじいちゃん おじいさん
+👵=old-woman おばあちゃん おばあさん
+🧑‍🏫=teacher せんせい
+👮=police-officer おまわりさん けいさつかん けいさつ
+🧑‍🚒=firefighter しょうぼうし
+👸=princess おひめさま
+🤴=prince おうじさま おうさま
+🦸=superhero ひーろー
+🧙=mage まほうつかい
+🧚=fairy ようせい
+🧜‍♀️=mermaid にんぎょ
+👻=ghost おばけ おばけやしき
+👽=alien うちゅうじん
+🤖=robot ろぼっと
+💩=pile-of-poo うんこ うんち
+😀=grinning-face えがお にこにこ かお
+😢=crying-face なみだ えーん かなしい しくしく
+😴=sleeping-face すやすや ねる
+🫘=beans なっとう まめ えだまめ だいず まめまき
+🧈=butter ばたー
+🫓=flatbread なん
+🍲=pot-of-food なべ おなべ しちゅー すきやき しゃぶしゃぶ
+🥣=bowl-with-spoon すーぷ みそしる しりある
+🫚=ginger-root しょうが
+🫛=pea-pod えんどうまめ ぐりーんぴーす そらまめ いんげん
+🥧=pie ぱい あっぷるぱい
+🧋=bubble-tea たぴおか
+🥤=cup-with-straw のみもの のむ こーら そーだ
+🐆=leopard ひょう ちーたー
+🦣=mammoth まんもす
+🦝=raccoon あらいぐま たぬき
+🦂=scorpion さそり
+🕸️=spider-web くものす
+🪰=fly はえ
+🪳=cockroach ごきぶり
+🦠=microbe ばいきん
+🪸=coral さんご
+🐦‍⬛=black-bird からす
+🪿=goose がちょう
+🪽=wing はね つばさ
+🦧=orangutan おらんうーたん
+🐩=poodle ぷーどる
+🐈‍⬛=black-cat くろねこ
+🏔️=snow-capped-mountain ゆきやま
+🏞️=national-park こうえん かわ
+🌌=milky-way ぎんが あまのがわ
+🌠=shooting-star ながれぼし
+🌕=full-moon まんげつ
+🌬️=wind-face かぜ
+🌫️=fog きり
+🌡️=thermometer おんどけい たいおんけい
+🪵=wood まるた
+🪷=lotus はす
+🪻=hyacinth らべんだー
+👅=tongue べろ
+👍=thumbs-up いいね
+✌️=victory-hand ぴーす ちょき
+✊=raised-fist ぐー じゃんけん
+👏=clapping-hands はくしゅ
+🙏=folded-hands おねがい ありがとう いただきます ごちそうさま
+👋=waving-hand ばいばい さようなら こんにちは やっほー
+🤝=handshake あくしゅ なかよし
+👪=family かぞく
+🧒=child こども
+🙋=person-raising-hand ぼく わたし
+🧑‍🤝‍🧑=people-holding-hands ともだち
+🧑‍⚕️=health-worker おいしゃさん いしゃ かんごしさん
+🧑‍🍳=cook こっくさん りょうりにん
+🧑‍🚀=astronaut うちゅうひこうし
+🧑‍✈️=pilot ぱいろっと
+🧑‍🎨=artist がか
+👷=construction-worker だいくさん
+🕵️=detective たんてい
+🥷=ninja にんじゃ
+🧛=vampire きゅうけつき
+🧟=zombie ぞんび
+🤡=clown-face ぴえろ
+👹=ogre おに せつぶん
+👺=goblin てんぐ
+😈=smiling-face-with-horns あくま
+👼=baby-angel てんし
+💀=skull がいこつ
+😂=face-with-tears-of-joy わらう おもしろい げらげら
+😊=smiling-face-with-smiling-eyes にっこり うれしい
+😭=loudly-crying-face なく
+😡=enraged-face おこる おこった ぷんぷん
+😲=astonished-face びっくり
+😱=face-screaming-in-fear こわい
+🥱=yawning-face ねむい
+🤒=face-with-thermometer ねつ
+🤧=sneezing-face くしゃみ
+😋=face-savoring-food おいしい
+🤔=thinking-face かんがえる
+😎=smiling-face-with-sunglasses かっこいい
+🥳=partying-face ぱーてぃー
+😷=face-with-medical-mask ますく
+🥵=hot-face あつい
+🥶=cold-face さむい
+🏃=person-running はしる かけっこ おにごっこ うんどうかい まらそん
+🚶=person-walking あるく さんぽ
+🏊=person-swimming およぐ ぷーる すいみんぐ
+🤸=person-cartwheeling たいそう たいいく あそぶ
+📖=open-book よむ どくしょ
+✍️=writing-hand かく
+💃=woman-dancing おどる だんす
+🛒=shopping-cart かいもの すーぱー
+🙌=raising-hands ばんざい やったー
+🙈=see-no-evil-monkey かくれんぼ
+🔧=wrench すぱな
+🪛=screwdriver どらいばー
+🔩=nut-and-bolt ねじ
+⛓️=chains くさり
+🧰=toolbox どうぐばこ
+🧷=safety-pin あんぜんぴん
+🧵=thread いと
+🪡=sewing-needle はり
+🧶=yarn けいと
+🪢=knot ろーぷ ひも なわとび
+🎟️=admission-tickets ちけっと きっぷ
+🖼️=framed-picture え
+💿=optical-disk しーでぃー
+🎧=headphone へっどほん
+📻=radio らじお
+📢=loudspeaker めがほん
+🔋=battery でんち
+🔌=electric-plug こんせんと
+🖨️=printer ぷりんたー
+⌨️=keyboard きーぼーど
+🖱️=computer-mouse まうす
+📆=tear-off-calendar かれんだー
+📌=pushpin がびょう
+📁=file-folder ふぁいる
+📰=newspaper しんぶん
+📝=memo めも しゅくだい
+🧮=abacus そろばん さんすう
+🔍=magnifying-glass-tilted-left むしめがね
+🧪=test-tube じっけん
+🧯=fire-extinguisher しょうかき
+🪙=coin こいん
+💴=yen-banknote おさつ
+💳=credit-card かーど
+🧾=receipt れしーと
+🪭=folding-hand-fan せんす
+🪮=hair-pick くし
+🚰=potable-water すいどう
+🪟=window まど
+🛋️=couch-and-lamp そふぁ
+🛗=elevator えれべーたー
+🧳=luggage すーつけーす
+🗺️=world-map ちず
+🪃=boomerang ぶーめらん
+🏹=bow-and-arrow ゆみや
+🛡️=shield たて
+🪆=nesting-dolls にんぎょう
+🩳=shorts はんずぼん
+🩱=one-piece-swimsuit みずぎ
+👔=necktie ねくたい
+🥼=lab-coat はくい
+🧥=coat こーと うわぎ じゃんぱー
+🩴=thong-sandal びーさん さんだる
+👒=womans-hat むぎわらぼうし
+⛑️=rescue-workers-helmet へるめっと
+💄=lipstick くちべに
+🩲=briefs ぱんつ
+🥽=goggles ごーぐる
+🚉=station えき
+🚠=mountain-cableway ろーぷうぇい
+🪂=parachute ぱらしゅーと
+🛰️=satellite じんこうえいせい
+🏁=chequered-flag ごーる
+🛤️=railway-track せんろ
+⛽=fuel-pump がそりんすたんど
+🚨=police-car-light さいれん
+🛞=wheel たいや
+🛟=ring-buoy うきわ
+🛼=roller-skate ろーらーすけーと
+🛵=motor-scooter すくーたー
+🏣=japanese-post-office ゆうびんきょく
+🏬=department-store でぱーと
+🏜️=desert さばく
+🏙️=cityscape まち とかい
+🥋=martial-arts-uniform じゅうどう からて
+🥊=boxing-glove ぼくしんぐ
+🏉=rugby-football らぐびー
+🥏=flying-disc ふりすびー
+🏄=person-surfing さーふぃん
+🧗=person-climbing ぼるだりんぐ
+🤼=people-wrestling すもう おすもうさん
+🎷=saxophone さっくす
+🪈=flute ふえ りこーだー
+🪇=maracas まらかす
+🎼=musical-score がくふ
+🎶=musical-notes おんがく
+🎇=sparkler せんこうはなび
+🌇=sunset ゆうがた ゆうやけ
+✨=sparkles きらきら
+💦=sweat-droplets あせ
+❓=red-question-mark はてな なぞ
+⭕=hollow-red-circle まる
+❌=cross-mark ばつ ぺけ
+🔺=red-triangle-pointed-up さんかく
+🟦=blue-square あお あおいろ しかく
+🟥=red-square あか あかいろ
+🟨=yellow-square きいろ
+🟩=green-square みどり みどりいろ
+🟪=purple-square むらさき
+🟧=orange-square おれんじいろ だいだい
+🟫=brown-square ちゃいろ
+⬛=black-large-square くろ
+⬜=white-large-square しろ
+🩷=pink-heart ぴんく
+🛣️=motorway どうろ
+☝️=index-pointing-up ゆび
+💅=nail-polish つめ
+🚛=articulated-lorry ごみしゃ ごみしゅうしゅうしゃ
+🏗️=building-construction くれーん くれーんしゃ
+📚=books としょかん ほんや ずかん まんが ほんだな
+🫏=donkey ろば
+🦬=bison ばいそん
+🦨=skunk すかんく
+🦡=badger あなぐま
+🪺=nest-with-eggs とりのす
+🚐=minibus きゃんぴんぐかー
+🏛️=classical-building はくぶつかん びじゅつかん
+🎬=clapper-board えいがかん えいが
+🛫=airplane-departure くうこう
+♨️=hot-springs おんせん
+🫀=anatomical-heart しんぞう
+🩸=drop-of-blood ち
+🧑=person おとな
+🧑‍🎤=singer かしゅ
+🧙‍♀️=woman-mage まじょ
+🏴‍☠️=pirate-flag かいぞく
+🧴=lotion-bottle しゃんぷー
+🔪=kitchen-knife ほうちょう
+♟️=chess-pawn ちぇす
+🔫=water-pistol みずでっぽう
+🩰=ballet-shoes ばれえ ばれー
+🏂=snowboarder すのーぼーど
+🤿=diving-mask だいびんぐ
+🗿=moai もあい
+🧧=red-envelope おとしだま
+🎓=graduation-cap そつぎょうしき
+😖=confounded-face きらい
+😆=grinning-squinting-face たのしい
+🤩=star-struck わくわく すごい
+💓=beating-heart どきどき
+😳=flushed-face はずかしい
+🤕=face-with-head-bandage いたい
+😩=weary-face つかれた
+😄=grinning-face-with-smiling-eyes げんき
+👌=ok-hand だいじょうぶ
+🌞=sun-with-face おはよう
+🛌=person-in-bed おやすみ
+🙇=person-bowing ごめんね ごめんなさい
+🙅=person-gesturing-no いいえ だめ
+🩵=light-blue-heart みずいろ
+🔷=large-blue-diamond ひしがた
+
+# どうし・きもち
+🚶=person-walking いく いきます いきました いきません いかない いった いって いってる いっている いきたい いきましょう あるきます あるきました あるきません あるかない あるいた あるいて あるいてる あるいている あるきたい あるきましょう さんぽする さんぽします さんぽしました さんぽしない さんぽした さんぽして さんぽしてる さんぽしている さんぽしたい さんぽしよう さんぽしません さんぽしましょう でかける でかけます でかけました でかけません でかけない でかけた でかけて でかけてる でかけている でかけたい でかけましょう でかけよう いってきます いってらっしゃい ただいま おかえり
+🏃=person-running にげる にげます にげました にげません にげない にげた にげて にげてる にげている にげたい にげましょう にげよう おいかける おいかけます おいかけました おいかけません おいかけない おいかけた おいかけて おいかけてる おいかけている おいかけたい おいかけましょう おいかけよう かける かけます かけました かけません かけない かけた かけて かけてる かけている かけたい かけましょう かけよう
+🤸=person-cartwheeling とびはねる とびはねます とびはねました とびはねません とびはねない とびはねた とびはねて とびはねてる とびはねている とびはねたい とびはねましょう とびはねよう じゃんぷ じゃんぷする じゃんぷします じゃんぷしました じゃんぷしない じゃんぷした じゃんぷして じゃんぷしてる じゃんぷしている じゃんぷしたい じゃんぷしよう じゃんぷしません じゃんぷしましょう はねる はねます はねました はねません はねない はねた はねて はねてる はねている はねたい はねましょう はねよう ぴょんぴょん ぴょーん
+🕊️=dove とぶ とびます とびました とびません とばない とんだ とんで とんでる とんでいる とびたい とびましょう ひらひら ばたばた
+🚴=person-biking こぐ こぎます こぎました こぎません こがない こいだ こいで こいでる こいでいる こぎたい こぎましょう じてんしゃにのる じてんしゃにのります じてんしゃにのりました じてんしゃにのりません じてんしゃにのらない じてんしゃにのった じてんしゃにのって じてんしゃにのってる じてんしゃにのっている じてんしゃにのりたい じてんしゃにのりましょう
+🧗=person-climbing のぼる のぼります のぼりました のぼりません のぼらない のぼった のぼって のぼってる のぼっている のぼりたい のぼりましょう よじのぼる よじのぼります よじのぼりました よじのぼりません よじのぼらない よじのぼった よじのぼって よじのぼってる よじのぼっている よじのぼりたい よじのぼりましょう くらいみんぐ
+🏂=snowboarder すべる すべります すべりました すべりません すべらない すべった すべって すべってる すべっている すべりたい すべりましょう すべりおりる すべりおります すべりおりました すべりおりません すべりおりない すべりおりた すべりおりて すべりおりてる すべりおりている すべりおりたい すべりおりましょう すべりおりよう
+🪑=chair すわる すわります すわりました すわりません すわらない すわった すわって すわってる すわっている すわりたい すわりましょう こしかける こしかけます こしかけました こしかけません こしかけない こしかけた こしかけて こしかけてる こしかけている こしかけたい こしかけましょう こしかけよう
+🧍=person-standing たつ たちます たちました たちません たたない たった たって たってる たっている たちたい たちましょう たちあがる たちあがります たちあがりました たちあがりません たちあがらない たちあがった たちあがって たちあがってる たちあがっている たちあがりたい たちあがりましょう じっと
+🙋=person-raising-hand てをあげる てをあげます てをあげました てをあげません てをあげない てをあげた てをあげて てをあげてる てをあげている てをあげたい てをあげましょう てをあげよう はーい はい はいはい
+👋=waving-hand てをふる てをふります てをふりました てをふりません てをふらない てをふった てをふって てをふってる てをふっている てをふりたい てをふりましょう おーい やあ よう
+👏=clapping-hands たたく たたきます たたきました たたきません たたかない たたいた たたいて たたいてる たたいている たたきたい たたきましょう はくしゅする はくしゅします はくしゅしました はくしゅしない はくしゅした はくしゅして はくしゅしてる はくしゅしている はくしゅしたい はくしゅしよう はくしゅしません はくしゅしましょう ぱちぱち ぱちぱちぱち すごーい
+🙏=folded-hands いのる いのります いのりました いのりません いのらない いのった いのって いのってる いのっている いのりたい いのりましょう おねがいする おねがいします おねがいしました おねがいしない おねがいした おねがいして おねがいしてる おねがいしている おねがいしたい おねがいしよう おねがいしません おねがいしましょう たのむ
+🙇=person-bowing あやまる あやまります あやまりました あやまりません あやまらない あやまった あやまって あやまってる あやまっている あやまりたい あやまりましょう おじぎ おじぎする おじぎします おじぎしました おじぎしない おじぎした おじぎして おじぎしてる おじぎしている おじぎしたい おじぎしよう おじぎしません おじぎしましょう あやまり ごめん すみません しつれいします
+🤝=handshake あう あいます あいました あいません あわない あった あって あってる あっている あいたい あいましょう あくしゅする あくしゅします あくしゅしました あくしゅしない あくしゅした あくしゅして あくしゅしてる あくしゅしている あくしゅしたい あくしゅしよう あくしゅしません あくしゅしましょう なかなおり なかなおりする なかなおりします なかなおりしました なかなおりしない なかなおりした なかなおりして なかなおりしてる なかなおりしている なかなおりしたい なかなおりしよう なかなおりしません なかなおりしましょう なかよくする またあおう よろしく よろしくね よろしくおねがいします
+🤗=smiling-face-with-open-hands だきしめる だきしめます だきしめました だきしめません だきしめない だきしめた だきしめて だきしめてる だきしめている だきしめたい だきしめましょう だきしめよう だっこ だっこする だっこします だっこしました だっこしない だっこした だっこして だっこしてる だっこしている だっこしたい だっこしよう だっこしません だっこしましょう はぐ はぐする はぐします はぐしました はぐしない はぐした はぐして はぐしてる はぐしている はぐしたい はぐしよう はぐしません はぐしましょう ぎゅー ぎゅっ ぎゅーっ ぎゅうぎゅう
+😘=face-blowing-a-kiss きす きすする きすします きすしました きすしない きすした きすして きすしてる きすしている きすしたい きすしよう きすしません きすしましょう ちゅー ちゅっ ちゅっちゅ ちゅーする
+🤔=thinking-face かんがえます かんがえました かんがえません かんがえない かんがえた かんがえて かんがえてる かんがえている かんがえたい かんがえましょう かんがえよう なやむ なやみます なやみました なやみません なやまない なやんだ なやんで なやんでる なやんでいる なやみたい なやみましょう まよう まよいます まよいました まよいません まよわない まよった まよって まよってる まよっている まよいたい まよいましょう うーん ふむ
+💡=light-bulb ひらめく ひらめきます ひらめきました ひらめきません ひらめかない ひらめいた ひらめいて ひらめいてる ひらめいている ひらめきたい ひらめきましょう おもいつく おもいつきます おもいつきました おもいつきません おもいつかない おもいついた おもいついて おもいついてる おもいついている おもいつきたい おもいつきましょう つける つけます つけました つけません つけない つけた つけて つけてる つけている つけたい つけましょう つけよう ぴこーん ひらめき あいであ わかった
+💭=thought-balloon おもう おもいます おもいました おもいません おもわない おもった おもって おもってる おもっている おもいたい おもいましょう おもいだす おもいだします おもいだしました おもいだしません おもいださない おもいだした おもいだして おもいだしてる おもいだしている おもいだしたい おもいだしましょう そうぞうする そうぞう おもいで ゆめみる
+👀=eyes みる みます みました みません みない みた みて みてる みている みたい みましょう みよう みつめる みつめます みつめました みつめません みつめない みつめた みつめて みつめてる みつめている みつめたい みつめましょう みつめよう のぞく のぞきます のぞきました のぞきません のぞかない のぞいた のぞいて のぞいてる のぞいている のぞきたい のぞきましょう みえる みえます みえました みえません みえない みえた みえて みえてる みえている みえたい みえましょう みえよう じー じーっ きょろきょろ めをひらく
+👃=nose かぐ かぎます かぎました かぎません かがない かいだ かいで かいでる かいでいる かぎたい かぎましょう くんくん においをかぐ
+👅=tongue なめる なめます なめました なめません なめない なめた なめて なめてる なめている なめたい なめましょう なめよう ぺろぺろ ぺろり べー あっかんべー
+🗣️=speaking-head はなす はなします はなしました はなしません はなさない はなした はなして はなしてる はなしている はなしたい はなしましょう しゃべります しゃべりました しゃべりません しゃべらない しゃべった しゃべって しゃべってる しゃべっている しゃべりたい しゃべりましょう いう いいます いいました いいません いわない いいたい いいましょう おしゃべり ぺらぺら ぺちゃくちゃ
+📢=loudspeaker さけぶ さけびます さけびました さけびません さけばない さけんだ さけんで さけんでる さけんでいる さけびたい さけびましょう よぶ どなる どなります どなりました どなりません どならない どなった どなって どなってる どなっている どなりたい どなりましょう おおごえ えんど
+🤫=shushing-face だまる だまります だまりました だまりません だまらない だまった だまって だまってる だまっている だまりたい だまりましょう しずかにする しー しーっ しずか しーん
+🥄=spoon すくう すくいます すくいました すくいません すくわない すくった すくって すくってる すくっている すくいたい すくいましょう ひとくち ぱくっ
+🍳=cooking やく やきます やきました やきません やかない やいた やいて やいてる やいている やきたい やきましょう いためる いためます いためました いためません いためない いためた いためて いためてる いためている いためたい いためましょう いためよう りょうりする りょうりします りょうりしました りょうりしない りょうりした りょうりして りょうりしてる りょうりしている りょうりしたい りょうりしよう りょうりしません りょうりしましょう つくる つくります つくりました つくりません つくらない つくった つくって つくってる つくっている つくりたい つくりましょう じゅー じゅーじゅー
+🥣=bowl-with-spoon まぜる まぜます まぜました まぜません まぜない まぜた まぜて まぜてる まぜている まぜたい まぜましょう まぜよう かきまぜる かきまぜます かきまぜました かきまぜません かきまぜない かきまぜた かきまぜて かきまぜてる かきまぜている かきまぜたい かきまぜましょう かきまぜよう ぐるぐる ぐるぐるまぜる
+🍲=pot-of-food にる にります にりました にりません にらない にった にって にってる にっている にりたい にりましょう ゆでる ゆでます ゆでました ゆでません ゆでない ゆでた ゆでて ゆでてる ゆでている ゆでたい ゆでましょう ゆでよう あたためる あたためます あたためました あたためません あたためない あたためた あたためて あたためてる あたためている あたためたい あたためましょう あたためよう ぐつぐつ ことこと
+🧼=soap あらう あらいます あらいました あらいません あらわない あらった あらって あらってる あらっている あらいたい あらいましょう ごしごし てあらい うがい あわあわ
+🧹=broom はく はきます はきました はきません はかない はいた はいて はいてる はいている はきたい はきましょう そうじする そうじします そうじしました そうじしない そうじした そうじして そうじしてる そうじしている そうじしたい そうじしよう そうじしません そうじしましょう ささっ
+🧺=basket ほす ほします ほしました ほしません ほさない ほした ほして ほしてる ほしている ほしたい ほしましょう たたむ たたみます たたみました たたみません たたまない たたんだ たたんで たたんでる たたんでいる たたみたい たたみましょう せんたくする せんたくします せんたくしました せんたくしない せんたくした せんたくして せんたくしてる せんたくしている せんたくしたい せんたくしよう せんたくしません せんたくしましょう せんたくもの ぱたぱた
+🪥=toothbrush みがく みがきます みがきました みがきません みがかない みがいた みがいて みがいてる みがいている みがきたい みがきましょう しゃかしゃか しゅわしゅわ
+🚿=shower あびる あびます あびました あびません あびない あびた あびて あびてる あびている あびたい あびましょう あびよう しゃわーする しゃわーします しゃわーしました しゃわーしない しゃわーした しゃわーして しゃわーしてる しゃわーしている しゃわーしたい しゃわーしよう しゃわーしません しゃわーしましょう じゃー ざーざー
+🛒=shopping-cart かう かいます かいました かいません かわない かった かって かってる かっている かいたい かいましょう かいものする かいものします かいものしました かいものしない かいものした かいものして かいものしてる かいものしている かいものしたい かいものしよう かいものしません かいものしましょう えらぶ えらびます えらびました えらびません えらばない えらんだ えらんで えらんでる えらんでいる えらびたい えらびましょう おかいもの かいものにいく
+💰=money-bag はらう はらいます はらいました はらいません はらわない はらった はらって はらってる はらっている はらいたい はらいましょう ためる ためます ためました ためません ためない ためた ためて ためてる ためている ためたい ためましょう ためよう ちゃりーん ちゃりん おこづかい おつり
+📮=postbox だす だします だしました だしません ださない だした だして だしてる だしている だしたい だしましょう おくる おくります おくりました おくりません おくらない おくった おくって おくってる おくっている おくりたい おくりましょう てがみする てがみします てがみしました てがみしない てがみした てがみして てがみしてる てがみしている てがみしたい てがみしよう てがみしません てがみしましょう はがき ぽとん
+📱=mobile-phone でんわする でんわします でんわしました でんわしない でんわした でんわして でんわしてる でんわしている でんわしたい でんわしよう でんわしません でんわしましょう でんわをかける でんわをかけます でんわをかけました でんわをかけません でんわをかけない でんわをかけた でんわをかけて でんわをかけてる でんわをかけている でんわをかけたい でんわをかけましょう でんわをかけよう もしもし ぴぽぱ るるる
+📷=camera とる とります とりました とりません とらない とった とって とってる とっている とりたい とりましょう さつえい さつえいする さつえいします さつえいしました さつえいしない さつえいした さつえいして さつえいしてる さつえいしている さつえいしたい さつえいしよう さつえいしません さつえいしましょう しゃしん ぱしゃ ぱしゃっ
+🧳=luggage りょこう りょこうする りょこうします りょこうしました りょこうしない りょこうした りょこうして りょこうしてる りょこうしている りょこうしたい りょこうしよう りょこうしません りょこうしましょう たびする たび おでかけ きゅうか
+📦=package はこぶ はこびます はこびました はこびません はこばない はこんだ はこんで はこんでる はこんでいる はこびたい はこびましょう つめる つめます つめました つめません つめない つめた つめて つめてる つめている つめたい つめましょう つめよう つつむ つつみます つつみました つつみません つつまない つつんだ つつんで つつんでる つつんでいる つつみたい つつみましょう にもつ よいしょ えっさほいさ
+🗑️=wastebasket すてる すてます すてました すてません すてない すてた すてて すててる すてている すてたい すてましょう すてよう ぽい ぽいっ ぽいする
+🔧=wrench なおす なおします なおしました なおしません なおさない なおした なおして なおしてる なおしている なおしたい なおしましょう しゅうり しゅうりする しゅうりします しゅうりしました しゅうりしない しゅうりした しゅうりして しゅうりしてる しゅうりしている しゅうりしたい しゅうりしよう しゅうりしません しゅうりしましょう とんてんかん かちゃかちゃ
+🔨=hammer うつ うちます うちました うちません うたない うった うって うってる うっている うちたい うちましょう とんとん かんかん とんかん
+✂️=scissors きる きります きりました きりません きらない きった きって きってる きっている きりたい きりましょう きりとる きりとります きりとりました きりとりません きりとらない きりとった きりとって きりとってる きりとっている きりとりたい きりとりましょう ちょきちょき ちょきん ちょっきん
+🔪=kitchen-knife きざむ きざみます きざみました きざみません きざまない きざんだ きざんで きざんでる きざんでいる きざみたい きざみましょう とんとんとん ざくざく
+🖍️=crayon ぬる ぬります ぬりました ぬりません ぬらない ぬった ぬって ぬってる ぬっている ぬりたい ぬりましょう いろをぬる いろをぬります いろをぬりました いろをぬりません いろをぬらない いろをぬった いろをぬって いろをぬってる いろをぬっている いろをぬりたい いろをぬりましょう ぬりえ ぐりぐり ぐるぐるぬる
+🎨=artist-palette えをかく えをかきます えをかきました えをかきません えをかかない えをかいた えをかいて えをかいてる えをかいている えをかきたい えをかきましょう おえかきする らくがき らくがきする
+📏=straight-ruler はかる はかります はかりました はかりません はからない はかった はかって はかってる はかっている はかりたい はかりましょう くらべる くらべます くらべました くらべません くらべない くらべた くらべて くらべてる くらべている くらべたい くらべましょう くらべよう ぴったり ものさしではかる
+🔍=magnifying-glass-tilted-left さがす さがします さがしました さがしません さがさない さがした さがして さがしてる さがしている さがしたい さがしましょう みつける みつけます みつけました みつけません みつけない みつけた みつけて みつけてる みつけている みつけたい みつけましょう みつけよう しらべる しらべます しらべました しらべません しらべない しらべた しらべて しらべてる しらべている しらべたい しらべましょう しらべよう みーつけた どこかな
+🔬=microscope かんさつ かんさつする かんさつします かんさつしました かんさつしない かんさつした かんさつして かんさつしてる かんさつしている かんさつしたい かんさつしよう かんさつしません かんさつしましょう じっけんする じっけんします じっけんしました じっけんしない じっけんした じっけんして じっけんしてる じっけんしている じっけんしたい じっけんしよう じっけんしません じっけんしましょう けんびきょうでみる
+📚=books べんきょう べんきょうする べんきょうします べんきょうしました べんきょうしない べんきょうした べんきょうして べんきょうしてる べんきょうしている べんきょうしたい べんきょうしよう べんきょうしません べんきょうしましょう まなぶ まなびます まなびました まなびません まなばない まなんだ まなんで まなんでる まなんでいる まなびたい まなびましょう おぼえる おぼえます おぼえました おぼえません おぼえない おぼえた おぼえて おぼえてる おぼえている おぼえたい おぼえましょう おぼえよう ならう ならいます ならいました ならいません ならわない ならった ならって ならってる ならっている ならいたい ならいましょう おべんきょう じゅぎょう じゅぎょうをうける
+⚽=soccer-ball ける けます けました けません けない けた けて けてる けている けたい けましょう けよう しゅーと しゅーとする しゅーとします しゅーとしました しゅーとしない しゅーとした しゅーとして しゅーとしてる しゅーとしている しゅーとしたい しゅーとしよう しゅーとしません しゅーとしましょう ぱす ぱすする ぱすします ぱすしました ぱすしない ぱすした ぱすして ぱすしてる ぱすしている ぱすしたい ぱすしよう ぱすしません ぱすしましょう ごーるきーぱー
+⚾=baseball なげる なげます なげました なげません なげない なげた なげて なげてる なげている なげたい なげましょう なげよう ばっと ほーむらん
+🏀=basketball いれる いれます いれました いれません いれない いれた いれて いれてる いれている いれたい いれましょう いれよう どりぶる どりぶるする どりぶるします どりぶるしました どりぶるしない どりぶるした どりぶるして どりぶるしてる どりぶるしている どりぶるしたい どりぶるしよう どりぶるしません どりぶるしましょう
+🎯=bullseye あてる あてます あてました あてません あてない あてた あてて あててる あてている あてたい あてましょう あてよう ねらう ねらいます ねらいました ねらいません ねらわない ねらった ねらって ねらってる ねらっている ねらいたい ねらいましょう どんぴしゃ ずばり
+🎣=fishing-pole つります つりました つりません つらない つった つって つってる つっている つりたい つりましょう つりする つりします つりしました つりしない つりした つりして つりしてる つりしている つりしたい つりしよう つりしません つりしましょう つれた つりざお ぴくぴく
+🪁=kite あげる あげます あげました あげません あげない あげた あげて あげてる あげている あげたい あげましょう あげよう たこあげする たこあげします たこあげしました たこあげしない たこあげした たこあげして たこあげしてる たこあげしている たこあげしたい たこあげしよう たこあげしません たこあげしましょう ふーふー ひゅーひゅー
+🎈=balloon ふくらます ふくらまします ふくらましました ふくらましません ふくらまさない ふくらました ふくらまして ふくらましてる ふくらましている ふくらましたい ふくらましましょう ふくらむ ふくらみます ふくらみました ふくらみません ふくらまない ふくらんだ ふくらんで ふくらんでる ふくらんでいる ふくらみたい ふくらみましょう ふくらませる ふくらませます ふくらませました ふくらませません ふくらませない ふくらませた ふくらませて ふくらませてる ふくらませている ふくらませたい ふくらませましょう ふくらませよう ぷー ぷーっ ぱーん ふーせん
+🧩=puzzle-piece あわせる あわせます あわせました あわせません あわせない あわせた あわせて あわせてる あわせている あわせたい あわせましょう あわせよう はめる はめます はめました はめません はめない はめた はめて はめてる はめている はめたい はめましょう はめよう くみたてる くみたてます くみたてました くみたてません くみたてない くみたてた くみたてて くみたててる くみたてている くみたてたい くみたてましょう くみたてよう ぴったん かちっ
+🎮=video-game げーむする げーむします げーむしました げーむしない げーむした げーむして げーむしてる げーむしている げーむしたい げーむしよう げーむしません げーむしましょう あそびます あそびました あそびません あそばない あそんだ あそんで あそんでる あそんでいる あそびたい あそびましょう ぴこぴこ こんとろーらー ぽちぽち
+🏋️=person-lifting-weights もつ もちます もちました もちません もたない もった もって もってる もっている もちたい もちましょう もちあげる もちあげます もちあげました もちあげません もちあげない もちあげた もちあげて もちあげてる もちあげている もちあげたい もちあげましょう もちあげよう きんとれ きんとれする きんとれします きんとれしました きんとれしない きんとれした きんとれして きんとれしてる きんとれしている きんとれしたい きんとれしよう きんとれしません きんとれしましょう ふんっ ぱわー ちからもち
+🤼=people-wrestling おす おします おしました おしません おさない おした おして おしてる おしている おしたい おしましょう ひっぱる ひっぱります ひっぱりました ひっぱりません ひっぱらない ひっぱった ひっぱって ひっぱってる ひっぱっている ひっぱりたい ひっぱりましょう すもうする すもうします すもうしました すもうしない すもうした すもうして すもうしてる すもうしている すもうしたい すもうしよう すもうしません すもうしましょう とっくみあう とっくみあいます とっくみあいました とっくみあいません とっくみあわない とっくみあった とっくみあって とっくみあってる とっくみあっている とっくみあいたい とっくみあいましょう おしくらまんじゅう はっけよい のこった
+🧘=person-in-lotus-position ぼーっとする ゆったりする しんこきゅう しんこきゅうする しんこきゅうします しんこきゅうしました しんこきゅうしない しんこきゅうした しんこきゅうして しんこきゅうしてる しんこきゅうしている しんこきゅうしたい しんこきゅうしよう しんこきゅうしません しんこきゅうしましょう ふーっ すーはー ひとやすみ のんびり
+🏆=trophy かちます かちました かちません かたない かちたい かちましょう かち しょうり ゆうしょうする ゆうしょうします ゆうしょうしました ゆうしょうしない ゆうしょうした ゆうしょうして ゆうしょうしてる ゆうしょうしている ゆうしょうしたい ゆうしょうしよう ゆうしょうしません ゆうしょうしましょう いちばん だいしょうり かちぬけ かったー
+😤=face-with-steam-from-nose くやしがる くやしがります くやしがりました くやしがりません くやしがらない くやしがった くやしがって くやしがってる くやしがっている くやしがりたい くやしがりましょう がまんする くやしい くやしー ふんす むきー
+😞=disappointed-face まける まけます まけました まけません まけない まけた まけて まけてる まけている まけたい まけましょう まけよう がっかり がっかりする がっかりします がっかりしました がっかりしない がっかりした がっかりして がっかりしてる がっかりしている がっかりしたい がっかりしよう がっかりしません がっかりしましょう おちこむ おちこみます おちこみました おちこみません おちこまない おちこんだ おちこんで おちこんでる おちこんでいる おちこみたい おちこみましょう まけちゃった しょぼん しゅん とほほ
+💪=flexed-biceps がんばる がんばります がんばりました がんばりません がんばらない がんばった がんばって がんばってる がんばっている がんばりたい がんばりましょう きたえる きたえます きたえました きたえません きたえない きたえた きたえて きたえてる きたえている きたえたい きたえましょう きたえよう ちからをだす ちからをだします ちからをだしました ちからをだしません ちからをださない ちからをだした ちからをだして ちからをだしてる ちからをだしている ちからをだしたい ちからをだしましょう がんばれ がんばろう ふぁいと ふぁいとー ちから むきむき えいえいおー
+🛑=stop-sign とめる とめます とめました とめません とめない とめた とめて とめてる とめている とめたい とめましょう とめよう とまる とまります とまりました とまりません とまらない とまった とまって とまってる とまっている とまりたい とまりましょう やめる やめます やめました やめません やめない やめた やめて やめてる やめている やめたい やめましょう やめよう すとっぷ とまれ やめようね だめだめ
+🙅=person-gesturing-no いや いやだ いやいや いやだよ いやー やだ やだやだ やだよ いらない いらないよ いりません だめだよ ぜったいいや いやです ことわる
+🙆=person-gesturing-ok いいよ いいですよ だいじょうぶだよ おっけー おーけー おっけ わかりました りょうかい どうぞ もちろん ぜんぜんいいよ
+🤷=person-shrugging わからない わかんない しらない さあ どうしよう なんだろう ふしぎ
+🎉=party-popper おいわい おいわいする おいわいします おいわいしました おいわいしない おいわいした おいわいして おいわいしてる おいわいしている おいわいしたい おいわいしよう おいわいしません おいわいしましょう おめでとうございます ぱんぱかぱーん わーい わーいわーい やったね
+🙌=raising-hands ばんざーい いえーい いぇーい やった せーの はいたっち
+🥺=pleading-face おねがーい うるうる さみしい さびしい しんぱい しょんぼり ぐすん うえーん たすけて
+😳=flushed-face てれる てれます てれました てれません てれない てれた てれて てれてる てれている てれたい てれましょう てれよう はずかしー てれくさい もじもじ きゃー
+😎=smiling-face-with-sunglasses かっこよかった きまってる くーる さいこう かっけー
+🤩=star-struck わくわくする ぴかぴか きらきらする うきうき わくわくどきどき
+😌=relieved-face ほっとする あんしんする やすむ やすみます やすみました やすみません やすまない やすんだ やすんで やすんでる やすんでいる やすみたい やすみましょう ほっ ほっとした あんしん らくちん ふぅ
+😮=face-with-open-mouth おどろく おどろきます おどろきました おどろきません おどろかない おどろいた おどろいて おどろいてる おどろいている おどろきたい おどろきましょう びっくりする えー えええ うそ うそでしょ まじで ほんと ほんとに はっ
+😒=unamused-face つまらない つまんない たいくつ あきた あきちゃった ひま ひまだ ふーん べつに めんどくさい めんどう
+🤒=face-with-thermometer かぜひいた びょうき ぐあいがわるい おなかいたい あたまがいたい ふらふら だるい ずきずき げほげほ
+🤕=face-with-head-bandage けがする けがした いたたた ほうたい
+🤧=sneezing-face くしゃみする はくしょん はっくしょん はなみず はなづまり ずるずる
+😷=face-with-medical-mask かぜよぼう かんせん こほこほ ごほごほ せき
+🥱=yawning-face あくびする あくび ふぁー ふわぁ ふあ ねむたい ねむいよ ふぁーあ
+😴=sleeping-face すやすやねる ぐっすりねる ぐーぐー ぐっすり すーすー くかー ぐーすか
+⏰=alarm-clock おきる おきます おきました おきません おきない おきた おきて おきてる おきている おきたい おきましょう おきよう おこす おこします おこしました おこしません おこさない おこした おこして おこしてる おこしている おこしたい おこしましょう めざめる めざめます めざめました めざめません めざめない めざめた めざめて めざめてる めざめている めざめたい めざめましょう めざめよう おきなさい じこく ちこく ちこくする
+🌅=sunrise あさやけ よあけ
+🌱=seedling そだてる そだてます そだてました そだてません そだてない そだてた そだてて そだててる そだてている そだてたい そだてましょう そだてよう そだつ そだちます そだちました そだちません そだたない そだった そだって そだってる そだっている そだちたい そだちましょう はえる はえます はえました はえません はえない はえた はえて はえてる はえている はえたい はえましょう はえよう めがでる めがでます めがでました めがでません めがでない めがでた めがでて めがでてる めがでている めがでたい めがでましょう めがでよう まく まきます まきました まきません まかない まいた まいて まいてる まいている まきたい まきましょう うえる うえます うえました うえません うえない うえた うえて うえてる うえている うえたい うえましょう うえよう みずをやる みずをやります みずをやりました みずをやりません みずをやらない みずをやった みずをやって みずをやってる みずをやっている みずをやりたい みずをやりましょう たねまき たねをまく すくすく にょきにょき
+🫠=melting-face とける とけます とけました とけません とけない とけた とけて とけてる とけている とけたい とけましょう とけよう とかす とかします とかしました とかしません とかさない とかした とかして とかしてる とかしている とかしたい とかしましょう とろとろ どろどろ でれでれ ぐにゃぐにゃ とろーり
+🔥=fire もえる もえます もえました もえません もえない もえた もえて もえてる もえている もえたい もえましょう もえよう もやす もやします もやしました もやしません もやさない もやした もやして もやしてる もやしている もやしたい もやしましょう やける やけます やけました やけません やけない やけた やけて やけてる やけている やけたい やけましょう やけよう めらめら ぼーぼー もえろ ねっけつ かじ たきび
+❄️=snowflake こおる こおります こおりました こおりません こおらない こおった こおって こおってる こおっている こおりたい こおりましょう こごえる こごえます こごえました こごえません こごえない こごえた こごえて こごえてる こごえている こごえたい こごえましょう こごえよう ひやす ひやします ひやしました ひやしません ひやさない ひやした ひやして ひやしてる ひやしている ひやしたい ひやしましょう こちこち かちかち ひんやり ぶるぶる がたがた
+🌊=water-wave ながれる ながれます ながれました ながれません ながれない ながれた ながれて ながれてる ながれている ながれたい ながれましょう ながれよう おぼれる おぼれます おぼれました おぼれません おぼれない おぼれた おぼれて おぼれてる おぼれている おぼれたい おぼれましょう おぼれよう ゆれる ゆれます ゆれました ゆれません ゆれない ゆれた ゆれて ゆれてる ゆれている ゆれたい ゆれましょう ゆれよう ざぶーん ざばーん ざざー ざぶん ゆらゆら ちゃぷちゃぷ
+💧=droplet たれる たれます たれました たれません たれない たれた たれて たれてる たれている たれたい たれましょう たれよう こぼれる こぼれます こぼれました こぼれません こぼれない こぼれた こぼれて こぼれてる こぼれている こぼれたい こぼれましょう こぼれよう こぼす こぼします こぼしました こぼしません こぼさない こぼした こぼして こぼしてる こぼしている こぼしたい こぼしましょう ぬれる ぬれます ぬれました ぬれません ぬれない ぬれた ぬれて ぬれてる ぬれている ぬれたい ぬれましょう ぬれよう そそぐ そそぎます そそぎました そそぎません そそがない そそいだ そそいで そそいでる そそいでいる そそぎたい そそぎましょう くむ くみます くみました くみません くまない くんだ くんで くんでる くんでいる くみたい くみましょう ぽたぽた ぴちゃん ぴちょん ぽちゃん みずをかける
+🧲=magnet くっつく くっつきます くっつきました くっつきません くっつかない くっついた くっついて くっついてる くっついている くっつきたい くっつきましょう くっつける くっつけます くっつけました くっつけません くっつけない くっつけた くっつけて くっつけてる くっつけている くっつけたい くっつけましょう くっつけよう ひっつく ひっつきます ひっつきました ひっつきません ひっつかない ひっついた ひっついて ひっついてる ひっついている ひっつきたい ひっつきましょう ひきよせる ひきよせます ひきよせました ひきよせません ひきよせない ひきよせた ひきよせて ひきよせてる ひきよせている ひきよせたい ひきよせましょう ひきよせよう ぴたっ ぺたっ ぺたぺた ひっつきむし
+🪄=magic-wand まほうをかける まほうをかけます まほうをかけました まほうをかけません まほうをかけない まほうをかけた まほうをかけて まほうをかけてる まほうをかけている まほうをかけたい まほうをかけましょう まほうをかけよう まほう ちちんぷいぷい いたいのいたいのとんでけ ほいっ えいっ
+⚔️=crossed-swords たたかう たたかいます たたかいました たたかいません たたかわない たたかった たたかって たたかってる たたかっている たたかいたい たたかいましょう たたかい ばとる せんとう しょうぶ しょうぶする たいけつ けっとう ちゃんばら たいけつする
+🛡️=shield まもる まもります まもりました まもりません まもらない まもった まもって まもってる まもっている まもりたい まもりましょう ふせぐ ふせぎます ふせぎました ふせぎません ふせがない ふせいだ ふせいで ふせいでる ふせいでいる ふせぎたい ふせぎましょう ぼうぎょ しーるど がーど ぼうえい
+🚪=door あける あけます あけました あけません あけない あけた あけて あけてる あけている あけたい あけましょう あけよう しめる しめます しめました しめません しめない しめた しめて しめてる しめている しめたい しめましょう しめよう はいる はいります はいりました はいりません はいらない はいった はいって はいってる はいっている はいりたい はいりましょう でる でます でました でません でない でた でて でてる でている でたい でましょう でよう ぱたん ばたん がらがら こんこん きぃー
+🔑=key かぎをかける かぎをかけます かぎをかけました かぎをかけません かぎをかけない かぎをかけた かぎをかけて かぎをかけてる かぎをかけている かぎをかけたい かぎをかけましょう かぎをかけよう かぎをあける かぎをあけます かぎをあけました かぎをあけません かぎをあけない かぎをあけた かぎをあけて かぎをあけてる かぎをあけている かぎをあけたい かぎをあけましょう かぎをあけよう がちゃ がちゃり かちゃ かちゃり
+🔔=bell ならす ならします ならしました ならしません ならさない ならした ならして ならしてる ならしている ならしたい ならしましょう なる なります なりました なりません ならない なった なって なってる なっている なりたい なりましょう りんりん ちりんちりん ごーん ぴんぽーん かんかんかん がらんがらん ちーん
+☂️=umbrella さす さします さしました さしません ささない さした さして さしてる さしている さしたい さしましょう かさをさす かさをさします かさをさしました かさをさしません かさをささない かさをさした かさをさして かさをさしてる かさをさしている かさをさしたい かさをさしましょう ぱらぱら ぽつぽつ あまやどり
+🧢=billed-cap かぶる かぶります かぶりました かぶりません かぶらない かぶった かぶって かぶってる かぶっている かぶりたい かぶりましょう ぼうしをかぶる ぼうしをかぶります ぼうしをかぶりました ぼうしをかぶりません ぼうしをかぶらない ぼうしをかぶった ぼうしをかぶって ぼうしをかぶってる ぼうしをかぶっている ぼうしをかぶりたい ぼうしをかぶりましょう ぼうしをとる
+👕=t-shirt きがえる きがえます きがえました きがえません きがえない きがえた きがえて きがえてる きがえている きがえたい きがえましょう きがえよう ぬぐ ぬぎます ぬぎました ぬぎません ぬがない ぬいだ ぬいで ぬいでる ぬいでいる ぬぎたい ぬぎましょう ぬぎすてる ぬぎすてます ぬぎすてました ぬぎすてません ぬぎすてない ぬぎすてた ぬぎすてて ぬぎすててる ぬぎすてている ぬぎすてたい ぬぎすてましょう ぬぎすてよう おきがえ ぬぎぬぎ ぱっと すっぽり
+🧤=gloves てぶくろをはめる ぽかぽか
+🚗=automobile うんてん うんてんする うんてんします うんてんしました うんてんしない うんてんした うんてんして うんてんしてる うんてんしている うんてんしたい うんてんしよう うんてんしません うんてんしましょう どらいぶ どらいぶする どらいぶします どらいぶしました どらいぶしない どらいぶした どらいぶして どらいぶしてる どらいぶしている どらいぶしたい どらいぶしよう どらいぶしません どらいぶしましょう ぶーぶー ぶんぶん ぶーん ぶろろろ ぷっぷー あくせる ぶれーき
+🏠=house かえります かえりました かえりません かえらない かえった かえって かえってる かえっている かえりたい かえりましょう かえってくる かえってくります かえってくりました かえってくりません かえってくらない かえってくった かえってくって かえってくってる かえってくっている かえってくりたい かえってくりましょう すむ すみます すみました すまない すんだ すんで すんでる すんでいる すみたい すみましょう おかえりなさい おうちにかえる いえにかえる きたく
+🧎=person-kneeling ひざをつく ひざをつきます ひざをつきました ひざをつきません ひざをつかない ひざをついた ひざをついて ひざをついてる ひざをついている ひざをつきたい ひざをつきましょう しゃがむ しゃがみます しゃがみました しゃがみません しゃがまない しゃがんだ しゃがんで しゃがんでる しゃがんでいる しゃがみたい しゃがみましょう かがむ かがみます かがみました かがみません かがまない かがんだ かがんで かがんでる かがんでいる かがみたい かがみましょう ぺこり よつんばい
+🤞=crossed-fingers きっと ぐっどらっく うまくいくかな
+🧠=brain わすれる わすれます わすれました わすれません わすれない わすれた わすれて わすれてる わすれている わすれたい わすれましょう わすれよう りかいする のうみそ のう ふむふむ
+🥰=smiling-face-with-hearts すきになる すきになります すきになりました すきになりません すきにならない すきになった すきになって すきになってる すきになっている すきになりたい すきになりましょう だーいすき らぶ すてき すてきだね すきすき だいすきだよ ありがとうだいすき
+😀=grinning-face にこっ にこ にひひ にやにや ほほえむ えへへ にっこりわらう
+😭=loudly-crying-face なきさけぶ なきさけびます なきさけびました なきさけびません なきさけばない なきさけんだ なきさけんで なきさけんでる なきさけんでいる なきさけびたい なきさけびましょう わーん めそめそ おいおい ぐすぐす
+🤢=nauseated-face うえっ おえっ きもちわるくなった むかむか くらくら よっぱらい
+😆=grinning-squinting-face わらいころげる わらいころげます わらいころげました わらいころげません わらいころげない わらいころげた わらいころげて わらいころげてる わらいころげている わらいころげたい わらいころげましょう わらいころげよう あははは わはは あはは うひひ ふふふ くすくす げらげらわらう ははは くすっ
+🤤=drooling-face よだれ よだれがでる たべたい おいしそう じゅるり ごくり おなかすいた はらぺこ おなかがすいた ぺこぺこ ぺこぺこだ
+😋=face-savoring-food おいしー おいしかった うまい うまー もぐもぐ むしゃむしゃ ぱくぱく おかわり ぺろっ んまい
+🙄=face-with-rolling-eyes やれやれ はぁ はあ ためいき あーあ しかたない しょうがない もういい
+😬=grimacing-face ひやひや どきっ ぎくっ あせあせ やばい やばっ あちゃー まずい ぎくり
+# かつようけい
+🍴=fork-and-knife たべます たべました たべません たべない たべた たべて たべてる たべている たべましょう たべよう
+🥤=cup-with-straw のみます のみました のみません のまない のんだ のんで のんでる のんでいる のみたい のみましょう
+😴=sleeping-face ねます ねました ねません ねない ねた ねて ねてる ねている ねたい ねましょう ねよう
+🏃=person-running はしります はしりました はしりません はしらない はしった はしって はしってる はしっている はしりたい はしりましょう
+😂=face-with-tears-of-joy わらいます わらいました わらいません わらわない わらった わらって わらってる わらっている わらいたい わらいましょう
+😭=loudly-crying-face なきます なきました なきません なかない ないた ないて ないてる ないている なきたい なきましょう
+😡=enraged-face おこります おこりました おこりません おこらない おこって おこってる おこっている おこりたい おこりましょう
+🏊=person-swimming およぎます およぎました およぎません およがない およいだ およいで およいでる およいでいる およぎたい およぎましょう
+🎤=microphone うたいます うたいました うたいません うたわない うたった うたって うたってる うたっている うたいたい うたいましょう
+💃=woman-dancing おどります おどりました おどりません おどらない おどった おどって おどってる おどっている おどりたい おどりましょう
+✍️=writing-hand かきます かきました かきません かかない かいた かいて かいてる かいている かきたい かきましょう
+📖=open-book よみます よみました よみません よまない よんだ よんで よんでる よんでいる よみたい よみましょう
+
+# くだもの
+@かき かき
+@ゆず ゆず
+@びわ びわ
+@いちじく いちじく
+@ざくろ ざくろ
+@らいち らいち
+@どりあん どりあん
+# やさい・きのこ
+@だいこん だいこん
+@ごぼう ごぼう
+@れんこん れんこん
+@かぶ かぶ
+@ねぎ ねぎ ながねぎ
+@かりふらわー かりふらわー
+@さといも さといも
+@やまいも やまいも ながいも
+@もやし もやし
+@おくら おくら
+@ごーや ごーや
+@ずっきーに ずっきーに
+@せろり せろり
+@あすぱら あすぱら あすぱらがす
+@たけのこ たけのこ
+@えのき えのき
+# たべもの
+@はんばーぐ はんばーぐ
+@とんかつ とんかつ かつ
+@ころっけ ころっけ
+@おむらいす おむらいす
+@おむれつ おむれつ
+@ぐらたん ぐらたん
+@おこのみやき おこのみやき
+@たこやき たこやき
+@おやこどん おやこどん
+@かつどん かつどん
+@いなりずし いなりずし おいなりさん
+@ちらしずし ちらしずし
+@のりまき のりまき まきずし
+@おもち おもち もち
+@おせち おせち
+@はるまき はるまき
+@にくまん にくまん
+@あんまん あんまん
+@うめぼし うめぼし
+@ふりかけ ふりかけ
+@つけもの つけもの
+@よーぐると よーぐると
+@じゃむ じゃむ
+@まよねーず まよねーず
+@けちゃっぷ けちゃっぷ
+@しょうゆ しょうゆ
+@みそ みそ
+@さとう さとう
+@こしょう こしょう
+# おやつ
+@ぜりー ぜりー
+@ぽてとちっぷす ぽてとちっぷす ぽてち
+@まんじゅう まんじゅう おまんじゅう
+@どらやき どらやき
+@たいやき たいやき
+@わたあめ わたあめ わたがし
+@ぐみ ぐみ
+@らむね らむね
+@まかろん まかろん
+@ましゅまろ ましゅまろ
+@くれーぷ くれーぷ
+@しゅーくりーむ しゅーくりーむ
+@ようかん ようかん
+@かすてら かすてら
+@ばうむくーへん ばうむくーへん
+@かきのたね かきのたね
+# どうぶつ
+@ありくい ありくい
+@あるまじろ あるまじろ
+@かぴばら かぴばら
+@もぐら もぐら
+@ももんが ももんが むささび
+@ふぇれっと ふぇれっと
+@もるもっと もるもっと
+@れっさーぱんだ れっさーぱんだ
+@おかぴ おかぴ
+@ばく ばく
+@しゃち しゃち
+@せいうち せいうち
+# とり
+@つる つる
+@だちょう だちょう
+@きつつき きつつき
+@ぺりかん ぺりかん
+@かもめ かもめ
+# うみ・かわ・みずべ
+@うなぎ うなぎ
+@えい えい
+@たつのおとしご たつのおとしご
+@ほたて ほたて
+@あさり あさり
+@うに うに
+@ひとで ひとで
+@おたまじゃくし おたまじゃくし
+@うーぱーるーぱー うーぱーるーぱー
+@いもり いもり
+# むし
+@せみ せみ
+@みんみんぜみ みんみんぜみ
+@あぶらぜみ あぶらぜみ
+@とんぼ とんぼ
+@あかとんぼ あかとんぼ
+@しおからとんぼ しおからとんぼ
+@かまきり かまきり
+@だんごむし だんごむし
+@ほたる ほたる
+@みのむし みのむし
+@なめくじ なめくじ
+@あめんぼ あめんぼ
+# きょうりゅう
+@とりけらとぷす とりけらとぷす
+@すてごさうるす すてごさうるす
+@ぷてらのどん ぷてらのどん
+# のりもの
+@ぶるどーざー ぶるどーざー
+@しょべるかー しょべるかー ぱわーしょべる
+@だんぷかー だんぷかー
+@みきさーしゃ みきさーしゃ
+@はしごしゃ はしごしゃ
+@ゆうびんしゃ ゆうびんしゃ
+@とろっこ とろっこ
+@ききゅう ききゅう
+@ひこうせん ひこうせん
+@せんすいかん せんすいかん
+@かいぞくせん かいぞくせん
+@いちりんしゃ いちりんしゃ
+@さんりんしゃ さんりんしゃ
+@べびーかー べびーかー
+@ふみきり ふみきり
+# ばしょ
+@こうばん こうばん
+@おてら おてら
+@はたけ はたけ
+@ぼくじょう ぼくじょう
+@いけ いけ
+@みずうみ みずうみ
+@たき たき
+@どうくつ どうくつ
+@すなば すなば
+@ぶらんこ ぶらんこ
+@てつぼう てつぼう
+@じゃんぐるじむ じゃんぐるじむ
+@しーそー しーそー
+@とらんぽりん とらんぽりん
+@こくばん こくばん
+# からだ
+@あたま あたま
+@かみのけ かみのけ
+@ほっぺ ほっぺ ほっぺた
+@ひざ ひざ
+@おなか おなか
+@おへそ おへそ へそ
+@おしり おしり
+# ひと・おはなし
+@さむらい さむらい
+@かっぱ かっぱ
+@ゆうしゃ ゆうしゃ
+# いえのもの・きるもの
+@つくえ つくえ
+@てーぶる てーぶる
+@まくら まくら
+@かーてん かーてん
+@れいぞうこ れいぞうこ
+@せんたくき せんたくき
+@そうじき そうじき
+@でんしれんじ でんしれんじ れんじ
+@すいはんき すいはんき
+@えあこん えあこん くーらー
+@せんぷうき せんぷうき
+@こたつ こたつ
+@はみがきこ はみがきこ
+@たおる たおる
+@ちりとり ちりとり
+@ぞうきん ぞうきん
+@まないた まないた
+@はんかち はんかち
+@すいとう すいとう
+@ぱじゃま ぱじゃま
+@すかーと すかーと
+@せーたー せーたー
+@たいそうふく たいそうふく
+@うわばき うわばき
+@れいんこーと れいんこーと
+# がっこう・がっき
+@けしごむ けしごむ
+@ふでばこ ふでばこ
+@せろはんてーぷ せろはんてーぷ てーぷ
+@のり のり
+@おりがみ おりがみ
+@ねんど ねんど
+@かすたねっと かすたねっと
+@たんばりん たんばりん
+@もっきん もっきん
+@てっきん てっきん
+@けんばんはーもにか けんばんはーもにか
+@はーもにか はーもにか
+# あそび・ぎょうじ
+@おせろ おせろ
+@しょうぎ しょうぎ
+@けんだま けんだま
+@こま こま
+@どっじぼーる どっじぼーる
+@おままごと おままごと
+@りれー りれー
+@つなひき つなひき
+@たまいれ たまいれ
+@もちつき もちつき
+@かきぞめ かきぞめ
+# しぜん
+@すな すな
+@つち つち
+@どろ どろ どろんこ
+@たね たね
+@どんぐり どんぐり
+@まつぼっくり まつぼっくり
+@じしん じしん
+# ついか（きせつ・くらし）
+@てるてるぼうず てるてるぼうず
+@あじさい あじさい
+@あさがお あさがお
+@こすもす こすもす
+@つくし つくし
+@いちょう いちょう
+@だるま だるま
+@うちわ うちわ
+@かまくら かまくら
+@じょうろ じょうろ
+@すこっぷ すこっぷ しゃべる
+@むしかご むしかご
+@むしとりあみ むしとりあみ あみ
+@えんぴつけずり えんぴつけずり
+@めろんぱん めろんぱん
+@おこさまらんち おこさまらんち
+# ついか2
+@あかしろぼう あかしろぼう あかしろぼうし こうはくぼう
+@とびばこ とびばこ
+@ようちえんばす ようちえんばす
+@とうふ とうふ おとうふ
+@そうめん そうめん
+@かがみもち かがみもち
+@やどかり やどかり
+@まんぼう まんぼう
+@ほっちきす ほっちきす ほちきす ほっちきすのはり
+@すとーぶ すとーぶ ひーたー
+# ついか3
+@かつお かつお
+@さば さば
+@あじ あじ
+@ぶり ぶり
+@かれい かれい
+@ひらめ ひらめ
+@あんこう あんこう
+@いくら いくら
+@たらこ たらこ
+@だいふく だいふく
+@おしるこ おしるこ ぜんざい
+@かりんとう かりんとう
+@こんぺいとう こんぺいとう
+@あられ あられ
+@ちゃわんむし ちゃわんむし
+@ぞうに ぞうに
+@さいだー さいだー
+@ういんなー ういんなー ういんなーそーせーじ
+@はむ はむ
+@ひこうきぐも ひこうきぐも
+@さかなや さかなや
+@やおや やおや
+@おもちゃや おもちゃや
+@けいさつしょ けいさつしょ
+@しやくしょ しやくしょ
+@ざぶとん ざぶとん
+@せんたくばさみ せんたくばさみ
+@あいろん あいろん
+@ふぉーくりふと ふぉーくりふと
+@ろーどろーらー ろーどろーらー
+@かやっく かやっく
+@ぐらいだー ぐらいだー
+@か か
+@らま らま
+@まりも まりも
+@はんこ はんこ
+@くれぱす くれぱす
+@おはじき おはじき
+@あやとり あやとり
+@おてだま おてだま
+@めんこ めんこ
+@びいだま びいだま ふぃーだま
+@こままわし こままわし
+@ももたろう ももたろう
+@きんたろう きんたろう
+@うらしまたろう うらしまたろう
+@かぐやひめ かぐやひめ
+@しらゆきひめ しらゆきひめ
+@しんでれら しんでれら
+@あかずきん あかずきん
+@いっすんぼうし いっすんぼうし
+@はなさかじいさん はなさかじいさん
+@こうずい こうずい
+@すみれ すみれ
+@ふじ ふじ
+@うめ うめ
+@まつ まつ
+@すぎ すぎ
+@たけ たけ
+@ゆり ゆり
+@きく きく
+@れんげ れんげ
+@あぶ あぶ
+@さなぎ さなぎ
+@くまんばち くまんばち
+@ずきん ずきん ぼうさいずきん
+@はっぴ はっぴ
+@じんべい じんべい
+@はちまき はちまき
+@ふろしき ふろしき
+@ぷーるばっぐ ぷーるばっぐ
+
+# たべもの
+!なっとう なっとう
+!えだまめ えだまめ
+!だいず だいず まめまき
+!しいたけ しいたけ
+!まいたけ まいたけ
+!そらまめ そらまめ
+!あんぱん あんぱん
+!かれーぱん かれーぱん
+!やきそば やきそば
+!うどん うどん
+!そば そば
+!ちゃーはん ちゃーはん
+!ぎゅうどん ぎゅうどん
+!たまごやき たまごやき
+!てまきずし てまきずし
+!やきとり やきとり
+!しゅうまい しゅうまい
+!ちーずけーき ちーずけーき
+!ろーるけーき ろーるけーき
+!もんぶらん もんぶらん
+!みそしる みそしる
+!やかん やかん
+!きゅうす きゅうす
+!かぼちゃ かぼちゃ
+!きゃべつ きゃべつ
+!はくさい はくさい
+# いきもの・しぜん
+!こい こい
+!めだか めだか
+!たい たい
+!しゃけ しゃけ
+!まぐろ まぐろ
+!さんま さんま
+!いわし いわし
+!きんぎょ きんぎょ きんぎょすくい
+!くまのみ くまのみ
+!すずめ すずめ
+!つばめ つばめ
+!うぐいす うぐいす
+!ぶんちょう ぶんちょう
+!はと はと
+!かぶとむし かぶとむし
+!くわがた くわがた
+!ばった ばった
+!きりぎりす きりぎりす
+!もんしろちょう もんしろちょう
+!あげはちょう あげはちょう
+!たぬき たぬき
+!ちんぱんじー ちんぱんじー
+!たんぽぽ たんぽぽ
+!すすき すすき
+!たんぼ たんぼ
+# もの・ばしょ
+!きかい きかい
+!つみき つみき ぶろっく
+!にんぎょう にんぎょう
+!かるた かるた
+!ふとん ふとん
+!てぃっしゅ てぃっしゅ
+!ながぐつ ながぐつ
+!なわとび なわとび
+!ごみしゃ ごみしゃ ごみしゅうしゅうしゃ
+!すもう すもう おすもうさん
+!こうえん こうえん
+!おかね おかね
+!おとしだま おとしだま
+!きゃんぴんぐかー きゃんぴんぐかー
+# ついか（がっこう・きせつ）
+!らんどせる らんどせる
+!きゅうしょく きゅうしょく
+!かくれんぼ かくれんぼ
+!ぷーる ぷーる
+!うんどうかい うんどうかい
+!ゆきがっせん ゆきがっせん
+# ついか3（えもじが あっても てがきを つかう）
+!せんべい せんべい おせんべい おかき
+!たなばた たなばた ささ
+!かぬー かぬー
+!なし なし ようなし
+!かみなり かみなり
+!もみじ もみじ かえで
+!おべんとう おべんとう おべんとうばこ
+`;
+    // 絵は Noto Color Emoji（Google）。Iconify の配信サーバーから 1枚ずつ読み込む
+    var NOTO_BASE = 'https://api.iconify.design/noto/';
+    var QUESTION = '❓=red-question-mark';
+    var CROSS = '❌=cross-mark';
+    // キャラクターの名前は つくれない → ×で おしえる
+    var CHAR_SRC = `あいあんまん
+あいらぶあんぱんまん
+あかちゃんまん
+あしたか
+あなとゆきのじょおう
+あもあす
+あらじん
+あるせうす
+あれっくす
+あろーら
+あんぱんまん
+いーぶい
+いーよー
+ういんたーそるじゃー
+うさぎのみみ
+うさこ
+うさこちゃん
+うさまる
+うそっぷ
+うっでぃ
+うるとらせぶん
+うるとらまん
+うるとらまんぜろ
+うるとらまんたいが
+うるとらまんたろう
+うーたん
+えっぐまん
+えどがわ
+えどがわこなん
+えどわーど
+えるさ
+えんだーどらごん
+おおととろ
+おさるのじょーじ
+おしりたんてい
+おしりたんていくん
+おちゃこ
+おむすびまん
+おらふ
+おーるまいと
+かいけつぞろり
+かいとうきっど
+かおなし
+かざまくん
+かっちゃん
+かつどんまん
+かにちゃん
+かびごん
+かびるんるん
+かまめしどん
+かめっくす
+かめんらいだー
+かめーる
+かるしふぁー
+かれーぱんまん
+かーびぃ
+かーびー
+がのんどろふ
+がめら
+がんだむ
+きいろいとり
+きいろいとりくん
+きかんしゃとーます
+きかんしゃやえもん
+きてぃ
+きてぃちゃん
+きのぴお
+きゃぷてんあめりか
+きゅあぱいん
+きゅあぱっしょん
+きゅあぴーち
+きゅあぶらっく
+きゅあぶろっさむ
+きゅあべりー
+きゅあほわいと
+きゅあまりん
+きんぐこんぐ
+きーき
+ぎゃらどす
+ぎゆう
+くっぱ
+くっぱじゅにあ
+くまのがっこう
+くまのぷーさん
+くまもん
+くりすとふ
+くりすとふぁーろびん
+くりぼー
+くりりん
+くりーぱー
+くりーむぱんだ
+くれよんしんちゃん
+くろすけ
+くろみ
+ぐでたま
+ぐらえな
+ぐらかいぐ
+ぐらかいね
+ぐりとぐら
+ぐるんぱ
+ぐるんぱのようちえん
+ぐんまちゃん
+ぐーふぃ
+ぐーふぃー
+けろけろけろっぴ
+けろっぴ
+げっこうが
+げんがー
+こきんちゃん
+こぎみゅん
+こじょんど
+こだっく
+こどもちゃれんじ
+こなん
+こむすびまん
+こりらっくま
+ごくう
+ごくー
+ごじら
+ごるだっく
+ごるーだ
+ごんべ
+ごーどん
+さくらももこ
+ささんぱ
+さざえさん
+さすけ
+さねみ
+ざしあん
+ざしあんざ
+しずえ
+しずかちゃん
+しなもろーる
+しなもん
+しまじろう
+しまじろうくん
+しゃわーず
+しゃんしゃん
+しゅがーばにー
+しゅがーばにーず
+しょくぱんまん
+しろくまくん
+しろぱん
+しんちゃん
+しんのすけ
+しんば
+じぇーむす
+じぶりちゃん
+じゃいあん
+じゃいこ
+じゃすみん
+じゃっきー
+じゃむおじさん
+じょっしー
+じょーじ
+じんべえ
+じーにー
+すてぃっち
+すてぃぷ
+すてぃーぶ
+すぬーぴー
+すねお
+すねおくん
+すぱいだーまん
+すぷらとぅーん
+すみっこぐらし
+すーぱーまりお
+すーぱーまりおぶらざーず
+すーぱーまん
+ずーとぴあ
+せわし
+せんとくん
+せーらーむーん
+ぜにがめ
+ぜにーば
+ぜるだ
+ぜんいつ
+そうすけ
+そにっく
+そー
+ぞうのえるまー
+ぞろ
+たいやきまん
+たぬきち
+たらちゃん
+たりぐりん
+たれぱんだ
+たんじろう
+だだんだん
+だんぼ
+ちいかわ
+ちいかわず
+ちいかわたち
+ちっぷとでーる
+ちびうさ
+ちびととろ
+ちびまるこ
+ちびまるこちゃん
+ちゃーはんまん
+ちゃーみーきてぃ
+ちゃーりーぶらうん
+ちゅうととろ
+ちょっぱー
+つぶきち
+ていがー
+てれさ
+てんげん
+てんどんまん
+てんや
+てーるす
+でぃでぃーこんぐ
+でいじーだっく
+でいじーひめ
+ですぷーる
+でっきー
+でんりゅう
+ととろ
+とどろき
+となりのととろ
+とらんくす
+とりっぴー
+とーます
+どうぶつのもり
+どきんちゃん
+どなるど
+どなるどだっく
+どらえもん
+どらみ
+どらみちゃん
+どりー
+どんきーこんぐ
+ないるす
+なうしか
+なっしー
+なみへい
+にこにこまん
+にゃおはー
+にゃっきー
+にゃーす
+ねくろずま
+ねこばす
+ねずこ
+ねねちゃん
+のこのこ
+のばら
+のびすけ
+のびた
+のびたくん
+のんたん
+はいばら
+はうる
+はちわれ
+はつねみく
+はむたろう
+はるく
+はろーきてぃ
+ばいきんまん
+ばくごう
+ばくふーん
+ばず
+ばずらいとやー
+ばたこさん
+ばっとまん
+ばっどばつまる
+ばつまる
+ばりぃさん
+ばんび
+ばーばぱぱ
+ぱうぱとろーる
+ぱじゃまぱーてぃー
+ぱっくんふらわー
+ぱんこ
+ぱんこちゃん
+ぱんだのしゃんしゃん
+ぱーしー
+ひこにゃん
+ひとかげ
+ひろがるすかい
+ぴかちゅう
+ぴかちゅー
+ぴくみん
+ぴぐれっと
+ぴちゅー
+ぴっころ
+ぴよまる
+ぴーたーらびっと
+ぴーち
+ぴーちひめ
+ぴーぽくん
+ふしぎそう
+ふしぎだね
+ふしぎばな
+ふっかちゃん
+ふなっしー
+ふらんき
+ふりかけまん
+ふりーざ
+ふろーずん
+ぶらっきー
+ぶらっくぱんさー
+ぶるんけん
+ぶるーあーかいぶ
+ぶるーの
+ぷくりん
+ぷっくりん
+ぷにぷに
+ぷにるす
+ぷよぷよ
+ぷられーる
+ぷりきゅあ
+ぷりきゅあず
+ぷるりる
+ぷれきゅあ
+ぷーさん
+へんりー
+べじーた
+ぺっくる
+ぺっぱ
+ぺっぱぴっぐ
+ほしのかーびぃ
+ほねかわすねお
+ほねほね
+ほらーまん
+ぼりすくん
+ぼーちゃん
+ぽけっともんすたー
+ぽけもん
+ぽこにゃん
+ぽこにゃんず
+ぽちゃっこ
+ぽっちゃま
+ぽにょ
+ぽにーた
+ぽむぽむぷりん
+まいくら
+まいめろ
+まいめろでぃ
+まいんくらふと
+まうえ
+まっくいーん
+まっくろくろすけ
+まめきち
+まりお
+まるくる
+みきゃん
+みっきー
+みっきーまうす
+みっふぃ
+みっふぃー
+みっふぃーちゃん
+みにおん
+みにおんず
+みにー
+みにーまうす
+みみりん
+みゃくみゃくくん
+みゅうつー
+みらべる
+むいちろう
+むげんだいな
+むざん
+むちゃうま
+めいけんちーず
+めいけんちーずきち
+めたぐろす
+めたないと
+めたもん
+めらにー
+めろんぱんなちゃん
+もあな
+もくろー
+もすら
+もののけひめ
+もんすたーずいんく
+もんすたーずゆにばーしてぃ
+ゆばーば
+よっしー
+らいちゅう
+らいとにんぐまっくいーん
+らぷらす
+らぷんつぇる
+らーめんまん
+りざーど
+りざーどん
+りとるまーめいど
+りらっくま
+るいーじ
+るかりお
+るふぃ
+れいれい
+れっくうざ
+ろーるぱんな
+わかめ
+わりお
+わるいーじ
+わんだふるぷりきゅあ
+わんだーうーまん
+わんわんとうーたん`;
+    var CHARS = {};
+    CHAR_SRC.split(/\s+/).forEach(function (w) { if (w) CHARS[w] = 1; });
+    function isChar(word) {
+        if (CHARS[word]) return true;
+        for (var i = 0; i < 4; i++) {
+            var suf = ['ちゃん', 'さん', 'くん', 'たち'][i];
+            if (word.length > suf.length && word.slice(-suf.length) === suf && CHARS[word.slice(0, -suf.length)]) return true;
+        }
+        return false;
+    }
+
+    // 「絵文字 ことば ことば…」の行 → DICT、「@ファイル名 ことば…」の行 → CUSTOM（自作イラスト）
+    // 「!ファイル名 ことば…」の行 → PREFER（自作の絵があれば 絵文字より そちらを出す）
+    var DICT = {}, CUSTOM = {}, PREFER = {};
+    DICT_SRC.split('\n').forEach(function (line) {
+        line = line.trim();
+        if (!line || line.charAt(0) === '#') return;
+        var parts = line.split(/\s+/);
+        if (parts.length < 2) return;
+        var head = parts[0].charAt(0);
+        for (var i = 1; i < parts.length; i++) {
+            if (head === '@') CUSTOM[parts[i]] = parts[0].slice(1);
+            else if (head === '!') PREFER[parts[i]] = parts[0].slice(1);
+            else DICT[parts[i]] = parts[0];
+        }
+    });
+
+    // 「うさぎさん」「ねこちゃん」のような よびかたも、もとのことばで さがす
+    var SUFFIXES = ['ちゃん', 'さん', 'くん', 'たち'];
+    function lookup(word) {
+        var cands = [word];
+        SUFFIXES.forEach(function (suf) {
+            if (word.length > suf.length && word.slice(-suf.length) === suf) cands.push(word.slice(0, -suf.length));
+        });
+        for (var i = 0; i < cands.length; i++) {
+            if (PREFER[cands[i]]) return { custom: PREFER[cands[i]], emoji: DICT[cands[i]] || null };
+            if (DICT[cands[i]]) return { emoji: DICT[cands[i]] };   // 「絵文字=Notoの名前」
+            if (CUSTOM[cands[i]]) return { custom: CUSTOM[cands[i]] };
+        }
+        return { custom: word };   // 辞書にないことばも custom フォルダに絵があれば出す
+    }
+    function customUrls(name) {
+        var e = encodeURIComponent(name);
+        return ['custom/' + e + '.jpg', 'custom/' + e + '.png', 'custom/' + e + '.svg'];
+    }
+
+    // 「🍎=red-apple」→ 画像のURL と、つながらない時に代わりに出す絵文字
+    function notoUrl(entry) { return NOTO_BASE + entry.split('=')[1] + '.svg'; }
+    function emojiChar(entry) { return entry.split('=')[0]; }
+
+    /* ---------- 50音データ ---------- */
+    var ROWS = [
+        ['あ','い','う','え','お'],
+        ['か','き','く','け','こ'],
+        ['さ','し','す','せ','そ'],
+        ['た','ち','つ','て','と'],
+        ['な','に','ぬ','ね','の'],
+        ['は','ひ','ふ','へ','ほ'],
+        ['ま','み','む','め','も'],
+        ['や','','ゆ','','よ'],
+        ['ら','り','る','れ','ろ'],
+        ['わ','を','ん','','']
+    ];
+    var COLORS = [
+        ['#ffd9dc', '#e9a0a7'], ['#ffe3cc', '#ecaf7e'], ['#fff0b8', '#e3c35a'],
+        ['#e9f7c4', '#b3d26a'], ['#d3f3d6', '#86c98f'], ['#cdf1ec', '#7fcdc1'],
+        ['#d4ecff', '#86b6e6'], ['#dcdfff', '#9da4e6'], ['#eadbff', '#b597e3'],
+        ['#ffdcf3', '#e39ccb']
+    ];
+
+    var DAKU = { か:'が',き:'ぎ',く:'ぐ',け:'げ',こ:'ご',さ:'ざ',し:'じ',す:'ず',せ:'ぜ',そ:'ぞ',
+                 た:'だ',ち:'ぢ',つ:'づ',て:'で',と:'ど',は:'ば',ひ:'び',ふ:'ぶ',へ:'べ',ほ:'ぼ' };
+    var HANDAKU = { は:'ぱ',ひ:'ぴ',ふ:'ぷ',へ:'ぺ',ほ:'ぽ' };
+    var SMALL = { あ:'ぁ',い:'ぃ',う:'ぅ',え:'ぇ',お:'ぉ',つ:'っ',や:'ゃ',ゆ:'ゅ',よ:'ょ',わ:'ゎ' };
+    function invert(o) { var r = {}; for (var k in o) r[o[k]] = k; return r; }
+    var DAKU_INV = invert(DAKU), HANDAKU_INV = invert(HANDAKU), SMALL_INV = invert(SMALL);
+    var MAX_LEN = 20;
+
+    /* ---------- 「もしかして」用：書きまちがいをゆるく比べる ---------- */
+    function loose(w) {
+        var out = '';
+        for (var i = 0; i < w.length; i++) {
+            var c = w[i];
+            if (c === 'ー' || c === 'っ') continue;
+            c = DAKU_INV[c] || HANDAKU_INV[c] || SMALL_INV[c] || c;
+            out += c;
+        }
+        return out;
+    }
+    var LOOSE = {};
+    Object.keys(DICT).forEach(function (k) {
+        var l = loose(k);
+        if (!LOOSE[l] || k.length < LOOSE[l].length) LOOSE[l] = k;
+    });
+    function editDistance1(a, b) {
+        if (Math.abs(a.length - b.length) > 1) return false;
+        var i = 0, j = 0, diff = 0;
+        while (i < a.length && j < b.length) {
+            if (a[i] === b[j]) { i++; j++; continue; }
+            if (++diff > 1) return false;
+            if (a.length > b.length) i++;
+            else if (a.length < b.length) j++;
+            else { i++; j++; }
+        }
+        return diff + (a.length - i) + (b.length - j) <= 1;
+    }
+    function suggest(w) {
+        if (CUSTOM[w]) return null;   // 絵をつくる予定のことばは、ほかのことばを すすめない
+        // てんてん・まる・小さい字・のばす の書きわすれ
+        var l = loose(w);
+        if (LOOSE[l] && LOOSE[l] !== w) return LOOSE[l];
+        // 1文字ちがい（短いことばや名前で的外れにならないよう 4文字以上だけ）
+        if (w.length < 4) return null;
+        var keys = Object.keys(DICT);
+        for (var i = 0; i < keys.length; i++) {
+            if (keys[i].length >= 4 && editDistance1(w, keys[i])) return keys[i];
+        }
+        return null;
+    }
+
+    /* ---------- 要素 ---------- */
+    var app = document.getElementById('app');
+    var grid = document.getElementById('grid');
+    var display = document.getElementById('display');
+    var textWrap = document.getElementById('textWrap');
+    var textEl = document.getElementById('text');
+    var hint = document.getElementById('hint');
+    var btnClear = document.getElementById('btnClear');
+    var btnBack = document.getElementById('btnBack');
+    var btnDone = document.getElementById('btnDone');
+    var result = document.getElementById('result');
+    var stage = document.getElementById('stage');
+    var pic = document.getElementById('pic');
+    var picText = document.getElementById('picText');
+    var wordEl = document.getElementById('word');
+    var msgEl = document.getElementById('msg');
+    var btnNext = document.getElementById('btnNext');
+    var btnFix = document.getElementById('btnFix');
+    var btnMaybe = document.getElementById('btnMaybe');
+    var screenEl = document.getElementById('screen');
+    var scene = document.getElementById('scene');
+    var machine = document.getElementById('machine');
+    var chimney = document.getElementById('chimney');
+    var belt = document.getElementById('belt');
+    var btnColl = document.getElementById('btnColl');
+    var collBadge = document.getElementById('collBadge');
+    var collEl = document.getElementById('coll');
+    var collList = document.getElementById('collList');
+    var collCount = document.getElementById('collCount');
+    var collTools = document.getElementById('collTools');
+    var editLbl = document.getElementById('editLbl');
+    var collView = document.getElementById('collView');
+    var cvPic = document.getElementById('cvPic');
+    var cvWord = document.getElementById('cvWord');
+    var confirmEl = document.getElementById('confirm');
+    var cfMsg = document.getElementById('cfMsg');
+
+    var chars = [];
+    var isPortrait = null;
+    var busy = false;           // 変身中・結果表示中は入力しない
+    var timers = [];
+    function T(fn, ms) { var id = setTimeout(fn, ms); timers.push(id); return id; }
+    function cancelTimers() { timers.forEach(clearTimeout); timers = []; }
+
+    /* ---------- 押した感触 ---------- */
+    var HAS_POINTER = !!window.PointerEvent;
+    var lastPressAt = 0;
+    function bindPress(el, action) {
+        function press(e) {
+            if (e.button !== undefined && e.button > 0) return;
+            if (e.cancelable) e.preventDefault();
+            lastPressAt = Date.now();
+            el.classList.add('pressed');
+            setTimeout(function () { el.classList.remove('pressed'); }, 160);
+            action();
+        }
+        if (HAS_POINTER) {
+            el.addEventListener('pointerdown', press);
+        } else {
+            el.addEventListener('touchstart', press, { passive: false });
+            el.addEventListener('mousedown', function (e) {
+                if (Date.now() - lastPressAt < 800) return;
+                press(e);
+            });
+        }
+        el.addEventListener('click', function (e) {
+            if (Date.now() - lastPressAt < 800) return;
+            if (e.detail === 0) action();
+        });
+    }
+
+    function shake(el) {
+        if (!el.animate) return;
+        el.animate([
+            { translate: '0 0' }, { translate: '-10px 0' }, { translate: '10px 0' },
+            { translate: '-6px 0' }, { translate: '6px 0' }, { translate: '0 0' }
+        ], { duration: 320, easing: 'ease-out' });
+    }
+
+    /* ---------- 50音のキー ---------- */
+    var keys = [];
+    ROWS.forEach(function (row, g) {
+        row.forEach(function (ch, d) {
+            if (!ch) return;
+            var b = document.createElement('button');
+            b.className = 'key';
+            b.setAttribute('aria-label', ch);
+            b.style.setProperty('--bg', COLORS[g][0]);
+            b.style.setProperty('--sh', COLORS[g][1]);
+            b.innerHTML = '<span class="inner"><span class="ch">' + ch + '</span></span>';
+            b._g = g; b._d = d;
+            bindPress(b, function () { typeChar(ch); });
+            grid.appendChild(b);
+            keys.push(b);
+        });
+    });
+
+    function layoutKeys() {
+        keys.forEach(function (b) {
+            if (isPortrait) {           // たて書き・2段：上段 あ〜な、下段 は〜わ（どちらも右から）
+                if (b._g < 5) {
+                    b.style.gridColumn = String(5 - b._g);
+                    b.style.gridRow = String(b._d + 1);
+                } else {
+                    b.style.gridColumn = String(10 - b._g);
+                    b.style.gridRow = String(b._d + 7);
+                }
+            } else {                    // たて書き：あ の列がいちばん右
+                b.style.gridColumn = String(10 - b._g);
+                b.style.gridRow = String(b._d + 1);
+            }
+        });
+    }
+
+    function sizeKeyFont() {
+        var k = keys[0];
+        var w = k.offsetWidth, h = k.offsetHeight;
+        if (!w || !h) return;
+        app.style.setProperty('--ch-fs', Math.round(Math.min(w * 0.7, h * 0.72)) + 'px');
+    }
+
+    /* ---------- 入力 ---------- */
+    function typeChar(ch) {
+        if (busy) return;
+        if (chars.length >= MAX_LEN) { shake(display); return; }
+        chars.push(ch);
+        render(true);
+    }
+    function backspace() {
+        if (busy) return;
+        if (!chars.length) { shake(btnBack); return; }
+        chars.pop();
+        render(false);
+    }
+    function clearAll() {
+        if (busy) return;
+        if (!chars.length) { shake(btnClear); return; }
+        chars = [];
+        render(false);
+    }
+    function modifyLast(op, btn) {
+        if (busy) return;
+        if (op === 'bar') {
+            if (!chars.length) { shake(btn); return; }
+            typeChar('ー');
+            return;
+        }
+        var last = chars[chars.length - 1];
+        var next = null;
+        if (last !== undefined) {
+            if (op === 'daku') {
+                next = DAKU[last] || DAKU_INV[last] || (HANDAKU_INV[last] ? DAKU[HANDAKU_INV[last]] : null);
+            } else if (op === 'handaku') {
+                var base = HANDAKU_INV[last] || DAKU_INV[last] || last;
+                next = HANDAKU_INV[last] ? HANDAKU_INV[last] : (HANDAKU[base] || null);
+            } else if (op === 'small') {
+                next = SMALL[last] || SMALL_INV[last] || null;
+            }
+        }
+        if (!next) { shake(btn); return; }
+        chars[chars.length - 1] = next;
+        render(true);
+    }
+
+    /* ---------- 表示 ---------- */
+    function render(popLast) {
+        if (blockMsg && !blockMsg.hidden) hideBlocked();
+        var html = '';
+        for (var i = 0; i < chars.length; i++) html += '<span class="c">' + chars[i] + '</span>';
+        textEl.innerHTML = html;
+
+        var empty = chars.length === 0;
+        hint.textContent = 'ことばを いれてね';
+        hint.hidden = !empty;
+        textWrap.style.visibility = empty ? 'hidden' : 'visible';
+        btnBack.classList.toggle('disabled', empty);
+        btnClear.classList.toggle('disabled', empty);
+        btnDone.classList.toggle('disabled', empty);
+
+        fitText();
+
+        if (popLast && !empty) {
+            var el = textEl.children[chars.length - 1];
+            if (el && el.animate) {
+                el.animate([
+                    { transform: 'scale(.3) translateY(30%)', opacity: 0 },
+                    { transform: 'scale(1.18)', opacity: 1, offset: .6 },
+                    { transform: 'scale(1)', opacity: 1 }
+                ], { duration: 260, easing: 'ease-out' });
+            }
+        }
+    }
+
+    function fitText() {
+        var availW = textWrap.clientWidth;
+        var h = screenEl.clientHeight;
+        if (!availW || !h) return;
+        var maxFs = Math.round(h * 0.64);
+        var minFs = 50;
+        var n = Math.max(1, chars.length) + 0.2;
+        var fs = Math.max(minFs, Math.min(maxFs, Math.floor(availW / n)));
+        textEl.style.fontSize = fs + 'px';
+        textWrap.classList.toggle('overflow', textEl.scrollWidth > availW + 1);
+    }
+
+    /* ---------- できた！ → もにゃもにゃ → へんしん ---------- */
+    function rand(a, b) { return a + Math.random() * (b - a); }
+
+    function loadImage(url) {
+        // 画像を読み込んで、成功したら URL、失敗したら null を返す
+        return new Promise(function (resolve) {
+            var img = new Image();
+            var done = false;
+            function fin(ok) { if (done) return; done = true; resolve(ok ? url : null); }
+            img.onload = function () { fin(true); };
+            img.onerror = function () { fin(false); };
+            setTimeout(function () { fin(false); }, 6000);
+            img.src = url;
+        });
+    }
+    function loadFirst(urls) {
+        if (!urls.length) return Promise.resolve(null);
+        return loadImage(urls[0]).then(function (u) { return u || loadFirst(urls.slice(1)); });
+    }
+    // 結果：{ found: 絵が出せたか, src: 画像URL（なければ null）, text: 画像が出せない時の代わりの文字 }
+    function loadPicture(entry) {
+        function viaEmoji() {
+            return loadImage(notoUrl(entry.emoji)).then(function (src) {
+                return { found: true, src: src, text: emojiChar(entry.emoji) };
+            });
+        }
+        if (!entry.custom) return viaEmoji();
+        // 自作の絵 → （なければ）絵文字 → （それもなければ）？
+        return loadFirst(customUrls(entry.custom)).then(function (src) {
+            if (src) return { found: true, src: src, text: '' };
+            if (entry.emoji) return viaEmoji();
+            return loadImage(notoUrl(QUESTION)).then(function (q) {
+                return { found: false, src: q, text: '？' };
+            });
+        });
+    }
+
+    /* ---------- 使えない ことば（だれかを きずつける ことば）---------- */
+    var BAD_B64 = 'eyJzIjogWyLjgYLjgYTjgbYiLCAi44GC44Gq44KLIiwgIuOBguOBuyIsICLjgYTjgoTjgonjgZfjgYQiLCAi44GE44KT44KC44GGIiwgIuOBhOOCk+OCieOCkyIsICLjgYbjgZYiLCAi44GG44GcIiwgIuOBiOOBo+OBoSIsICLjgYjjgo0iLCAi44GI44KN44GEIiwgIuOBiuOBoeOCk+OBkyIsICLjgYrjgaHjgpPjgaHjgpMiLCAi44GK44Gj44Gx44GEIiwgIuOBiuOBquOBq+ODvCIsICLjgYrjgarjgbsiLCAi44GK44G+44KT44GTIiwgIuOBi+OBmSIsICLjgYzjgYTjgZgiLCAi44GN44GX44KHIiwgIuOBjeOBmeOBl+OCiCIsICLjgY3jgoIiLCAi44GN44KT44Gf44G+IiwgIuOBj+OBleOBhCIsICLjgY/jgZ0iLCAi44GP44Gf44Gw44KMIiwgIuOBj+OBo+OBlSIsICLjgZfjgavjgb7jgZkiLCAi44GX44GsIiwgIuOBl+OBrSIsICLjgZfjgofjgZ/jgZPjgpMiLCAi44GX44KT44GgIiwgIuOBl+OCk+OBpyIsICLjgZfjgpPjgafjgYTjgosiLCAi44GX44KT44Gn44KLIiwgIuOBmeOBkeOBuSIsICLjgZvjgaPjgY/jgZkiLCAi44Gg44G+44KMIiwgIuOBoeOBi+OCkyIsICLjgaHjgY/jgbMiLCAi44Gh44GzIiwgIuOBoeOCheODvOOBl+OCiCIsICLjgaHjgpPjgYvjgZkiLCAi44Gh44KT44GSIiwgIuOBoeOCk+OBkyIsICLjgaHjgpPjgaHjgpMiLCAi44Gh44KT44G9IiwgIuOBoeOCk+OBveOBkyIsICLjgafjgYPjgovjgakiLCAi44Gn44G2IiwgIuOBruOBnuOBjSIsICLjga/jgZIiLCAi44Gv44KM44KT44GhIiwgIuOBsOOBiyIsICLjgbDjgY7jgaoiLCAi44Gx44GE44GK44GkIiwgIuOBseOBhOOBmuOCiiIsICLjgbHjgYTjgbHjgpMiLCAi44Gx44KT44Gh44KJIiwgIuOBs+OBo+OBoSIsICLjgbXjgYHjgaPjgY8iLCAi44G144GH44GhIiwgIuOBteOBh+OCiSIsICLjgbXjgZfjgaDjgokiLCAi44G244GZIiwgIuOBt+OBo+OBl+ODvCIsICLjgbjjgpPjgZ/jgYQiLCAi44G644Gr44GZIiwgIuOBu+OCgiIsICLjgbzjgZEiLCAi44G844Gj44GNIiwgIuOBveOCi+OBriIsICLjgb7jgpPjgZIiLCAi44G+44KT44GTIiwgIuOBv+OBoOOCiSIsICLjgoDjgaPjgaTjgooiLCAi44KE44KJ44GX44GEIiwgIuOChOOCiuOBoeOCkyIsICLjgoTjgorjgb7jgpMiLCAi44KM44GE44G3IiwgIuOCjeOCiuOBk+OCkyIsICLjgo/jgYTjgZvjgaQiXSwgImwiOiBbIuOBguOBo+OBoeOBhOOBkSIsICLjgYLjgbvjgYYiLCAi44GC44G744KT44Gg44KJIiwgIuOBhOOBquOBj+OBquOCjCIsICLjgYbjgZbjgYQiLCAi44GG44Gc44GIIiwgIuOBhuOBnOODvCIsICLjgYbjgpPjgZPjgaHjgpPjgaHjgpMiLCAi44GI44Gj44Gh44GX44Gf44GEIiwgIuOBiOOBo+OBoeOBl+OCiOOBhiIsICLjgYjjgaPjgaHjgZfjgo0iLCAi44GI44Gj44Gh44Gq44GT44GoIiwgIuOBiOOCjeOBhOOBk+OBqCIsICLjgYjjgo3jgYTjga/jgarjgZciLCAi44GI44KN44GSIiwgIuOBiOOCjeOBqeOBhuOBjCIsICLjgYjjgo3jgbvjgpMiLCAi44GI44KN44G+44KT44GMIiwgIuOBiuOBi+OBviIsICLjgYrjgZfjgorjgb/jgZsiLCAi44GK44GX44KK44KS44GV44KPIiwgIuOBiuOBo+OBseOBhOOBleOCjyIsICLjgYrjgaPjgbHjgYTjga7jgb7jgZsiLCAi44GK44Gj44Gx44GE44G3IiwgIuOBiuOBo+OBseOBhOOBv+OBmyIsICLjgYrjgaPjgbHjgYTjgoLjgb8iLCAi44GK44Go44GT44GK44KT44GqIiwgIuOBiuOBquOBi+OBp+OBo+OBt+OCiiIsICLjgYrjgarjgavjg7zjgZnjgosiLCAi44GK44KT44Gq44GK44Go44GTIiwgIuOBi+OBmeOChOOCjSIsICLjgYvjgZ/jgo8iLCAi44GM44KK44GM44KKIiwgIuOBjeOBiOOBn+OBhCIsICLjgY3jgYjjgabjgZfjgb7jgYgiLCAi44GN44GI44KNIiwgIuOBjeOBl+OCh+OBhCIsICLjgY3jgZ/jgarjgYQiLCAi44GN44Gh44GM44GEIiwgIuOBjeOBoeOBkuOBiCIsICLjgY3jgaHjgoPjgarjgYQiLCAi44GN44KC44GEIiwgIuOBjeOCguOBoeOCj+OCi+OBhCIsICLjgY3jgonjgYTjgaAiLCAi44GP44Ga44KE44KNIiwgIuOBj+OBneOBjOOBjSIsICLjgY/jgZ3jgZjjgZjjgYQiLCAi44GP44Gd44Gj44Gf44KMIiwgIuOBj+OBneOBsOOBsOOBgiIsICLjgY/jgZ3jgoTjgo0iLCAi44GP44Gf44Gw44KMIiwgIuOBj+OCjeOCk+OBvCIsICLjgZPjgZjjgY0iLCAi44GT44Gu44KE44KN44GGIiwgIuOBk+OCjeOBleOCjCIsICLjgZPjgo3jgZfjgYLjgYQiLCAi44GT44KN44GX44Gf44GEIiwgIuOBk+OCjeOBl+OBpiIsICLjgZPjgo3jgZfjgabjgoTjgosiLCAi44GT44KN44GX44GrIiwgIuOBk+OCjeOBl+OChCIsICLjgZPjgo3jgZkiLCAi44GT44KN44GbIiwgIuOBlOOBv+OBj+OBmiIsICLjgZTjgb/jgoTjgo0iLCAi44GX44Gq44GY44KTIiwgIuOBl+OBq+OBneOBhiIsICLjgZfjgavjgZ/jgYQiLCAi44GX44Gr44KE44GM44KMIiwgIuOBl+OBreOBsOOBhOOBhCIsICLjgZfjga3jgogiLCAi44GX44KK44KS44GV44KPIiwgIuOBl+OCk+OBmOOBvuOBiCIsICLjgZfjgpPjgZjjgoPjgYYiLCAi44GX44KT44GY44KD44GIIiwgIuOBl+OCk+OBoOOCiSIsICLjgZfjgpPjgafjgY/jgowiLCAi44GX44KT44Gn44GX44G+44GIIiwgIuOBl+OCk+OBp+OBu+OBl+OBhCIsICLjgZjjgZXjgaTjgZfjgo0iLCAi44GY44GY44GEIiwgIuOBmOOCg+OBvuOBoCIsICLjgZvjgYTjgZPjgYbjgYQiLCAi44Gb44Gj44GP44GZIiwgIuOBm+OBo+OBj+OBmeOBl+OCiCIsICLjgaDjgYTjgY3jgonjgYQiLCAi44Gg44GE44Gj44GN44KJ44GEIiwgIuOBoOOBleOBhCIsICLjgaDjgaPjgZUiLCAi44Gg44G+44KK44Gq44GV44GEIiwgIuOBoOOBvuOCjCIsICLjgaHjgYvjgpPjgafjgZkiLCAi44Gh44GP44GX44KH44GGIiwgIuOBoeOBs+OBp+OBtiIsICLjgaHjgoPjgpPjgZPjgo0iLCAi44Gh44KH44GG44Gb44KT44GY44KTIiwgIuOBoeOCk+OBk+OBvuOCk+OBkyIsICLjgaHjgpPjgaHjgpPjgZXjgo8iLCAi44Gh44KT44Gh44KT44Gn44GLIiwgIuOBoeOCk+OBoeOCk+OBtuOCieOBtuOCiSIsICLjgaHjgpPjgaHjgpPjgbfjgovjgbfjgosiLCAi44Gh44KT44Gh44KT44G/44GbIiwgIuOBoeOCk+OBoeOCk+OCkuOBv+OBmyIsICLjgaHjgpPjgbAiLCAi44Gh44KT44G944KTIiwgIuOBpOOCk+OBvCIsICLjgafjgbbjgaPjgaHjgociLCAi44Go44KT44G+IiwgIuOBqeOBo+OBi+OBhOOBkSIsICLjgarjgYvjgaDjgZciLCAi44Gu44Ge44GN44G/IiwgIuOBruOCjeOBviIsICLjga/jgZLjgYrjgoTjgZgiLCAi44Gv44Gg44GL44Gr44Gq44KMIiwgIuOBr+OBoOOBi+OBv+OBmyIsICLjgbDjgYvjgaHjgofjgpMiLCAi44Gw44GL44KE44KNIiwgIuOBsOOBsOOBgiIsICLjgbDjg7zjgYsiLCAi44Gx44KT44Gk44GsIiwgIuOBseOCk+OBpOOBv+OBiCIsICLjgbHjgpPjgaTjgb/jgZsiLCAi44Gx44KT44Gk44KS44GsIiwgIuOBs+OBo+OBkyIsICLjgbPjgpPjgbzjgYYiLCAi44Gz44KT44G844GG44Gr44KTIiwgIuOBteOBgeOBo+OBjeOCkyIsICLjgbXjgYHjgaPjgY/jgobjg7wiLCAi44G144GH44KJ44Gh44GKIiwgIuOBtuOBiuOBqOOBkyIsICLjgbbjgZXjgYTjgY8iLCAi44G244Gf44KE44KNIiwgIuOBtuOBoeOBk+OCjSIsICLjgbbjgaPjgZPjgo0iLCAi44G344Gj44GX44O8IiwgIuOBvOOBkeOBquOBmSIsICLjgb3jgovjga7jgZDjgonjgbXjgYMiLCAi44G944KL44Gu44GV44GE44GoIiwgIuOBvuOBrOOBkSIsICLjgb7jgpPjgaHjgpMiLCAi44KA44GL44Gk44GPIiwgIuOCgOOBo+OBpOOCiuOBmeOBkeOBuSIsICLjgoDjga7jgYYiLCAi44KB44GP44KJIiwgIuOChOOBj+OBn+OBn+OBmiJdfQ==';
+    var BAD = (function () {
+        try {
+            var d = JSON.parse(decodeURIComponent(escape(atob(BAD_B64))));
+            return { rx: new RegExp('^(?:(?:' + d.s.join('|') + ')(?:やろう|やろー|め|だ|だよ|よ|ね|な|ちゃん|くん|ー|っ)*)+$'), l: d.l };
+        } catch (e) { return { rx: /$^/, l: [] }; }
+    })();
+    function isBad(w) {
+        if (BAD.rx.test(w)) return true;
+        for (var i = 0; i < BAD.l.length; i++) if (w.indexOf(BAD.l[i]) >= 0) return true;
+        return false;
+    }
+    var blockMsg = document.getElementById('blockMsg'), blockTimer = 0;
+    function showBlocked() {
+        blockMsg.hidden = false;
+        clearTimeout(blockTimer);
+        blockTimer = setTimeout(hideBlocked, 2600);
+        shake(btnDone);
+    }
+    function hideBlocked() { blockMsg.hidden = true; clearTimeout(blockTimer); }
+
+    function make() {
+        if (busy) return;
+        if (!chars.length) { shake(btnDone); return; }
+        var w0 = chars.join('');
+        if (isBad(w0)) {
+            chars = [];       // 入れたことばは けす
+            render(false);
+            showBlocked();
+            return;
+        }
+        busy = true;
+        display.classList.add('working');   // はぐるまが まわる・ランプが ひかる
+
+        var word = chars.join('');
+        var picPromise = isChar(word)
+            ? loadImage(notoUrl(CROSS)).then(function (s) { return { found: false, isChar: true, src: s, text: '❌' }; })
+            : loadPicture(lookup(word));
+
+        // 1) もじが もにゃもにゃ
+        var spans = Array.prototype.slice.call(textEl.querySelectorAll('.c'));
+        var WOBBLE = 1200;
+        spans.forEach(function (s, i) {
+            if (!s.animate) return;
+            var f = [];
+            for (var k = 0; k <= 6; k++) {
+                f.push({ transform: 'translate(' + rand(-8, 8) + 'px,' + rand(-14, 14) + 'px) rotate(' + rand(-22, 22) + 'deg) scale(' + rand(.8, 1.25) + ',' + rand(.75, 1.3) + ')' });
+            }
+            f[0] = { transform: 'none' };
+            f[6] = { transform: 'none' };   // もにゃもにゃは もとの かたちで おわる（すんっと もどらない）
+            s.animate(f, { duration: WOBBLE, delay: i * 40, easing: 'ease-in-out', fill: 'forwards' });
+        });
+        if (display.animate) {
+            display.animate([
+                { transform: 'scale(1)' }, { transform: 'scale(1.03, .97)' }, { transform: 'scale(.98, 1.03)' },
+                { transform: 'scale(1.03, .97)' }, { transform: 'scale(1)' }
+            ], { duration: WOBBLE, easing: 'ease-in-out' });
+        }
+
+        // 2) ぐにょんっと ちぢんでから、右へ ながれていく（右の きかいへ はこばれる）
+        var FLOW = 520, STEP = 70;
+        T(function () {
+            var wrapR = textWrap.getBoundingClientRect().right;
+            var sc = app.getBoundingClientRect().width / app.offsetWidth || 1;   // 画面上の倍率
+            textWrap.classList.remove('overflow');
+            spans.forEach(function (s, idx) {
+                if (!s.animate) return;
+                var r = s.getBoundingClientRect();
+                var dist = (wrapR - r.left) / sc + 80;              // 画面の右はしの外まで
+                var order = spans.length - 1 - idx;                 // 右の文字から じゅんに
+                s.getAnimations && s.getAnimations().forEach(function (a) { a.cancel(); });
+                s.animate([
+                    { transform: 'none', opacity: 1 },
+                    { transform: 'translateX(-18px) scale(.8, 1.22)', opacity: 1, offset: .3 },   // ぐにょん
+                    { transform: 'translateX(' + dist * .35 + 'px) scale(1.35, .8)', opacity: 1, offset: .62 },
+                    { transform: 'translateX(' + dist + 'px) scale(1.1, .9)', opacity: .9 }
+                ], { duration: FLOW, delay: order * STEP, easing: 'cubic-bezier(.45,0,.7,1)', fill: 'forwards' });
+            });
+        }, WOBBLE + spans.length * 40);
+
+        // 3) けむりの中から イラストが ぽんっ
+        var sentAt = WOBBLE + spans.length * 40 + FLOW + (spans.length - 1) * STEP;
+        var GAP = 900;   // ことばを おくったあとの ま
+        T(function () { hint.textContent = 'つくってるよ…'; hint.hidden = false; }, sentAt);
+        var minWait = new Promise(function (res) { T(res, sentAt + GAP); });
+        Promise.all([picPromise, minWait]).then(function (r) {
+            if (!busy) return;
+            var res = r[0];
+            showResult(word, res, suggest(word));
+        });
+    }
+
+    function showResult(word, res, guess) {
+        var src = res.src;
+        display.classList.remove('working');
+        // 絵
+        if (src) {
+            pic.src = src; pic.hidden = false; picText.hidden = true;
+        } else {
+            // インターネットにつながらない時は、端末の絵文字で代わりに出す
+            pic.hidden = true; picText.hidden = false;
+            picText.textContent = res.text || '？';
+        }
+        sitOnBelt(src);
+        wordEl.textContent = word;
+        msgEl.className = '';
+        if (res.found) {
+            var isNew = addToColl(word, src, res.text);
+            msgEl.textContent = isNew ? 'コレクションに はいったよ！' : 'もう コレクションに あるよ';
+            if (isNew) msgEl.className = 'ok';
+            btnFix.hidden = true;
+            btnMaybe.hidden = true;
+        } else {
+            if (res.isChar) {
+                msgEl.textContent = 'キャラクターは つくれないよ';
+                btnFix.hidden = true;
+                btnMaybe.hidden = true;
+                btnMaybe._guess = null;
+            } else {
+                msgEl.textContent = 'まだ つくれない ことば みたい';
+                try { if (window.__logUnknown) window.__logUnknown(word); } catch (e) {}
+                btnFix.hidden = false;
+                btnMaybe.hidden = true;
+                btnMaybe._guess = null;
+                // 書きまちがいに近いことばがあれば、下の文字は「りんご？」と出す
+                if (guess) { wordEl.textContent = guess + '？'; msgEl.textContent = ''; }
+            }
+        }
+        fitWord();
+
+        result.hidden = false;
+        // じかんの ながれ：きかいが ガタガタ → ぐぐっと ためる → ベルトが うごきだす → イラストが のって でてくる
+        var PRE = 1200;    // ガタガタ（さいごの 350ms で ぐぐっと ためる）
+        var LEAD = 600;    // ベルトだけ さきに うごく じかん
+        var SLIDE = 1200;  // ベルトに のって まんなかまで
+        var OUT = PRE + LEAD;          // でてくる しゅんかん
+        var ARRIVE = OUT + SLIDE;      // とまる しゅんかん
+        scene.classList.add('working');
+        T(function () { scene.classList.remove('working'); }, ARRIVE + 200);
+        if (machine.animate) {
+            machine.animate([
+                { transform: 'none' }, { transform: 'translate(-3px,1px) rotate(-.6deg)' },
+                { transform: 'translate(3px,-1px) rotate(.6deg)' }, { transform: 'none' }
+            ], { duration: 170, iterations: Math.round((PRE - 350) / 170) });
+            // ぐぐっと ためて…
+            machine.animate([{ transform: 'none' }, { transform: 'scale(1.05, .9)' }],
+                { duration: 350, delay: PRE - 350, easing: 'ease-in', fill: 'forwards' });
+            // …ぽんっと だす
+            T(function () {
+                machine.getAnimations && machine.getAnimations().forEach(function (a) { a.cancel(); });
+                machine.animate([
+                    { transform: 'scale(1.05, .9)' }, { transform: 'scale(.96, 1.06)' }, { transform: 'none' }
+                ], { duration: 380, easing: 'ease-out' });
+            }, OUT);
+        }
+
+        // えんとつから けむり
+        var cx = machine.offsetLeft + chimney.offsetLeft + chimney.offsetWidth / 2, cy = machine.offsetTop + chimney.offsetTop;
+        for (var i = 0; i < 7; i++) {
+            var p = document.createElement('div');
+            p.className = 'puff';
+            p.style.left = cx + 'px'; p.style.top = cy + 'px';
+            scene.appendChild(p);
+            var drift = rand(25, 60), sway = rand(10, 22), rot = rand(-14, 14), sc = rand(1.1, 1.5);
+            p.animate([
+                { transform: 'translate(0,0) scale(.25) rotate(0deg)', opacity: 0 },
+                { transform: 'translate(' + (drift * .25 + sway) + 'px,-36px) scale(.8) rotate(' + rot * .4 + 'deg)', opacity: 1, offset: .2 },
+                { transform: 'translate(' + (drift * .6 - sway) + 'px,-100px) scale(' + sc * .85 + ') rotate(' + rot * .8 + 'deg)', opacity: .95, offset: .6 },
+                { transform: 'translate(' + drift + 'px,-165px) scale(' + sc * 1.15 + ') rotate(' + rot + 'deg)', opacity: 0 }
+            ], { duration: 1700, delay: i * 230, easing: 'ease-out', fill: 'both' }).onfinish = (function (el) {
+                return function () { el.remove(); };
+            })(p);
+        }
+        // ベルトが うごく
+        // きかいの くちから イラストが ベルトに のって でてくる
+        var mouthX = machine.offsetLeft + machine.offsetWidth;
+        var stageCx = stage.offsetLeft + stage.offsetWidth / 2;
+        var dx = mouthX - stageCx;                       // マイナス＝左から
+        var speed = Math.abs(dx) / SLIDE;                 // イラストと ベルトを おなじ はやさに
+        if (belt.animate) {
+            var leadDist = speed * LEAD, total = speed * (LEAD + SLIDE);
+            belt.animate([
+                { backgroundPosition: '0 0' },
+                { backgroundPosition: leadDist * .5 + 'px 0', offset: LEAD / (LEAD + SLIDE) * .7 },   // ゆっくり うごきだす
+                { backgroundPosition: total + 'px 0' }
+            ], { duration: LEAD + SLIDE, delay: PRE, easing: 'linear', fill: 'forwards' });
+        }
+        stage.animate([
+            { transform: 'translateX(' + dx + 'px) scale(.3)', opacity: 0 },
+            { transform: 'translateX(' + dx * .9 + 'px) scale(1.08)', opacity: 1, offset: .1 },   // ぽこっと でる
+            { transform: 'translateX(' + dx * .82 + 'px) scale(1)', opacity: 1, offset: .18 },
+            { transform: 'translateX(0) scale(1)', opacity: 1 }
+        ], { duration: SLIDE, delay: OUT, easing: 'linear', fill: 'backwards' });
+        // とまったら ぽよん
+        stage.animate([
+            { transform: 'scale(1)' }, { transform: 'scale(1.1, .9)' }, { transform: 'scale(.96, 1.05)' }, { transform: 'scale(1)' }
+        ], { duration: 420, delay: ARRIVE, easing: 'ease-out' });
+        // きらきら（成功したときだけ）
+        if (res.found) {
+            T(function () {
+                var sx = stage.offsetLeft + stage.offsetWidth / 2, sy = stage.offsetTop + stage.offsetHeight / 2;
+                var colors = ['#ffcc33', '#ff8fb1', '#7cc8ff', '#8fe08f'];
+                for (var j = 0; j < 12; j++) {
+                    var sp = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+                    sp.setAttribute('viewBox', '0 0 48 48');
+                    sp.setAttribute('class', 'spark');
+                    sp.style.left = sx + 'px'; sp.style.top = sy + 'px';
+                    sp.innerHTML = '<path fill="' + colors[j % 4] + '" d="M24 2l5 17 17 5-17 5-5 17-5-17-17-5 17-5z"/>';
+                    scene.appendChild(sp);
+                    var a2 = rand(0, Math.PI * 2), d2 = rand(190, 290);
+                    sp.animate([
+                        { transform: 'translate(0,0) scale(0) rotate(0deg)', opacity: 1 },
+                        { transform: 'translate(' + Math.cos(a2) * d2 + 'px,' + Math.sin(a2) * d2 * .8 + 'px) scale(' + rand(.8, 1.6) + ') rotate(' + rand(90, 270) + 'deg)', opacity: 0 }
+                    ], { duration: rand(800, 1100), easing: 'cubic-bezier(.2,.7,.4,1)', fill: 'both' }).onfinish = (function (el) {
+                        return function () { el.remove(); };
+                    })(sp);
+                }
+            }, ARRIVE + 80);
+        }
+        // ことばと ボタン
+        [wordEl, msgEl, document.getElementById('resultBtns')].forEach(function (el, k) {
+            el.animate([
+                { transform: 'translateY(20px)', opacity: 0 },
+                { transform: 'none', opacity: 1 }
+            ], { duration: 320, delay: ARRIVE + 250 + k * 120, easing: 'ease-out', fill: 'backwards' });
+        });
+        // 結果のボタンは少し待ってから押せるようにする（連打で すぐ閉じないように）
+        resultReadyAt = Date.now() + ARRIVE + 500;
+    }
+    var resultReadyAt = 0;
+
+    // 絵の下の よはくを はかって、ベルトに ぴったり のせる（うかない ように）
+    var BOTTOM_GAP = {"あいろん":0.163,"あかしろぼう":0.277,"あかずきん":0.047,"あかとんぼ":0.199,"あげはちょう":0.156,"あさがお":0.167,"あさり":0.134,"あじ":0.299,"あじさい":0.207,"あすぱら":0.073,"あたま":0.094,"あぶ":0.114,"あぶらぜみ":0.056,"あめんぼ":0.174,"あやとり":0.174,"あられ":0.185,"ありくい":0.192,"あるまじろ":0.154,"あんこう":0.197,"あんぱん":0.151,"あんまん":0.164,"いくら":0.12,"いけ":0.208,"いちじく":0.123,"いちょう":0.093,"いちりんしゃ":0.059,"いっすんぼうし":0.051,"いなりずし":0.16,"いもり":0.095,"いわし":0.316,"ういんなー":0.19,"うぐいす":0.168,"うちわ":0.028,"うどん":0.153,"うなぎ":0.261,"うに":0.1,"うめ":0.057,"うめぼし":0.091,"うらしまたろう":0.116,"うわばき":0.159,"うんどうかい":0.19,"うーぱーるーぱー":0.159,"えあこん":0.217,"えい":0.199,"えだまめ":0.183,"えのき":0.054,"えんぴつけずり":0.115,"おかね":0.162,"おかぴ":0.05,"おくら":0.185,"おこさまらんち":0.249,"おこのみやき":0.156,"おしり":0.149,"おしるこ":0.126,"おせち":0.15,"おせろ":0.169,"おたまじゃくし":0.233,"おてだま":0.197,"おてら":0.193,"おとしだま":0.053,"おなか":0.118,"おはじき":0.155,"おへそ":0.079,"おべんとう":0.151,"おままごと":0.174,"おむらいす":0.225,"おむれつ":0.222,"おもち":0.23,"おもちゃや":0.144,"おやこどん":0.155,"おりがみ":0.206,"か":0.082,"かいぞくせん":0.076,"かがみもち":0.048,"かき":0.115,"かきぞめ":0.232,"かきのたね":0.159,"かくれんぼ":0.113,"かぐやひめ":0.092,"かすたねっと":0.056,"かすてら":0.093,"かっぱ":0.047,"かつお":0.274,"かつどん":0.156,"かぬー":0.185,"かぴばら":0.091,"かぶ":0.055,"かぶとむし":0.097,"かぼちゃ":0.183,"かまきり":0.114,"かまくら":0.158,"かみなり":0.09,"かみのけ":0.102,"かもめ":0.143,"かやっく":0.219,"かりふらわー":0.143,"かりんとう":0.193,"かるた":0.176,"かれい":0.235,"かれーぱん":0.194,"かーてん":0.149,"きかい":0.042,"ききゅう":0.043,"きく":0.142,"きつつき":0.057,"きゃべつ":0.114,"きゃんぴんぐかー":0.208,"きゅうしょく":0.215,"きゅうす":0.225,"きりぎりす":0.161,"きんぎょ":0.163,"きんたろう":0.067,"ぎゅうどん":0.152,"くまのみ":0.228,"くまんばち":0.135,"くれぱす":0.176,"くれーぷ":0.053,"くわがた":0.148,"ぐみ":0.139,"ぐらいだー":0.255,"ぐらたん":0.211,"けいさつしょ":0.176,"けしごむ":0.179,"けちゃっぷ":0.054,"けんだま":0.052,"こい":0.23,"こうえん":0.219,"こうずい":0.15,"こうばん":0.155,"こくばん":0.203,"こしょう":0.058,"こすもす":0.136,"こたつ":0.235,"こま":0.053,"こままわし":0.081,"ころっけ":0.163,"こんぺいとう":0.146,"ごぼう":0.168,"ごみしゃ":0.211,"ごーや":0.167,"さいだー":0.054,"さかなや":0.123,"さといも":0.135,"さとう":0.114,"さなぎ":0.052,"さば":0.287,"さむらい":0.046,"さんま":0.308,"さんりんしゃ":0.146,"ざくろ":0.135,"ざぶとん":0.221,"しいたけ":0.091,"しおからとんぼ":0.152,"しゃけ":0.276,"しゃち":0.224,"しやくしょ":0.198,"しゅうまい":0.112,"しゅーくりーむ":0.057,"しょうぎ":0.116,"しょうゆ":0.051,"しょべるかー":0.165,"しらゆきひめ":0.0,"しんでれら":0.096,"しーそー":0.238,"じしん":0.213,"じゃむ":0.054,"じゃんぐるじむ":0.107,"じょうろ":0.236,"じんべい":0.095,"すいとう":0.059,"すいはんき":0.09,"すかーと":0.189,"すぎ":0.05,"すこっぷ":0.072,"すすき":0.094,"すずめ":0.107,"すてごさうるす":0.233,"すとーぶ":0.052,"すな":0.205,"すなば":0.23,"すみれ":0.089,"すもう":0.175,"ずきん":0.054,"ずっきーに":0.133,"せいうち":0.147,"せみ":0.049,"せろはんてーぷ":0.114,"せろり":0.125,"せんすいかん":0.22,"せんたくき":0.055,"せんたくばさみ":0.093,"せんぷうき":0.059,"せんべい":0.165,"せーたー":0.18,"ぜりー":0.212,"そうじき":0.09,"そうめん":0.229,"そば":0.16,"そらまめ":0.154,"ぞうきん":0.167,"ぞうに":0.122,"たい":0.18,"たいそうふく":0.151,"たいやき":0.185,"たおる":0.132,"たき":0.173,"たけ":0.148,"たけのこ":0.048,"たこやき":0.183,"たつのおとしご":0.05,"たなばた":0.137,"たぬき":0.115,"たね":0.161,"たまいれ":0.13,"たまごやき":0.219,"たらこ":0.233,"たんばりん":0.15,"たんぼ":0.128,"たんぽぽ":0.133,"だいこん":0.082,"だいず":0.108,"だいふく":0.203,"だちょう":0.052,"だるま":0.051,"だんごむし":0.217,"だんぷかー":0.225,"ちゃわんむし":0.036,"ちゃーはん":0.18,"ちらしずし":0.13,"ちりとり":0.1,"ちんぱんじー":0.047,"ちーずけーき":0.196,"つくえ":0.197,"つくし":0.054,"つけもの":0.217,"つち":0.214,"つなひき":0.355,"つばめ":0.215,"つみき":0.145,"つる":0.057,"てぃっしゅ":0.178,"てっきん":0.185,"てつぼう":0.216,"てまきずし":0.112,"てるてるぼうず":0.059,"てーぶる":0.202,"でんしれんじ":0.203,"とうふ":0.195,"とびばこ":0.096,"とらんぽりん":0.232,"とりけらとぷす":0.153,"とんかつ":0.145,"とんぼ":0.184,"どうくつ":0.203,"どっじぼーる":0.054,"どらやき":0.183,"どりあん":0.063,"どろ":0.223,"どんぐり":0.054,"ながぐつ":0.11,"なし":0.152,"なっとう":0.121,"なめくじ":0.18,"なわとび":0.115,"にくまん":0.238,"にんぎょう":0.053,"ねぎ":0.134,"ねんど":0.151,"のり":0.052,"のりまき":0.135,"はくさい":0.048,"はしごしゃ":0.194,"はたけ":0.205,"はちまき":0.249,"はっぴ":0.18,"はと":0.116,"はなさかじいさん":0.137,"はみがきこ":0.052,"はむ":0.168,"はるまき":0.223,"はんかち":0.144,"はんこ":0.166,"はんばーぐ":0.126,"はーもにか":0.281,"ばうむくーへん":0.128,"ばった":0.161,"ぱじゃま":0.125,"ひこうきぐも":0.165,"ひこうせん":0.132,"ひざ":0.09,"ひとで":0.06,"ひらめ":0.219,"びいだま":0.162,"びわ":0.129,"ふぇれっと":0.159,"ふぉーくりふと":0.12,"ふじ":0.142,"ふでばこ":0.245,"ふとん":0.216,"ふみきり":0.058,"ふりかけ":0.134,"ふろしき":0.135,"ぶらんこ":0.224,"ぶり":0.281,"ぶるどーざー":0.192,"ぶんちょう":0.104,"ぷてらのどん":0.244,"ぷーる":0.216,"ぷーるばっぐ":0.043,"べびーかー":0.068,"ぺりかん":0.13,"ほたて":0.124,"ほたる":0.034,"ほっちきす":0.145,"ほっぺ":0.145,"ぼくじょう":0.192,"ぽてとちっぷす":0.146,"まいたけ":0.143,"まかろん":0.116,"まくら":0.188,"まぐろ":0.194,"ましゅまろ":0.086,"まつ":0.132,"まつぼっくり":0.049,"まないた":0.222,"まよねーず":0.054,"まりも":0.108,"まんじゅう":0.205,"まんぼう":0.048,"みきさーしゃ":0.159,"みずうみ":0.19,"みそ":0.126,"みそしる":0.122,"みのむし":0.05,"みんみんぜみ":0.051,"むしかご":0.101,"むしとりあみ":0.137,"めだか":0.325,"めろんぱん":0.146,"めんこ":0.133,"もぐら":0.212,"もちつき":0.061,"もっきん":0.212,"もみじ":0.061,"ももたろう":0.109,"ももんが":0.125,"もやし":0.147,"もるもっと":0.059,"もんしろちょう":0.168,"もんぶらん":0.058,"やおや":0.134,"やかん":0.049,"やきそば":0.241,"やきとり":0.22,"やどかり":0.072,"やまいも":0.127,"ゆうしゃ":0.046,"ゆうびんしゃ":0.186,"ゆきがっせん":0.229,"ゆず":0.098,"ゆり":0.114,"ようかん":0.2,"ようちえんばす":0.197,"よーぐると":0.076,"らいち":0.135,"らま":0.059,"らむね":0.046,"らんどせる":0.086,"りれー":0.219,"れいぞうこ":0.056,"れいんこーと":0.073,"れっさーぱんだ":0.143,"れんげ":0.074,"れんこん":0.11,"ろーどろーらー":0.172,"ろーるけーき":0.136,"わたあめ":0.054,"ばく":0.134,"とろっこ":0.045,"けんばんはーもにか":0.219};   // てがきの絵の した よはく（じゅんびした かず。ファイルを ひらいても はかれる）
+    function sitOnBelt(src) {
+        var H = stage.offsetHeight || 420;
+        stage.style.bottom = '54px';
+        if (!src) return;
+        var mm = /custom\/([^\/?#]+)\.(?:jpg|png|svg)/i.exec(src);
+        if (mm) {
+            var nm = mm[1]; try { nm = decodeURIComponent(nm); } catch (e) {}
+            if (BOTTOM_GAP[nm] !== undefined) { stage.style.bottom = Math.round(57 - Math.min(.4, BOTTOM_GAP[nm]) * H) + 'px'; return; }
+        }
+        var im = new Image();
+        im.onload = function () {
+            try {
+                var N = 80, cv = document.createElement('canvas'); cv.width = cv.height = N;
+                var cx2 = cv.getContext('2d');
+                var sc2 = Math.min(N / im.naturalWidth, N / im.naturalHeight);
+                var w = im.naturalWidth * sc2, h = im.naturalHeight * sc2;
+                cx2.drawImage(im, (N - w) / 2, (N - h) / 2, w, h);
+                var d = cx2.getImageData(0, 0, N, N).data, empty = 0, hasAlpha = false;
+                for (var q = 3; q < d.length; q += 4) { if (d[q] < 20) { hasAlpha = true; break; } }   // とうめいな絵（絵文字）
+                for (var y = N - 1; y >= 0; y--) {
+                    var hit = false;
+                    for (var x = 0; x < N; x++) {
+                        var o = (y * N + x) * 4;
+                        if (d[o + 3] > 30 && (hasAlpha || Math.min(d[o], d[o + 1], d[o + 2]) < 244)) { hit = true; break; }
+                    }
+                    if (hit) break;
+                    empty++;
+                }
+                var gap = Math.min(.4, empty / N) * H;
+                stage.style.bottom = Math.round(57 - gap) + 'px';
+            } catch (e) { stage.style.bottom = '34px'; }
+        };
+        im.onerror = function () { stage.style.bottom = '34px'; };
+        if (/^https?:/.test(src)) im.crossOrigin = 'anonymous';
+        im.src = src;
+    }
+
+    function fitWord() {
+        var maxW = (isPortrait ? 700 : app.offsetWidth - 80);
+        var fs = isPortrait ? 84 : 92;
+        wordEl.style.fontSize = fs + 'px';
+        var w = wordEl.scrollWidth;
+        if (w > maxW) wordEl.style.fontSize = Math.floor(fs * maxW / w) + 'px';
+    }
+
+    function closeResult(clearText) {
+        if (Date.now() < resultReadyAt) return;
+        cancelTimers();
+        result.hidden = true;
+        pic.removeAttribute('src');
+        Array.prototype.slice.call(scene.querySelectorAll('.puff,.spark')).forEach(function (e) { e.remove(); });
+        scene.classList.remove('working');
+        display.classList.remove('working');
+        busy = false;
+        if (clearText) chars = [];
+        render(false);
+    }
+
+    /* ---------- コレクション（この端末に保存） ---------- */
+    var COLL_KEY = 'kotobakoujou.collection.v1';
+    var coll = [];
+    try {
+        var saved = JSON.parse(localStorage.getItem(COLL_KEY) || '[]');
+        if (Array.isArray(saved)) coll = saved.filter(function (x) { return x && typeof x.w === 'string'; });
+    } catch (e) { coll = []; }
+    function saveColl() { try { localStorage.setItem(COLL_KEY, JSON.stringify(coll)); } catch (e) {} }
+    function findColl(w) { for (var i = 0; i < coll.length; i++) if (coll[i].w === w) return i; return -1; }
+    function addToColl(w, src, text) {
+        var i = findColl(w);
+        if (i >= 0) {
+            if (!coll[i].src && src) { coll[i].src = src; saveColl(); }   // 前はネットにつながらず絵文字だった時
+            return false;
+        }
+        coll.push({ w: w, src: src || null, text: text || '', t: Date.now() });
+        saveColl();
+        updateBadge();
+        return true;
+    }
+    function updateBadge() {
+        collBadge.textContent = coll.length;
+        collBadge.hidden = coll.length === 0;
+    }
+    function esc(t) {
+        return String(t).replace(/[&<>"']/g, function (c) {
+            return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+        });
+    }
+    function picHtml(item) {
+        return item.src ? '<img src="' + esc(item.src) + '" alt="" draggable="false">'
+                        : '<span class="em">' + esc(item.text || '？') + '</span>';
+    }
+    var ICON_X = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>';
+    var ICON_L = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>';
+    var ICON_R = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg>';
+    var editing = false;
+
+    function renderColl(movedIndex) {
+        collCount.textContent = '（' + coll.length + 'こ）';
+        if (!coll.length) {
+            collList.innerHTML = '<div class="collEmpty">まだ なにも ないよ。<br>ことばを いれて つくってみよう！</div>';
+            return;
+        }
+        var html = '';
+        coll.forEach(function (item, i) {
+            var fs = Math.min(34, Math.floor(190 / Math.max(1, item.w.length)));
+            html += '<div class="card' + (i === movedIndex ? ' moved' : '') + '" data-i="' + i + '">' +
+                '<span class="num">' + (i + 1) + '</span>' +
+                '<div class="pic">' + picHtml(item) + '</div>' +
+                '<div class="w" style="font-size:' + fs + 'px">' + esc(item.w) + '</div>' +
+                '<div class="mv"><button data-act="left" aria-label="まえへ">' + ICON_L + '</button>' +
+                '<button data-act="right" aria-label="うしろへ">' + ICON_R + '</button></div>' +
+                '<button class="del" data-act="del" aria-label="けす">' + ICON_X + '</button>' +
+                '</div>';
+        });
+        collList.innerHTML = html;
+    }
+    function setEditing(on) {
+        editing = on;
+        collEl.classList.toggle('editing', on);
+        collTools.hidden = !on;
+        editLbl.textContent = on ? 'おわり' : 'ならべかえ・けす';
+    }
+    function openColl() {
+        if (busy) return;
+        setEditing(false);
+        renderColl();
+        collList.scrollTop = 0;
+        collEl.hidden = false;
+    }
+    function closeColl() { collEl.hidden = true; collView.hidden = true; confirmEl.hidden = true; }
+
+    // カードの中のボタン（スクロールと まちがえないよう click で受ける）
+    collList.addEventListener('click', function (e) {
+        var card = e.target.closest ? e.target.closest('.card') : null;
+        if (!card) return;
+        var i = +card.getAttribute('data-i');
+        var btn = e.target.closest('[data-act]');
+        var act = btn ? btn.getAttribute('data-act') : null;
+        if (act === 'left' && i > 0) {
+            var a = coll[i]; coll[i] = coll[i - 1]; coll[i - 1] = a;
+            saveColl(); renderColl(i - 1);
+        } else if (act === 'right' && i < coll.length - 1) {
+            var b = coll[i]; coll[i] = coll[i + 1]; coll[i + 1] = b;
+            saveColl(); renderColl(i + 1);
+        } else if (act === 'del') {
+            askConfirm('「' + coll[i].w + '」を けしても いい？', function () {
+                coll.splice(i, 1); saveColl(); updateBadge(); renderColl();
+            });
+        } else if (!act && !editing) {
+            cvPic.innerHTML = picHtml(coll[i]);
+            cvWord.textContent = coll[i].w;
+            var fs = Math.min(92, Math.floor(1000 / Math.max(1, coll[i].w.length)));
+            cvWord.style.fontSize = (isPortrait ? Math.min(fs, 80) : fs) + 'px';
+            collView.hidden = false;
+        }
+    });
+    collView.addEventListener('click', function (e) {
+        if (e.target === collView) collView.hidden = true;
+    });
+
+    var pendingYes = null;
+    function askConfirm(message, onYes) {
+        cfMsg.textContent = message;
+        pendingYes = onYes;
+        confirmEl.hidden = false;
+    }
+
+    /* ---------- 画面サイズ（webapp §5・§7） ---------- */
+    function setAppHeight() {
+        var vv = window.visualViewport;
+        var h = vv ? vv.height * (vv.scale > 1 ? vv.scale : 1) : window.innerHeight;
+        if (h > 0) document.documentElement.style.setProperty('--app-h', Math.round(h) + 'px');
+    }
+
+    function fitToWindow() {
+        setAppHeight();
+        var vv = window.visualViewport;
+        var zs = (vv && vv.scale > 1) ? vv.scale : 1;
+        var vw = vv ? vv.width * zs : window.innerWidth;
+        var vh = vv ? vv.height * zs : window.innerHeight;
+        if (!vw || !vh) return;
+
+        var LW = Math.max(1200, Math.min(1700, Math.round(844 * vw / vh)));
+        var sL = Math.min((vw - 8) / LW, (vh - 8) / 844);
+        var PH = Math.max(1200, Math.min(1700, Math.round(760 * vh / vw)));
+        var sP = Math.min((vw - 8) / 760, (vh - 8) / PH);
+
+        var portrait = sP > sL;
+        if (portrait !== isPortrait) {
+            isPortrait = portrait;
+            app.classList.toggle('is-portrait', portrait);
+            app.classList.toggle('is-landscape', !portrait);
+            layoutKeys();
+        }
+        if (portrait) { app.style.width = '760px'; app.style.height = PH + 'px'; }
+        else          { app.style.width = LW + 'px'; app.style.height = '844px'; }
+
+        app.style.transform = 'translate(-50%, -50%) scale(' + (portrait ? sP : sL) + ')';
+        sizeKeyFont();
+        fitText();
+        if (!result.hidden) fitWord();
+    }
+
+    ['resize', 'pageshow'].forEach(function (t) { window.addEventListener(t, fitToWindow); });
+    window.addEventListener('orientationchange', function () { setTimeout(fitToWindow, 250); });
+    if (window.visualViewport) {
+        visualViewport.addEventListener('resize', fitToWindow);
+        visualViewport.addEventListener('scroll', setAppHeight);
+    }
+
+    /* ---------- ボタンをつなぐ ---------- */
+    bindPress(btnBack, backspace);
+    bindPress(btnClear, clearAll);
+    bindPress(btnDone, make);
+    bindPress(btnColl, openColl);
+    bindPress(document.getElementById('btnCollBack'), closeColl);
+    bindPress(document.getElementById('btnEdit'), function () { setEditing(!editing); });
+    bindPress(document.getElementById('btnSortAiu'), function () {
+        coll.sort(function (a, b) { return a.w < b.w ? -1 : a.w > b.w ? 1 : 0; });
+        saveColl(); renderColl();
+    });
+    bindPress(document.getElementById('btnSortNew'), function () {
+        coll.sort(function (a, b) { return (a.t || 0) - (b.t || 0); });
+        saveColl(); renderColl();
+    });
+    bindPress(document.getElementById('btnClearAll'), function () {
+        if (!coll.length) return;
+        askConfirm('コレクションを ぜんぶ けしても いい？', function () {
+            coll = []; saveColl(); updateBadge(); renderColl();
+        });
+    });
+    bindPress(document.getElementById('btnCvClose'), function () { collView.hidden = true; });
+    bindPress(document.getElementById('btnNo'), function () { confirmEl.hidden = true; pendingYes = null; });
+    bindPress(document.getElementById('btnYes'), function () {
+        confirmEl.hidden = true;
+        var f = pendingYes; pendingYes = null;
+        if (f) f();
+    });
+    updateBadge();
+    bindPress(btnNext, function () { closeResult(true); });
+    bindPress(btnFix, function () { closeResult(false); });
+    bindPress(btnMaybe, function () {
+        if (Date.now() < resultReadyAt) return;
+        var g = btnMaybe._guess;
+        if (!g) return;
+        closeResult(false);
+        chars = Array.from(g);
+        render(false);
+    });
+    Array.prototype.forEach.call(document.querySelectorAll('#extras .key'), function (b) {
+        bindPress(b, function () { modifyLast(b.getAttribute('data-op'), b); });
+    });
+
+    /* ---------- 起動 ---------- */
+    fitToWindow();
+    render(false);
+
+    var shown = false;
+    function reveal() {
+        if (shown) return;
+        shown = true;
+        fitToWindow();
+        app.classList.add('is-ready');
+    }
+    setTimeout(fitToWindow, 300);
+    var fontWait = (document.fonts && document.fonts.load)
+        ? Promise.all([
+            document.fonts.load('600 60px "Klee One"', 'あいうえおん'),
+            document.fonts.load('700 28px "Zen Maru Gothic"', 'できたぜんぶけす')
+          ])
+        : Promise.resolve();
+    fontWait.then(function () { setTimeout(reveal, 300); }, function () { setTimeout(reveal, 300); });
+    setTimeout(reveal, 1800);
+    window.addEventListener('load', fitToWindow);
+    if (document.fonts && document.fonts.addEventListener) {
+        document.fonts.addEventListener('loadingdone', function () { fitToWindow(); });
+    }
+})();
+</script>
+<script type="module">
+    // ？になったことばを集計（ことばと回数だけ。だれが入れたかは記録しない）
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+    import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+    import { getDatabase, ref, update, increment, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-database.js";
+    var cfg = { apiKey: "AIzaSyBjnWqAcunbf_TBPraMHZRmI1bPjTnFhQU", authDomain: "typing-48f95.firebaseapp.com", databaseURL: "https://typing-48f95-default-rtdb.asia-southeast1.firebasedatabase.app", projectId: "typing-48f95", storageBucket: "typing-48f95.firebasestorage.app", messagingSenderId: "1045024853093", appId: "1:1045024853093:web:3484649a3b1544bb51ca8c" };
+    var fb = null;
+    function ready() {
+        if (!fb) {
+            var app = initializeApp(cfg, 'kotoba');
+            var auth = getAuth(app), db = getDatabase(app);
+            fb = signInAnonymously(auth).then(function () { return db; });
+        }
+        return fb;
+    }
+    window.__logUnknown = function (word, blocked) {
+        word = String(word || '').replace(/[.$#\[\]\/\s]/g, '');
+        if (!word || word.length > 20) return;
+        ready().then(function (db) {
+            return update(ref(db, 'kotoba_unknown/' + word), (blocked ? { word: word, count: increment(1), last: serverTimestamp(), blocked: true } : { word: word, count: increment(1), last: serverTimestamp() }));
+        }).catch(function (e) { console.error('unknown-log failed', e); });
+    };
+</script>
+</body>
+</html>
