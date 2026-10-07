@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>ことばこうじょう ？ になったことば（集計）</title>
+<style>
+  body{font-family:'Hiragino Sans','Yu Gothic UI',Meiryo,sans-serif;margin:0;background:#f5f1ea;color:#2b2118}
+  main{max-width:720px;margin:0 auto;padding:20px 16px 60px}
+  h1{font-size:22px;margin:0 0 6px}
+  p{margin:4px 0 14px;color:#6b5a48;font-size:14px}
+  .bar{display:flex;gap:10px;flex-wrap:wrap;margin:10px 0 16px}
+  button{border:0;border-radius:12px;padding:12px 18px;font-size:16px;font-weight:700;background:#f3d6a6;color:#6b4a1e;box-shadow:0 4px 0 #c99a5b;cursor:pointer;touch-action:manipulation}
+  button:active{transform:translateY(3px);box-shadow:0 1px 0 #c99a5b}
+  table{width:100%;border-collapse:collapse;background:#fff;border-radius:12px;overflow:hidden}
+  th,td{padding:10px 12px;border-bottom:1px solid #eee;text-align:left;font-size:17px}
+  th{background:#8a99a9;color:#fff;font-size:14px}
+  td.n{text-align:right;font-variant-numeric:tabular-nums}
+  #msg{color:#a33a3a}
+  th.c,td.c{width:44px;text-align:center;padding:10px 6px}
+  input[type=checkbox]{width:24px;height:24px;cursor:pointer}
+  tr.sel{background:#fff6dd !important}
+  button.del{background:#ffd6d6;color:#a33a3a;box-shadow:0 4px 0 #e39494}
+  button.del:disabled{opacity:.4;cursor:default}
+  tbody tr{cursor:pointer}
+</style>
+</head>
+<body>
+<main>
+  <h1>？になったことば</h1>
+  <p>子どもたちが入れて、イラストにできなかったことばの回数です。回数の多いものから、辞書に足していくと効果的です。</p>
+  <div class="bar"><button id="reload">さいしんにする</button><button id="csv">CSVでほぞん（Excel用）</button><button id="del" class="del" disabled>えらんだものを けす</button></div>
+  <div id="msg"></div>
+  <table><thead><tr><th class="c"><input type="checkbox" id="all" aria-label="ぜんぶ えらぶ"></th><th>ことば</th><th style="text-align:right">回数</th><th>さいご</th></tr></thead><tbody id="body"></tbody></table>
+  <p id="total"></p>
+</main>
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+import { getDatabase, ref, get, remove } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-database.js";
+const cfg = { apiKey: "AIzaSyBjnWqAcunbf_TBPraMHZRmI1bPjTnFhQU", authDomain: "typing-48f95.firebaseapp.com", databaseURL: "https://typing-48f95-default-rtdb.asia-southeast1.firebasedatabase.app", projectId: "typing-48f95", storageBucket: "typing-48f95.firebasestorage.app", messagingSenderId: "1045024853093", appId: "1:1045024853093:web:3484649a3b1544bb51ca8c" };
+const app = initializeApp(cfg, 'stats'), auth = getAuth(app), db = getDatabase(app);
+let rows = [];
+const fmt = d => d ? d.getFullYear() + '/' + (d.getMonth()+1) + '/' + d.getDate() + ' ' + String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0') : '';
+async function load() {
+  const msg = document.getElementById('msg'); msg.textContent = '';
+  try {
+    if (!auth.currentUser) await signInAnonymously(auth);
+    const snap = await get(ref(db, 'kotoba_unknown'));
+    const v = snap.val() || {};
+    rows = Object.keys(v).map(k => ({ key: k, word: v[k].word || k, count: v[k].count || 0, last: v[k].last ? new Date(v[k].last) : null, blocked: !!v[k].blocked }));
+    rows.sort((a, b) => b.count - a.count || (b.last||0) - (a.last||0));
+    document.getElementById('body').innerHTML = rows.map((r, i) => '<tr data-i="' + i + '"' + (r.blocked ? ' style="background:#fff0f0"' : '') + '><td class="c"><input type="checkbox" class="chk" data-i="' + i + '"></td><td>' + r.word.replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])) + (r.blocked ? ' <small style="color:#a33a3a">【使えないことば】</small>' : '') + '</td><td class="n">' + r.count + '</td><td>' + fmt(r.last) + '</td></tr>').join('');
+    document.getElementById('all').checked = false; updSel();
+    document.getElementById('total').textContent = rows.length + 'しゅるい／ごうけい ' + rows.reduce((s, r) => s + r.count, 0) + '回';
+  } catch (e) { msg.textContent = 'よみこめませんでした：' + e.message; }
+}
+const chks = () => Array.from(document.querySelectorAll('.chk'));
+function updSel() {
+  const n = chks().filter(c => c.checked).length;
+  const b = document.getElementById('del'); b.disabled = n === 0; b.textContent = n ? 'えらんだ ' + n + '件を けす' : 'えらんだものを けす';
+  chks().forEach(c => c.closest('tr').classList.toggle('sel', c.checked));
+  const all = document.getElementById('all'); all.checked = n > 0 && n === chks().length;
+}
+document.getElementById('body').addEventListener('click', e => {
+  const tr = e.target.closest('tr'); if (!tr) return;
+  const c = tr.querySelector('.chk'); if (e.target !== c) c.checked = !c.checked;
+  updSel();
+});
+document.getElementById('all').onclick = e => { chks().forEach(c => c.checked = e.target.checked); updSel(); };
+document.getElementById('del').onclick = async () => {
+  const sel = chks().filter(c => c.checked).map(c => rows[+c.dataset.i]);
+  if (!sel.length) return;
+  if (!confirm(sel.length + '件を けしますか？（もとには もどせません）')) return;
+  const msg = document.getElementById('msg'); msg.textContent = '';
+  try {
+    if (!auth.currentUser) await signInAnonymously(auth);
+    await Promise.all(sel.map(r => remove(ref(db, 'kotoba_unknown/' + r.key))));
+  } catch (e) { msg.textContent = 'けせませんでした：' + e.message; }
+  load();
+};
+document.getElementById('reload').onclick = load;
+document.getElementById('csv').onclick = () => {
+  const csv = '﻿ことば,回数,最後に入力された日時,種類\r\n' + rows.map(r => r.word + ',' + r.count + ',' + fmt(r.last) + ',' + (r.blocked ? '使えないことば' : '辞書にない')).join('\r\n');
+  const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' })); a.download = 'はてなになったことば.csv'; a.click();
+};
+load();
+</script>
+</body>
+</html>
