@@ -4274,8 +4274,13 @@
         });
     }
     function loadFirst(urls) {
+        // ぜんぶ いっぺんに さがして、じゅんばんが いちばん さきの みつかったものを つかう（1つずつ だと、ないとき ながく まつため）
         if (!urls.length) return Promise.resolve(null);
-        return loadImage(urls[0]).then(function (u) { return u || loadFirst(urls.slice(1)); });
+        var ps = urls.map(loadImage);
+        return Promise.all(ps).then(function (rs) {
+            for (var i = 0; i < rs.length; i++) if (rs[i]) return rs[i];
+            return null;
+        });
     }
     // 結果：{ found: 絵が出せたか, src: 画像URL（なければ null）, text: 画像が出せない時の代わりの文字 }
     function loadPicture(entry) {
