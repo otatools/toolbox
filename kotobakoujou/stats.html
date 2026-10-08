@@ -49,9 +49,9 @@ async function load() {
     if (!auth.currentUser) await signInAnonymously(auth);
     const snap = await get(ref(db, 'kotoba_unknown'));
     const v = snap.val() || {};
-    rows = Object.keys(v).map(k => ({ key: k, word: v[k].word || k, count: v[k].count || 0, last: v[k].last ? new Date(v[k].last) : null, blocked: !!v[k].blocked }));
+    rows = Object.keys(v).map(k => ({ key: k, word: v[k].word || k, count: v[k].count || 0, last: v[k].last ? new Date(v[k].last) : null, blocked: !!v[k].blocked, guess: v[k].guess || '' }));
     rows.sort((a, b) => b.count - a.count || (b.last||0) - (a.last||0));
-    document.getElementById('body').innerHTML = rows.map((r, i) => '<tr data-i="' + i + '"' + (r.blocked ? ' style="background:#fff0f0"' : '') + '><td class="c"><input type="checkbox" class="chk" data-i="' + i + '"></td><td>' + r.word.replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])) + (r.blocked ? ' <small style="color:#a33a3a">【使えないことば】</small>' : '') + '</td><td class="n">' + r.count + '</td><td>' + fmt(r.last) + '</td></tr>').join('');
+    document.getElementById('body').innerHTML = rows.map((r, i) => '<tr data-i="' + i + '"' + (r.blocked ? ' style="background:#fff0f0"' : '') + '><td class="c"><input type="checkbox" class="chk" data-i="' + i + '"></td><td>' + r.word.replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])) + (r.blocked ? ' <small style="color:#a33a3a">【使えないことば】</small>' : '') + (r.guess ? ' <small style="color:#2f6f9f">→ 「' + r.guess.replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])) + '？」と表示</small>' : '') + '</td><td class="n">' + r.count + '</td><td>' + fmt(r.last) + '</td></tr>').join('');
     document.getElementById('all').checked = false; updSel();
     document.getElementById('total').textContent = rows.length + 'しゅるい／ごうけい ' + rows.reduce((s, r) => s + r.count, 0) + '回';
   } catch (e) { msg.textContent = 'よみこめませんでした：' + e.message; }
@@ -82,7 +82,7 @@ document.getElementById('del').onclick = async () => {
 };
 document.getElementById('reload').onclick = load;
 document.getElementById('csv').onclick = () => {
-  const csv = '﻿ことば,回数,最後に入力された日時,種類\r\n' + rows.map(r => r.word + ',' + r.count + ',' + fmt(r.last) + ',' + (r.blocked ? '使えないことば' : '辞書にない')).join('\r\n');
+  const csv = '﻿ことば,回数,最後に入力された日時,種類,表示した「？」\r\n' + rows.map(r => r.word + ',' + r.count + ',' + fmt(r.last) + ',' + (r.blocked ? '使えないことば' : '辞書にない') + ',' + (r.guess ? r.guess + '？' : '')).join('\r\n');
   const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' })); a.download = 'はてなになったことば.csv'; a.click();
 };
 load();
