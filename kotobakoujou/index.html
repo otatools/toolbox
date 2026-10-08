@@ -3900,8 +3900,14 @@
         return 'そのほか';
     }
     function customUrls(name) {
-        var e = encodeURIComponent(name);
-        return ['custom/' + e + '.jpg', 'custom/' + e + '.png', 'custom/' + e + '.svg'];
+        // 1フォルダ1000こまでなので、あたらしい絵は custom、いっぱいになった分は pack01, pack02… に しまう
+        // （さきに みつかった ところで とまるので、あとの フォルダは なくても よい）
+        var e = encodeURIComponent(name), r = [];
+        ['jpg', 'png', 'svg'].forEach(function (x) {
+            r.push('custom/' + e + '.' + x);
+            for (var i = 1; i <= 20; i++) r.push('pack' + (i < 10 ? '0' : '') + i + '/' + e + '.' + x);
+        });
+        return r;
     }
 
     // 「🍎=red-apple」→ 画像のURL と、つながらない時に代わりに出す絵文字
@@ -4440,6 +4446,25 @@
                 { backgroundPosition: total + 'px 0' }
             ], { duration: LEAD + SLIDE, delay: PRE, easing: 'linear', fill: 'forwards' });
         }
+        if (app.classList.contains('is-portrait')) {
+            // スマホ（たて）: パソコンと おなじ「ぽん！」の うごきのまま、きかいの くちより ひだりは きりぬいて
+            // きかいに かぶって すけて みえないように する
+            var pw = stage.offsetWidth, N = 40, pf = [];
+            // よこはばが せまいので、ぽんっ！と きかいの すぐ みぎに おおきく とびだして（きかいに かぶらない）、そのあと まんなかへ
+            var c1 = mouthX + pw * 1.08 / 2 + 6 - stageCx, c2 = mouthX + pw / 2 + 6 - stageCx;
+            if (c2 > 0) { c1 = Math.min(c1, 0); c2 = 0; }
+            var KT = [[0, dx, .3], [.1, c1, 1.08], [.18, c2, 1], [1, 0, 1]];   // ぽんっ！のあとは おおきさを かえない
+            for (var k = 0; k <= N; k++) {
+                var q = k / N, a0 = KT[0], a1 = KT[1];
+                for (var m = 0; m < KT.length - 1; m++) { if (q >= KT[m][0] && q <= KT[m + 1][0]) { a0 = KT[m]; a1 = KT[m + 1]; break; } }
+                var r = (q - a0[0]) / (a1[0] - a0[0]);
+                var tx = a0[1] + (a1[1] - a0[1]) * r, sc = a0[2] + (a1[2] - a0[2]) * r;
+                var left = (mouthX - (stageCx + tx)) / sc + pw / 2;
+                left = Math.max(0, Math.min(pw, left));
+                pf.push({ transform: 'translateX(' + tx + 'px) scale(' + sc + ')', opacity: q < .1 ? q / .1 : 1, clipPath: 'inset(0 0 0 ' + left + 'px)', offset: q });
+            }
+            stage.animate(pf, { duration: SLIDE, delay: OUT, easing: 'linear', fill: 'backwards' });
+        } else
         stage.animate([
             { transform: 'translateX(' + dx + 'px) scale(.3)', opacity: 0 },
             { transform: 'translateX(' + dx * .9 + 'px) scale(1.08)', opacity: 1, offset: .1 },   // ぽこっと でる
@@ -4490,7 +4515,7 @@
         var H = stage.offsetHeight || 420;
         stage.style.bottom = '54px';
         if (!src) return;
-        var mm = /custom\/([^\/?#]+)\.(?:jpg|png|svg)/i.exec(src);
+        var mm = /(?:custom|pack\d+)\/([^\/?#]+)\.(?:jpg|png|svg)/i.exec(src);
         if (mm) {
             var nm = mm[1]; try { nm = decodeURIComponent(nm); } catch (e) {}
             if (BOTTOM_GAP[nm] !== undefined) { stage.style.bottom = Math.round(57 - Math.min(.4, BOTTOM_GAP[nm]) * H) + 'px'; return; }
