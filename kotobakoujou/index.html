@@ -4669,7 +4669,24 @@
         return item.src ? '<img src="' + esc(item.src) + '" alt="" draggable="false">'
                         : '<span class="em">' + esc(item.text || '？') + '</span>';
     }
-    var ICON_X = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>';
+    // 絵を pack フォルダへ うつしたあとでも、むかし保存した「custom/○○.jpg」が 見つかるように、ほかのフォルダも さがす
+    function fixBrokenImg(img) {
+        var src = img.getAttribute('src') || '';
+        var m = /(?:custom|pack\d+)\/([^\/?#]+)\.(?:jpg|png|svg)/i.exec(src);
+        if (!m) return;
+        var list = customUrls(decodeURIComponent(m[1]));
+        var k = +(img.getAttribute('data-try') || 0);
+        var cur = list.indexOf(src);
+        k = Math.max(k, cur + 1);
+        if (k >= list.length) return;
+        img.setAttribute('data-try', k + 1);
+        img.src = list[k];
+    }
+    document.addEventListener('error', function (e) {
+        var t = e.target;
+        if (t && t.tagName === 'IMG' && t.closest && t.closest('#collList')) fixBrokenImg(t);
+    }, true);
+    var ICON_X ='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>';
     var ICON_L = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>';
     var ICON_R = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg>';
     var editing = false;
