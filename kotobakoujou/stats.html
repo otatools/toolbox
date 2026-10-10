@@ -24,6 +24,10 @@
   button.del{background:#ffd6d6;color:#a33a3a;box-shadow:0 4px 0 #e39494}
   button.del:disabled{opacity:.4;cursor:default}
   tbody tr{cursor:pointer}
+  .flt{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 12px}
+  .flt button{background:#fff;color:#5a4426;box-shadow:0 3px 0 #ddcbb0;border:2px solid #eadcc6;padding:9px 14px;font-size:15px}
+  .flt button.on{background:#ffe3a3;border-color:#e9b54a;box-shadow:0 3px 0 #d9a93f}
+  .flt small{font-weight:400;color:#8a7558;margin-left:4px}
 </style>
 </head>
 <body>
@@ -31,6 +35,7 @@
   <h1>？になったことば</h1>
   <p>子どもたちが入れて、イラストにできなかったことばの回数です。回数の多いものから、辞書に足していくと効果的です。</p>
   <div class="bar"><button id="reload">さいしんにする</button><button id="csv">CSVでほぞん（Excel用）</button><button id="del" class="del" disabled>えらんだものを けす</button></div>
+  <div class="flt" id="flt"><button data-f="all" class="on">ぜんぶ<small id="fc_all"></small></button><button data-f="guess">「〇〇？」がでた<small id="fc_guess"></small></button><button data-f="none">？だけ<small id="fc_none"></small></button><button data-f="blocked">使えないことば<small id="fc_blocked"></small></button></div>
   <div id="msg"></div>
   <table><thead><tr><th class="c"><input type="checkbox" id="all" aria-label="ぜんぶ えらぶ"></th><th>ことば</th><th style="text-align:right">回数</th><th>さいご</th></tr></thead><tbody id="body"></tbody></table>
   <p id="total"></p>
@@ -41,7 +46,8 @@ import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/1
 import { getDatabase, ref, get, remove } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-database.js";
 const cfg = { apiKey: "AIzaSyBjnWqAcunbf_TBPraMHZRmI1bPjTnFhQU", authDomain: "typing-48f95.firebaseapp.com", databaseURL: "https://typing-48f95-default-rtdb.asia-southeast1.firebasedatabase.app", projectId: "typing-48f95", storageBucket: "typing-48f95.firebasestorage.app", messagingSenderId: "1045024853093", appId: "1:1045024853093:web:3484649a3b1544bb51ca8c" };
 const app = initializeApp(cfg, 'stats'), auth = getAuth(app), db = getDatabase(app);
-let rows = [];
+let rows = [], filt = 'all';
+const pass = r => filt === 'all' || (filt === 'guess' ? !!r.guess && !r.blocked : filt === 'none' ? !r.guess && !r.blocked : r.blocked);
 const fmt = d => d ? d.getFullYear() + '/' + (d.getMonth()+1) + '/' + d.getDate() + ' ' + String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0') : '';
 async function load() {
   const msg = document.getElementById('msg'); msg.textContent = '';
@@ -51,11 +57,19 @@ async function load() {
     const v = snap.val() || {};
     rows = Object.keys(v).map(k => ({ key: k, word: v[k].word || k, count: v[k].count || 0, last: v[k].last ? new Date(v[k].last) : null, blocked: !!v[k].blocked, guess: v[k].guess || '' }));
     rows.sort((a, b) => b.count - a.count || (b.last||0) - (a.last||0));
-    document.getElementById('body').innerHTML = rows.map((r, i) => '<tr data-i="' + i + '"' + (r.blocked ? ' style="background:#fff0f0"' : '') + '><td class="c"><input type="checkbox" class="chk" data-i="' + i + '"></td><td>' + r.word.replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])) + (r.blocked ? ' <small style="color:#a33a3a">【使えないことば】</small>' : '') + (r.guess ? ' <small style="color:#2f6f9f">→ 「' + r.guess.replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])) + '？」と表示</small>' : '') + '</td><td class="n">' + r.count + '</td><td>' + fmt(r.last) + '</td></tr>').join('');
-    document.getElementById('all').checked = false; updSel();
-    document.getElementById('total').textContent = rows.length + 'しゅるい／ごうけい ' + rows.reduce((s, r) => s + r.count, 0) + '回';
+    render();
   } catch (e) { msg.textContent = 'よみこめませんでした：' + e.message; }
 }
+function render() {
+    ['all','guess','none','blocked'].forEach(f => { const o = filt; filt = f; document.getElementById('fc_' + f).textContent = rows.filter(pass).length; filt = o; });
+    document.querySelectorAll('#flt button').forEach(b => b.classList.toggle('on', b.dataset.f === filt));
+    const shown = rows.map((r, i) => [r, i]).filter(x => pass(x[0]));
+    document.getElementById('body').innerHTML = shown.map(([r, i]) => '<tr data-i="' + i + '"' + (r.blocked ? ' style="background:#fff0f0"' : '') + '><td class="c"><input type="checkbox" class="chk" data-i="' + i + '"></td><td>' + r.word.replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])) + (r.blocked ? ' <small style="color:#a33a3a">【使えないことば】</small>' : '') + (r.guess ? ' <small style="color:#2f6f9f">→ 「' + r.guess.replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])) + '？」と表示</small>' : '') + '</td><td class="n">' + r.count + '</td><td>' + fmt(r.last) + '</td></tr>').join('');
+    document.getElementById('all').checked = false; updSel();
+    const sr = shown.map(x => x[0]);
+    document.getElementById('total').textContent = sr.length + 'しゅるい／ごうけい ' + sr.reduce((s, r) => s + r.count, 0) + '回';
+}
+document.getElementById('flt').addEventListener('click', e => { const b = e.target.closest('[data-f]'); if (!b) return; filt = b.dataset.f; render(); });
 const chks = () => Array.from(document.querySelectorAll('.chk'));
 function updSel() {
   const n = chks().filter(c => c.checked).length;
@@ -82,7 +96,7 @@ document.getElementById('del').onclick = async () => {
 };
 document.getElementById('reload').onclick = load;
 document.getElementById('csv').onclick = () => {
-  const csv = '﻿ことば,回数,最後に入力された日時,種類,表示した「？」\r\n' + rows.map(r => r.word + ',' + r.count + ',' + fmt(r.last) + ',' + (r.blocked ? '使えないことば' : '辞書にない') + ',' + (r.guess ? r.guess + '？' : '')).join('\r\n');
+  const csv = '﻿ことば,回数,最後に入力された日時,種類,表示した「？」\r\n' + rows.filter(pass).map(r => r.word + ',' + r.count + ',' + fmt(r.last) + ',' + (r.blocked ? '使えないことば' : '辞書にない') + ',' + (r.guess ? r.guess + '？' : '')).join('\r\n');
   const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' })); a.download = 'はてなになったことば.csv'; a.click();
 };
 load();

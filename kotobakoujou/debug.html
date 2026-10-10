@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="ja"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>レベル確認（デバッグ用）</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;font-family:"Yu Gothic UI","Hiragino Sans",sans-serif;background:#4a5a6e;color:#fff;min-height:100vh}
+.wrap{max-width:900px;margin:0 auto;padding:16px}
+h1{font-size:18px;margin:0 0 12px}
+.ctl{background:#2f3b4b;border-radius:14px;padding:14px;margin-bottom:16px;display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.ctl button{font:inherit;font-weight:700;border:0;border-radius:10px;padding:12px 16px;background:#f0a030;color:#3a2a10;cursor:pointer;min-width:56px}
+.ctl button.s{background:#8fa3bd;color:#14202e}
+.ctl button.on{background:#e8503a;color:#fff}
+.big{font-size:30px;font-weight:700;margin:0 8px;min-width:140px;text-align:center}
+.big small{font-size:14px;font-weight:400;display:block;opacity:.85}
+input[type=range]{flex:1 1 100%;height:34px}
+.demo{display:flex;flex-wrap:wrap;gap:24px;align-items:flex-start;background:#8a9db5;border-radius:14px;padding:20px}
+.col{display:flex;flex-direction:column;gap:6px}
+.col>span{font-size:12px;opacity:.9}
+/* ここから ほんものと おなじ ボタン */
+.panel{display:flex}
+.cnt{border-radius:18px;background:#fff7e3;box-shadow:0 6px 0 #c99a5b,inset 0 0 0 3px #e8cf9f;display:flex;align-items:center;justify-content:center;line-height:1;color:#6b4a1e;white-space:nowrap}
+.cnt b{color:#d2561a;font-weight:700}
+.btn{position:relative;border:0;padding:0;border-radius:18px;background:#fff;box-shadow:0 6px 0 #c99a5b,inset 0 0 0 3px #e8cf9f;line-height:0}
+.btn .inner{position:absolute;inset:0;padding:12px;display:flex;align-items:center;justify-content:center}
+.btn img{display:block;max-width:100%;max-height:100%;object-fit:contain;transform-origin:50% 85%;filter:drop-shadow(0 2px 3px rgba(80,50,20,.3))}
+.btn .lab{position:absolute;left:0;right:0;bottom:9px;text-align:center;font-weight:700;line-height:1;color:#6b4a1e;text-shadow:0 0 3px #fff,0 0 3px #fff,0 0 5px #fff,0 0 5px #fff}
+/* パソコン：うえに かず、したに ボタン */
+.land{flex-direction:column;width:282px}
+.land .cnt{height:84px;margin-bottom:12px;font-size:34px}.land .cnt b{font-size:56px;margin-right:6px}
+.land .btn{height:150px}.land .lab{font-size:22px}
+/* スマホ（たて）：よこ ならび */
+.port{flex-direction:row;width:520px;max-width:100%}
+.port .cnt{flex:0 0 34%;height:90px;margin-right:12px;font-size:30px}.port .cnt b{font-size:48px;margin-right:4px}
+.port .btn{flex:1;height:90px}.port .btn .inner{padding:6px}.port .lab{font-size:17px;bottom:6px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(70px,1fr));gap:8px;margin-top:16px}
+.grid button{border:2px solid transparent;border-radius:10px;background:#fff;padding:4px;cursor:pointer;line-height:0}
+.grid button.cur{border-color:#e8503a}
+.grid img{width:100%;height:46px;object-fit:contain}
+.grid small{display:block;font-size:11px;color:#6b4a1e;line-height:1.3;margin-top:2px}
+.bg{display:flex;gap:6px;align-items:center;font-size:13px}
+</style></head><body><div class="wrap">
+<h1>コレクションボタン レベル確認（デバッグ用）</h1>
+<div class="ctl">
+  <button id="m10" class="s">−10</button><button id="m1" class="s">−1</button>
+  <div class="big"><span id="lvT">レベル1</span><small id="cntT">0こ〜</small></div>
+  <button id="p1">＋1</button><button id="p10">＋10</button>
+  <button id="auto" class="s">▶ じどうで あげる</button>
+  <button id="top" class="s">最後へ</button><button id="first" class="s">最初へ</button>
+  <input id="rng" type="range" min="1" max="66" value="1">
+</div>
+<div class="ctl" id="stepBox"><span>なんまいで レベルアップ：</span>
+  <span id="steps"></span>
+  <input id="stepIn" type="number" min="1" max="500" value="20" style="width:80px;font:inherit;font-weight:700;padding:8px;border-radius:8px;border:0">まい
+  <span id="sum" style="flex:1 1 100%;font-size:14px;opacity:.9"></span>
+</div>
+<div class="demo">
+  <div class="col"><span>パソコン版のサイズ</span><div class="panel land"><div class="cnt"><b class="n">0</b>こ</div><div class="btn"><span class="inner"><img class="ico" alt=""></span><span class="lab">コレクション</span></div></div></div>
+  <div class="col"><span>スマホ（たて）のサイズ</span><div class="panel port"><div class="cnt"><b class="n">0</b>こ</div><div class="btn"><span class="inner"><img class="ico" alt=""></span><span class="lab">コレクション</span></div></div></div>
+</div>
+<div class="ctl" style="margin-top:16px"><span>はいけい：</span><div class="bg" id="bgs"></div></div>
+<div class="grid" id="grid"></div>
+</div>
+<script>
+var MAX=66,lv=1,timer=0,STEP=20;
+var imgs=[].slice.call(document.querySelectorAll('.ico')),ns=[].slice.call(document.querySelectorAll('.n'));
+function pad(n){return n<10?'0'+n:''+n}
+function set(n,anim){
+  n=Math.max(1,Math.min(MAX,n));var up=n>lv;lv=n;
+  var cnt=(lv-1)*STEP;
+  imgs.forEach(function(im){im.src='lv/'+pad(lv)+'.webp';
+    if(anim&&im.animate)im.animate([{transform:'scale(1)'},{transform:'scale(1.3,.8)'},{transform:'scale(.9,1.2)'},{transform:'scale(1.05,.97)'},{transform:'scale(1)'}],{duration:700,easing:'ease-out'});});
+  ns.forEach(function(e){e.textContent=cnt});
+  document.getElementById('lvT').textContent='レベル'+lv;
+  document.getElementById('cntT').textContent=cnt+'こ〜'+(lv<MAX?(cnt+STEP-1)+'こ':'');
+  document.getElementById('rng').value=lv;
+  [].forEach.call(document.querySelectorAll('#grid button'),function(b,i){b.classList.toggle('cur',i+1===lv)});
+}
+function stop(){clearInterval(timer);timer=0;document.getElementById('auto').classList.remove('on');document.getElementById('auto').textContent='▶ じどうで あげる'}
+document.getElementById('p1').onclick=function(){set(lv+1,true)};
+document.getElementById('m1').onclick=function(){set(lv-1,false)};
+document.getElementById('p10').onclick=function(){set(lv+10,true)};
+document.getElementById('m10').onclick=function(){set(lv-10,false)};
+document.getElementById('top').onclick=function(){set(MAX,true)};
+document.getElementById('first').onclick=function(){set(1,false)};
+document.getElementById('rng').oninput=function(){set(+this.value,false)};
+document.getElementById('auto').onclick=function(){
+  if(timer){stop();return}
+  if(lv>=MAX)set(1,false);
+  this.classList.add('on');this.textContent='■ とめる';
+  timer=setInterval(function(){if(lv>=MAX){stop();return}set(lv+1,true)},1100);
+};
+var g=document.getElementById('grid');
+for(var i=1;i<=MAX;i++){(function(i){var b=document.createElement('button');b.innerHTML='<img src="lv/'+pad(i)+'.webp" alt="" loading="lazy"><small>Lv'+i+'</small>';b.onclick=function(){set(i,false)};g.appendChild(b)})(i)}
+var BG=[['白','#ffffff'],['うすい灰色','#eceef2'],['クリーム','#fff7e3'],['こい青','#2b3f66'],['くろ','#111']];
+var bs=document.getElementById('bgs');
+BG.forEach(function(c){var b=document.createElement('button');b.textContent=c[0];b.className='s';b.style.cssText='font:inherit;border:0;border-radius:8px;padding:6px 10px;cursor:pointer';b.onclick=function(){[].forEach.call(document.querySelectorAll('.btn'),function(x){x.style.background=c[1]})};bs.appendChild(b)});
+document.addEventListener('keydown',function(e){if(e.key==='ArrowRight')set(lv+1,true);if(e.key==='ArrowLeft')set(lv-1,false);if(e.key==='ArrowUp')set(lv+10,true);if(e.key==='ArrowDown')set(lv-10,false)});
+function setStep(v){v=Math.max(1,Math.min(500,Math.round(+v)||50));STEP=v;document.getElementById('stepIn').value=v;
+  [].forEach.call(document.querySelectorAll('#steps button'),function(b){b.classList.toggle('on',+b.dataset.v===v)});
+  var all=(MAX-1)*v;
+  document.getElementById('sum').textContent='さいごの レベル'+MAX+'まで '+all+'まい。1日10まい あつめると やく'+Math.ceil(all/10)+'日、1日30まいだと やく'+Math.ceil(all/30)+'日。';
+  [].forEach.call(document.querySelectorAll('#grid small'),function(e,i){e.textContent='Lv'+(i+1)+'・'+(i*v)+'まい'});
+  set(lv,false)}
+var st=document.getElementById('steps');
+[10,20,25,30,40,50].forEach(function(v){var b=document.createElement('button');b.textContent=v+'まい';b.dataset.v=v;b.className='s';b.onclick=function(){setStep(v)};st.appendChild(b)});
+document.getElementById('stepIn').oninput=function(){if(this.value)setStep(this.value)};
+set(1,false);setStep(20);
+</script></body></html>
