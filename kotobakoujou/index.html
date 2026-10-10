@@ -5572,7 +5572,7 @@
     function addToColl(w, src, text) {
         var i = findWord(w);
         if (i >= 0) {
-            if (!coll[i].src && src) { coll[i].src = src; saveColl(); }   // 前はネットにつながらず絵文字だった時
+            if (src && coll[i].src !== src) { coll[i].src = src; saveColl(); }   // 絵文字だった時・絵を かきなおした時は あたらしい絵に する
             return 'have';
         }
         var j = findPic(src, text);
@@ -5700,7 +5700,10 @@
             return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
         });
     }
+    // おなじ なまえで あたらしい絵を べつの フォルダに いれた ことば（むかしの カードも あたらしい絵に する）
+    var SRC_FIX = { 'pack01/%E3%81%86%E3%83%BC%E3%81%B1%E3%83%BC%E3%82%8B%E3%83%BC%E3%81%B1%E3%83%BC.jpg': 'custom/%E3%81%86%E3%83%BC%E3%81%B1%E3%83%BC%E3%82%8B%E3%83%BC%E3%81%B1%E3%83%BC.jpg', 'pack01/うーぱーるーぱー.jpg': 'custom/%E3%81%86%E3%83%BC%E3%81%B1%E3%83%BC%E3%82%8B%E3%83%BC%E3%81%B1%E3%83%BC.jpg' };
     function picHtml(item) {
+        if (item.src && SRC_FIX[item.src]) { item.src = SRC_FIX[item.src]; saveColl(); }
         return item.src ? '<img src="' + esc(item.src) + '" alt="" draggable="false" loading="lazy" decoding="async">'
                         : '<span class="em">' + esc(item.text || '？') + '</span>';
     }
