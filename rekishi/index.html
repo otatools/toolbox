@@ -764,7 +764,21 @@ h1{ font-size:1.5rem; text-align:center; letter-spacing:.05em; }
 
 /* ---- ランキング ---- */
 .rank-tabs{ display:flex; justify-content:center; gap:clamp(6px, 1.4vw, 12px); margin-bottom:clamp(8px, 1.6vh, 16px); }
-.rank-tab{ min-width:84px; flex:1 1 0; max-width:130px; }
+.rank-tab{ min-width:0; flex:1 1 0; max-width:130px; padding-left:4px; padding-right:4px; }
+/* 本日のランキング（100位まで）は10人ずつ。下のボタンでページを切りかえる */
+.rank-pages{ display:grid; grid-template-columns:repeat(5, auto); justify-content:center; gap:5px; margin:clamp(6px, 1.2vh, 12px) auto 0; }   /* 5個ずつ2段（1個だけはみ出さない） */
+.rank-pages[hidden]{ display:none; }
+.rank-page{
+  -webkit-appearance:none; appearance:none; flex:0 0 auto; min-width:3.9em; padding:4px 5px; line-height:1.2;
+  background:#fdfcf7; border:1.5px solid #8a8270; border-radius:0; color:#4a4436;
+  font-family:var(--mincho); font-weight:700; font-size:clamp(11px, 1.6vh, 14px); cursor:pointer;
+}
+.rank-page.selected{ background:#3f3a2e; border-color:#3f3a2e; color:#f7f4ea; }
+.rank-page.has-me{ border-color:var(--accent); }
+.rank-page.selected.has-me{ background:var(--accent); border-color:var(--accent); }
+.rank-me{ margin:clamp(6px, 1.2vh, 12px) 0 0; font-family:var(--mincho); font-weight:700; color:#3f3a2e; font-size:clamp(13px, 2.1vh, 17px); letter-spacing:.06em; }
+.rank-me[hidden]{ display:none; }
+.rank-me b{ color:var(--accent); font-size:1.2em; }
 .rank-period{ margin-bottom:clamp(8px, 1.6vh, 16px); }
 .rank-list{ list-style:none; margin:0 auto; padding:0; max-width:19.5em; font-size:clamp(14px, min(2.55vh, 4.2vw), 22px); text-align:left; }   /* 名前は5文字までなので、横に広げすぎない（行と同じ文字サイズ基準） */
 .rank-row{
@@ -843,7 +857,15 @@ h1{ font-size:1.5rem; text-align:center; letter-spacing:.05em; }
   .wa-opt{ padding-top:8px; padding-bottom:8px; }
   .era-group{ margin-top:8px; }
   .era-scale{ margin-top:16px; }
-  #ranking-screen .wa-inner{ padding-top:8px; }
+  #ranking-screen .wa-inner{ padding-top:6px; }
+  #ranking-screen .wa-title{ font-size:18px; margin-bottom:2px; }
+  #ranking-screen .rank-tab{ padding-top:2px; padding-bottom:2px; font-size:13px; }
+  #ranking-screen .rank-period{ margin-bottom:2px; font-size:12px; }
+  .rank-list{ font-size:13px; }
+  .rank-row{ font-size:13px; padding-top:1px; padding-bottom:1px; }
+  .rank-pages{ grid-template-columns:repeat(10, auto); margin-top:4px; gap:4px; }   /* 横向きは1段に並べる */
+  .rank-page{ padding:2px 4px; font-size:11px; }
+  .rank-me{ margin-top:3px; font-size:13px; }
   /* 名前入力：左に名前・地域・ボタン、右にキーボードの2列にする */
   #rank-entry{ padding:8px; }
   .rank-entry-card{ max-width:min(96vw, 720px); display:grid; grid-template-columns:1fr 1.15fr; column-gap:18px; align-content:start; padding:10px 14px; }
@@ -905,7 +927,7 @@ h1{ font-size:1.5rem; text-align:center; letter-spacing:.05em; }
         </g>
       </svg>
 
-      <div class="home-circle"><div class="home-ver">歴史ならべ｜ver.β.1｜ota tools</div></div>
+      <div class="home-circle"><div class="home-ver">歴史ならべ｜ver.β.2｜ota tools</div></div>
     </div>
 
     <div class="home-inner">
@@ -1087,12 +1109,15 @@ h1{ font-size:1.5rem; text-align:center; letter-spacing:.05em; }
       <h2 class="wa-title">ランキング</h2>
       <div class="wa-rule"></div>
       <div class="rank-tabs">
+        <button type="button" class="wa-chip rank-tab" data-board="d">本日</button>
         <button type="button" class="wa-chip rank-tab" data-board="w">今週</button>
         <button type="button" class="wa-chip rank-tab" data-board="m">今月</button>
         <button type="button" class="wa-chip rank-tab" data-board="a">通算</button>
       </div>
       <p class="wa-note rank-period" id="rank-period"></p>
       <ol class="rank-list" id="rank-list"></ol>
+      <div class="rank-pages" id="rank-pages" hidden></div>
+      <p class="rank-me" id="rank-me" hidden></p>
       <p class="wa-note rank-msg" id="rank-msg"></p>
     </div>
   </section>
@@ -1160,7 +1185,7 @@ document.addEventListener('wheel', function(e){ if(e.ctrlKey) e.preventDefault()
    ・つながらないとき（オフライン／ファイルを直接開いているとき）は何もしない
    ・同じ版へ何度も読みこみ直して止まらなくならないよう、1つの版につき1回だけ
    ============================================================ */
-var BUILD_ID = '20261005-1630';
+var BUILD_ID = '20261010-1450';
 var updateCheckBusy = false;
 var updateCheckLast = 0;
 function checkForUpdate(waitMs){
@@ -2815,7 +2840,10 @@ function setSoloResultButtons(){
 }
 
 /* ============================================================
-   ひとりプレイのランキング（今週・今月・通算）
+   ひとりプレイのランキング（本日・今週・今月・通算）
+   ・本日 d-YYYY-MM-DD は100位まで。そのほかは10位まで。
+   ・本日の「自分が何位か」は、h-YYYY-MM-DD に「点数ごとの人数」だけを数えておき、
+     自分より高い点数の人数を足して出す（1回読むだけで、何位でもわかる）。
    ・Firestore の rankings コレクションに3つのドキュメント
        w-YYYY-MM-DD(その週の月曜) / m-YYYY-MM / all
      を置き、それぞれ上位RANK_TOP人ぶんの記録(entries)だけを持つ。
@@ -2827,9 +2855,12 @@ function setSoloResultButtons(){
    ============================================================ */
 var RANK_COLL = 'rankings';
 var RANK_TOP = 10;
+var RANK_TOP_DAY = 100;              // 本日のランキングだけは100位まで
+var RANK_PAGE = 10;                  // 本日のランキングは10人ずつ表示
+function rankTop(id){ return id === 'd' ? RANK_TOP_DAY : RANK_TOP; }
 var RANK_NAME_MAX = 5;
 var RANK_MEM_MS = 2 * 60 * 1000;   // ランキング画面で、同じ表を2分は読みなおさない
-var RANK_BOARDS = [ { id:'w', label:'今週' }, { id:'m', label:'今月' }, { id:'a', label:'通算' } ];
+var RANK_BOARDS = [ { id:'d', label:'本日' }, { id:'w', label:'今週' }, { id:'m', label:'今月' }, { id:'a', label:'通算' } ];
 var RANK_ALLOWED = /^[A-Za-z☆★♡♥♪♬♩!?&+.✿◎○△×✦♫♠♣♦❀-]$/;
 var RANK_SYMBOLS = ['☆','★','✦','♡','♥','♪','♬','♫','♠','♣','♦','◎','○','△','×','❀','✿','!','?','&','-','+','.'];
 var PREFS = ['北海道','青森県','岩手県','宮城県','秋田県','山形県','福島県','茨城県','栃木県','群馬県','埼玉県','千葉県','東京都','神奈川県',
@@ -2847,7 +2878,9 @@ function normPref(v){
 var rankMem = {};          // key -> { entries, at }
 var rankMine = null;       // 直前に登録した記録 { key, t }
 var rankBack = 'setup-solo-screen';
-var rankTab = 'w';
+var rankTab = 'd';
+var rankPage = 0;          // 本日のランキングで見ているページ（0＝1〜10位）
+var rankPageAuto = true;   // 最初の表示だけ、自分のいるページを自動で開く
 var rankPending = null;    // 入力画面に出しているランクイン情報 { score, hits }
 
 function rkPad(n){ return (n < 10 ? '0' : '') + n; }
@@ -2855,7 +2888,7 @@ function rkYmd(d){ return d.getFullYear() + '-' + rkPad(d.getMonth() + 1) + '-' 
 function rankKeys(){
   var d = new Date();
   var mon = new Date(d.getFullYear(), d.getMonth(), d.getDate() - ((d.getDay() + 6) % 7));   // 月曜はじまり
-  return { w: 'w-' + rkYmd(mon), m: 'm-' + d.getFullYear() + '-' + rkPad(d.getMonth() + 1), a: 'all' };
+  return { d: 'd-' + rkYmd(d), h: 'h-' + rkYmd(d), w: 'w-' + rkYmd(mon), m: 'm-' + d.getFullYear() + '-' + rkPad(d.getMonth() + 1), a: 'all' };
 }
 function rankPeriodText(id){
   var d = new Date();
@@ -2864,6 +2897,7 @@ function rankPeriodText(id){
     var sun = new Date(mon.getFullYear(), mon.getMonth(), mon.getDate() + 6);
     return (mon.getMonth() + 1) + '/' + mon.getDate() + '（月）〜 ' + (sun.getMonth() + 1) + '/' + sun.getDate() + '（日）';
   }
+  if(id === 'd') return (d.getMonth() + 1) + '/' + d.getDate() + '（' + '日月火水木金土'.charAt(d.getDay()) + '）';
   if(id === 'm') return d.getFullYear() + '年' + (d.getMonth() + 1) + '月';
   return 'これまでの全ての記録';
 }
@@ -2883,7 +2917,7 @@ function rankDevId(){
     return rankDevMem;
   }
 }
-function cleanEntries(list){
+function cleanEntries(list, id){
   var seen = {}, out = [];
   (Array.isArray(list) ? list : []).filter(function(e){
     return e && typeof e.s === 'number' && typeof e.n === 'string';
@@ -2894,7 +2928,7 @@ function cleanEntries(list){
     }
     out.push(e);
   });
-  return out.slice(0, RANK_TOP);
+  return out.slice(0, rankTop(id));
 }
 function myBest(entries){
   var d = rankDevId(), m = 0;
@@ -2907,7 +2941,7 @@ function loadThr(){ try{ return JSON.parse(localStorage.getItem('rekishi.rankThr
 function saveThr(t){ try{ localStorage.setItem('rekishi.rankThr', JSON.stringify(t)); }catch(e){} }
 function updateThr(id, key, entries){
   var t = loadThr();
-  t[id] = { k: key, full: entries.length >= RANK_TOP, min: entries.length ? entries[entries.length - 1].s : 0, mine: myBest(entries) };
+  t[id] = { k: key, full: entries.length >= rankTop(id), min: entries.length ? entries[entries.length - 1].s : 0, mine: myBest(entries) };
   saveThr(t);
 }
 function mayRankIn(id, key, score){
@@ -2922,31 +2956,72 @@ function fetchBoard(key, id){
   return ensureDb().then(function(db){
     return db.collection(RANK_COLL).doc(key).get();
   }).then(function(snap){
-    var entries = cleanEntries(snap.exists ? snap.data().entries : []);
+    var entries = cleanEntries(snap.exists ? snap.data().entries : [], id);
     rankMem[key] = { entries: entries, at: Date.now() };
     updateThr(id, key, entries);
     return entries;
   });
 }
-function rankPosition(entries, score){
-  if(myBest(entries) >= score) return RANK_TOP + 1;   // この端末の最高記録を超えていない → 圏外あつかい
+function rankPosition(entries, score, id){
+  if(myBest(entries) >= score) return rankTop(id) + 1;   // この端末の最高記録を超えていない → 圏外あつかい
   var d = rankDevId(), above = 0;
   entries.forEach(function(e){ if(e.d !== d && e.s >= score) above++; });   // 自分の古い記録は置きかわるので数えない
+  return above + 1;
+}
+
+/* --- 本日の「点数ごとの人数」 ---
+   この端末の今日の最高点だけを1人ぶんとして数える。最高点が上がったら、古い点数を-1、新しい点数を+1。 */
+function loadDayBest(){
+  try{ var v = JSON.parse(localStorage.getItem('rekishi.dayBest') || 'null'); if(v && v.k === rankKeys().h) return v.s || 0; }catch(e){}
+  return 0;
+}
+function saveDayBest(s){ try{ localStorage.setItem('rekishi.dayBest', JSON.stringify({ k: rankKeys().h, s: s })); }catch(e){} }
+var rankHistMem = null;    // { key, c, at }
+function rankRecordDay(score){
+  var old = loadDayBest();
+  if(score <= old) return;
+  var key = rankKeys().h;
+  ensureDb().then(function(db){
+    var inc = firebase.firestore.FieldValue.increment;
+    var c = {};
+    c[String(score)] = inc(1);
+    if(old > 0) c[String(old)] = inc(-1);
+    return db.collection(RANK_COLL).doc(key).set({ c: c }, { merge: true });
+  }).then(function(){
+    saveDayBest(score);
+    rankHistMem = null;
+  }).catch(function(e){
+    try{ console.warn('[ranking] 本日の人数の記録に失敗:', e && (e.code || e.message || e)); }catch(_){}
+  });
+}
+function fetchDayHist(){
+  var key = rankKeys().h;
+  if(rankHistMem && rankHistMem.key === key && Date.now() - rankHistMem.at < 60 * 1000) return Promise.resolve(rankHistMem.c);
+  return ensureDb().then(function(db){ return db.collection(RANK_COLL).doc(key).get(); }).then(function(snap){
+    var c = (snap.exists && snap.data().c) || {};
+    rankHistMem = { key: key, c: c, at: Date.now() };
+    return c;
+  });
+}
+function dayRankOf(c, score){
+  var above = 0;
+  Object.keys(c).forEach(function(k){ var v = parseInt(k, 10), n = c[k]; if(v > score && n > 0) above += n; });
   return above + 1;
 }
 
 /* --- ひとりプレイが終わったとき：ランクインの可能性があるときだけ読みこむ --- */
 function rankAfterGame(score){
   if(!(score > 0) || rankBanned()) return;
+  rankRecordDay(score);     // 本日の「点数ごとの人数」に数える（何位かを出すため。名前は送らない）
   var keys = rankKeys();
   var cands = RANK_BOARDS.filter(function(b){ return mayRankIn(b.id, keys[b.id], score); });
   if(!cands.length) return;
   Promise.all(cands.map(function(b){
     return fetchBoard(keys[b.id], b.id).then(function(entries){
-      return { id: b.id, label: b.label, key: keys[b.id], pos: rankPosition(entries, score) };
+      return { id: b.id, label: b.label, key: keys[b.id], pos: rankPosition(entries, score, b.id) };
     });
   })).then(function(res){
-    var hits = res.filter(function(r){ return r.pos <= RANK_TOP; });
+    var hits = res.filter(function(r){ return r.pos <= rankTop(r.id); });
     if(!hits.length) return;
     if(!document.getElementById('result-screen').classList.contains('active')) return;   // もう別の画面に移っていたら出さない
     openRankEntry(score, hits);
@@ -3098,9 +3173,9 @@ function submitRankEntry(){
       return Promise.all(refs.map(function(r){ return tx.get(r); })).then(function(snaps){
         var out = [];
         snaps.forEach(function(sn, i){
-          var es = cleanEntries(sn.exists ? sn.data().entries : []);
+          var es = cleanEntries(sn.exists ? sn.data().entries : [], info.hits[i].id);
           if(myBest(es) >= entry.s){ out.push(es); return; }   // すでにこの端末の記録のほうが高い → 変更しない
-          es = es.filter(function(e){ return e.d !== entry.d; }).concat([entry]).sort(rankCmp).slice(0, RANK_TOP);
+          es = es.filter(function(e){ return e.d !== entry.d; }).concat([entry]).sort(rankCmp).slice(0, rankTop(info.hits[i].id));
           tx.set(refs[i], { entries: es });
           out.push(es);
         });
@@ -3141,6 +3216,7 @@ function rankStopLive(){
 }
 function selectRankTab(id){
   rankTab = id;
+  rankPageAuto = true;     // タブを開いたときは、自分のいるページ（いなければ1〜10位）から
   document.querySelectorAll('.rank-tab').forEach(function(b){ b.classList.toggle('selected', b.getAttribute('data-board') === id); });
   document.getElementById('rank-period').textContent = rankPeriodText(id);
   rankStartLive(id);
@@ -3158,7 +3234,7 @@ function rankStartLive(id){
     if(seq !== rankReqSeq) return;
     rankUnsub = db.collection(RANK_COLL).doc(key).onSnapshot(function(snap){
       if(seq !== rankReqSeq) return;
-      var entries = cleanEntries(snap.exists ? snap.data().entries : []);
+      var entries = cleanEntries(snap.exists ? snap.data().entries : [], id);
       rankMem[key] = { entries: entries, at: Date.now() };
       updateThr(id, key, entries);
       paintRankList(entries);
@@ -3186,17 +3262,48 @@ document.addEventListener('visibilitychange', function(){
   if(document.hidden) rankStopLive();                 // ブラウザが裏に回ったら止める
   else rankStartLive(rankTab);                         // 戻ってきたら見ているタブだけ再開
 });
+function isMineEntry(e){
+  if(rankMine && e.t === rankMine.t && e.s === rankMine.s && e.n === rankMine.n) return true;
+  return !!(e.d && e.d === rankDevId());   // どのランキングでも、この端末の記録はいつでも黄色にする
+}
 function paintRankList(entries){
   var ol = document.getElementById('rank-list');
   ol.innerHTML = '';
   var msg = document.getElementById('rank-msg');
+  var pages = document.getElementById('rank-pages');
+  var me = document.getElementById('rank-me');
   msg.textContent = '';
+  pages.innerHTML = ''; pages.hidden = true;
+  me.hidden = true; me.textContent = '';
+  var isDay = (rankTab === 'd');
+  var myIdx = -1;
+  entries.forEach(function(e, i){ if(myIdx < 0 && isMineEntry(e)) myIdx = i; });
+  if(isDay) paintMyDayRank(myIdx);
   if(!entries.length){ msg.textContent = 'まだ記録がありません'; return; }
-  entries.forEach(function(e, i){
+  var start = 0, end = entries.length;
+  if(isDay){
+    var nPages = Math.ceil(entries.length / RANK_PAGE);
+    if(rankPageAuto){ rankPage = myIdx >= 0 ? Math.floor(myIdx / RANK_PAGE) : 0; rankPageAuto = false; }
+    rankPage = Math.max(0, Math.min(nPages - 1, rankPage));
+    start = rankPage * RANK_PAGE; end = Math.min(entries.length, start + RANK_PAGE);
+    if(nPages > 1){
+      pages.hidden = false;
+      for(var pg = 0; pg < nPages; pg++){
+        var b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'rank-page' + (pg === rankPage ? ' selected' : '') + ((myIdx >= pg * RANK_PAGE && myIdx < (pg + 1) * RANK_PAGE) ? ' has-me' : '');
+        var pgFrom = pg * RANK_PAGE + 1, pgTo = Math.min(entries.length, (pg + 1) * RANK_PAGE);
+        b.textContent = pgFrom === pgTo ? (pgFrom + '位') : (pgFrom + '〜' + pgTo);
+        b.setAttribute('data-page', pg);
+        pages.appendChild(b);
+      }
+    }
+  }
+  for(var i = start; i < end; i++){
+    var e = entries[i];
     var li = document.createElement('li');
-    li.className = 'rank-row' + (i < 3 ? ' r' + (i + 1) : '') +
-      ((rankMine && e.t === rankMine.t && e.s === rankMine.s && e.n === rankMine.n) ? ' mine' : '');
-    function cell(cls, text){ var sp = document.createElement('span'); sp.className = cls; sp.textContent = text; li.appendChild(sp); }
+    li.className = 'rank-row' + (i < 3 ? ' r' + (i + 1) : '') + (isMineEntry(e) ? ' mine' : '');
+    var cell = function(cls, text){ var sp = document.createElement('span'); sp.className = cls; sp.textContent = text; li.appendChild(sp); };
     cell('rk', (i + 1));
     cell('nm', e.n);
     cell('pf', e.p || '');
@@ -3208,7 +3315,24 @@ function paintRankList(entries){
     cell('dt', dtx);
     cell('sc', e.s + '枚');
     ol.appendChild(li);
-  });
+  }
+}
+/* 本日：自分が一覧(100位まで)にいないときだけ、下に「何位か」を出す */
+var rankMeSeq = 0;
+function paintMyDayRank(myIdx){
+  var me = document.getElementById('rank-me');
+  var best = loadDayBest();
+  if(myIdx >= 0 || !(best > 0)) return;
+  var seq = ++rankMeSeq;
+  fetchDayHist().then(function(c){
+    if(seq !== rankMeSeq || rankTab !== 'd') return;
+    var r = dayRankOf(c, best);
+    me.innerHTML = '';
+    me.appendChild(document.createTextNode('あなたの今日の順位 '));
+    var b = document.createElement('b'); b.textContent = r; me.appendChild(b);
+    me.appendChild(document.createTextNode('位（' + best + '枚）'));
+    me.hidden = false;
+  }).catch(function(){});
 }
 
 /* --- ボタンの配線 --- */
@@ -3249,8 +3373,16 @@ function paintRankList(entries){
   // 名前は画面上のキーボードでしか入力できない（入力欄は readonly。キーボード入力・貼りつけは受けつけない）
   document.getElementById('rank-submit').addEventListener('click', submitRankEntry);
   document.getElementById('rank-skip').addEventListener('click', closeRankEntry);
-  document.getElementById('solo-rank-btn').addEventListener('click', function(){ openRankScreen('setup-solo-screen', 'w'); });
-  document.getElementById('result-rank-btn').addEventListener('click', function(){ openRankScreen('result-screen', 'w'); });
+  document.getElementById('solo-rank-btn').addEventListener('click', function(){ openRankScreen('setup-solo-screen', 'd'); });
+  document.getElementById('result-rank-btn').addEventListener('click', function(){ openRankScreen('result-screen', 'd'); });
+  document.getElementById('rank-pages').addEventListener('click', function(e){
+    var b = e.target.closest('.rank-page');
+    if(!b) return;
+    rankPage = parseInt(b.getAttribute('data-page'), 10) || 0;
+    rankPageAuto = false;
+    var mem = rankMem[rankKeys().d];
+    if(mem) paintRankList(mem.entries);
+  });
   document.getElementById('rank-back-btn').addEventListener('click', function(){ rankLeave(); showScreen(rankBack); });
   document.querySelectorAll('.rank-tab').forEach(function(b){
     b.addEventListener('click', function(){ selectRankTab(b.getAttribute('data-board')); });
