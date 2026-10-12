@@ -491,6 +491,13 @@
 
 
         /* ===== パソコン：1画面におさめる3カラム ===== */
+        @media (max-width: 899px) {
+            .clock { margin: 18px 0 0; }
+            /* いちばん下まで一気にスクロールできるように：ゴムのような はねかえりを止め、
+               下のツールバーに ver の行が かくれないよう 下に余白をとる */
+            html, body { overscroll-behavior-y: none; }
+            #app { padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 56px); }
+        }
         @media (min-width: 900px) {
             html, body { height: var(--app-h); overflow: hidden; }
             body { min-height: 0; display: flex; align-items: center; justify-content: center; }
@@ -596,10 +603,6 @@
             <button type="button" class="btn btn-nav" id="nextBtn">つぎの日 ›</button>
         </div>
 
-        <div class="clock" aria-label="いまの時刻">
-            <div class="clock-time" id="clockTime">--<span class="colon">:</span>--</div>
-            <div class="clock-sub">いまの じこく</div>
-        </div>
 
 
         <section class="card anniv" id="annCard">
@@ -644,6 +647,11 @@
             <button type="button" class="btn btn-nav q-next" id="qNext">つぎのクイズ ›<span class="cnt" id="qCnt"></span></button>
         </section>
 
+        <!-- 時計：スマホでは いちばん下、PCでは グリッドで左下に置く -->
+        <div class="clock" aria-label="いまの時刻">
+            <div class="clock-time" id="clockTime">--<span class="colon">:</span>--</div>
+            <div class="clock-sub">いまの じこく</div>
+        </div>
         <div class="footer">今日は何の日？｜ver1.0｜ota tools</div>
     </div>
 
@@ -2131,6 +2139,10 @@ function setAppHeight() {
     const h = window.visualViewport ? window.visualViewport.height : window.innerHeight;
     if (h > 0) {
         const st = document.documentElement.style, w = window.visualViewport ? window.visualViewport.width : window.innerWidth;
+        // スマホ（たてに スクロールする画面）では、スクロール中に ツールバーが出たり消えたりして 高さだけ変わる。
+        // そのたびに 画面を計算しなおすと スクロールが 途中で止まるので、はばが変わったときだけ 計算する
+        if (w < 900 && setAppHeight.lastW === w) return;
+        setAppHeight.lastW = w;
         st.setProperty('--app-h', `${Math.round(h)}px`);
         const desk = w >= 900;
         const a = w / h, H = Math.max(window.__HMIN || 640, 800 - Math.max(0, a - 1.75) * (window.__HSL || 600));
