@@ -2259,6 +2259,88 @@ function buildQuizzes(key, word, nowYear) {
     });
 }
 
+/* ---------- 国民の祝日（日にちが年ごとに かわるものも 計算する） ---------- */
+// 名前は（）で読みがな → ふりがなになる
+const HOL_MAME = {
+    '成人（せいじん）の日': 'おとなになったことを自覚し、自分の力で生きぬこうとする若者を祝い、はげます国民の祝日。1月の第2月曜日だよ。',
+    '春分（しゅんぶん）の日': '昼と夜の長さがほぼ同じになる日。「自然をたたえ、生きものをいつくしむ」国民の祝日で、このころが春のお彼岸だよ。',
+    '海（うみ）の日': '海の恵みに感謝し、海にかこまれた日本が栄えることをねがう国民の祝日。7月の第3月曜日だよ。',
+    '山（やま）の日': '山にしたしむ機会をつくり、山の恵みに感謝する国民の祝日だよ。',
+    '敬老（けいろう）の日': '長いあいだ社会につくしてきたお年よりをうやまい、長生きを祝う国民の祝日。9月の第3月曜日だよ。',
+    '秋分（しゅうぶん）の日': '昼と夜の長さがほぼ同じになる日。「祖先をうやまい、なくなった人をしのぶ」国民の祝日で、このころが秋のお彼岸だよ。',
+    'スポーツの日': 'スポーツを楽しみ、元気な心とからだをつくる国民の祝日。1964年の東京オリンピックの開会式（10月10日）がもとになっているよ。',
+    '体育（たいいく）の日': '1964年の東京オリンピックの開会式（10月10日）を記念した国民の祝日。2020年から「スポーツの日」に名前がかわったよ。',
+    '天皇誕生日（てんのうたんじょうび）': '天皇陛下のお誕生日をいわう国民の祝日だよ。',
+    'みどりの日': '自然にしたしみ、その恵みに感謝する国民の祝日。2007年からは5月4日になったよ。',
+    '即位（そくい）の日': '天皇陛下が新しく位につかれたことをいわう、2019年だけの国民の祝日だよ。',
+    '即位礼正殿（そくいれいせいでん）の儀（ぎ）の日': '天皇陛下の即位を国の内外にしめす儀式がおこなわれた、2019年だけの国民の祝日だよ。'
+};
+const OLY = '（この年は 東京オリンピックのために 日にちが動いたよ）';
+function nthMonday(y, mon, n) {   // mon: 0-11
+    const first = new Date(y, mon, 1, 12).getDay();
+    return 1 + ((8 - first) % 7) + (n - 1) * 7;
+}
+const holCache = {};
+function holidaysOf(y) {
+    if (holCache[y]) return holCache[y];
+    const H = {};   // 'MMDD' -> 名前
+    const put = (m, d, name) => { H[pad(m) + pad(d)] = name; };
+    if (y >= 2000) {
+        put(1, 1, '元日（がんじつ）');
+        put(1, nthMonday(y, 0, 2), '成人（せいじん）の日');
+        put(2, 11, '建国記念の日');
+        if (y >= 2020) put(2, 23, '天皇誕生日（てんのうたんじょうび）');
+        if (y <= 2018) put(12, 23, '天皇誕生日（てんのうたんじょうび）');
+        put(3, Math.floor(20.8431 + 0.242194 * (y - 1980) - Math.floor((y - 1980) / 4)), '春分（しゅんぶん）の日');
+        put(4, 29, y >= 2007 ? '昭和の日' : 'みどりの日');
+        put(5, 3, '憲法記念日');
+        if (y >= 2007) put(5, 4, 'みどりの日');
+        put(5, 5, 'こどもの日');
+        if (y === 2020) put(7, 23, '海（うみ）の日'); else if (y === 2021) put(7, 22, '海（うみ）の日');
+        else if (y >= 2003) put(7, nthMonday(y, 6, 3), '海（うみ）の日'); else put(7, 20, '海（うみ）の日');
+        if (y === 2020) put(8, 10, '山（やま）の日'); else if (y === 2021) put(8, 8, '山（やま）の日');
+        else if (y >= 2016) put(8, 11, '山（やま）の日');
+        put(9, y >= 2003 ? nthMonday(y, 8, 3) : 15, '敬老（けいろう）の日');
+        put(9, Math.floor(23.2488 + 0.242194 * (y - 1980) - Math.floor((y - 1980) / 4)), '秋分（しゅうぶん）の日');
+        if (y === 2020) put(7, 24, 'スポーツの日'); else if (y === 2021) put(7, 23, 'スポーツの日');
+        else put(10, nthMonday(y, 9, 2), y >= 2020 ? 'スポーツの日' : '体育（たいいく）の日');
+        put(11, 3, '文化の日');
+        put(11, 23, '勤労感謝の日');
+        if (y === 2019) { put(5, 1, '即位（そくい）の日'); put(10, 22, '即位礼正殿（そくいれいせいでん）の儀（ぎ）の日'); }
+        // 振替休日：祝日が日曜日なら、つぎの「祝日でない日」がお休み
+        const base = Object.assign({}, H);
+        Object.keys(base).forEach(k => {
+            const dt = new Date(y, Number(k.slice(0, 2)) - 1, Number(k.slice(2)), 12);
+            if (dt.getDay() !== 0) return;
+            let n = addDays(dt, 1);
+            while (H[keyOf(n)] && n.getFullYear() === y) n = addDays(n, 1);
+            if (n.getFullYear() === y) H[keyOf(n)] = '振替休日（ふりかえきゅうじつ）|' + base[k];
+        });
+        // 国民の休日：祝日と祝日に はさまれた日
+        Object.keys(base).forEach(k => {
+            const dt = new Date(y, Number(k.slice(0, 2)) - 1, Number(k.slice(2)), 12);
+            const mid = addDays(dt, 1), nxt = addDays(dt, 2);
+            if (base[keyOf(nxt)] && !H[keyOf(mid)] && mid.getDay() !== 0 && nxt.getFullYear() === y)
+                H[keyOf(mid)] = '国民（こくみん）の休日（きゅうじつ）|' + base[k] + '|' + base[keyOf(nxt)];
+        });
+    }
+    return (holCache[y] = H);
+}
+const plain = (n) => n.replace(/（[぀-ヿ・ー]+）/g, '');
+// その日の祝日 { name, mame } / なければ null
+function holidayOn(date) {
+    const raw = holidaysOf(date.getFullYear())[keyOf(date)];
+    if (!raw) return null;
+    const [name, a, b] = raw.split('|');
+    const y = date.getFullYear();
+    let mame = HOL_MAME[name] || '';
+    if (name.startsWith('振替休日')) mame = `祝日の「${plain(a)}」が日曜日と重なったので、そのかわりに お休みになる日だよ。`;
+    if (name.startsWith('国民（こくみん）の休日')) mame = `「${plain(a)}」と「${plain(b)}」の祝日に はさまれた日は、お休みになるきまりがあるよ。`;
+    if (name === '天皇誕生日（てんのうたんじょうび）' && y <= 2018) mame = '天皇陛下（いまの上皇さま）のお誕生日をいわう国民の祝日。2020年からは2月23日になったよ。';
+    if ((y === 2020 || y === 2021) && /海|山|スポーツ/.test(name)) mame += OLY;
+    return { name, mame };
+}
+
 /* ---------- 画面をかく ---------- */
 function dayWord() {
     const t = todayDate();
@@ -2409,15 +2491,20 @@ function centerName() {
 }
 function render() {
     const key = keyOf(cur);
-    const d = DATA[key];
+    const d0 = DATA[key];
+    // 祝日の日は、祝日の名前と まめちしきを いちばんに出す（もとの記念日は「ほかにも」の先頭へ）
+    const hol = holidayOn(cur);
+    // 振替休日は 名前を出さない（カレンダーの赤い色だけ）
+    const holMain = hol && !hol.name.startsWith('振替休日') && plain(hol.name) !== plain(d0.name) && !(hol.name.startsWith('春分') && d0.name.startsWith('春分'));
+    const d = holMain ? { name: hol.name, mame: hol.mame || d0.mame } : d0;
     const isToday = sameDay(cur, todayDate());
     const wd = cur.getDay();
     const word = dayWord();
     const m = cur.getMonth() + 1, dd = cur.getDate();
 
     const page = $('calpage');
-    page.classList.toggle('sun', wd === 0);
-    page.classList.toggle('sat', wd === 6);
+    page.classList.toggle('sun', wd === 0 || !!hol);   // 祝日も 赤い日
+    page.classList.toggle('sat', wd === 6 && !hol);
     $('cpYear').innerHTML = tn(cur.getFullYear()) + '年';
     $('cpMonth').innerHTML = tn(m) + '月';
     $('cpKyu').innerHTML = `<ruby>${KYU[m-1][0]}<rt>${KYU[m-1][1]}</rt></ruby>`;
@@ -2437,7 +2524,8 @@ function render() {
     $('annText').textContent = d.mame;
 
     // ほかの記念日の候補（タップで検索）
-    const oth = OTHERD[key] || [];
+    // 「秋分のころ」などは、ほんとうの祝日の日とずれることがあるので ほかにもには出さない
+    const oth = (holMain && !/^(春分|秋分)/.test(d0.name) ? [plain(d0.name)] : []).concat(OTHERD[key] || []);
     const ol = $('othersList');
     ol.textContent = '';
     oth.forEach(n => {
@@ -2638,7 +2726,7 @@ function drawPicker() {
         const b = document.createElement('button');
         b.type = 'button';
         const w = dt.getDay();
-        b.className = 'pk-day' + (w === 0 ? ' sun' : w === 6 ? ' sat' : '') +
+        b.className = 'pk-day' + ((w === 0 || holidayOn(dt)) ? ' sun' : w === 6 ? ' sat' : '') +
             (sameDay(dt, t) ? ' today' : '') + (sameDay(dt, cur) ? ' sel' : '');
         b.textContent = day;
         b.addEventListener('click', () => {
