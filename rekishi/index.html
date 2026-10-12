@@ -1179,15 +1179,35 @@ var DEBUG_CARDS = !!DEBUG_LIST;
 document.addEventListener('wheel', function(e){ if(e.ctrlKey) e.preventDefault(); }, { passive:false });
 
 /* ============================================================
-   更新の確認：トップに戻ったときと、トップのボタンを押したときに、サーバーにある
+   更新の確認：トップに戻ったとき、トップのボタンを押したとき、
+   そして前回の確認から10分たったあとに何かボタンを押したときに、サーバーにある
    いちばん新しい index.html を調べて、このページより新しければ自動で読みこみ直す。
    ・BUILD_ID は公開のたびに書きかえる（これが違えば「新しい版がある」と判断）
    ・つながらないとき（オフライン／ファイルを直接開いているとき）は何もしない
    ・同じ版へ何度も読みこみ直して止まらなくならないよう、1つの版につき1回だけ
    ============================================================ */
-var BUILD_ID = '20261010-1450';
+var BUILD_ID = '20261012-2320';
 var updateCheckBusy = false;
 var updateCheckLast = 0;
+var UPDATE_EVERY_MS = 10 * 60 * 1000;   // 前回の確認から10分たっていたら、次にボタンを押したときに確認する
+var updateLastOk = Date.now();          // 開いた直後は最新とみなす
+var updatePending = null;               // 新しい版が見つかったが、遊んでいる最中なので後で読みこみ直す
+/* いま読みこみ直しても困らない画面か（遊んでいる最中・結果を見ている最中・対戦の部屋の中はだめ） */
+function isSafeToReload(){
+  var act = document.querySelector('.screen.active');
+  var id = act ? act.id : '';
+  if(['menu-screen', 'setup-solo-screen', 'settings-screen', 'ranking-screen', 'online-screen'].indexOf(id) < 0) return false;
+  var ent = document.getElementById('rank-entry');
+  if(ent && !ent.hidden) return false;
+  try{ if(online && online.code) return false; }catch(e){}
+  return true;
+}
+function reloadToLatest(latest){
+  try{ sessionStorage.setItem('rekishi.reloadedFor', latest); }catch(e){}
+  // URLに版の番号を付けて開きなおす（端末に残った古いファイルを確実に使わないように）
+  try{ var u = new URL(location.href); u.searchParams.set('v', latest); location.replace(u.toString()); }
+  catch(e){ location.reload(); }
+}
 function checkForUpdate(waitMs){
   return new Promise(function(resolve){
     if(updateCheckBusy || !/^https?:$/.test(location.protocol)){ resolve(false); return; }
@@ -1202,30 +1222,53 @@ function checkForUpdate(waitMs){
       clearTimeout(timer);
       var m = /var BUILD_ID = '([^']+)'/.exec(txt || '');
       var latest = m && m[1];
+      if(latest) updateLastOk = Date.now();
       var already = null;
       try{ already = sessionStorage.getItem('rekishi.reloadedFor'); }catch(e){}
       if(latest && latest !== BUILD_ID && already !== latest){
-        try{ sessionStorage.setItem('rekishi.reloadedFor', latest); }catch(e){}
-        finish(true);
-        location.reload();
+        if(isSafeToReload()){ finish(true); reloadToLatest(latest); }
+        else { updatePending = latest; finish(false); }      // 遊び終わってトップなどに戻ったときに読みこみ直す
       } else { finish(false); }
     }).catch(function(){ clearTimeout(timer); finish(false); });
   });
 }
-/* トップの「一人でチャレンジ」「みんなで対戦」を押したときも、先に新しい版がないか確認する。
+function updateIsDue(){ return Date.now() - updateLastOk >= UPDATE_EVERY_MS; }
+/* 遊び始めるボタン：先に新しい版がないか確認する。
+   トップの2つは毎回、ほかは前回の確認から10分たっているときだけ。
    新しい版があれば読みこみ直し、なければ（待たせすぎないよう最大1.5秒で）そのまま進む。 */
-['play-solo-btn', 'play-multi-btn'].forEach(function(id){
-  var b = document.getElementById(id);
+[['play-solo-btn', true], ['play-multi-btn', true], ['start-solo-btn', false], ['retry-btn', false]].forEach(function(it){
+  var b = document.getElementById(it[0]);
   if(!b) return;
+  var always = it[1];
   var pass = false;
   b.addEventListener('click', function(e){
     if(pass){ pass = false; return; }
+    if(!always && !updateIsDue()) return;
+    if(it[0] === 'retry-btn'){ try{ if(online && online.code) return; }catch(_){} }   // 対戦の「もう一度」はそのまま
     e.stopImmediatePropagation(); e.preventDefault();
-    checkForUpdate(1500).then(function(reloading){
-      if(reloading) return;
-      pass = true; b.click();
-    });
+    var go = function(){ pass = true; b.click(); };
+    if(it[0] === 'retry-btn' || it[0] === 'start-solo-btn'){
+      // ここは遊び始める直前なので、新しい版があればトップから開きなおす
+      checkForUpdate(1500).then(function(reloading){
+        if(reloading) return;
+        if(updatePending){ var v = updatePending; updatePending = null; reloadToLatest(v); return; }
+        go();
+      });
+      return;
+    }
+    checkForUpdate(1500).then(function(reloading){ if(!reloading) go(); });
   }, true);
+});
+/* そのほかのボタン：前回の確認から10分たっていたら、押したついでに確認する（待たせない） */
+document.addEventListener('click', function(e){
+  var btn = e.target && e.target.closest ? e.target.closest('button') : null;
+  if(!btn) return;
+  if(['play-solo-btn', 'play-multi-btn', 'start-solo-btn', 'retry-btn'].indexOf(btn.id) >= 0) return;   // これらは上で、待ってから確認する
+  if(updateIsDue()) checkForUpdate(1500);
+}, true);
+/* しばらく別のアプリにいて戻ってきたときも、10分たっていれば確認する */
+document.addEventListener('visibilitychange', function(){
+  if(!document.hidden && updateIsDue() && isSafeToReload()) checkForUpdate(1500);
 });
 /* 2本指タッチでの拡大の保険 */
 document.addEventListener('touchmove', function(e){ if(e.touches && e.touches.length > 1) e.preventDefault(); }, { passive:false });
@@ -1615,6 +1658,10 @@ var currentDragCancel = null;
 function showScreen(id){
   try{ applyRankBan(); }catch(e){}
   try{ var prevScr = document.querySelector('.screen.active'); if(id === 'menu-screen' && prevScr && prevScr.id !== 'menu-screen') checkForUpdate(0); }catch(e){}   // トップに戻ったら新しい版がないか確認
+  if(updatePending && ['menu-screen', 'setup-solo-screen'].indexOf(id) >= 0){   // 遊んでいる間に見つかった新しい版を、トップなどに戻ったときに読みこむ
+    var pendV = updatePending; updatePending = null;
+    setTimeout(function(){ if(isSafeToReload()) reloadToLatest(pendV); else updatePending = pendV; }, 0);
+  }
   if(id !== 'game-screen' && currentDragCancel){ try{ currentDragCancel(); }catch(e){} currentDragCancel = null; }
   document.querySelectorAll('.screen').forEach(function(s){ s.classList.remove('active'); });
   document.getElementById(id).classList.add('active');
