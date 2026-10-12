@@ -1,9 +1,18 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-<meta charset="utf-8">
+<!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-YTH979WTKL"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+  gtag('config', 'G-YTH979WTKL');
+</script>
+<meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>おしゃべりボード</title>
+<title>読み上げアプリ｜おしゃべりボード</title>
+<meta name="description" content="入力した文字を声で読み上げるスマホ向けアプリ。よく使うセリフをプリセット登録でき、声の高さや速さ、読み方も調整できます。">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DotGothic16&family=M+PLUS+1+Code:wght@400;600&display=swap">
 <style>
 /* Layout: one phone column styled as a device screen — glowing display on top, terminal-like input, phrase keys and settings panels below */
@@ -14,7 +23,9 @@
   --body:"M PLUS 1 Code","Hiragino Sans","Yu Gothic",monospace;
   color-scheme:dark;
 }
-*{box-sizing:border-box}
+*{box-sizing:border-box;touch-action:manipulation;-webkit-touch-callout:none}
+/* iOSは16px未満の入力欄にフォーカスすると勝手に拡大するので、入力欄は16px以上にする */
+input,select,textarea{font-size:16px!important}
 body{background:var(--bg);color:var(--fg);font-family:var(--body);font-size:15px;line-height:1.6;padding-inline:16px;padding-block:20px 40px;
   background-image:radial-gradient(circle at 50% -10%,rgba(54,214,255,.10),transparent 55%)}
 .wrap{max-width:560px;margin:0 auto;display:flex;flex-direction:column;gap:20px}
@@ -56,6 +67,10 @@ input[type=range]{width:100%;accent-color:var(--accent)}
 .note{font-size:.78rem;color:var(--muted);margin:0}
 .readlist{list-style:none;margin:0;padding:0;display:grid;gap:6px}
 .readlist li{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:6px 0;border-top:1px solid var(--line);word-break:break-word}
+.tiplist{margin:0;display:grid;grid-template-columns:auto 1fr;gap:8px 14px;font-size:.85rem}
+.tiplist dt{color:var(--accent);white-space:nowrap}
+.tiplist dd{margin:0;color:var(--fg);min-width:0}
+@media (max-width:420px){.tiplist{grid-template-columns:1fr;gap:2px}.tiplist dd{margin-bottom:8px}}
 .mini{padding:4px 12px;font-size:.8rem}
 .warn{background:var(--surface);border:1px dashed var(--accent);border-radius:6px;padding:12px;font-size:.88rem}
 input[type=text]{border-radius:6px!important;border-width:1px!important}
@@ -104,7 +119,8 @@ input[type=text]{border-radius:6px!important;border-width:1px!important}
     <label for="rate">話す速さ <span class="val" id="rateV"></span>
       <input type="range" id="rate" min="0.5" max="1.8" step="0.1" value="1.0">
     </label>
-    <p class="note">使える声は端末によってちがいます。高さを上げると、かわいらしい声になります。速さを上げすぎると、イントネーションがくずれやすくなります。</p>
+    <p class="note">使える声は端末によってちがいます。高さを上げると、かわいらしい声になります。速さを上げすぎると、イントネーションがくずれやすくなります。声によっては、高さや速さの設定が効かないものがあります（「Natural」「Online」と付く声は高さが変わらないことが多いです）。</p>
+    <div class="row"><button id="resetVoice">声の設定を初期値にもどす</button></div>
   </section>
 
   <section class="settings">
@@ -119,6 +135,18 @@ input[type=text]{border-radius:6px!important;border-width:1px!important}
       <button id="addRead">登録</button>
     </div>
     <ul id="readList" class="readlist"></ul>
+  </section>
+
+  <section class="settings tips">
+    <h2 style="margin:0">イントネーションがおかしいときのコツ</h2>
+    <p class="note">声によって読み方のくせがちがいます。上の欄で「ためしに聞く」を使って、次の書き方を聞き比べてみてください。いちばん自然だったものを登録すると、その読み方が優先されます。</p>
+    <dl class="tiplist">
+      <dt>ひらがなにする</dt><dd>漢字の読みまちがいを防ぎます。例：私は → わたしは</dd>
+      <dt>カタカナにする</dt><dd>アクセントが変わることがあります。例：私は → ワタシは</dd>
+      <dt>「は」を「わ」と書く</dt><dd>助詞のつながりが自然になることがあります。例：私は → わたしわ</dd>
+      <dt>「、」で区切る</dt><dd>言葉を1つずつ独立して読ませます。例：私は → わたし、は</dd>
+      <dt>言い方を変える</dt><dd>意味が同じ別の言葉のほうが自然に聞こえることがあります。例：私は → あたしは</dd>
+    </dl>
   </section>
 </div>
 
@@ -135,15 +163,23 @@ let voices=[];
 
 if(!synth||!window.SpeechSynthesisUtterance){$("unsupported").hidden=false}
 
+/* 端末ごとの初期値。iPhone/iPadはKyoko、パソコンなどはMicrosoft Ayumi */
+const IS_IOS=/iPhone|iPad|iPod/.test(navigator.userAgent)||(navigator.platform==="MacIntel"&&navigator.maxTouchPoints>1);
+const DEF=IS_IOS?{voice:/kyoko/i,pitch:1.2,rate:1.1}:{voice:/ayumi/i,pitch:1.7,rate:1.3};
 function loadVoices(){
   if(!synth)return;
   const all=synth.getVoices();
   if(!all.length)return;
   const ja=all.filter(v=>/^ja/i.test(v.lang));
   voices=ja.length?ja:all;
-  const saved=store.get("voice","");
-  $("voice").innerHTML=voices.map((v,i)=>`<option value="${i}">${v.name}${ja.length?"":" ("+v.lang+")"}</option>`).join("");
-  const idx=voices.findIndex(v=>v.name===saved);
+  const saved=store.get("voice_v3","");
+  const sel=$("voice");sel.innerHTML="";
+  voices.forEach((v,i)=>{const o=document.createElement("option");o.value=i;o.textContent=v.name+(ja.length?"":" ("+v.lang+")");sel.appendChild(o)});
+  let idx=voices.findIndex(v=>v.name===saved);
+  /* 保存した声がなければ、高さ・速さの調整が効きやすいGoogleの声を最初に選ぶ */
+  if(idx<0)idx=voices.findIndex(v=>DEF.voice.test(v.name));
+  if(idx<0)idx=voices.findIndex(v=>/google/i.test(v.name));
+  if(idx<0)idx=0;
   if(idx>=0)$("voice").value=idx;
 }
 if(synth){loadVoices();synth.onvoiceschanged=loadVoices;}
@@ -152,19 +188,36 @@ function speak(text){
   text=(text||"").trim();
   if(!text||!synth)return;
   $("shown").textContent=text;
-  if(!firstDone){
-    /* 1回目は音声エンジンの起動待ちで出だしが欠けやすいので、長めに待つ */
-    firstDone=true;
-    warm();
-    setTimeout(()=>{synth.cancel();setTimeout(()=>say(text,true),150)},600);
-    return;
-  }
+  /* スピーカーが眠っていたら起こし、起きるまで少し待ってから話す */
+  const justWoke=wakeAudio();
   const busy=synth.speaking||synth.pending;
   if(busy)synth.cancel();
-  setTimeout(()=>say(text,false),busy?250:60);
+  setTimeout(()=>say(text),justWoke?700:(busy?250:80));
+}
+/* 出だしが消える原因の多くは、音が鳴っていない間にPCやスマホのスピーカー出力が休止すること。
+   最初の操作のときから「聞こえない無音」を流し続けて、出力を起こしたままにする */
+let actx=null;
+function wakeAudio(){
+  let woke=false;
+  try{
+    const AC=window.AudioContext||window.webkitAudioContext;
+    if(!AC)return false;
+    if(!actx){
+      actx=new AC();
+      /* iOSは無音バッファを1回再生しないと出力が有効にならない */
+      const b=actx.createBuffer(1,1,actx.sampleRate),bs=actx.createBufferSource();
+      bs.buffer=b;bs.connect(actx.destination);bs.start(0);
+      const o=actx.createOscillator(),g=actx.createGain();
+      g.gain.value=0.0001;o.frequency.value=30;
+      o.connect(g);g.connect(actx.destination);o.start();
+      woke=true;
+    }
+    if(actx.state!=="running"){actx.resume();woke=true;}
+  }catch(e){}
+  return woke;
 }
 /* 読みまちがえやすい言葉は、読み上げるときだけひらがなに置きかえる（画面の表示はそのまま） */
-const READINGS={"警察犬":"けいさつけん","♡":"","そーいう":"そういう","薫":"かおる","約束通り":"やくそくどおり","１番":"いちばん","1番":"いちばん","一番":"いちばん","…":"。","超":"ちょう"};
+const READINGS={"私は":"わたしは","私":"わたし","警察犬":"けいさつけん","♡":"","そーいう":"そういう","薫":"かおる","約束通り":"やくそくどおり","１番":"いちばん","1番":"いちばん","一番":"いちばん","…":"。","超":"ちょう"};
 let userReadings=store.get("readings",[]);
 function toReading(t){
   userReadings.forEach(r=>{if(r.from)t=t.split(r.from).join(r.to)});
@@ -185,25 +238,82 @@ function renderReadings(){
     li.appendChild(b);ul.appendChild(li);
   });
 }
-let warmed=false,firstDone=false;
-function warm(){
-  if(warmed||!synth)return;
-  warmed=true;
-  try{const w=new SpeechSynthesisUtterance("、");w.volume=0;w.lang="ja-JP";synth.speak(w);}catch(e){}
+/* 画面に最初に触れた時点でスピーカー出力と声の一覧を準備しておく */
+/* 実際に音声出力が動き出す（running）まで、待ち受けを外さない */
+const UNLOCK_EVENTS=["pointerdown","touchend","click","keydown"];
+function unlock(){
+  wakeAudio();
+  if(!voices.length)loadVoices();
+  if(actx&&actx.state==="running")UNLOCK_EVENTS.forEach(ev=>document.removeEventListener(ev,unlock,true));
 }
-/* 画面に最初に触れた時点でエンジンを起こしておく */
-["pointerdown","touchstart","keydown"].forEach(ev=>document.addEventListener(ev,()=>{warm();if(!voices.length)loadVoices()},{once:true,passive:true}));
-function say(text,first){
-  /* 先頭の「、」は短い間になり、出だしの音が切れるのを防ぐ */
-  const u=new SpeechSynthesisUtterance((first?"、、":"、")+toReading(text));
+UNLOCK_EVENTS.forEach(ev=>document.addEventListener(ev,unlock,true));
+/* ピンチ拡大を止める（Safari） */
+["gesturestart","gesturechange","gestureend"].forEach(t=>document.addEventListener(t,e=>e.preventDefault(),{passive:false}));
+/* 防ぎきれずに拡大されたままになったときは等倍に戻す */
+function resetZoomIfNeeded(){
+  if(!window.visualViewport||visualViewport.scale<=1.02)return;
+  const m=document.querySelector('meta[name="viewport"]');if(!m)return;
+  const orig=m.getAttribute("content");
+  m.setAttribute("content",orig+", maximum-scale=1.0");
+  requestAnimationFrame(()=>m.setAttribute("content",orig));
+}
+if(window.visualViewport){visualViewport.addEventListener("resize",resetZoomIfNeeded);visualViewport.addEventListener("scroll",resetZoomIfNeeded);}
+document.addEventListener("gestureend",()=>setTimeout(resetZoomIfNeeded,50),{passive:true});
+document.addEventListener("visibilitychange",()=>{if(!document.hidden&&actx)wakeAudio()});
+let sayGen=0;
+function makeU(t){
+  const u=new SpeechSynthesisUtterance(t);
   u.lang="ja-JP";
   const v=voices[+$("voice").value];
   if(v)u.voice=v;
   u.pitch=+$("pitch").value;
   u.rate=+$("rate").value;
-  u.onstart=()=>$("bubble").classList.add("talking");
-  u.onend=u.onerror=()=>$("bubble").classList.remove("talking");
-  synth.speak(u);
+  return u;
+}
+/* Kyokoなど、iPhoneの声は「、」で間をあけず、「よ。」の前に変な間が入ることがある */
+function needsSplit(){
+  const v=voices[+$("voice").value];
+  return IS_IOS||(v&&/kyoko|otoya/i.test(v.name));
+}
+const KATA2HIRA=s=>s.replace(/[ァ-ヶ]/g,c=>String.fromCharCode(c.charCodeAt(0)-0x60));
+function forIOS(t){
+  /* 「ダメよ」「チャンスよ」のようなカタカナ＋よ・ね は、ひらがなにすると一続きで読む */
+  t=t.replace(/([ァ-ヶー]+)(?=[よね])/g,KATA2HIRA);
+  t=t.split("不潔よ").join("ふけつよ");
+  return t;
+}
+function say(text){
+  const myGen=++sayGen;
+  let t=toReading(text);
+  const done=()=>{if(myGen===sayGen)$("bubble").classList.remove("talking")};
+  if(!needsSplit()){
+    const u=makeU("、"+t);
+    u.onstart=()=>$("bubble").classList.add("talking");
+    u.onend=u.onerror=done;
+    synth.speak(u);
+    return;
+  }
+  /* 「、」「。」で区切って1つずつ読み、間は時間であける。句読点そのものは渡さない */
+  t=forIOS(t);
+  const parts=[];
+  t.split(/(?<=[、。])/).forEach(seg=>{
+    const end=seg.slice(-1);
+    const body=(end==="、"||end==="。")?seg.slice(0,-1):seg;
+    if(body.trim())parts.push({t:body.trim(),gap:end==="。"?380:230});
+  });
+  if(!parts.length){done();return}
+  $("bubble").classList.add("talking");
+  let i=0;
+  const next=()=>{
+    if(myGen!==sayGen)return;
+    if(i>=parts.length){done();return}
+    const p=parts[i++];
+    const u=makeU(p.t);
+    u.onend=()=>setTimeout(next,i<parts.length?p.gap:0);
+    u.onerror=done;
+    synth.speak(u);
+  };
+  next();
 }
 
 function renderChips(){
@@ -215,7 +325,11 @@ function renderChips(){
     const x=document.createElement("span");x.className="x";x.textContent="×";x.hidden=!editing;x.setAttribute("aria-label","削除");b.appendChild(x);
     b.onclick=()=>{
       if(editing){phrases.splice(i,1);store.set("phrases_v4",phrases);renderChips();}
-      else{const s=fill(p);$("text").value=s;$("shown").textContent=s;}
+      else{
+        const s=fill(p);$("text").value=s;$("shown").textContent=s;
+        const reduce=window.matchMedia&&matchMedia("(prefers-reduced-motion: reduce)").matches;
+        window.scrollTo({top:0,behavior:reduce?"auto":"smooth"});
+      }
     };
     $("chips").appendChild(b);
   });
@@ -224,18 +338,24 @@ function renderChips(){
 
 function showVals(){$("pitchV").textContent=(+$("pitch").value).toFixed(1);$("rateV").textContent=(+$("rate").value).toFixed(1)}
 
-$("pitch").value=store.get("pitch_v2",1.6);
-$("rate").value=store.get("rate_v2",1.0);
+$("pitch").value=store.get("pitch_v3",DEF.pitch);
+$("rate").value=store.get("rate_v3",DEF.rate);
 showVals();
-$("pitch").oninput=()=>{showVals();store.set("pitch_v2",$("pitch").value)};
-$("rate").oninput=()=>{showVals();store.set("rate_v2",$("rate").value)};
+$("pitch").oninput=()=>{showVals();store.set("pitch_v3",$("pitch").value)};
+$("rate").oninput=()=>{showVals();store.set("rate_v3",$("rate").value)};
 $("name").value=store.get("name","");
 $("name").oninput=()=>{store.set("name",$("name").value);renderChips()};
 $("reset").onclick=()=>{phrases=DEFAULTS.slice();store.set("phrases_v4",phrases);renderChips()};
-$("voice").onchange=()=>{const v=voices[+$("voice").value];if(v)store.set("voice",v.name)};
+$("voice").onchange=()=>{const v=voices[+$("voice").value];if(v)store.set("voice_v3",v.name)};
+/* 声・高さ・速さを、この端末向けの初期値にもどす（プリセットと読み方はそのまま） */
+$("resetVoice").onclick=()=>{
+  store.set("voice_v3","");store.set("pitch_v3",DEF.pitch);store.set("rate_v3",DEF.rate);
+  $("pitch").value=DEF.pitch;$("rate").value=DEF.rate;showVals();
+  loadVoices();
+};
 
 $("speak").onclick=()=>speak($("text").value);
-$("stop").onclick=()=>{if(synth)synth.cancel();$("bubble").classList.remove("talking")};
+$("stop").onclick=()=>{sayGen++;if(synth)synth.cancel();$("bubble").classList.remove("talking")};
 $("save").onclick=()=>{
   const t=$("text").value.trim();
   if(t&&!phrases.includes(t)){phrases.push(t);store.set("phrases_v4",phrases);renderChips();}
