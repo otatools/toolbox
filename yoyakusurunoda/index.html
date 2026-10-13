@@ -15,18 +15,53 @@
   <title>施設利用予約システム</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <!-- Lucide Icons -->
-  <script src="https://unpkg.com/lucide@latest"></script>
+  <script src="https://unpkg.com/lucide@1.48.0/dist/umd/lucide.min.js"></script>
   <!-- SheetJS for Excel -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <style>
+    /* ダブルタップ拡大を無効化(スクロール・ピンチは残る) */
+    * { touch-action: manipulation; -webkit-touch-callout: none; }
+    /* iOS で高さがずれないよう、実測値で上書きする高さ変数 */
+    :root { --app-h: 100vh; }
+    @supports (height: 100dvh) { :root { --app-h: 100dvh; } }
+    html { background: #f9fafb; }
+    body { overscroll-behavior-y: none; }
+    /* 予約表のスクロール枠とモーダルの最大高さ(iOS で下が切れないように) */
+    .table-scroll { max-height: calc(var(--app-h) * 0.7); }  /* JSが実測で上書きする */
+    .cell-h { height: var(--row-h, 56px); }
+    /* 画面が低いとき(スマホ横向きなど)：操作欄を1行にまとめ、表の余白を詰めて1画面に収める */
+    @media (max-height: 500px) {
+      main { padding-top: 6px !important; padding-bottom: 6px !important; }
+      #controlPanel { flex-direction: row !important; flex-wrap: wrap; align-items: center !important; padding: 6px 8px !important; margin-bottom: 6px !important; gap: 6px !important; }
+      #controlPanel > div { width: auto !important; gap: 6px !important; }
+      #controlPanel button, #controlPanel label { padding-top: 4px !important; padding-bottom: 4px !important; }
+      #controlPanel .icon-btn { height: 32px; }
+      #controlPanel input, #controlPanel select { padding-top: 2px !important; padding-bottom: 2px !important; }
+      #tableHead th { padding-top: 3px !important; padding-bottom: 3px !important; }
+      #tableBody td { padding-top: 1px !important; padding-bottom: 1px !important; }
+      #tableBody td span { font-size: 13px !important; line-height: 1.2 !important; }
+    }
+    .modal-box { max-height: calc(var(--app-h) * 0.9); }
+    /* iOS は16px未満の入力欄にフォーカスすると勝手に拡大する */
+    @media (hover: none) and (pointer: coarse) {
+      input, select, textarea { font-size: 16px !important; }
+      /* モバイルGPUで重い背景ぼかしを切る */
+      #reservationModal { -webkit-backdrop-filter: none; backdrop-filter: none; background: rgba(17,24,39,.5); }
+    }
+    /* アイコンだけのボタンの中身を確実に中央へ(Safari対策) */
+    .icon-btn { position: relative; -webkit-appearance: none; appearance: none; line-height: 0; width: 36px; height: 36px; padding: 0; }
+    .icon-btn svg { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); }
+    #btnCloseModal.icon-btn { width: 32px; height: 32px; }
+  </style>
 </head>
-<body class="bg-gray-50 text-gray-800 font-sans min-h-screen">
+<body class="bg-gray-50 text-gray-800 font-sans">
   
   <!-- トースト通知用 -->
   <div id="toastMessage" class="hidden fixed top-4 right-4 bg-gray-800 text-white px-4 py-3 rounded-lg shadow-lg z-50 transition-opacity duration-300 text-sm font-medium"></div>
 
-  <main class="max-w-7xl mx-auto px-4 py-6">
+  <main class="max-w-7xl mx-auto px-3 sm:px-4 py-3 md:py-4">
     <!-- コントロールパネル -->
-    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4 mb-6 flex flex-col md:flex-row gap-4 justify-between items-start md:items-center">
+    <div id="controlPanel" class="bg-white rounded-xl shadow-sm border border-gray-200 p-3 mb-3 flex flex-col md:flex-row gap-3 justify-between items-start md:items-center">
       
       <!-- ビュー切り替えと施設選択 -->
       <div class="flex flex-wrap items-center gap-3 w-full md:w-auto">
@@ -47,11 +82,11 @@
       <!-- 日付セレクターとExcel操作 -->
       <div class="flex flex-wrap items-center gap-3 w-full md:w-auto">
         <div class="flex items-center bg-gray-50 rounded-lg overflow-hidden border border-gray-300 shadow-sm">
-          <button id="btnPrevDate" class="p-2 hover:bg-gray-200 text-gray-600 transition-colors">
+          <button id="btnPrevDate" class="icon-btn shrink-0 hover:bg-gray-200 text-gray-600 transition-colors">
             <i data-lucide="chevron-left" class="w-5 h-5"></i>
           </button>
           <input type="date" id="dateInput" class="bg-transparent border-none outline-none px-2 py-2 text-sm font-medium text-gray-800 cursor-pointer" />
-          <button id="btnNextDate" class="p-2 hover:bg-gray-200 text-gray-600 transition-colors">
+          <button id="btnNextDate" class="icon-btn shrink-0 hover:bg-gray-200 text-gray-600 transition-colors">
             <i data-lucide="chevron-right" class="w-5 h-5"></i>
           </button>
         </div>
@@ -78,7 +113,7 @@
     <!-- 予約テーブル -->
     <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden relative z-0">
       <!-- overflow-auto と max-h-[70vh] を追加して縦スクロール可能に -->
-      <div class="overflow-auto max-h-[70vh]">
+      <div class="table-scroll overflow-auto">
         <table class="w-full text-left border-collapse table-fixed">
           <thead id="tableHead">
             <!-- JSで動的に追加 -->
@@ -93,12 +128,12 @@
 
   <!-- 予約用モーダル (初期状態は非表示) -->
   <div id="reservationModal" class="hidden fixed inset-0 bg-gray-900/40 backdrop-blur-sm z-50 items-center justify-center p-4">
-    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] flex flex-col transform transition-all overflow-hidden">
+    <div class="bg-white rounded-2xl shadow-2xl modal-box w-full max-w-md flex flex-col transform transition-all overflow-hidden">
       
       <!-- モーダルヘッダー -->
       <div class="px-5 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50 shrink-0">
         <h3 id="modalTitle" class="font-bold text-lg text-gray-800">新規予約</h3>
-        <button id="btnCloseModal" class="text-gray-400 hover:text-gray-600 p-1.5 rounded-full hover:bg-gray-200 transition-colors">
+        <button id="btnCloseModal" class="icon-btn shrink-0 text-gray-400 hover:text-gray-600 rounded-full hover:bg-gray-200 transition-colors">
           <i data-lucide="x" class="w-5 h-5"></i>
         </button>
       </div>
@@ -120,7 +155,7 @@
   <script type="module">
     import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js';
     import { getAuth, signInWithCustomToken, signInAnonymously, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js';
-    import { getFirestore, collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js';
+    import { getFirestore, collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc, query, where, getDocs } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js';
 
     // Firebase 初期化
     const fallbackConfig = {
@@ -165,6 +200,14 @@
 
     const DAYS = ['日', '月', '火', '水', '木', '金', '土'];
 
+    // ストレージ(プライベートブラウズ等で例外が出ても止まらないように)
+    function storageGet(store, key) {
+      try { return window[store].getItem(key); } catch (e) { return null; }
+    }
+    function storageSet(store, key, value) {
+      try { window[store].setItem(key, value); } catch (e) {}
+    }
+
     // 状態管理
     let user = null;
     let reservations = [];
@@ -174,20 +217,24 @@
     let unsubscribeFirestore = null;
 
     let modalState = { isOpen: false, data: null };
-    let userName = localStorage.getItem('teacherName') || '';
+    let userName = storageGet('localStorage', 'teacherName') || '';
     let purpose = '';
-    let isRecurring = sessionStorage.getItem('isRecurring') === 'true';
-    let recurringEndDate = sessionStorage.getItem('recurringEndDate') || '';
+    let isRecurring = storageGet('sessionStorage', 'isRecurring') === 'true';
+    let recurringEndDate = storageGet('sessionStorage', 'recurringEndDate') || '';
     let isConfirmingDelete = false;
     let isSaving = false;
     let saveError = '';
+    let conflictInfo = null;  // 繰り返し予約で重なった日がある時の確認待ち情報
+    let skipResult = null;    // 空いている日だけ予約した後の結果
 
     // トースト通知関数
+    let toastTimer = null;
     function showToast(message) {
       const toast = document.getElementById('toastMessage');
       toast.textContent = message;
       toast.classList.remove('hidden');
-      setTimeout(() => {
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => {
         toast.classList.add('hidden');
       }, 4000);
     }
@@ -200,14 +247,19 @@
       return `${y}-${m}-${d}`;
     }
 
+    function parseDateStr(dateStr) {
+      const [y, m, d] = String(dateStr).split('-').map(Number);
+      return new Date(y, (m || 1) - 1, d || 1);
+    }
+
     function formatDateForDisplay(dateStr) {
       if (!dateStr) return '';
-      const date = new Date(dateStr);
+      const date = parseDateStr(dateStr);
       return `${date.getMonth() + 1}/${date.getDate()} (${DAYS[date.getDay()]})`;
     }
 
     function addDaysToDateStr(dateStr, days) {
-      const date = new Date(dateStr);
+      const date = parseDateStr(dateStr);
       date.setDate(date.getDate() + days);
       return formatDateForInput(date);
     }
@@ -222,8 +274,8 @@
 
     // HTMLエスケープ関数
     function escapeHtml(unsafe) {
-      if (!unsafe) return '';
-      return unsafe
+      if (unsafe === null || unsafe === undefined) return '';
+      return String(unsafe)
         .replace(/&/g, "&amp;")
         .replace(/</g, "&lt;")
         .replace(/>/g, "&gt;")
@@ -287,17 +339,41 @@
           subscribeData();
         } else {
           if(unsubscribeFirestore) unsubscribeFirestore();
+          unsubscribeFirestore = null;
+          subscribedRange = '';
           reservations = [];
           renderTable();
         }
       });
     }
 
+    // 表示している範囲(日別=その日、施設別=表示中の7日間)だけを読み込む
+    let subscribedRange = '';
+    function getVisibleRange() {
+      const start = currentDateStr;
+      const end = viewMode === 'facility' ? addDaysToDateStr(currentDateStr, 6) : currentDateStr;
+      return { start, end };
+    }
+
+    // 管理者のExcel入出力用：全件を1回だけ読み込む
+    async function fetchAllReservations() {
+      const colRef = collection(db, 'artifacts', appId, 'public', 'data', 'facility_reservations');
+      const snap = await getDocs(colRef);
+      return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    }
+
     function subscribeData() {
       if (!user) return;
+      const { start, end } = getVisibleRange();
+      const rangeKey = `${start}_${end}`;
+      if (rangeKey === subscribedRange && unsubscribeFirestore) return;  // 範囲が同じなら購読し直さない
+      if (unsubscribeFirestore) { unsubscribeFirestore(); unsubscribeFirestore = null; }
+      subscribedRange = rangeKey;
+      reservations = [];
       const colRef = collection(db, 'artifacts', appId, 'public', 'data', 'facility_reservations');
+      const q = query(colRef, where('date', '>=', start), where('date', '<=', end));
       unsubscribeFirestore = onSnapshot(
-        colRef,
+        q,
         (snapshot) => {
           reservations = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
           renderTable();
@@ -308,8 +384,12 @@
                // 削除されていたら閉じる
                closeModal();
             } else {
+               const prev = modalState.data.reservation;
                modalState.data.reservation = updatedRes;
-               renderModal();
+               // その予約自体が変わったときだけ描き直す(入力中のフォーカスを奪わない)
+               if (prev.teacherName !== updatedRes.teacherName || (prev.purpose || '') !== (updatedRes.purpose || '')) {
+                 renderModal();
+               }
             }
           }
         },
@@ -342,6 +422,7 @@
         btnDaily.className = 'flex-1 md:flex-none px-4 py-2 rounded-md text-sm font-medium transition-all text-gray-500 hover:text-gray-700';
         select.classList.remove('hidden');
       }
+      scheduleFit();
     }
 
     function renderCell(dateStr, facilityId, periodId) {
@@ -358,7 +439,7 @@
 
         return `
           <td ${cellDataAttrs} data-has-reservation="true"
-            class="cell-target border ${borderClass} p-1 sm:p-2 h-14 sm:h-20 cursor-pointer transition-colors relative overflow-hidden ${bgClass}">
+            class="cell-target border ${borderClass} p-1 sm:p-2 cell-h cursor-pointer transition-colors relative overflow-hidden ${bgClass}">
             <div class="w-full h-full flex items-center justify-center overflow-hidden pointer-events-none">
               <span class="font-bold text-gray-800 text-sm sm:text-base md:text-lg truncate px-1 pointer-events-none">
                 ${escapeHtml(reservation.teacherName)}
@@ -369,7 +450,7 @@
       } else {
         return `
           <td ${cellDataAttrs} data-has-reservation="false"
-            class="cell-target border border-gray-200 p-1 sm:p-2 h-14 sm:h-20 cursor-pointer hover:bg-emerald-50 transition-colors group overflow-hidden">
+            class="cell-target border border-gray-200 p-1 sm:p-2 cell-h cursor-pointer hover:bg-emerald-50 transition-colors group overflow-hidden">
             <div class="w-full h-full flex items-center justify-center opacity-0 group-hover:opacity-100 text-emerald-600 transition-opacity pointer-events-none">
               <i data-lucide="plus" class="w-3 h-3 sm:w-5 sm:h-5"></i>
               <span class="text-[10px] sm:text-sm ml-0.5 sm:ml-1 font-medium hidden sm:inline">予約</span>
@@ -380,6 +461,7 @@
     }
 
     function renderTable() {
+      subscribeData();  // 表示範囲が変わっていれば購読し直す
       // 1. Table Head
       // スクロール時にヘッダーを固定 (sticky top-0 / z-20, z-30 を追加)
       let theadHtml = `
@@ -423,7 +505,7 @@
         
         weekDates.forEach(dateStr => {
           const isToday = dateStr === todayStr;
-          const dayOfWeek = new Date(dateStr).getDay();
+          const dayOfWeek = parseDateStr(dateStr).getDay();
           
           let bgClass = '';
           let stickyBgClass = 'bg-white text-gray-800 group-hover:bg-gray-50';
@@ -460,6 +542,7 @@
       const tbody = document.getElementById('tableBody');
       tbody.innerHTML = tbodyHtml;
       lucide.createIcons();
+      fitTableToScreen();
 
       // セルへのクリックイベント登録
       const cells = tbody.querySelectorAll('.cell-target');
@@ -477,13 +560,23 @@
     }
 
     // Excel出力処理
-    function handleExportExcel() {
-      if (reservations.length === 0) {
+    async function handleExportExcel() {
+      let allReservations;
+      try {
+        allReservations = await fetchAllReservations();
+      } catch (error) {
+        console.error("Export Error:", error);
+        showToast("データの取得に失敗しました。");
+        return;
+      }
+      if (allReservations.length === 0) {
         showToast("出力する予約データがありません。");
         return;
       }
       
-      const exportData = reservations.map(r => {
+      const facOrder = (name) => { const i = FACILITIES.findIndex(f => f.name === name); return i < 0 ? 999 : i; };
+      const perOrder = (name) => { const i = PERIODS.findIndex(p => p.name === name); return i < 0 ? 999 : i; };
+      const exportData = allReservations.map(r => {
         const facility = FACILITIES.find(f => f.id === r.facilityId);
         const period = PERIODS.find(p => p.id === r.period);
         return {
@@ -498,8 +591,8 @@
       // ソートして見やすくする
       exportData.sort((a, b) => {
         if (a["日付"] !== b["日付"]) return a["日付"].localeCompare(b["日付"]);
-        if (a["施設"] !== b["施設"]) return a["施設"].localeCompare(b["施設"]);
-        return a["時間帯"].localeCompare(b["時間帯"]);
+        if (a["施設"] !== b["施設"]) return facOrder(a["施設"]) - facOrder(b["施設"]);
+        return perOrder(a["時間帯"]) - perOrder(b["時間帯"]);
       });
 
       const worksheet = XLSX.utils.json_to_sheet(exportData);
@@ -531,7 +624,8 @@
           let skipCount = 0;
           
           const colRef = collection(db, 'artifacts', appId, 'public', 'data', 'facility_reservations');
-          const promises = [];
+          const tasks = [];  // 確認後にまとめて実行する
+          const allReservations = await fetchAllReservations();
           const excelKeys = new Set();
 
           for (const row of jsonData) {
@@ -552,8 +646,8 @@
               dateVal = dateVal.replace(/\//g, '-');
             }
 
-            const fac = FACILITIES.find(f => f.name === facName);
-            const per = PERIODS.find(p => p.name === periodName);
+            const fac = FACILITIES.find(f => f.name === String(facName).trim());
+            const per = PERIODS.find(p => p.name === String(periodName).trim());
             
             if (!fac || !per) {
               skipCount++;
@@ -561,9 +655,13 @@
             }
             
             const key = `${dateVal}_${fac.id}_${per.id}`;
+            if (excelKeys.has(key)) {  // 同じ枠の行が2回ある場合は最初の行だけ使う
+              skipCount++;
+              continue;
+            }
             excelKeys.add(key);
             
-            const existingRes = reservations.find(
+            const existingRes = allReservations.find(
               r => r.date === dateVal && r.facilityId === fac.id && r.period === per.id
             );
 
@@ -572,7 +670,7 @@
             if (existingRes) {
               // 変更があれば更新
               if (existingRes.teacherName !== formattedName || (existingRes.purpose || "") !== purposeVal.toString()) {
-                promises.push(updateDoc(doc(colRef, existingRes.id), {
+                tasks.push(() => updateDoc(doc(colRef, existingRes.id), {
                   teacherName: formattedName,
                   purpose: purposeVal.toString(),
                   updatedAt: new Date().toISOString()
@@ -581,7 +679,7 @@
               }
             } else {
               // 新規追加
-              promises.push(addDoc(colRef, {
+              tasks.push(() => addDoc(colRef, {
                 date: dateVal,
                 facilityId: fac.id,
                 period: per.id,
@@ -595,15 +693,32 @@
           }
           
           // エクセルに存在しない既存データを削除
-          for (const res of reservations) {
+          for (const res of allReservations) {
              const key = `${res.date}_${res.facilityId}_${res.period}`;
              if (!excelKeys.has(key)) {
-                promises.push(deleteDoc(doc(colRef, res.id)));
+                tasks.push(() => deleteDoc(doc(colRef, res.id)));
                 deleteCount++;
              }
           }
           
-          await Promise.all(promises);
+          if (excelKeys.size === 0) {
+            showToast("有効な予約行が見つかりません。列名（日付・施設・時間帯・予約者（クラス））を確認してください。");
+            return;
+          }
+          if (tasks.length === 0) {
+            showToast("変更はありませんでした。");
+            return;
+          }
+          const ok = window.confirm(
+            `Excelの内容で予約を上書きします。\n\n追加 ${addCount}件\n更新 ${updateCount}件\n削除 ${deleteCount}件` +
+            (skipCount ? `\n(施設名・時間帯が読めない行／重複した行 ${skipCount}件は飛ばします)` : '') +
+            `\n\nよろしいですか？`
+          );
+          if (!ok) {
+            showToast("取り込みを中止しました。");
+            return;
+          }
+          await Promise.all(tasks.map(fn => fn()));
           showToast(`同期完了: 追加${addCount}件, 更新${updateCount}件, 削除${deleteCount}件`);
         } catch (error) {
           console.error("Import Error:", error);
@@ -625,11 +740,13 @@
         userName = reservation.teacherName;
         purpose = reservation.purpose || '';
       } else {
-        userName = localStorage.getItem('teacherName') || '';
+        userName = storageGet('localStorage', 'teacherName') || '';
         purpose = '';
       }
       isConfirmingDelete = false;
       saveError = '';
+      conflictInfo = null;
+      skipResult = null;
 
       renderModal();
     }
@@ -638,6 +755,8 @@
       modalState.isOpen = false;
       modalState.data = null;
       saveError = '';
+      conflictInfo = null;
+      skipResult = null;
       renderModal();
     }
 
@@ -650,6 +769,8 @@
       }
       modalEl.classList.remove('hidden');
       modalEl.classList.add('flex');
+
+      if (skipResult) { renderSkipResult(); return; }
 
       const { date, facilityId, periodId, reservation } = modalState.data;
       
@@ -679,6 +800,21 @@
         contentHtml += `
           <div class="p-3 bg-red-50 border border-red-200 text-red-600 rounded-lg text-sm font-medium">
             ${escapeHtml(saveError)}
+          </div>
+        `;
+      }
+
+      // 繰り返し予約で、すでに予約が入っている日がある場合の確認
+      if (conflictInfo && !reservation) {
+        const listHtml = conflictInfo.conflicts.map(c =>
+          `<li>${formatDateForDisplay(c.date)}<span class="text-amber-700 ml-2">（${escapeHtml(c.teacherName)}）</span></li>`
+        ).join('');
+        contentHtml += `
+          <div class="p-3 bg-amber-50 border border-amber-300 text-amber-900 rounded-lg text-sm">
+            <p class="font-bold mb-1">以下の${conflictInfo.conflicts.length}日はすでに予約が入っているため一括予約できません。</p>
+            <ul class="list-disc pl-5 mb-2 max-h-32 overflow-y-auto">${listHtml}</ul>
+            <p>予約が入っているところ以外の<span class="font-bold">${conflictInfo.freeDates.length}日</span>を予約しましょうか？</p>
+            <p class="text-xs mt-1 text-amber-700">予約できなかった日は、このあとExcelファイルでダウンロードできます。</p>
           </div>
         `;
       }
@@ -729,7 +865,7 @@
       const isSaveDisabled = isSaving || !userName.trim() || (isRecurring && !recurringEndDate);
       
       footerHtml += `<button id="btnFooterSave" class="px-5 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 shadow-sm" ${isSaveDisabled ? 'disabled' : ''}>
-        ${isSaving ? '保存中...' : (reservation ? '更新する' : '予約を確定')}
+        ${isSaving ? '保存中...' : (reservation ? '更新する' : (conflictInfo ? `空いている${conflictInfo.freeDates.length}日を予約する` : '予約を確定'))}
       </button>`;
 
       if (reservation) {
@@ -765,18 +901,68 @@
       });
       document.getElementById('inputRecurring')?.addEventListener('change', (e) => { 
         isRecurring = e.target.checked; 
-        sessionStorage.setItem('isRecurring', isRecurring);
+        conflictInfo = null;
+        storageSet('sessionStorage', 'isRecurring', String(isRecurring));
         renderModal(); 
       });
       document.getElementById('inputRecurringEnd')?.addEventListener('input', (e) => { 
         recurringEndDate = e.target.value; 
-        sessionStorage.setItem('recurringEndDate', recurringEndDate);
+        storageSet('sessionStorage', 'recurringEndDate', recurringEndDate);
+        if (conflictInfo) { conflictInfo = null; renderModal(); return; }
         updateSaveButton(); 
       });
       
       document.getElementById('btnFooterSave')?.addEventListener('click', handleSave);
       if (reservation) document.getElementById('btnFooterDelete')?.addEventListener('click', handleDelete);
       document.getElementById('btnFooterCancel')?.addEventListener('click', closeModal);
+    }
+
+    // 空いている日だけ予約した後の結果画面
+    function renderSkipResult() {
+      const r = skipResult;
+      document.getElementById('modalTitle').textContent = '予約の結果';
+      const listHtml = r.skipped.map(c =>
+        `<li>${formatDateForDisplay(c.date)}<span class="text-amber-700 ml-2">（${escapeHtml(c.teacherName)}）</span></li>`
+      ).join('');
+      document.getElementById('modalContent').innerHTML = `
+        <div class="p-3 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-lg text-sm font-medium">
+          ${escapeHtml(r.facilityName)}・${escapeHtml(r.periodName)}を ${r.savedCount}日分 予約しました。
+        </div>
+        <div class="p-3 bg-amber-50 border border-amber-300 text-amber-900 rounded-lg text-sm">
+          <p class="font-bold mb-1">予約できなかった日（${r.skipped.length}日）</p>
+          <ul class="list-disc pl-5 max-h-40 overflow-y-auto">${listHtml}</ul>
+        </div>
+        <button id="btnDownloadSkipped" class="w-full px-4 py-3 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700 transition-colors shadow-sm flex items-center justify-center gap-2">
+          <i data-lucide="download" class="w-4 h-4"></i>
+          予約できなかった日をダウンロード（Excel）
+        </button>
+      `;
+      document.getElementById('modalFooter').innerHTML = `
+        <button id="btnFooterClose" class="px-5 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 transition-colors shadow-sm">閉じる</button>
+      `;
+      lucide.createIcons();
+      document.getElementById('btnDownloadSkipped').addEventListener('click', downloadSkipped);
+      document.getElementById('btnFooterClose').addEventListener('click', closeModal);
+    }
+
+    function downloadSkipped() {
+      const r = skipResult;
+      if (!r) return;
+      const rows = r.skipped.map(c => ({
+        "日付": c.date,
+        "曜日": DAYS[parseDateStr(c.date).getDay()],
+        "施設": r.facilityName,
+        "時間帯": r.periodName,
+        "予約しようとしたクラス": r.teacherName,
+        "すでに入っている予約（クラス）": c.teacherName,
+        "その予約の利用目的": c.purpose
+      }));
+      const worksheet = XLSX.utils.json_to_sheet(rows);
+      worksheet['!cols'] = [{ wch: 12 }, { wch: 6 }, { wch: 10 }, { wch: 10 }, { wch: 20 }, { wch: 26 }, { wch: 30 }];
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, "予約できなかった日");
+      XLSX.writeFile(workbook, `予約できなかった日_${r.facilityName}_${r.periodName}_${formatDateForInput(new Date())}.xlsx`);
+      showToast("予約できなかった日をダウンロードしました。");
     }
 
     // 保存処理
@@ -791,8 +977,8 @@
       // 保存対象日付リスト
       const datesToSave = [];
       if (!reservation && isRecurring && recurringEndDate) {
-        let currDate = new Date(date);
-        const endDate = new Date(recurringEndDate);
+        let currDate = parseDateStr(date);
+        const endDate = parseDateStr(recurringEndDate);
         while (currDate <= endDate) {
           datesToSave.push(formatDateForInput(currDate));
           currDate.setDate(currDate.getDate() + 7);
@@ -801,30 +987,52 @@
         datesToSave.push(date);
       }
 
-      // 重複チェック
-      if (!reservation) {
-        const conflicts = [];
-        for (const d of datesToSave) {
-          const isConflict = reservations.some(
-            r => r.date === d && r.facilityId === facilityId && r.period === periodId
-          );
-          if (isConflict) {
-            conflicts.push(formatDateForDisplay(d));
-          }
-        }
-        if (conflicts.length > 0) {
-          saveError = `以下の日程はすでに予約が入っているため一括予約できません: ${conflicts.join(', ')}`;
-          renderModal();
-          return;
-        }
-      }
-
       isSaving = true;
       saveError = '';
       renderModal();
 
+      // 重複チェック(表示していない先の日付もサーバーに問い合わせて確認する)
+      // conflictInfo がある＝「空いている日だけ予約する」を押した後なので、確認済み
+      if (!reservation && !conflictInfo) {
+        let conflictDocs = [];
+        try {
+          const colRefCheck = collection(db, 'artifacts', appId, 'public', 'data', 'facility_reservations');
+          const snap = await getDocs(query(colRefCheck, where('facilityId', '==', facilityId), where('period', '==', periodId)));
+          const targetDates = new Set(datesToSave);
+          const seen = new Set();
+          conflictDocs = snap.docs
+            .map(d => d.data())
+            .filter(r => targetDates.has(r.date) && !seen.has(r.date) && seen.add(r.date))
+            .sort((x, y) => x.date.localeCompare(y.date));
+        } catch (error) {
+          console.error("Conflict Check Error:", error);
+          isSaving = false;
+          saveError = '予約状況の確認に失敗しました。通信状況を確認してください。';
+          renderModal();
+          return;
+        }
+        if (conflictDocs.length > 0) {
+          isSaving = false;
+          const conflictDates = new Set(conflictDocs.map(r => r.date));
+          const freeDates = datesToSave.filter(d => !conflictDates.has(d));
+          if (freeDates.length === 0) {
+            saveError = datesToSave.length === 1
+              ? 'この日はすでに予約が入っています。'
+              : `選んだ日程はすべて予約が入っているため予約できません: ${conflictDocs.map(r => formatDateForDisplay(r.date)).join(', ')}`;
+          } else {
+            conflictInfo = {
+              conflicts: conflictDocs.map(r => ({ date: r.date, teacherName: r.teacherName || '', purpose: r.purpose || '' })),
+              freeDates
+            };
+          }
+          renderModal();
+          return;
+        }
+      }
+      const finalDates = (!reservation && conflictInfo) ? conflictInfo.freeDates : datesToSave;
+
       try {
-        localStorage.setItem('teacherName', userName);
+        storageSet('localStorage', 'teacherName', userName);
         const colRef = collection(db, 'artifacts', appId, 'public', 'data', 'facility_reservations');
 
         if (reservation) {
@@ -835,7 +1043,7 @@
             updatedAt: new Date().toISOString()
           });
         } else {
-          const promises = datesToSave.map(d => addDoc(colRef, {
+          const promises = finalDates.map(d => addDoc(colRef, {
             date: d,
             facilityId: facilityId,
             period: periodId,
@@ -846,7 +1054,19 @@
           }));
           await Promise.all(promises);
         }
-        closeModal();
+        if (!reservation && conflictInfo) {
+          // 空いている日だけ予約した → 結果と「できなかった日」を表示
+          skipResult = {
+            savedCount: finalDates.length,
+            skipped: conflictInfo.conflicts,
+            facilityName: FACILITIES.find(f => f.id === facilityId)?.name || facilityId,
+            periodName: PERIODS.find(p => p.id === periodId)?.name || periodId,
+            teacherName: userName
+          };
+          conflictInfo = null;
+        } else {
+          closeModal();
+        }
       } catch (error) {
         console.error("Save Error:", error);
         saveError = '保存に失敗しました。通信状況を確認してください。';
@@ -933,6 +1153,77 @@
       // モーダル閉じる
       document.getElementById('btnCloseModal').addEventListener('click', closeModal);
     }
+
+    // --- 表を1画面に収める：画面の残りの高さを実測し、行の高さを割り当てる ---
+    const ROW_MIN = 32;   // これより低くなる画面では、表の中だけスクロールさせる
+    const ROW_MAX = 110;  // 大きな画面で行が間延びしすぎないように
+    function fitTableToScreen() {
+      const active = document.activeElement;
+      const modal = document.getElementById('reservationModal');
+      if (active && modal.contains(active) && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA')) return; // キーボード表示中
+      const scroller = document.querySelector('.table-scroll');
+      const thead = document.getElementById('tableHead');
+      const rows = document.getElementById('tableBody').rows.length;
+      if (!scroller || !rows) return;
+      // いったんスクロールバーを消してから測る(Windowsではバーが幅を取り、そのせいで横のバーまで出るため)
+      scroller.style.overflowX = 'hidden';
+      scroller.style.overflowY = 'hidden';
+      document.documentElement.style.overflowY = 'hidden';
+      const vh = window.visualViewport ? window.visualViewport.height : window.innerHeight;
+      const mainPadBottom = parseFloat(getComputedStyle(document.querySelector('main')).paddingBottom) || 0;
+      const avail = Math.floor(vh - scroller.getBoundingClientRect().top - (window.scrollY || 0) - mainPadBottom - 2);
+      scroller.style.maxHeight = `${Math.max(avail, 150)}px`;
+      let rowH = Math.floor((avail - thead.offsetHeight - 2) / rows);
+      rowH = Math.max(ROW_MIN, Math.min(ROW_MAX, rowH));
+      document.documentElement.style.setProperty('--row-h', `${rowH}px`);
+      // 丸めや枠線のぶんで1〜2pxはみ出した時は、少しずつ縮めて合わせる
+      for (let i = 0; i < 3 && rowH > ROW_MIN && scroller.scrollHeight > scroller.clientHeight; i++) {
+        const over = scroller.scrollHeight - scroller.clientHeight;
+        rowH = Math.max(ROW_MIN, rowH - Math.ceil(over / rows));
+        document.documentElement.style.setProperty('--row-h', `${rowH}px`);
+      }
+      // 本当にはみ出している方向だけスクロールバーを出す(数pxの誤差では出さない)
+      const TOL = 2;
+      scroller.style.overflowY = (scroller.scrollHeight - scroller.clientHeight > TOL) ? 'auto' : 'hidden';
+      scroller.style.overflowX = (scroller.scrollWidth - scroller.clientWidth > TOL) ? 'auto' : 'hidden';
+      document.documentElement.style.overflowY = (document.documentElement.scrollHeight - window.innerHeight > TOL) ? '' : 'hidden';
+    }
+    let fitTimer = null;
+    function scheduleFit() {
+      clearTimeout(fitTimer);
+      fitTimer = setTimeout(fitTableToScreen, 60);
+    }
+    ['resize', 'pageshow'].forEach(t => window.addEventListener(t, scheduleFit));
+    window.addEventListener('orientationchange', () => setTimeout(fitTableToScreen, 300));
+    if (window.visualViewport) window.visualViewport.addEventListener('resize', scheduleFit);
+    window.addEventListener('load', fitTableToScreen);
+
+    // --- iOS 対策：ピンチ拡大の抑止・拡大の自己修復・高さの実測 ---
+    ['gesturestart', 'gesturechange', 'gestureend'].forEach(type => {
+      document.addEventListener(type, (e) => e.preventDefault(), { passive: false });
+    });
+    function resetZoomIfNeeded() {
+      if (!window.visualViewport || window.visualViewport.scale <= 1.02) return;
+      const meta = document.querySelector('meta[name="viewport"]');
+      if (!meta) return;
+      const original = meta.getAttribute('content');
+      meta.setAttribute('content', original + ', maximum-scale=1.0');
+      requestAnimationFrame(() => meta.setAttribute('content', original));
+    }
+    function setAppHeight() {
+      const el = document.activeElement;
+      if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA')) return;  // キーボード表示中は縮めない
+      const h = window.visualViewport ? window.visualViewport.height : window.innerHeight;
+      if (h > 0) document.documentElement.style.setProperty('--app-h', `${Math.round(h)}px`);
+    }
+    setAppHeight();
+    ['resize', 'pageshow'].forEach(t => window.addEventListener(t, setAppHeight));
+    window.addEventListener('orientationchange', () => setTimeout(setAppHeight, 250));
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener('resize', () => { setAppHeight(); resetZoomIfNeeded(); });
+      window.visualViewport.addEventListener('scroll', () => { setAppHeight(); resetZoomIfNeeded(); });
+    }
+    document.addEventListener('gestureend', () => setTimeout(resetZoomIfNeeded, 50), { passive: true });
 
     // アプリ起動
     initApp();
