@@ -39,7 +39,7 @@ h1{font-size:1.25rem;margin:4px 0 4px}
   <p class="note">ふさわしくない名前を見つけたら、その行の「消す」を押してください。このページは管理用です。リンクは人に教えないでください。</p>
   <div class="tabs" id="tabs"></div>
   <div class="custom">
-    <input id="key" placeholder="ほかの期間（例: w-2026-09-28 / m-2026-09 / all）" autocomplete="off">
+    <input id="key" placeholder="ほかの期間（例: d-2026-10-10 / w-2026-09-28 / all）" autocomplete="off">
     <button id="load">よみこむ</button>
   </div>
   <div class="msg" id="msg"></div>
@@ -72,7 +72,10 @@ var now = new Date();
 var thisMon = mondayOf(now);
 var lastMon = new Date(thisMon.getFullYear(), thisMon.getMonth(), thisMon.getDate() - 7);
 var lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+var yest = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
 var BOARDS = [
+  { key: 'd-' + ymd(now), label: '本日' },
+  { key: 'd-' + ymd(yest), label: '昨日' },
   { key: 'w-' + ymd(thisMon), label: '今週' },
   { key: 'w-' + ymd(lastMon), label: '先週' },
   { key: 'm-' + now.getFullYear() + '-' + pad(now.getMonth() + 1), label: '今月' },
@@ -119,7 +122,7 @@ function paint(){
 
 function load(key){
   key = (key || '').trim();
-  if(!/^(all|w-\d{4}-\d{2}-\d{2}|m-\d{4}-\d{2})$/.test(key)){ msg('期間の書き方がちがいます（例: w-2026-09-28 / m-2026-09 / all）', 'ng'); return; }
+  if(!/^(all|[wd]-\d{4}-\d{2}-\d{2}|m-\d{4}-\d{2})$/.test(key)){ msg('期間の書き方がちがいます（例: d-2026-10-10 / w-2026-09-28 / m-2026-09 / all）', 'ng'); return; }
   cur = key; paintTabs(); msg('読みこみ中…');
   db.collection(COLL).doc(key).get().then(function(sn){
     curEntries = (sn.exists && Array.isArray(sn.data().entries) ? sn.data().entries : []).slice().sort(cmp);

@@ -94,7 +94,13 @@ h1{ font-size:1.5rem; text-align:center; letter-spacing:.05em; }
   display:grid; grid-template-columns:1fr auto 1fr; align-items:center; gap:10px;
   font-size:1.65rem; font-weight:700; color:#4a4436; white-space:nowrap;
 }
-.solo-stats #solo-time{ text-align:right; }
+.solo-stats #solo-time{ text-align:right; position:relative; }
+.time-bonus{
+  position:absolute; right:100%; top:50%; margin-right:8px; transform:translate(0, -50%);   /* 残り時間の左どなりに出す（上に出すと画面の端で切れる） */
+  font-size:.62em; font-weight:900; color:#2d6a4f; white-space:nowrap; pointer-events:none; opacity:0;
+}
+#solo-time.time-up{ animation:timeUpFlash .6s ease-out; }
+@keyframes timeUpFlash{ 0%{ color:#2d6a4f; } 100%{ color:inherit; } }
 .solo-stats #solo-correct{ text-align:left; }
 .miss-gems{ display:flex; gap:7px; align-items:center; justify-content:center; }
 .miss-gems .gem{ position:relative; width:21px; height:30px; }
@@ -762,6 +768,61 @@ h1{ font-size:1.5rem; text-align:center; letter-spacing:.05em; }
 }
 .wa-start:disabled::after{ border-color:#cdc4ac; }
 
+/* ---- 遊び方 ---- */
+.home-howto-btn{ display:block; margin:clamp(-4px, -1vh, 0px) auto 0; min-width:0; position:relative; z-index:2; }
+#howto-screen .wa-inner{ display:flex; flex-direction:column; height:100%; overflow:hidden; padding-top:clamp(44px, 6.5vh, 80px); padding-bottom:10px; }
+#howto-screen .wa-title{ font-size:clamp(20px, min(4.6vh, 6.4vw), 40px); margin-bottom:clamp(4px, 1vh, 10px); }
+#howto-screen .wa-rule{ margin-bottom:clamp(6px, 1.3vh, 14px); }
+.howto-tabs .howto-tab{ min-width:0; flex:1 1 0; max-width:200px; padding-left:4px; padding-right:4px; padding-top:clamp(4px, .9vh, 9px); padding-bottom:clamp(4px, .9vh, 9px); }
+.howto-body{ flex:1 1 0; min-height:0; display:flex; flex-direction:column; align-items:center; width:100%; }
+/* 説明の絵は、固定サイズ(360×300)で作った絵を、入る大きさに丸ごと拡大縮小する */
+.howto-stage-wrap{ position:relative; flex:1 1 0; min-height:120px; width:100%; }
+.howto-stage{
+  position:absolute; left:50%; top:50%; width:360px; height:300px;
+  transform:translate(-50%, -50%) scale(1); transform-origin:center center;
+}
+.howto-stage > *{ position:absolute; }
+.howto-text{ flex:0 0 auto; width:100%; max-width:34em; margin:0 auto; }
+.howto-step-title{ font-family:var(--mincho); font-weight:900; color:var(--accent); font-size:clamp(16px, min(2.8vh, 4.6vw), 24px); letter-spacing:.08em; margin-top:clamp(4px, 1vh, 10px); }
+.howto-desc{
+  font-family:var(--mincho); color:#3f3a2e; font-size:clamp(14px, min(2.3vh, 3.9vw), 19px); line-height:1.65;
+  margin:4px 0 0; text-align:left; min-height:5em;   /* 説明の長さで下のボタンが上下に動かないように、4行ぶんほど確保 */
+}
+.howto-desc b{ color:var(--accent); }
+.howto-nav{ flex:0 0 auto; display:flex; align-items:center; justify-content:center; gap:clamp(10px, 3vw, 24px); margin-top:clamp(6px, 1.2vh, 12px); }
+.howto-nav .wa-chip{ min-width:0; }
+.howto-nav .wa-chip:disabled{ opacity:.3; cursor:default; }
+.howto-dots{ display:flex; gap:7px; }
+.howto-dots span{ width:9px; height:9px; border-radius:50%; background:#d8cfb8; }
+.howto-dots span.on{ background:var(--accent); }
+/* 絵の中の部品（実物のカードのクラスを使い回し、ここでは置き方だけ決める） */
+.howto-stage .hand-card{ box-shadow:0 6px 14px rgba(0,0,0,.18); }
+.howto-mark{ font-size:22px; }
+.howto-judge{ width:96px; height:96px; object-fit:contain; pointer-events:none; }
+.howto-label{
+  font-family:var(--mincho); font-weight:900; color:#3f3a2e; font-size:18px; white-space:nowrap; text-align:center;
+}
+.howto-label.big{ font-size:24px; }
+.howto-label.red{ color:var(--accent); }
+.howto-label.green{ color:#2d6a4f; }
+.howto-room{ border:2px solid #4a4436; background:#fdfcf7; padding:8px 18px; text-align:center; font-family:var(--mincho); }
+.howto-room small{ display:block; font-size:13px; color:#7a7263; letter-spacing:.1em; }
+.howto-room b{ display:block; font-size:40px; letter-spacing:.4em; text-indent:.4em; color:#3f3a2e; line-height:1.2; }
+.howto-stage .player-chip{ font-size:15px; cursor:default; }
+.howto-stage .miss-gems{ transform:scale(1.8); transform-origin:left center; }
+.howto-label.mid{ font-size:16px; }
+.howto-hud{ display:flex; align-items:center; gap:10px; font-weight:700; font-size:26px; color:#4a4436; white-space:nowrap; }
+@media (orientation:landscape) and (max-height:500px){
+  /* 横向きスマホ：絵を左、説明を右に並べる */
+  #howto-screen .wa-inner{ padding-top:6px; }
+  .howto-body{ flex-direction:row; gap:14px; }
+  .howto-stage-wrap{ flex:1 1 55%; height:100%; }
+  .howto-text{ flex:1 1 45%; align-self:center; }
+  .howto-desc{ font-size:14px; min-height:0; }
+  .howto-step-title{ font-size:16px; }
+  .howto-nav{ margin-top:4px; }
+}
+
 /* ---- ランキング ---- */
 .rank-tabs{ display:flex; justify-content:center; gap:clamp(6px, 1.4vw, 12px); margin-bottom:clamp(8px, 1.6vh, 16px); }
 .rank-tab{ min-width:0; flex:1 1 0; max-width:130px; padding-left:4px; padding-right:4px; }
@@ -927,7 +988,7 @@ h1{ font-size:1.5rem; text-align:center; letter-spacing:.05em; }
         </g>
       </svg>
 
-      <div class="home-circle"><div class="home-ver">歴史ならべ｜ver.β.2｜ota tools</div></div>
+      <div class="home-circle"><div class="home-ver">歴史ならべ｜ver.β.3｜ota tools</div></div>
     </div>
 
     <div class="home-inner">
@@ -939,6 +1000,7 @@ h1{ font-size:1.5rem; text-align:center; letter-spacing:.05em; }
         <button class="home-btn" id="play-solo-btn"><span>一人でチャレンジ</span></button>
         <button class="home-btn" id="play-multi-btn"><span>みんなで対戦</span></button>
       </div>
+      <button class="wa-chip home-howto-btn" id="howto-btn">遊び方</button>
     </div>
   </section>
 
@@ -1029,7 +1091,7 @@ h1{ font-size:1.5rem; text-align:center; letter-spacing:.05em; }
       <div class="wa-group">
         <div class="wa-group-title">ルール</div>
         <ul class="solo-rules">
-          <li>制限時間は<b>90秒</b></li>
+          <li>制限時間<b>30秒</b>（正解で<b>＋5秒</b>）</li>
           <li>まちがえられるのは<b>3回</b>まで</li>
           <li>出題難易度：<b id="solo-rule-grade">小学生レベル</b></li>
           <li>出題範囲：<b id="solo-rule-era">〜</b></li>
@@ -1056,7 +1118,7 @@ h1{ font-size:1.5rem; text-align:center; letter-spacing:.05em; }
     <div class="hud">
       <div class="turn-label" id="turn-label">プレイヤー1の番</div>
       <div class="solo-stats" id="solo-stats" hidden aria-hidden="true">
-        <span class="solo-time" id="solo-time">90秒</span>
+        <span class="solo-time" id="solo-time"><span id="solo-time-num">30秒</span></span>
         <span class="miss-gems" id="miss-gems"><span class="gem"></span><span class="gem"></span><span class="gem"></span></span>
         <span class="solo-correct" id="solo-correct">正解 0枚</span>
       </div>
@@ -1103,6 +1165,30 @@ h1{ font-size:1.5rem; text-align:center; letter-spacing:.05em; }
   </section>
 
   <!-- ===================== ランキング（ひとりプレイ） ===================== -->
+  <section id="howto-screen" class="screen wa-screen">
+    <button class="wa-back" data-back="menu-screen" aria-label="もどる">‹</button>
+    <div class="wa-inner howto-inner">
+      <h2 class="wa-title">遊び方</h2>
+      <div class="wa-rule"></div>
+      <div class="rank-tabs howto-tabs">
+        <button type="button" class="wa-chip howto-tab selected" data-mode="solo">一人でチャレンジ</button>
+        <button type="button" class="wa-chip howto-tab" data-mode="multi">みんなで対戦</button>
+      </div>
+      <div class="howto-body">
+        <div class="howto-stage-wrap" id="howto-stage-wrap"><div class="howto-stage" id="howto-stage"></div></div>
+        <div class="howto-text">
+          <div class="howto-step-title" id="howto-step-title"></div>
+          <p class="howto-desc" id="howto-desc"></p>
+        </div>
+      </div>
+      <div class="howto-nav">
+        <button type="button" class="wa-chip howto-prev" id="howto-prev">‹ 前へ</button>
+        <div class="howto-dots" id="howto-dots"></div>
+        <button type="button" class="wa-chip howto-next" id="howto-next">次へ ›</button>
+      </div>
+    </div>
+  </section>
+
   <section id="ranking-screen" class="screen wa-screen">
     <button class="wa-back" id="rank-back-btn" aria-label="もどる">‹</button>
     <div class="wa-inner">
@@ -1186,7 +1272,7 @@ document.addEventListener('wheel', function(e){ if(e.ctrlKey) e.preventDefault()
    ・つながらないとき（オフライン／ファイルを直接開いているとき）は何もしない
    ・同じ版へ何度も読みこみ直して止まらなくならないよう、1つの版につき1回だけ
    ============================================================ */
-var BUILD_ID = '20261012-2320';
+var BUILD_ID = '20261015-1235';
 var updateCheckBusy = false;
 var updateCheckLast = 0;
 var UPDATE_EVERY_MS = 10 * 60 * 1000;   // 前回の確認から10分たっていたら、次にボタンを押したときに確認する
@@ -1196,7 +1282,7 @@ var updatePending = null;               // 新しい版が見つかったが、�
 function isSafeToReload(){
   var act = document.querySelector('.screen.active');
   var id = act ? act.id : '';
-  if(['menu-screen', 'setup-solo-screen', 'settings-screen', 'ranking-screen', 'online-screen'].indexOf(id) < 0) return false;
+  if(['menu-screen', 'setup-solo-screen', 'settings-screen', 'ranking-screen', 'online-screen', 'howto-screen'].indexOf(id) < 0) return false;
   var ent = document.getElementById('rank-entry');
   if(ent && !ent.hidden) return false;
   try{ if(online && online.code) return false; }catch(e){}
@@ -3382,6 +3468,168 @@ function paintMyDayRank(myIdx){
   }).catch(function(){});
 }
 
+/* ============================================================
+   遊び方（一人でチャレンジ／みんなで対戦）
+   絵は 360×300 の固定サイズで、実物のカードのクラスを使って組み立て、
+   入る大きさに丸ごと拡大縮小する（実物のデザインが変わっても絵がずれない）。
+   ============================================================ */
+var howtoMode = 'solo';
+var howtoStep = 0;
+function hcTl(id, x, y, w){            // 場札（年代あり）
+  var c = CARD_BY_ID[id];
+  return '<div class="tl-card" style="left:' + x + 'px;top:' + y + 'px;width:' + w + 'px;height:' + Math.round(w * 2.18) + 'px;--cardw:' + w + 'px">' + cardInnerHtml(c) + '</div>';
+}
+function hcHand(id, x, y, w, rot){     // 手札（年代なし）
+  var c = CARD_BY_ID[id];
+  return '<div class="hand-card" style="left:' + x + 'px;top:' + y + 'px;--handw:' + w + 'px;' + (rot ? 'transform:rotate(' + rot + 'deg);' : '') + '">' + handCardInnerHtml(c) + '</div>';
+}
+function hcBack(x, y, w, h){           // 山札（カードの裏）
+  return '<div class="tl-card tl-face-down" style="left:' + x + 'px;top:' + y + 'px;width:' + w + 'px;height:' + h + 'px"></div>';
+}
+function hcMarker(x, y, on){
+  return '<span class="tl-marker-btn pickable' + (on ? ' drag-over' : '') + '" style="left:' + x + 'px;top:' + y + 'px">▲</span>';
+}
+/* 場札を横に並べる：ids の順に、間に▲を入れる。hi＝強調する▲の番号 */
+function hcRow(ids, y, w, gap, hi, noMarkers){
+  var total = ids.length * w + (ids.length + 1) * gap;
+  var x0 = Math.round((360 - total) / 2), out = '';
+  ids.forEach(function(id, i){ out += hcTl(id, x0 + gap + i * (w + gap), y, w); });
+  if(!noMarkers){
+    for(var g = 0; g <= ids.length; g++){
+      out += hcMarker(x0 + g * (w + gap) + gap / 2 - 13, y + Math.round(w * 2.18) + 2, g === hi);
+    }
+  }
+  return { html: out, x0: x0, gapX: function(g){ return x0 + g * (w + gap) + gap / 2; } };
+}
+function hcJudge(ok, x, y){
+  var src = (document.getElementById(ok ? 'judge-mark-maru' : 'judge-mark-batsu') || {}).src || '';
+  return '<img class="howto-judge" alt="" src="' + src + '" style="left:' + x + 'px;top:' + y + 'px">';
+}
+function hcArrow(x1, y1, x2, y2){
+  return '<svg width="360" height="300" viewBox="0 0 360 300" style="left:0;top:0;overflow:visible;pointer-events:none">' +
+    '<defs><marker id="hcah" markerWidth="10" markerHeight="10" refX="5" refY="5" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#c0392b"/></marker></defs>' +
+    '<path d="M' + x1 + ',' + y1 + ' Q' + ((x1 + x2) / 2 - 40) + ',' + ((y1 + y2) / 2) + ' ' + x2 + ',' + y2 + '" fill="none" stroke="#c0392b" stroke-width="4" stroke-dasharray="9 6" marker-end="url(#hcah)"/></svg>';
+}
+function hcLabel(text, x, y, cls){ return '<div class="howto-label ' + (cls || '') + '" style="left:' + x + 'px;top:' + y + 'px">' + text + '</div>'; }
+function hcChip(name, x, y, opt){
+  opt = opt || {};
+  return '<span class="player-chip' + (opt.turn ? ' is-turn' : '') + '" style="left:' + x + 'px;top:' + y + 'px">' +
+    (opt.me ? '<span class="me-badge">自</span>' : '') + name + (opt.cnt !== undefined ? '<span class="cnt">' + opt.cnt + '枚</span>' : '') + '</span>';
+}
+function hcGems(miss, x, y){
+  var g = '';
+  for(var i = 0; i < 3; i++) g += '<span class="gem' + (i < miss ? ' is-miss' : '') + '"></span>';
+  return '<span class="miss-gems" style="left:' + x + 'px;top:' + y + 'px">' + g + '</span>';
+}
+
+var HOWTO = {
+  solo: [
+    { t: '場のカードを見よう',
+      d: '場には、<b>年代</b>が書いてあるカードが古い順に並んでいるよ。',
+      draw: function(){ return hcRow([16, 4, 8], 42, 86, 22, -1).html; } },
+    { t: '手札のカードを置こう',
+      d: '手札のカードの人物が<b>いつの時代</b>か考えて、正しいと思う<b>▲</b>の所へ指で動かそう。▲をタップしても置けるよ。',
+      draw: function(){
+        var r = hcRow([16, 4, 8], 2, 66, 26, 2);
+        return r.html + hcHand(6, 8, 176, 104, -4) + hcArrow(118, 210, r.gapX(2), 176);
+      } },
+    { t: '正解すると＋5秒',
+      d: '正解すると<b>1枚ゲット</b>！ 制限時間も<b>5秒ふえる</b>よ。はじめの制限時間は<b>30秒</b>。',
+      draw: function(){
+        var r = hcRow([16, 4, 6, 8], 58, 66, 20, -1, true);
+        var cx = r.x0 + 20 + 2 * (66 + 20) + 33;
+        return '<div class="howto-hud" style="left:70px;top:6px"><span class="howto-label green" style="position:static">＋5秒</span>35秒 <span style="font-size:20px">正解 1枚</span></div>' +
+          r.html + hcJudge(true, cx - 48, 58 + 72 - 48);
+      } },
+    { t: '3回まちがえたら終わり',
+      d: 'まちがえると、<b>まが玉</b>が1つ赤くなるよ。<b>3つとも赤く</b>なるか、<b>時間が0秒</b>になったら終わり。何枚正解できるかな？ ランキングにものせよう！',
+      draw: function(){
+        return hcGems(1, 44, 40) + hcLabel('まちがえると赤くなる', 194, 44, 'mid') +
+               hcGems(3, 44, 128) + hcLabel('3つとも赤 → 終わり', 194, 132, 'mid red') +
+               hcLabel('0秒', 62, 212, 'big') + hcLabel('時間が0秒 → 終わり', 194, 218, 'mid red');
+      } }
+  ],
+  multi: [
+    { t: '部屋に集まろう',
+      d: '<b>2〜5人</b>で遊べるよ。1人が「部屋を作る」で<b>部屋番号</b>を出して、みんなに伝えよう。ほかの人は「部屋に入る」でその番号を入れてね。そろったら部屋を作った人がスタート！',
+      draw: function(){
+        return '<div class="howto-room" style="left:70px;top:36px;width:220px"><small>部屋番号</small><b>1234</b></div>' +
+          hcChip('たろう', 8, 186, { me: true }) + hcChip('はなこ', 112, 186) + hcChip('けんた', 196, 186) + hcChip('ゆい', 280, 186);
+      } },
+    { t: '手札は5枚',
+      d: 'みんなに<b>手札が5枚</b>ずつ配られるよ。場には、年代が書いてあるカードが3枚並ぶよ。',
+      draw: function(){
+        var ids = [1, 30, 5, 7, 15], out = '';
+        ids.forEach(function(id, i){ out += hcHand(id, 6 + i * 66, 64 + Math.abs(i - 2) * 9, 86, (i - 2) * 6); });
+        return out;
+      } },
+    { t: '順番に1枚ずつ置こう',
+      d: '名前が<b>赤くかこまれた人の番</b>だよ。自分の番になったら、手札から1枚選んで正しいと思う所へ置こう。',
+      draw: function(){
+        var r = hcRow([16, 4, 8], 34, 58, 26, 2);
+        return hcChip('たろう', 74, 0, { me: true, turn: true, cnt: 5 }) + hcChip('はなこ', 196, 0, { cnt: 5 }) +
+          r.html + hcHand(6, 8, 194, 94, -4) + hcArrow(114, 222, r.gapX(2), 194);
+      } },
+    { t: 'まちがえたら山札から1枚引く',
+      d: '正解でもまちがいでも、出したカードは<b>場札の正しい場所</b>に入るよ。正解なら手札が<b>1枚へる</b>。まちがえると山札から<b>1枚引く</b>ので、手札はへらないよ。',
+      draw: function(){
+        return hcJudge(true, 34, 14) + hcLabel('手札 5枚 → <span style="color:#c0392b">4枚</span>', 14, 124) +
+          hcJudge(false, 230, 14) + hcLabel('手札 5枚 → <span style="color:#c0392b">5枚</span>', 208, 124) +
+          hcBack(250, 160, 46, 92) + hcBack(258, 166, 46, 92) + hcLabel('山札から1枚引く', 206, 268);
+      } },
+    { t: '先に出し切ったら勝ち！',
+      d: '手札を<b>先に全部出し切った人の勝ち</b>！ 山札がなくなって全員の手札がなくなったときは、まちがえた回数が少ない人の勝ちだよ。',
+      draw: function(){
+        return hcLabel('勝ち！', 142, 46, 'big red') +
+          hcChip('たろう', 128, 100, { me: true, turn: true, cnt: 0 }) + hcChip('はなこ', 22, 180, { cnt: 2 }) +
+          hcChip('けんた', 136, 180, { cnt: 3 }) + hcChip('ゆい', 250, 180, { cnt: 1 });
+      } }
+  ]
+};
+function fitHowtoStage(){
+  var wrap = document.getElementById('howto-stage-wrap'), st = document.getElementById('howto-stage');
+  if(!wrap || !st) return;
+  var w = wrap.clientWidth, h = wrap.clientHeight;
+  if(!(w > 0 && h > 0)) return;
+  var k = Math.min(w / 360, h / 300, 1.7);
+  st.style.transform = 'translate(-50%, -50%) scale(' + k + ')';
+}
+function paintHowto(){
+  var steps = HOWTO[howtoMode];
+  howtoStep = Math.max(0, Math.min(steps.length - 1, howtoStep));
+  var s = steps[howtoStep];
+  document.querySelectorAll('.howto-tab').forEach(function(b){ b.classList.toggle('selected', b.getAttribute('data-mode') === howtoMode); });
+  document.getElementById('howto-stage').innerHTML = s.draw();
+  document.getElementById('howto-step-title').textContent = (howtoStep + 1) + '. ' + s.t;
+  document.getElementById('howto-desc').innerHTML = s.d;
+  var dots = document.getElementById('howto-dots');
+  dots.innerHTML = '';
+  steps.forEach(function(_, i){ var d = document.createElement('span'); if(i === howtoStep) d.className = 'on'; dots.appendChild(d); });
+  document.getElementById('howto-prev').disabled = (howtoStep === 0);
+  var nx = document.getElementById('howto-next');
+  nx.textContent = (howtoStep === steps.length - 1) ? 'トップへ' : '次へ ›';
+  fitHowtoStage();
+}
+function openHowto(mode){
+  howtoMode = mode || 'solo'; howtoStep = 0;
+  showScreen('howto-screen');
+  paintHowto();
+  requestAnimationFrame(fitHowtoStage);
+}
+(function(){
+  document.getElementById('howto-btn').addEventListener('click', function(){ openHowto('solo'); });
+  document.querySelectorAll('.howto-tab').forEach(function(b){
+    b.addEventListener('click', function(){ howtoMode = b.getAttribute('data-mode'); howtoStep = 0; paintHowto(); });
+  });
+  document.getElementById('howto-prev').addEventListener('click', function(){ howtoStep--; paintHowto(); });
+  document.getElementById('howto-next').addEventListener('click', function(){
+    if(howtoStep >= HOWTO[howtoMode].length - 1){ showScreen('menu-screen'); return; }
+    howtoStep++; paintHowto();
+  });
+  window.addEventListener('resize', function(){ if(document.getElementById('howto-screen').classList.contains('active')) fitHowtoStage(); });
+  if(window.visualViewport) visualViewport.addEventListener('resize', function(){ if(document.getElementById('howto-screen').classList.contains('active')) fitHowtoStage(); });
+})();
+
 /* --- ボタンの配線 --- */
 (function(){
   var sel = document.getElementById('rank-pref');
@@ -3511,8 +3759,8 @@ function initSoloGame(){
     current: current,
     correctCount: 0,
     missCount: 0,
-    timeTotal: 90,
-    timeLeft: 90,
+    timeTotal: SOLO_TIME_START,   // 正解するたびに SOLO_TIME_BONUS 秒ずつ増える
+    timeLeft: SOLO_TIME_START,
     timerId: null,
     timerStartedAt: 0,
     ended: false
@@ -3527,6 +3775,37 @@ function initSoloGame(){
    setIntervalの発火回数をそのまま数えて1秒ずつ引くと、タブを最小化／非アクティブに
    した間はブラウザがタイマーの発火を間引く（＝表示が止まって見える）ため、
    「開始時刻からの経過時間」を毎回計算しなおして残り時間を出す方式にする。 */
+/* ひとりプレイの制限時間：はじめは30秒。1枚正解するごとに5秒ふえる（3回まちがえたら終わりは同じ） */
+var SOLO_TIME_START = 30;
+var SOLO_TIME_BONUS = 5;
+function addSoloTime(){
+  if(!game || game.type !== 'solo' || game.ended) return;
+  game.timeTotal += SOLO_TIME_BONUS;
+  var elapsedSec = game.timerStartedAt ? Math.floor((Date.now() - game.timerStartedAt) / 1000) : 0;
+  game.timeLeft = Math.max(0, game.timeTotal - elapsedSec);
+  showTimeBonus();
+}
+/* 残り時間の横に「＋5秒」を出して、ふわっと上に消す */
+function showTimeBonus(){
+  var t = document.getElementById('solo-time');
+  if(!t) return;
+  var b = document.createElement('span');
+  b.className = 'time-bonus';
+  b.textContent = '＋' + SOLO_TIME_BONUS + '秒';
+  t.appendChild(b);
+  if(b.animate){
+    var a = b.animate([
+      { opacity:0, transform:'translate(8px, -50%) scale(.8)' },
+      { opacity:1, transform:'translate(0, -50%) scale(1.1)', offset:.2 },
+      { opacity:1, transform:'translate(0, -50%) scale(1)', offset:.7 },
+      { opacity:0, transform:'translate(0, -90%) scale(1)' }
+    ], { duration:1100, easing:'ease-out' });
+    a.onfinish = function(){ b.remove(); };
+  } else {
+    setTimeout(function(){ b.remove(); }, 1100);
+  }
+  t.classList.remove('time-up'); void t.offsetWidth; t.classList.add('time-up');
+}
 function startSoloTimer(){
   if(!game || game.type !== 'solo' || game.ended) return;
   game.timerStartedAt = Date.now();
@@ -3582,6 +3861,7 @@ function handleSoloPlacement(gapIndex, gapEl, sourceEl, ghostEl){
   if(isCorrectGapIndex(game.timeline, card.year, gapIndex)){
     playJudgeMark(true);
     game.correctCount++;
+    addSoloTime();   // 正解したら制限時間を＋5秒
     renderHud();   // 正解数・勾玉の色を、カードが飛んでいる間も待たずすぐ反映する
     insertCardWithAnimation(card, correctIdx, sourceEl, function(){
       // 次の手札を描く(renderGame)前にロックを外しておかないと、
@@ -3699,7 +3979,7 @@ function renderHud(){
     turnLabel.textContent = '';
     deckCount.textContent = '';
     soloStats.hidden = false;
-    document.getElementById('solo-time').textContent = game.timeLeft + '秒';
+    document.getElementById('solo-time-num').textContent = game.timeLeft + '秒';   // 「＋5秒」の表示を消さないよう、数字の部分だけ書きかえる
     document.getElementById('solo-correct').textContent = '正解 ' + game.correctCount + '枚';
     soloStats.querySelectorAll('.gem').forEach(function(gem, i){
       gem.classList.toggle('is-miss', i < game.missCount);
