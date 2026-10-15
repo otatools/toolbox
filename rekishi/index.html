@@ -988,7 +988,7 @@ h1{ font-size:1.5rem; text-align:center; letter-spacing:.05em; }
         </g>
       </svg>
 
-      <div class="home-circle"><div class="home-ver">歴史ならべ｜ver.β.3｜ota tools</div></div>
+      <div class="home-circle"><div class="home-ver">歴史ならべ｜ver.β.4｜ota tools</div></div>
     </div>
 
     <div class="home-inner">
@@ -1272,7 +1272,7 @@ document.addEventListener('wheel', function(e){ if(e.ctrlKey) e.preventDefault()
    ・つながらないとき（オフライン／ファイルを直接開いているとき）は何もしない
    ・同じ版へ何度も読みこみ直して止まらなくならないよう、1つの版につき1回だけ
    ============================================================ */
-var BUILD_ID = '20261015-1235';
+var BUILD_ID = '20261015-1300';
 var updateCheckBusy = false;
 var updateCheckLast = 0;
 var UPDATE_EVERY_MS = 10 * 60 * 1000;   // 前回の確認から10分たっていたら、次にボタンを押したときに確認する
@@ -2975,7 +2975,7 @@ function setSoloResultButtons(){
 /* ============================================================
    ひとりプレイのランキング（本日・今週・今月・通算）
    ・本日 d-YYYY-MM-DD は100位まで。そのほかは10位まで。
-   ・本日の「自分が何位か」は、h-YYYY-MM-DD に「点数ごとの人数」だけを数えておき、
+   ・本日の「自分が何位か」は、h-YYYY-MM-DD に「登録した記録の点数ごとの人数」だけを数えておき、
      自分より高い点数の人数を足して出す（1回読むだけで、何位でもわかる）。
    ・Firestore の rankings コレクションに3つのドキュメント
        w-YYYY-MM-DD(その週の月曜) / m-YYYY-MM / all
@@ -3103,12 +3103,23 @@ function rankPosition(entries, score, id){
 }
 
 /* --- 本日の「点数ごとの人数」 ---
-   この端末の今日の最高点だけを1人ぶんとして数える。最高点が上がったら、古い点数を-1、新しい点数を+1。 */
+   本日のランキングに「登録した」記録だけを数える（登録しないを押した記録は、順位にも数えない）。
+   この端末の今日の登録した最高点だけを1人ぶんとし、最高点が上がったら、古い点数を-1、新しい点数を+1。
+   100位まで入って登録した人が、あとから101位以下に下がったときに「あなたの今日の順位」を出すのに使う。 */
 function loadDayBest(){
-  try{ var v = JSON.parse(localStorage.getItem('rekishi.dayBest') || 'null'); if(v && v.k === rankKeys().h) return v.s || 0; }catch(e){}
+  try{ var v = JSON.parse(localStorage.getItem('rekishi.dayBestReg') || 'null'); if(v && v.k === rankKeys().h) return v.s || 0; }catch(e){}
   return 0;
 }
-function saveDayBest(s){ try{ localStorage.setItem('rekishi.dayBest', JSON.stringify({ k: rankKeys().h, s: s })); }catch(e){} }
+/* 100位に入れず登録できなかった記録（その日いちばん高いもの）。順位の表示だけに使い、人数表には数えない */
+function loadDayOut(){
+  try{ var v = JSON.parse(localStorage.getItem('rekishi.dayOut') || 'null'); if(v && v.k === rankKeys().h) return v.s || 0; }catch(e){}
+  return 0;
+}
+function markDayOut(score){
+  if(!(score > 0) || score <= loadDayOut()) return;
+  try{ localStorage.setItem('rekishi.dayOut', JSON.stringify({ k: rankKeys().h, s: score })); }catch(e){}
+}
+function saveDayBest(s){ try{ localStorage.setItem('rekishi.dayBestReg', JSON.stringify({ k: rankKeys().h, s: s })); }catch(e){} }
 var rankHistMem = null;    // { key, c, at }
 function rankRecordDay(score){
   var old = loadDayBest();
@@ -3145,9 +3156,9 @@ function dayRankOf(c, score){
 /* --- ひとりプレイが終わったとき：ランクインの可能性があるときだけ読みこむ --- */
 function rankAfterGame(score){
   if(!(score > 0) || rankBanned()) return;
-  rankRecordDay(score);     // 本日の「点数ごとの人数」に数える（何位かを出すため。名前は送らない）
   var keys = rankKeys();
   var cands = RANK_BOARDS.filter(function(b){ return mayRankIn(b.id, keys[b.id], score); });
+  if(!cands.some(function(b){ return b.id === 'd'; })) markDayOut(score);   // 本日の100位に入らなかった → 順位だけは見せる
   if(!cands.length) return;
   Promise.all(cands.map(function(b){
     return fetchBoard(keys[b.id], b.id).then(function(entries){
@@ -3155,6 +3166,7 @@ function rankAfterGame(score){
     });
   })).then(function(res){
     var hits = res.filter(function(r){ return r.pos <= rankTop(r.id); });
+    if(!hits.some(function(h){ return h.id === 'd'; })) markDayOut(score);
     if(!hits.length) return;
     if(!document.getElementById('result-screen').classList.contains('active')) return;   // もう別の画面に移っていたら出さない
     openRankEntry(score, hits);
@@ -3321,6 +3333,8 @@ function submitRankEntry(){
       updateThr(h.id, h.key, out[i]);
     });
     rankMine = { t: entry.t, s: entry.s, n: entry.n };
+    // 本日のランキングに登録したときだけ、本日の「点数ごとの人数」に数える（登録しなかった記録は数えない）
+    if(info.hits.some(function(h){ return h.id === 'd'; })) rankRecordDay(entry.s);
     closeRankEntry();
     showToast('ランキングに登録したよ！', 'ok');
     openRankScreen('result-screen', info.hits[0].id);
@@ -3450,11 +3464,13 @@ function paintRankList(entries){
     ol.appendChild(li);
   }
 }
-/* 本日：自分が一覧(100位まで)にいないときだけ、下に「何位か」を出す */
+/* 本日：自分が一覧(100位まで)にいないときだけ、下に「何位か」を出す
+   （登録した記録が101位以下に下がったとき、または100位に入れず登録できなかったとき） */
 var rankMeSeq = 0;
 function paintMyDayRank(myIdx){
   var me = document.getElementById('rank-me');
-  var best = loadDayBest();
+  // 出すのは「登録した記録」か「100位に入れず登録できなかった記録」だけ（ランクインして登録しなかった記録は出さない）
+  var best = Math.max(loadDayBest(), loadDayOut());
   if(myIdx >= 0 || !(best > 0)) return;
   var seq = ++rankMeSeq;
   fetchDayHist().then(function(c){
