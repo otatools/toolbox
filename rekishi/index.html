@@ -769,7 +769,14 @@ h1{ font-size:1.5rem; text-align:center; letter-spacing:.05em; }
 .wa-start:disabled::after{ border-color:#cdc4ac; }
 
 /* ---- 遊び方 ---- */
-.home-howto-btn{ display:block; margin:clamp(-4px, -1vh, 0px) auto 0; min-width:0; position:relative; z-index:2; }
+.howto-corner{            /* 右上の「遊び方」ボタン（トップ・一人でチャレンジ・みんなで対戦の画面に置く） */
+  position:absolute; right:14px; top:12px; z-index:3;
+  height:44px; padding:0 14px; line-height:1;
+  -webkit-appearance:none; appearance:none;
+  background:#fdfcf7; border:2px solid #4a4436; border-radius:0;
+  color:#3f3a2e; font-family:var(--mincho); font-weight:700; font-size:16px; letter-spacing:.1em; cursor:pointer;
+}
+.howto-corner:active{ background:#efe9da; }
 #howto-screen .wa-inner{ display:flex; flex-direction:column; height:100%; overflow:hidden; padding-top:clamp(44px, 6.5vh, 80px); padding-bottom:10px; }
 #howto-screen .wa-title{ font-size:clamp(20px, min(4.6vh, 6.4vw), 40px); margin-bottom:clamp(4px, 1vh, 10px); }
 #howto-screen .wa-rule{ margin-bottom:clamp(6px, 1.3vh, 14px); }
@@ -1000,7 +1007,6 @@ h1{ font-size:1.5rem; text-align:center; letter-spacing:.05em; }
         <button class="home-btn" id="play-solo-btn"><span>一人でチャレンジ</span></button>
         <button class="home-btn" id="play-multi-btn"><span>みんなで対戦</span></button>
       </div>
-      <button class="wa-chip home-howto-btn" id="howto-btn">遊び方</button>
     </div>
   </section>
 
@@ -1166,7 +1172,7 @@ h1{ font-size:1.5rem; text-align:center; letter-spacing:.05em; }
 
   <!-- ===================== ランキング（ひとりプレイ） ===================== -->
   <section id="howto-screen" class="screen wa-screen">
-    <button class="wa-back" data-back="menu-screen" aria-label="もどる">‹</button>
+    <button class="wa-back" id="howto-back-btn" aria-label="もどる">‹</button>
     <div class="wa-inner howto-inner">
       <h2 class="wa-title">遊び方</h2>
       <div class="wa-rule"></div>
@@ -1272,7 +1278,7 @@ document.addEventListener('wheel', function(e){ if(e.ctrlKey) e.preventDefault()
    ・つながらないとき（オフライン／ファイルを直接開いているとき）は何もしない
    ・同じ版へ何度も読みこみ直して止まらなくならないよう、1つの版につき1回だけ
    ============================================================ */
-var BUILD_ID = '20261015-1300';
+var BUILD_ID = '20261015-1540';
 var updateCheckBusy = false;
 var updateCheckLast = 0;
 var UPDATE_EVERY_MS = 10 * 60 * 1000;   // 前回の確認から10分たっていたら、次にボタンを押したときに確認する
@@ -3491,6 +3497,7 @@ function paintMyDayRank(myIdx){
    ============================================================ */
 var howtoMode = 'solo';
 var howtoStep = 0;
+var howtoBack = 'menu-screen';   // 遊び方を開く前にいた画面（もどるときはここへ）
 function hcTl(id, x, y, w){            // 場札（年代あり）
   var c = CARD_BY_ID[id];
   return '<div class="tl-card" style="left:' + x + 'px;top:' + y + 'px;width:' + w + 'px;height:' + Math.round(w * 2.18) + 'px;--cardw:' + w + 'px">' + cardInnerHtml(c) + '</div>';
@@ -3623,23 +3630,33 @@ function paintHowto(){
   steps.forEach(function(_, i){ var d = document.createElement('span'); if(i === howtoStep) d.className = 'on'; dots.appendChild(d); });
   document.getElementById('howto-prev').disabled = (howtoStep === 0);
   var nx = document.getElementById('howto-next');
-  nx.textContent = (howtoStep === steps.length - 1) ? 'トップへ' : '次へ ›';
+  nx.textContent = (howtoStep === steps.length - 1) ? 'もどる' : '次へ ›';
   fitHowtoStage();
 }
-function openHowto(mode){
+function openHowto(mode, from){
   howtoMode = mode || 'solo'; howtoStep = 0;
+  howtoBack = from || 'menu-screen';
   showScreen('howto-screen');
   paintHowto();
   requestAnimationFrame(fitHowtoStage);
 }
 (function(){
-  document.getElementById('howto-btn').addEventListener('click', function(){ openHowto('solo'); });
+  /* 右上の「遊び方」ボタン：対戦の画面から開いたら「みんなで対戦」、それ以外は「一人でチャレンジ」の説明から */
+  [['menu-screen', 'solo'], ['setup-solo-screen', 'solo'], ['online-screen', 'multi'], ['lobby-screen', 'multi']].forEach(function(it){
+    var sec = document.getElementById(it[0]);
+    if(!sec) return;
+    var b = document.createElement('button');
+    b.type = 'button'; b.className = 'howto-corner'; b.textContent = '遊び方';
+    b.addEventListener('click', function(){ openHowto(it[1], it[0]); });
+    sec.appendChild(b);
+  });
+  document.getElementById('howto-back-btn').addEventListener('click', function(){ showScreen(howtoBack); });
   document.querySelectorAll('.howto-tab').forEach(function(b){
     b.addEventListener('click', function(){ howtoMode = b.getAttribute('data-mode'); howtoStep = 0; paintHowto(); });
   });
   document.getElementById('howto-prev').addEventListener('click', function(){ howtoStep--; paintHowto(); });
   document.getElementById('howto-next').addEventListener('click', function(){
-    if(howtoStep >= HOWTO[howtoMode].length - 1){ showScreen('menu-screen'); return; }
+    if(howtoStep >= HOWTO[howtoMode].length - 1){ showScreen(howtoBack); return; }
     howtoStep++; paintHowto();
   });
   window.addEventListener('resize', function(){ if(document.getElementById('howto-screen').classList.contains('active')) fitHowtoStage(); });
