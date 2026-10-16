@@ -47,7 +47,16 @@ import { getDatabase, ref, get, remove } from "https://www.gstatic.com/firebasej
 const cfg = { apiKey: "AIzaSyBjnWqAcunbf_TBPraMHZRmI1bPjTnFhQU", authDomain: "typing-48f95.firebaseapp.com", databaseURL: "https://typing-48f95-default-rtdb.asia-southeast1.firebasedatabase.app", projectId: "typing-48f95", storageBucket: "typing-48f95.firebasestorage.app", messagingSenderId: "1045024853093", appId: "1:1045024853093:web:3484649a3b1544bb51ca8c" };
 const app = initializeApp(cfg, 'stats'), auth = getAuth(app), db = getDatabase(app);
 let rows = [], filt = 'all';
-const pass = r => filt === 'all' || (filt === 'guess' ? !!r.guess && !r.blocked : filt === 'none' ? !r.guess && !r.blocked : r.blocked);
+// いまの辞書（index.html）に のっている ことばは ひょうじしない：index.html を かくして よみこみ、__known で しらべる
+const known = new Promise(res => {
+  try {
+    const f = document.createElement('iframe'); f.style.display = 'none'; f.src = 'index.html';
+    f.onload = () => { let n = 0; const t = setInterval(() => { try { if (f.contentWindow.__known) { clearInterval(t); res(f.contentWindow.__known); } } catch (e) {} if (++n > 100) { clearInterval(t); res(null); } }, 100); };
+    document.body.appendChild(f);
+  } catch (e) { res(null); }
+  setTimeout(() => res(null), 20000);
+});
+const pass = r => !r.reg && (filt === 'all' || (filt === 'guess' ? !!r.guess && !r.blocked : filt === 'none' ? !r.guess && !r.blocked : r.blocked));
 const fmt = d => d ? d.getFullYear() + '/' + (d.getMonth()+1) + '/' + d.getDate() + ' ' + String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0') : '';
 async function load() {
   const msg = document.getElementById('msg'); msg.textContent = '';
@@ -56,6 +65,8 @@ async function load() {
     const snap = await get(ref(db, 'kotoba_unknown'));
     const v = snap.val() || {};
     rows = Object.keys(v).map(k => ({ key: k, word: v[k].word || k, count: v[k].count || 0, last: v[k].last ? new Date(v[k].last) : null, blocked: !!v[k].blocked, guess: v[k].guess || '' }));
+    const kf = await known;
+    rows.forEach(r => { r.reg = !!kf && !r.blocked && !!kf(r.word); });
     rows.sort((a, b) => b.count - a.count || (b.last||0) - (a.last||0));
     render();
   } catch (e) { msg.textContent = 'よみこめませんでした：' + e.message; }
@@ -66,8 +77,9 @@ function render() {
     const shown = rows.map((r, i) => [r, i]).filter(x => pass(x[0]));
     document.getElementById('body').innerHTML = shown.map(([r, i]) => '<tr data-i="' + i + '"' + (r.blocked ? ' style="background:#fff0f0"' : '') + '><td class="c"><input type="checkbox" class="chk" data-i="' + i + '"></td><td>' + r.word.replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])) + (r.blocked ? ' <small style="color:#a33a3a">【使えないことば】</small>' : '') + (r.guess ? ' <small style="color:#2f6f9f">→ 「' + r.guess.replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])) + '？」と表示</small>' : '') + '</td><td class="n">' + r.count + '</td><td>' + fmt(r.last) + '</td></tr>').join('');
     document.getElementById('all').checked = false; updSel();
+    const hid = rows.filter(r => r.reg).length;
     const sr = shown.map(x => x[0]);
-    document.getElementById('total').textContent = sr.length + 'しゅるい／ごうけい ' + sr.reduce((s, r) => s + r.count, 0) + '回';
+    document.getElementById('total').textContent = sr.length + 'しゅるい／ごうけい ' + sr.reduce((s, r) => s + r.count, 0) + '回' + (hid ? '（辞書にあるので ひょうじしていない ことば：' + hid + 'しゅるい。「ぜんぶ えらぶ」で けすと、これも いっしょに きえます）' : '');
 }
 document.getElementById('flt').addEventListener('click', e => { const b = e.target.closest('[data-f]'); if (!b) return; filt = b.dataset.f; render(); });
 const chks = () => Array.from(document.querySelectorAll('.chk'));
@@ -86,11 +98,14 @@ document.getElementById('all').onclick = e => { chks().forEach(c => c.checked = 
 document.getElementById('del').onclick = async () => {
   const sel = chks().filter(c => c.checked).map(c => rows[+c.dataset.i]);
   if (!sel.length) return;
-  if (!confirm(sel.length + '件を けしますか？（もとには もどせません）')) return;
+  // 「ぜんぶ えらぶ」（ぜんぶ ひょうじ）で けすときは、辞書にあって ひょうじしていない ことばも いっしょに けす
+  const extra = (document.getElementById('all').checked && filt === 'all') ? rows.filter(r => r.reg) : [];
+  const all = sel.concat(extra);
+  if (!confirm(sel.length + '件' + (extra.length ? 'と、辞書にあって ひょうじしていない ' + extra.length + '件' : '') + 'を けしますか？（もとには もどせません）')) return;
   const msg = document.getElementById('msg'); msg.textContent = '';
   try {
     if (!auth.currentUser) await signInAnonymously(auth);
-    await Promise.all(sel.map(r => remove(ref(db, 'kotoba_unknown/' + r.key))));
+    await Promise.all(all.map(r => remove(ref(db, 'kotoba_unknown/' + r.key))));
   } catch (e) { msg.textContent = 'けせませんでした：' + e.message; }
   load();
 };
