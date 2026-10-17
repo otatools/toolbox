@@ -18,6 +18,8 @@
   th{background:#8a99a9;color:#fff;font-size:14px}
   td.n{text-align:right;font-variant-numeric:tabular-nums}
   #msg{color:#a33a3a}
+  th.s{cursor:pointer;user-select:none;white-space:nowrap}
+  th.s i{font-style:normal;margin-left:4px;opacity:.9}
   th.c,td.c{width:44px;text-align:center;padding:10px 6px}
   input[type=checkbox]{width:24px;height:24px;cursor:pointer}
   tr.sel{background:#fff6dd !important}
@@ -33,11 +35,11 @@
 <body>
 <main>
   <h1>？になったことば</h1>
-  <p>子どもたちが入れて、イラストにできなかったことばの回数です。回数の多いものから、辞書に足していくと効果的です。</p>
+  <p>この一覧は、ひらいた時点か「さいしんにする」をおした時点のものです（けしたり じょがいにしても、じどうでは あたらしくなりません）。子どもたちが入れて、イラストにできなかったことばの回数です。回数の多いものから、辞書に足していくと効果的です。</p>
   <div class="bar"><button id="reload">さいしんにする</button><button id="csv">CSVでほぞん（Excel用）</button><button id="exclBtn" disabled>じょがいに いれる</button><button id="restoreBtn" disabled hidden>ぜんぶの ほうへ もどす</button><button id="del" class="del" disabled>えらんだものを けす</button></div>
   <div class="flt" id="flt"><button data-f="all" class="on">ぜんぶ<small id="fc_all"></small></button><button data-f="guess">「〇〇？」がでた<small id="fc_guess"></small></button><button data-f="none">？だけ<small id="fc_none"></small></button><button data-f="blocked">使えないことば<small id="fc_blocked"></small></button><button data-f="excl">じょがい（てきとうな入力）<small id="fc_excl"></small></button><button data-f="reg">辞書にあるので かくしていたことば<small id="fc_reg"></small></button></div>
   <div id="msg"></div>
-  <table><thead><tr><th class="c"><input type="checkbox" id="all" aria-label="ぜんぶ えらぶ"></th><th>ことば</th><th style="text-align:right">回数</th><th>さいご</th></tr></thead><tbody id="body"></tbody></table>
+  <table><thead><tr><th class="c"><input type="checkbox" id="all" aria-label="ぜんぶ えらぶ"></th><th class="s" data-s="word">ことば<i></i></th><th class="s" data-s="count" style="text-align:right">回数<i></i></th><th class="s" data-s="last">さいご<i></i></th></tr></thead><tbody id="body"></tbody></table>
   <p id="total"></p>
 </main>
 <script type="module">
@@ -46,7 +48,7 @@ import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/1
 import { getDatabase, ref, get, remove, update } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-database.js";
 const cfg = { apiKey: "AIzaSyBjnWqAcunbf_TBPraMHZRmI1bPjTnFhQU", authDomain: "typing-48f95.firebaseapp.com", databaseURL: "https://typing-48f95-default-rtdb.asia-southeast1.firebasedatabase.app", projectId: "typing-48f95", storageBucket: "typing-48f95.firebasestorage.app", messagingSenderId: "1045024853093", appId: "1:1045024853093:web:3484649a3b1544bb51ca8c" };
 const app = initializeApp(cfg, 'stats'), auth = getAuth(app), db = getDatabase(app);
-let rows = [], filt = 'all';
+let rows = [], filt = 'all', sortKey = 'count', sortDir = -1;
 let LOCAL = {}; try { LOCAL = JSON.parse(localStorage.getItem('kotoba.excl') || '{}') || {}; } catch (e) {}
 function looksRandom(w, kf) {
   if (w.length >= 5 && new Set(w.split('')).size <= 2) return true;
@@ -86,7 +88,9 @@ async function load() {
 function render() {
     ['all','guess','none','blocked','excl','reg'].forEach(f => { const o = filt; filt = f; document.getElementById('fc_' + f).textContent = rows.filter(pass).length; filt = o; });
     document.querySelectorAll('#flt button').forEach(b => b.classList.toggle('on', b.dataset.f === filt));
-    const shown = rows.map((r, i) => [r, i]).filter(x => pass(x[0]));
+    const cmp = (x, y) => { const a = x[0], b = y[0]; let d = sortKey === 'word' ? a.word.localeCompare(b.word, 'ja') : sortKey === 'last' ? (a.last || 0) - (b.last || 0) : a.count - b.count; if (!d) d = sortKey === 'count' ? (b.last || 0) - (a.last || 0) : a.word.localeCompare(b.word, 'ja'); return d * sortDir; };
+    const shown = rows.map((r, i) => [r, i]).filter(x => pass(x[0])).sort(cmp);
+    document.querySelectorAll('th.s').forEach(h => { h.querySelector('i').textContent = h.dataset.s === sortKey ? (sortDir > 0 ? '▲' : '▼') : ''; });
     document.getElementById('body').innerHTML = shown.map(([r, i]) => '<tr data-i="' + i + '"' + (r.blocked ? ' style="background:#fff0f0"' : '') + '><td class="c"><input type="checkbox" class="chk" data-i="' + i + '"></td><td>' + r.word.replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])) + (r.blocked ? ' <small style="color:#a33a3a">【使えないことば' + (r.hit ? '：「' + r.hit.replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])) + '」にひっかかった' : '') + '】</small>' : '') + (r.guess ? ' <small style="color:#2f6f9f">→ 「' + r.guess.replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])) + '？」と表示</small>' : '') + '</td><td class="n">' + r.count + '</td><td>' + fmt(r.last) + '</td></tr>').join('');
     document.getElementById('all').checked = false; updSel();
     document.getElementById('restoreBtn').hidden = filt !== 'excl'; document.getElementById('exclBtn').hidden = filt === 'excl';
@@ -94,6 +98,7 @@ function render() {
     const sr = shown.map(x => x[0]);
     document.getElementById('total').textContent = sr.length + 'しゅるい／ごうけい ' + sr.reduce((s, r) => s + r.count, 0) + '回' + (hid ? '（辞書にあるので ひょうじしていない ことば：' + hid + 'しゅるい。「ぜんぶ えらぶ」で けすと、これも いっしょに きえます）' : '');
 }
+document.querySelector('thead').addEventListener('click', e => { const h = e.target.closest('th.s'); if (!h) return; const k = h.dataset.s; if (sortKey === k) sortDir = -sortDir; else { sortKey = k; sortDir = k === 'word' ? 1 : -1; } render(); });
 document.getElementById('flt').addEventListener('click', e => { const b = e.target.closest('[data-f]'); if (!b) return; filt = b.dataset.f; render(); });
 const chks = () => Array.from(document.querySelectorAll('.chk'));
 function updSel() {
@@ -120,8 +125,10 @@ document.getElementById('del').onclick = async () => {
   try {
     if (!auth.currentUser) await signInAnonymously(auth);
     await Promise.all(all.map(r => remove(ref(db, 'kotoba_unknown/' + r.key))));
+    // さいしんには せず、いま ひょうじしている 一覧から けすだけ（「さいしんにする」を おしたときだけ あたらしくなる）
+    const gone = new Set(all); rows = rows.filter(r => !gone.has(r));
   } catch (e) { msg.textContent = 'けせませんでした：' + e.message; }
-  load();
+  render();
 };
 async function setExcl(val) {
   const sel = chks().filter(c => c.checked).map(c => rows[+c.dataset.i]);
@@ -131,19 +138,20 @@ async function setExcl(val) {
     if (!auth.currentUser) await signInAnonymously(auth);
     const u = {}; sel.forEach(r => { u[r.key + '/excl'] = val; });
     await update(ref(db, 'kotoba_unknown'), u);
+    sel.forEach(r => { r.excl = val; r.exclv = val; });
   } catch (e) {
     sel.forEach(r => { LOCAL[r.key] = val; r.excl = val; });
     try { localStorage.setItem('kotoba.excl', JSON.stringify(LOCAL)); } catch (e2) {}
     msg.textContent = 'サーバーに かきこめなかったので、このブラウザだけに きおくしました：' + e.message;
     render(); return;
   }
-  load();
+  render();
 }
 document.getElementById('exclBtn').onclick = () => setExcl(true);
 document.getElementById('restoreBtn').onclick = () => setExcl(false);
 document.getElementById('reload').onclick = load;
 document.getElementById('csv').onclick = () => {
-  const csv = '﻿ことば,回数,最後に入力された日時,種類,表示した「？」\r\n' + rows.filter(pass).map(r => r.word + ',' + r.count + ',' + fmt(r.last) + ',' + (r.blocked ? '使えないことば（' + r.hit + '）' : r.excl ? 'じょがい' : '辞書にない') + ',' + (r.guess ? r.guess + '？' : '')).join('\r\n');
+  const csv = '﻿ことば,回数,最後に入力された日時,種類,表示した「？」\r\n' + rows.filter(pass).sort((a, b) => { let d = sortKey === 'word' ? a.word.localeCompare(b.word, 'ja') : sortKey === 'last' ? (a.last || 0) - (b.last || 0) : a.count - b.count; return d * sortDir; }).map(r => r.word + ',' + r.count + ',' + fmt(r.last) + ',' + (r.blocked ? '使えないことば（' + r.hit + '）' : r.excl ? 'じょがい' : '辞書にない') + ',' + (r.guess ? r.guess + '？' : '')).join('\r\n');
   const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' })); a.download = 'はてなになったことば.csv'; a.click();
 };
 load();
