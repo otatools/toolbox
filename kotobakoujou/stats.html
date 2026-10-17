@@ -35,9 +35,8 @@
 <body>
 <main>
   <h1>？になったことば</h1>
-  <p>この一覧は、ひらいた時点か「さいしんにする」をおした時点のものです（けしたり じょがいにしても、じどうでは あたらしくなりません）。子どもたちが入れて、イラストにできなかったことばの回数です。回数の多いものから、辞書に足していくと効果的です。</p>
-  <div class="bar"><button id="reload">さいしんにする</button><button id="csv">CSVでほぞん（Excel用）</button><button id="exclBtn" disabled>じょがいに いれる</button><button id="restoreBtn" disabled hidden>ぜんぶの ほうへ もどす</button><button id="del" class="del" disabled>えらんだものを けす</button></div>
-  <div class="flt" id="flt"><button data-f="all" class="on">ぜんぶ<small id="fc_all"></small></button><button data-f="guess">「〇〇？」がでた<small id="fc_guess"></small></button><button data-f="none">？だけ<small id="fc_none"></small></button><button data-f="blocked">使えないことば<small id="fc_blocked"></small></button><button data-f="excl">じょがい（てきとうな入力）<small id="fc_excl"></small></button><button data-f="reg">辞書にあるので かくしていたことば<small id="fc_reg"></small></button></div>
+  <div class="bar"><button id="reload">最新にする</button><button id="csv">CSVでほぞん（Excel用）</button><button id="exclBtn" disabled>除外に入れる</button><button id="restoreBtn" disabled hidden>全部の方へ戻す</button><button id="del" class="del" disabled>選んだものを消す</button></div>
+  <div class="flt" id="flt"><button data-f="all" class="on">全部<small id="fc_all"></small></button><button data-f="guess">「〇〇？」がでた<small id="fc_guess"></small></button><button data-f="none">？だけ<small id="fc_none"></small></button><button data-f="blocked">使えないことば<small id="fc_blocked"></small></button><button data-f="excl">除外（適当な入力）<small id="fc_excl"></small></button><button data-f="reg">辞書にあるので かくしていたことば<small id="fc_reg"></small></button></div>
   <div id="msg"></div>
   <table><thead><tr><th class="c"><input type="checkbox" id="all" aria-label="ぜんぶ えらぶ"></th><th class="s" data-s="word">ことば<i></i></th><th class="s" data-s="count" style="text-align:right">回数<i></i></th><th class="s" data-s="last">さいご<i></i></th></tr></thead><tbody id="body"></tbody></table>
   <p id="total"></p>
@@ -103,7 +102,7 @@ document.getElementById('flt').addEventListener('click', e => { const b = e.targ
 const chks = () => Array.from(document.querySelectorAll('.chk'));
 function updSel() {
   const n = chks().filter(c => c.checked).length;
-  const b = document.getElementById('del'); b.disabled = n === 0; b.textContent = n ? 'えらんだ ' + n + '件を けす' : 'えらんだものを けす';
+  const b = document.getElementById('del'); b.disabled = n === 0; b.textContent = n ? '選んだ ' + n + '件を消す' : '選んだものを消す';
   document.getElementById('exclBtn').disabled = n === 0; document.getElementById('restoreBtn').disabled = n === 0;
   chks().forEach(c => c.closest('tr').classList.toggle('sel', c.checked));
   const all = document.getElementById('all'); all.checked = n > 0 && n === chks().length;
@@ -125,7 +124,7 @@ document.getElementById('del').onclick = async () => {
   try {
     if (!auth.currentUser) await signInAnonymously(auth);
     await Promise.all(all.map(r => remove(ref(db, 'kotoba_unknown/' + r.key))));
-    // さいしんには せず、いま ひょうじしている 一覧から けすだけ（「さいしんにする」を おしたときだけ あたらしくなる）
+    // さいしんには せず、いま ひょうじしている 一覧から けすだけ（「最新にする」を おしたときだけ あたらしくなる）
     const gone = new Set(all); rows = rows.filter(r => !gone.has(r));
   } catch (e) { msg.textContent = 'けせませんでした：' + e.message; }
   render();
