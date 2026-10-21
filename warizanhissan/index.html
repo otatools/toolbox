@@ -557,6 +557,18 @@ button {
   border: 2px solid rgba(124, 58, 237, .45);
 }
 
+.carry { position: absolute; z-index: 4; text-align: right; line-height: 1; font-weight: 900; color: #e11d48; pointer-events: none;
+  text-shadow: 0.1em 0em 0 #fff, -0.1em 0em 0 #fff, 0em 0.1em 0 #fff, 0em -0.1em 0 #fff, 0.08em 0.08em 0 #fff, -0.08em 0.08em 0 #fff, 0.08em -0.08em 0 #fff, -0.08em -0.08em 0 #fff, 0.14em 0.04em 0 #fff, -0.14em 0.04em 0 #fff, 0.14em -0.04em 0 #fff, -0.14em -0.04em 0 #fff, 0.04em 0.14em 0 #fff, -0.04em 0.14em 0 #fff, 0.04em -0.14em 0 #fff, -0.04em -0.14em 0 #fff, 0 0 .12em #fff; }
+.help-btn {
+  flex: none; height: 40px; padding: 0 10px; border-radius: 12px; display: flex; align-items: center; gap: 5px;
+  font-size: 13px; font-weight: 800; color: var(--ink-2); background: #eef3f8; line-height: 1;
+}
+.help-btn:active { background: #dde6ef; }
+.help-btn b { font-size: 11px; padding: 3px 6px; border-radius: 8px; background: #cbd5e1; color: #fff; }
+.help-btn.on { background: #ffe4ea; color: #be123c; }
+.help-btn.on b { background: #e11d48; }
+.is-portrait .help-btn { height: 38px; padding: 0 7px; font-size: 11px; gap: 3px; }
+.is-portrait .help-btn b { font-size: 10px; padding: 2px 4px; }
 .lines { position: absolute; left: 0; top: 0; overflow: visible; pointer-events: none; z-index: 3; }
 
 /* せいかい スタンプ */
@@ -838,6 +850,7 @@ button {
         <span class="chip stage-pill" id="stagePill"><span id="stagePillShort">コース1</span><span class="long" id="stagePillLong">1桁でわる</span></span>
         <span class="spacer"></span>
         <span class="solved">せいかい <b id="solvedCount">0</b> / <span id="goalCount">5</span>問</span>
+        <button class="help-btn" id="helpBtn" type="button" aria-label="くり上がりのほじょ（ON/OFF）">ほじょ<b id="helpState">ON</b></button>
         <button class="icon-btn" id="soundBtn" type="button" aria-label="効果音のON/OFF">
           <svg id="icoSoundOn" class="svg-ico" width="22" height="22" viewBox="0 0 22 22" aria-hidden="true"><path d="M3 8.5h3.5L11 4.5v13l-4.5-4H3z" fill="currentColor"/><path d="M14 7.5a5 5 0 0 1 0 7M16.5 5a8.5 8.5 0 0 1 0 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
           <svg id="icoSoundOff" class="svg-ico" width="22" height="22" viewBox="0 0 22 22" aria-hidden="true" hidden><path d="M3 8.5h3.5L11 4.5v13l-4.5-4H3z" fill="currentColor"/><path d="m14.5 8 5 6m0-6-5 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
@@ -1101,6 +1114,17 @@ document.addEventListener('visibilitychange', function () {
   if (!document.hidden && sound.ctx && sound.ctx.state !== 'running') sound.ctx.resume().catch(() => {});
 });
 
+let helperOn = saved.helper !== false;     // くり上がりの ほじょ（はじめは ON）
+function applyHelper() {
+  const b = $('helpBtn'); if (!b) return;
+  b.classList.toggle('on', helperOn); $('helpState').textContent = helperOn ? 'ON' : 'OFF';
+  b.setAttribute('aria-pressed', helperOn ? 'true' : 'false');
+}
+function toggleHelper() {
+  helperOn = !helperOn; saved.helper = helperOn; persist();
+  applyHelper(); sound.play('tap');
+  if (gameActive && currentProblem) drawGame();
+}
 function applySoundIcon() {
   $('icoSoundOn').hidden = sound.muted;
   $('icoSoundOff').hidden = !sound.muted;
@@ -1338,9 +1362,17 @@ function analyzeProblem(dividend, divisor) {
 
     // 2. かける（右の一の位から）
     const prodStr = String(prod);
-    subtractionLines.push({ r: currentRow, c: qCol - prodStr.length + 1, cols: prodStr.length, stepIndexTrigger: steps.length });
+    // ひき算の線は「ひかれる数」（11−8 なら 11 の2マスぶん）の はばまで引く
+    const lineLen = Math.max(prodStr.length, String(currentWorkingVal).length);
+    subtractionLines.push({ r: currentRow, c: qCol - lineLen + 1, cols: lineLen, stepIndexTrigger: steps.length });
+    // くり上がり（ほじょ表示用）: 割る数の右の位から 1けたずつ かけたときの くり上がり。
+    // まだ かける位が のこっているときだけ、つぎの（左どなりの）マスに 小さく出す
+    const carryAt = [];
+    { let cr = 0; const dd = divisorStr.split('').reverse().map(Number);
+      for (let j = 0; j < dd.length; j++) { const part = dd[j] * qDigit + cr; cr = Math.floor(part / 10); carryAt[j] = (j < dd.length - 1 && cr > 0) ? cr : 0; } }
     for (let i = prodStr.length - 1; i >= 0; i--) {
       steps.push({
+        carryOut: carryAt[prodStr.length - 1 - i] || 0,
         type: 'digit', r: currentRow, c: qCol - (prodStr.length - 1 - i), expected: prodStr[i], stepName: 'kakeru',
         message: `${qDigit} × ${divisor} ＝ ${prod} を右の一の位から書こう！`,
         hideMsg: `${qDigit} × ${divisor} を計算して、右の一の位から書こう！`
@@ -1468,6 +1500,23 @@ function renderBoard(opts) {
     }
   }
 
+  // ---- くり上がりの ほじょ（かけ算で 1けた かけるたびに、左どなりのマスの右上に 小さく） ----
+  if (opts.carry) {
+    p.steps.forEach((s, i) => {
+      if (s.stepName !== 'kakeru' || !s.carryOut || i >= stepIndex) return;
+      const c2 = s.c - 1;
+      if (c2 < dl || fl[`${s.r}-${c2}`]) return;
+      const t = document.createElement('div');
+      t.className = 'carry';
+      t.textContent = s.carryOut;
+      t.style.left = (c2 * cell + cell * 0.46) + 'px';
+      t.style.top = (s.r * cell + cell * 0.02) + 'px';
+      t.style.width = (cell * 0.5) + 'px';
+      t.style.fontSize = Math.round(cell * 0.34) + 'px';
+      board.appendChild(t);
+    });
+  }
+
   // ---- 線 ----
   const svg = svgEl('svg', { class: 'lines', width: cols * cell, height: rows * cell, viewBox: `0 0 ${cols * cell} ${rows * cell}` });
   const ink = '#22304e';
@@ -1505,9 +1554,9 @@ function renderBoard(opts) {
     const isNow = (i === stepIndex);
     const x = (s.c + 0.5) * cell;
     const y1 = 2 * cell + cell * 0.06;
-    const y2 = s.r * cell + cell * 0.10;
+    const y2 = s.r * cell - cell * 0.07;     // 矢印の先は ひき算の線の すこし上でとめる（線・数字・入力わくと かさならない）
     const color = isNow ? '#7c3aed' : 'rgba(124, 58, 237, .28)';
-    const w = Math.max(2, cell * 0.05);
+    const w = Math.max(2.4, cell * 0.06);
     const g = svgEl('g', {});
     const shaft = svgEl('line', {
       x1: x, y1: y1, x2: x, y2: y2 - cell * 0.14, stroke: color, 'stroke-width': w,
@@ -1515,7 +1564,10 @@ function renderBoard(opts) {
     });
     const hs = cell * 0.15;
     const head = svgEl('path', { d: `M ${x - hs} ${y2 - hs * 1.2} L ${x} ${y2} L ${x + hs} ${y2 - hs * 1.2}`, fill: 'none', stroke: color, 'stroke-width': w, 'stroke-linecap': 'round', 'stroke-linejoin': 'round' });
-    g.appendChild(shaft); g.appendChild(head);
+    // 線や数字と かさなっても見えるように、白いふちを 下にしく
+    const halo = (el) => { const h = el.cloneNode(); h.setAttribute('stroke', '#fffdf5'); h.setAttribute('stroke-width', w + cell * 0.07); h.removeAttribute('stroke-dasharray'); return h; };
+    const hh = halo(head); hh.setAttribute('stroke-linejoin', 'round');
+    g.appendChild(hh); g.appendChild(shaft); g.appendChild(head);
     svg.appendChild(g);
     if (isNow && shaft.animate) {
       shaft.animate([{ strokeDashoffset: cell * 0.24 }, { strokeDashoffset: 0 }], { duration: 600, iterations: Infinity });
@@ -1548,7 +1600,7 @@ function drawGame(anim) {
   renderBoard({
     panel: $('boardPanel'), board: $('board'), problem: currentProblem,
     stepIndex: currentStepIndex, filled: filled, maxCell: isPortrait ? 60 : 66,
-    interactive: true, anim: anim
+    interactive: true, anim: anim, carry: helperOn
   });
 }
 
@@ -2034,10 +2086,13 @@ function showChest() {
   { const c0 = $('chChest'); c0.onload = () => c0.style.setProperty('--f', (c0.naturalWidth / 300).toFixed(3)); c0.src = `images/chest/${id}.webp`; }
   $('chStars').innerHTML = Array.from({ length: 7 }, (_, i) => i <= chTier ? STAR_SVG : STAR_OFF).join('');
   $('chTitle').textContent = 'たからばこを みつけた！';
-  $('chSub').textContent = TIER_TITLE[chTier];
+  $('chSub').textContent = '';
   $('chOpen').hidden = false; $('chOpen').textContent = 'あける！'; $('chEnd').hidden = true;
   const ch = $('chChest'), dim = $('chDim'), rays = $('chRays'), rew = $('chRew');
-  ch.classList.remove('wob'); ch.getAnimations && ch.getAnimations().forEach(a => a.cancel());
+  ch.classList.remove('wob');
+  // まえの たからばこの 演出（fill:forwards で のこる）を ぜんぶ けす
+  [ch, rays, rew, dim].forEach(el => { el.getAnimations && el.getAnimations().forEach(a => a.cancel()); });
+  $('chSmoke').innerHTML = ''; $('chRewImg').removeAttribute('src');
   ch.style.opacity = 0; rays.style.opacity = 0; rew.style.opacity = 0; dim.style.opacity = 0;
   $('chestModal').hidden = false;
   sound.play('hint');
@@ -2066,6 +2121,9 @@ function openChest() {
   if (res) { saved.rb.own.push(res.id); saved.rb.miss = 0; }
   else saved.rb.miss++;
   persist();
+  // ゆれる長さ: はずれは 1回ぶん（約1秒）。あたりは 3回ぶん（約2.8秒）
+  const shakeCycles = res ? (Math.random() < 0.05 ? 1 : 3) : 1;   // あたりは 約2.8秒。まれに（5%）はずれと おなじ 約1秒
+  const shakeMs = 900 * shakeCycles;
   // ガタガタ… 中心を軸に その場で ぐらぐら（左右10度 × 2〜3往復）しながら すこし ふくらんで、もどる
   if (ch.animate) {
     const E = 'ease-in-out';
@@ -2078,7 +2136,7 @@ function openChest() {
       { transform: 'rotate(7deg) scale(1.08)', offset: .68, easing: E },
       { transform: 'rotate(-3deg) scale(1.04)', offset: .84, easing: E },
       { transform: 'rotate(0deg) scale(1)', offset: 1 }
-    ], { duration: 900 });
+    ], { duration: 900, iterations: shakeCycles });
   }
   T(() => {
     if (res) {
@@ -2102,7 +2160,7 @@ function openChest() {
     $('chStars').innerHTML = '';
     $('chEnd').hidden = false;
     renderBuddy(); buildNsHero();
-  }, 950);
+  }, shakeMs + 50);
 }
 // からっぽのとき: けむりが ぼわんと ひろがって きえる
 const SMOKE_USE = [1, 3, 12, 15];
@@ -2578,6 +2636,7 @@ $('evoBtn').addEventListener('click', closeEvolve);
 $('resultMenuBtn').addEventListener('click', returnToMenu);
 $('retryBtn').addEventListener('click', () => { if (resAnimating) return; retryCurrentGame(); });
 $('soundBtn').addEventListener('click', toggleSound);
+$('helpBtn').addEventListener('click', toggleHelper);
 $('timeCancel').addEventListener('click', () => { sound.play('tap'); closeTimeSelectModal(); });
 $('timeModal').addEventListener('click', (e) => { if (e.target === $('timeModal')) closeTimeSelectModal(); });
 document.querySelectorAll('.time-btn').forEach(b => b.addEventListener('click', () => confirmStartGame(parseInt(b.dataset.n, 10))));
@@ -2614,6 +2673,7 @@ $('zkOk').addEventListener('click', closeZukan);
 $('zukanModal').addEventListener('click', (e) => { if (e.target === $('zukanModal')) closeZukan(); });
 
 applySoundIcon();
+applyHelper();
 buildLevelList();
 renderBuddy();
 setTimeout(preloadPets, 600);
