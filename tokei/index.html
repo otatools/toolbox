@@ -427,13 +427,13 @@
         .cal-grid { --rows: 6; display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); grid-template-rows: auto repeat(var(--rows), clamp(30px, calc(6.4 * var(--uvh, 1vh)), 58px)); gap: 4px; }
         .cal-grid .cw { font-size: clamp(11px, calc(1.7 * var(--uvh, 1vh)), 14px); color: #64748b; }
         .cal-grid .cw.sun, .cal-grid .cd.sun i { color: #E5484D; } .cal-grid .cw.sat, .cal-grid .cd.sat i { color: #3B82F6; }
-        .cal-grid .cd { position: relative; border-radius: 10px; background: #F8FAFC; border: 2px solid #E2E8F0; display: grid; place-items: center; overflow: hidden; }
+        .cal-grid .cd { position: relative; border-radius: 10px; background: #F8FAFC; border: 2px solid #E2E8F0; display: grid; place-items: center; overflow: hidden; container-type: size; }
         .cal-grid .cd.empty { background: none; border: 0; }
         .cal-grid .cd i { position: absolute; left: 4px; top: 1px; z-index: 2; font-style: normal; font-size: clamp(10px, calc(1.6 * var(--uvh, 1vh)), 13px); color: #475569; text-shadow: 0 0 2px #fff, 0 0 2px #fff; }
-        .cal-grid .cd.on .stamp { margin: 14% 0 0 14%; }
+        .cal-grid .cd.on .stamp { margin: 15cqh 0 0 10cqw; }
         .cal-grid .cd.today { border-color: var(--ink); background: #FFF7C2; }
         .cal-grid .cd.on { background: #FFF1F1; border-color: #FFC9C9; }
-        .cal-grid .stamp { width: 66%; max-width: 42px; aspect-ratio: 1; border: 3px solid var(--red); border-radius: 50%; display: grid; place-items: center; color: var(--red); transform: rotate(var(--r, 0deg)); background: rgba(255,255,255,.6); }
+        .cal-grid .stamp { width: min(60cqw, 68cqh, 42px); height: min(60cqw, 68cqh, 42px); flex: none; aspect-ratio: 1; border: 3px solid var(--red); border-radius: 50%; display: grid; place-items: center; color: var(--red); transform: rotate(var(--r, 0deg)); background: rgba(255,255,255,.6); }
         .cal-grid .stamp .ic { width: 62%; height: 62%; filter: none; }
         .cal-stats { display: flex; justify-content: center; gap: 18px; font-size: clamp(14px, calc(2.3 * var(--uvh, 1vh)), 19px); }
         .cal-stats b { font-size: 1.5em; color: var(--red); font-family: 'Fredoka', 'Zen Maru Gothic', 'Arial Rounded MT Bold', 'Hiragino Maru Gothic ProN', sans-serif; }
@@ -2201,6 +2201,8 @@
 
         function spawnWalker() {
             if (!elements.walkerLaneTop || !elements.walkerLaneBottom) return;
+            // はいけいに あるいている子は 1ぴきだけ（しんかを 1ぴき だけ したのに 2ひき いるように みえないように）
+            if (document.querySelector('.walker-creature')) return;
 
             // たまご以外で、これまでにゲットしたキャラから ランダムに1体えらぶ
             const pool = state.discovered.filter(k => k !== 'egg' && CREATURES[k]);
@@ -4856,6 +4858,16 @@
             ov.classList.toggle('rare', isRare);
             $('evo-use').setAttribute('href', '#icon-' + CREATURES[oldKey].icon);
             $('evo-msg').textContent = '';
+            // おひろめの文字は さいしょに入れておく（あとから入れると、まるい絵が ぱっと上に ずれるため。見えないだけで場所はとる）
+            let title;
+            if (isRare) title = `${iconHTML('star')} レアしんか！ ${iconHTML('star')}`;
+            else if (isMega) title = `${iconHTML('crown')} メガしんか！！ ${iconHTML('crown')}`;
+            else title = `${iconHTML('sparkle')} しんかしたよ！ ${iconHTML('sparkle')}`;
+            $('evo-title').innerHTML = title;
+            $('evo-name').textContent = newNode.name;
+            $('evo-sub').textContent = isRare ? `なんと…！ とても めずらしい すがたに なったよ！`
+                : isMega ? `ついに さいきょうの すがたに たどりついた！`
+                : `「${CREATURES[oldKey].name}」が 「${newNode.name}」に しんかした！`;
             $('evo-particles').innerHTML = '';
             $('evo-ok').onclick = closeEvolution;
             void ov.offsetWidth;
@@ -4885,15 +4897,6 @@
             at(5600 + extra, () => { ov.classList.remove('sil'); ov.classList.add('pop'); });
             // 6) おひろめ
             at(6800 + extra, () => {
-                let title;
-                if (isRare) title = `${iconHTML('star')} レアしんか！ ${iconHTML('star')}`;
-                else if (isMega) title = `${iconHTML('crown')} メガしんか！！ ${iconHTML('crown')}`;
-                else title = `${iconHTML('sparkle')} しんかしたよ！ ${iconHTML('sparkle')}`;
-                $('evo-title').innerHTML = title;
-                $('evo-name').textContent = newNode.name;
-                $('evo-sub').textContent = isRare ? `なんと…！ とても めずらしい すがたに なったよ！`
-                    : isMega ? `ついに さいきょうの すがたに たどりついた！`
-                    : `「${CREATURES[oldKey].name}」が 「${newNode.name}」に しんかした！`;
                 ov.classList.add('result');
                 sound.click();
             });
