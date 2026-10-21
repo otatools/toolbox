@@ -104,6 +104,8 @@ button {
    メニュー画面
    ============================================================ */
 #menuScreen { display: grid; }
+.is-portrait #menuScreen, .is-landscape #menuScreen { padding-bottom: 30px; }
+.ver { position: absolute; left: 0; right: 0; bottom: 8px; margin: 0; text-align: center; font-size: 11px; line-height: 1; letter-spacing: .05em; color: #64748b; opacity: .6; pointer-events: none; user-select: none; }
 .is-landscape #menuScreen {
   grid-template-columns: 372px 1fr;
   grid-template-rows: 1fr;
@@ -146,6 +148,14 @@ button {
   background: #ef4444; border: 2px solid #fff; animation: nbBounce 1s ease-in-out infinite;
 }
 .logo-mark.has-new { border-color: #fbbf24; }
+/* 新ステージと 色が あっているとき わくが ひかる */
+.logo-mark.match { border-color: var(--c1); animation: matchGlow 3.6s ease-in-out infinite; }
+@keyframes matchGlow {
+  0%, 100% { box-shadow: 0 4px 0 var(--c1), 0 0 4px 0 transparent; }
+  50% { box-shadow: 0 4px 0 var(--c1), 0 0 13px 2px var(--c1); }
+}
+.hero.ns .ns-panel.match { border-color: var(--c1); animation: matchGlowP 3.6s ease-in-out infinite; }
+@keyframes matchGlowP { 0%, 100% { box-shadow: 0 0 4px 0 transparent; } 50% { box-shadow: 0 0 14px 2px var(--c1); } }
 .logo-mark.has-new .newbadge { display: block; }
 .logo-mark.has-new::before {
   content: ''; position: absolute; inset: -10px; border-radius: 30px; pointer-events: none;
@@ -207,11 +217,20 @@ button {
 .zk-item.locked { background: #f4f6f9; border-color: #d0d6e0; box-shadow: 0 3px 0 rgba(34,48,78,.05); cursor: default; }
 .zk-item.locked .zq { position: absolute; inset: 0; display: grid; place-items: center; font-size: 28px; font-weight: 900; color: #aeb7c5; }
 .zk-empty { padding: 40px 10px; text-align: center; font-size: 15px; font-weight: 800; color: var(--ink-2); }
-.zk-toast {
-  position: absolute; left: 50%; bottom: 26px; transform: translateX(-50%);
-  padding: 8px 16px; border-radius: 999px; font-size: 14px; font-weight: 900; color: #fff;
-  background: rgba(13, 148, 136, .95); white-space: nowrap; pointer-events: none; opacity: 0;
+.zk-done {
+  position: absolute; left: 50%; bottom: 18px; transform: translateX(-50%); z-index: 5;
+  display: flex; align-items: center; gap: 12px; padding: 8px 8px 8px 18px; border-radius: 999px;
+  background: #fff; border: 3px solid var(--accent, #0d9488); box-shadow: 0 8px 22px rgba(34,48,78,.3);
+  font-size: 15px; font-weight: 900; color: var(--ink); white-space: nowrap;
 }
+.zk-done[hidden] { display: none; }
+.zk-done button {
+  height: 40px; min-width: 76px; padding: 0 18px; border: 0; border-radius: 999px; cursor: pointer;
+  font-family: inherit; font-size: 17px; font-weight: 900; color: #fff; letter-spacing: .04em;
+  background: var(--accent, #0d9488); box-shadow: 0 3px 0 rgba(0,0,0,.25);
+  touch-action: manipulation; -webkit-tap-highlight-color: transparent;
+}
+.zk-done button:active { transform: translateY(3px); box-shadow: 0 0 0 rgba(0,0,0,.25); }
 .logo-sub { margin: 0 0 2px; font-size: 13px; font-weight: 800; color: var(--accent, #0d9488); letter-spacing: .04em; }
 .logo h1 { margin: 0; font-size: 30px; line-height: 1.15; font-weight: 900; letter-spacing: .02em; }
 .logo h1 .accent { color: var(--accent, #0d9488); }
@@ -695,12 +714,6 @@ button {
 .is-portrait .hero.ns .ns-panel { grid-area: board; flex: none; height: 150px; }
 .is-portrait .hero.ns .ns-ctrl { grid-area: flow; align-self: end; gap: 4px; }
 .ns-panel .nsart { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; }
-.ns-panel .nsspot {
-  position: absolute; width: 22%; aspect-ratio: 1; margin: -11% 0 0 -11%; border-radius: 50%; pointer-events: none;
-  background: radial-gradient(circle, rgba(255,244,170,.85) 0, rgba(255,244,170,0) 68%);
-  animation: nsPulse 1.9s ease-in-out infinite;
-}
-@keyframes nsPulse { 0%, 100% { opacity: .2; transform: scale(.75); } 50% { opacity: 1; transform: scale(1.15); } }
 .ns-nav { display: flex; align-items: center; gap: 8px; }
 .ns-title { flex: 1; text-align: center; line-height: 1.1; }
 .ns-title small { display: block; font-size: 11px; font-weight: 800; color: var(--ink-2); }
@@ -735,7 +748,7 @@ button {
 #chestModal { padding: 0; background: #000; overflow: hidden; }
 .ch-bg { position: absolute; inset: 0; background-size: cover; background-position: center; }
 .ch-dim { position: absolute; inset: 0; background: rgba(8, 10, 30, .5); opacity: 0; }
-.ch-chest { position: absolute; left: 50%; top: 42%; width: 270px; height: 270px; margin: -135px 0 0 -135px; object-fit: contain; opacity: 0; cursor: pointer; -webkit-tap-highlight-color: transparent; -webkit-user-drag: none; filter: drop-shadow(0 10px 14px rgba(0,0,0,.45)); touch-action: manipulation; }
+.ch-chest { position: absolute; left: 50%; top: 42%; width: calc(270px * var(--f, 1)); height: calc(270px * var(--f, 1)); margin: calc(-135px * var(--f, 1)) 0 0 calc(-135px * var(--f, 1)); object-fit: contain; opacity: 0; cursor: pointer; -webkit-tap-highlight-color: transparent; -webkit-user-drag: none; filter: drop-shadow(0 10px 14px rgba(0,0,0,.45)); touch-action: manipulation; }
 .ch-chest.wob { animation: chWob 1.1s ease-in-out infinite; }
 @keyframes chWob { 0%, 100% { transform: rotate(0) scale(1); } 25% { transform: rotate(-3deg) scale(1.03); } 75% { transform: rotate(3deg) scale(1.03); } }
 .ch-rays {
@@ -747,16 +760,20 @@ button {
 @keyframes chSpin { to { transform: rotate(360deg); } }
 .ch-rew { position: absolute; left: 50%; top: 42%; width: 300px; height: 300px; margin: -150px 0 0 -150px; opacity: 0; pointer-events: none; }
 .ch-rew img { width: 100%; height: 100%; object-fit: contain; display: block; filter: drop-shadow(0 8px 12px rgba(0,0,0,.4)); }
-.ch-new { position: absolute; right: -6px; top: -4px; padding: 3px 12px; border-radius: 999px; background: #ef4444; color: #fff; font-size: 16px; font-weight: 900; border: 3px solid #fff; transform: rotate(8deg); display: none; }
+.ch-smoke { position: absolute; left: 50%; top: 42%; width: 0; height: 0; pointer-events: none; }
+.is-portrait .ch-smoke { top: 40%; }
+.ch-smoke i { position: absolute; border-radius: 50%; opacity: 0; background: radial-gradient(circle at 38% 34%, #fff 0, #eceff4 48%, #b8c0cc 100%); box-shadow: inset -6px -8px 14px rgba(120,130,150,.35); }
+#tzFail .modal-box { --mc: #94a3b8; max-width: 380px; }
 .ch-cap { position: absolute; left: 0; right: 0; bottom: 0; padding: 40px 24px 20px; text-align: center; color: #fff; background: linear-gradient(180deg, rgba(8,10,30,0), rgba(8,10,30,.78) 42%); }
+.is-portrait .ch-cap h3 { font-size: 22px; }
 .ch-cap h3 { margin: 4px 0 2px; font-size: 26px; font-weight: 900; text-shadow: 0 2px 6px rgba(0,0,0,.6); }
 .ch-cap p { margin: 0 0 10px; font-size: 14px; font-weight: 800; text-shadow: 0 1px 4px rgba(0,0,0,.6); min-height: 20px; }
 .ch-cap .btn-main { width: 100%; max-width: 360px; margin: 0 auto; }
 .ch-cap .btn-sub { margin: 8px auto 0; max-width: 360px; width: 100%; }
 .ch-end { display: flex; flex-direction: column; align-items: center; }
 .ch-stars { display: flex; justify-content: center; align-items: center; gap: 4px; height: 26px; font-weight: 900; font-size: 15px; }
-.ch-stars svg { width: 24px; height: 24px; }
-.is-portrait .ch-chest { width: 240px; height: 240px; margin: -120px 0 0 -120px; top: 40%; }
+.ch-stars svg { width: 24px; height: 24px; flex: none; }
+.is-portrait .ch-chest { width: calc(240px * var(--f, 1)); height: calc(240px * var(--f, 1)); margin: calc(-120px * var(--f, 1)) 0 0 calc(-120px * var(--f, 1)); top: 40%; }
 .is-portrait .ch-rays, .is-portrait .ch-rew { top: 40%; }
 .is-portrait .ch-rew { width: 280px; height: 280px; margin: -140px 0 0 -140px; }
 .is-portrait .ch-rays { width: 520px; height: 520px; margin: -260px 0 0 -260px; }
@@ -808,6 +825,7 @@ button {
       <div class="levels">
         <div id="levelList" style="display:contents"></div>
       </div>
+      <p class="ver">わり算のひっ算マスター｜ver.1.0｜ota tools</p>
     </section>
 
     <!-- ===================== ゲーム ===================== -->
@@ -866,7 +884,7 @@ button {
         <div class="time-btns">
           <button class="time-btn" type="button" data-n="1" style="--tc:#6366f1"><b>1<small>問</small></b><span>サクッと</span></button>
           <button class="time-btn" type="button" data-n="5" style="--tc:#2563eb"><span class="lk"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7.5 10.5V8a4.5 4.5 0 0 1 9 0v2.5" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round"/><rect x="4.5" y="10" width="15" height="11" rx="2.6" fill="#fff"/><circle cx="12" cy="14.6" r="1.7" fill="#64748b"/><rect x="11.1" y="15.2" width="1.8" height="3.2" rx=".9" fill="#64748b"/></svg></span><b>5<small>問</small></b><span class="cap">集中ボーナス<br>+1問分</span></button>
-          <button class="time-btn" type="button" data-n="10" style="--tc:#059669"><span class="lk"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7.5 10.5V8a4.5 4.5 0 0 1 9 0v2.5" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round"/><rect x="4.5" y="10" width="15" height="11" rx="2.6" fill="#fff"/><circle cx="12" cy="14.6" r="1.7" fill="#64748b"/><rect x="11.1" y="15.2" width="1.8" height="3.2" rx=".9" fill="#64748b"/></svg></span><b>10<small>問</small></b><span class="cap">集中ボーナス<br>+2問分</span></button>
+          <button class="time-btn" type="button" data-n="10" style="--tc:#059669"><span class="lk"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7.5 10.5V8a4.5 4.5 0 0 1 9 0v2.5" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round"/><rect x="4.5" y="10" width="15" height="11" rx="2.6" fill="#fff"/><circle cx="12" cy="14.6" r="1.7" fill="#64748b"/><rect x="11.1" y="15.2" width="1.8" height="3.2" rx=".9" fill="#64748b"/></svg></span><b>10<small>問</small></b><span class="cap">集中ボーナス<br>+3問分</span></button>
         </div>
         <button class="btn-sub" id="timeCancel" type="button">キャンセル</button>
       </div>
@@ -919,16 +937,24 @@ button {
       <div class="ch-dim" id="chDim"></div>
       <div class="ch-rays" id="chRays"></div>
       <img class="ch-chest" id="chChest" alt="">
-      <div class="ch-rew" id="chRew"><img id="chRewImg" alt=""><span class="ch-new" id="chNew">NEW!</span></div>
+      <div class="ch-rew" id="chRew"><img id="chRewImg" alt=""></div>
+      <div class="ch-smoke" id="chSmoke"></div>
       <div class="ch-cap">
         <div class="ch-stars" id="chStars"></div>
         <h3 id="chTitle"></h3>
         <p id="chSub"></p>
         <button class="btn-main" id="chOpen" type="button">あける！</button>
         <div class="ch-end" id="chEnd" hidden>
-          <button class="btn-main" id="chAgain" type="button">もう一度 さがす</button>
-          <button class="btn-sub" id="chMenu" type="button">ステージえらびにもどる</button>
+          <button class="btn-main" id="chMenu" type="button">メニューにもどる</button>
         </div>
+      </div>
+    </div>
+
+    <div class="modal" id="tzFail" hidden>
+      <div class="modal-box">
+        <h3>ざんねん！ まちがえちゃった</h3>
+        <p class="sub">しんちょうに！ たからさがしは まちがえると おしまいだよ。<br>メニューから また ちょうせんしてね！</p>
+        <button class="btn-main" id="tzMenu" type="button" style="margin-top:14px">メニューにもどる</button>
       </div>
     </div>
 
@@ -944,7 +970,7 @@ button {
         </div>
         <p class="zk-tip">すきな なかまを タップすると、トップページに かざれるよ！</p>
         <div class="zk-body" id="zkBody"></div>
-        <div class="zk-toast" id="zkToast">トップに かざったよ！</div>
+        <div class="zk-done" id="zkDone" hidden><span>トップに かざったよ！</span><button type="button" id="zkOk">OK</button></div>
       </div>
     </div>
 
@@ -993,6 +1019,9 @@ const FF_SVG = '<svg class="ico" viewBox="0 0 20 16" aria-hidden="true"><path d=
 const STORE_KEY = 'otatools.hissan.v1';
 let saved = {};
 try { saved = JSON.parse(localStorage.getItem(STORE_KEY) || '{}') || {}; } catch (e) { saved = {}; }
+// デバッグ用: ?debugclear でデータぜんぶ消す ／ ?debugall でレインボー以外の全キャラ＋レベルMAX
+const DBG_CLEAR = /[?&]debugclear\b/.test(location.search), DBG_ALL = /[?&]debugall\b/.test(location.search);
+if (DBG_CLEAR) { try { localStorage.removeItem(STORE_KEY); } catch (e) {} saved = {}; }
 if (!saved.bestTime) saved.bestTime = {};   // コースごと・問題数ごとの いちばん速いタイム（秒）
 if (!saved.played5) saved.played5 = {};     // 5問を1回でもクリアしたコース
 function persist() { try { localStorage.setItem(STORE_KEY, JSON.stringify(saved)); } catch (e) {} }
@@ -1165,20 +1194,31 @@ const missingImg = new Set();
 /**
  * lv 0 はたまご（たまるとひびが入る）。lv 1〜15 は images/course{コース}-{lv}.webp
  */
+const imgOk = new Set();
+function preloadPets() {
+  Object.keys(STAGES).forEach(k => { for (let l = 1; l <= MAX_LV; l++) {
+    const src = `images/course${STAGES[k].lv}-${l}.webp`;
+    if (imgOk.has(src) || missingImg.has(src)) continue;
+    const im = new Image(); im.decoding = 'async';
+    im.onload = () => imgOk.add(src); im.onerror = () => missingImg.add(src); im.src = src;
+  } });
+}
 function makePet(el, stage, lv, crack) {
   const st = STAGES[stage];
   el.classList.remove('has-img');
   if (lv <= 0) { el.innerHTML = placeholderSvg(st, crack ? 1 : 0); return; }
-  el.innerHTML = placeholderSvg(st, lv >= 10 ? 4 : lv >= 4 ? 3 : 2);   // 画像が読めないときの仮の絵
   const src = `images/course${st.lv}-${lv}.webp`;
-  if (missingImg.has(src)) return;
+  const ph = () => placeholderSvg(st, lv >= 10 ? 4 : lv >= 4 ? 3 : 2);   // 画像が読めないときだけの仮の絵
+  if (missingImg.has(src)) { el.innerHTML = ph(); return; }
+  el.innerHTML = '';                      // 読み込み中は なにも出さない（へんな仮キャラを見せない）
   const img = new Image();
   img.alt = '';
   img.decoding = 'async';
-  img.onload = () => { if (img.parentNode === el) el.classList.add('has-img'); };
-  img.onerror = () => { missingImg.add(src); img.remove(); };
+  img.onload = () => { imgOk.add(src); if (img.parentNode === el) el.classList.add('has-img'); };
+  img.onerror = () => { missingImg.add(src); if (img.parentNode === el) { img.remove(); el.innerHTML = ph(); } };
   img.src = src;
   el.appendChild(img);
+  if (img.complete && img.naturalWidth) el.classList.add('has-img');
 }
 function eggCracked(ps) { return ps.lv === 0 && ps.into >= ps.need / 2; }
 
@@ -1527,8 +1567,8 @@ function updateStepStateUI(anim) {
   drawGame(anim);
   if (!currentProblem || currentStepIndex >= currentProblem.steps.length) return;
   const step = currentProblem.steps[currentStepIndex];
-  // Lv.1 からは ガイドに答えを出さない（答えは ヒントで見られる）
-  const hideAns = stateFromXp(sessionStartXp).lv >= 1 && step.hideMsg;
+  // Lv.1 からと 新ステージは ガイドに答えを出さない（答えは ヒントで見られる）
+  const hideAns = (treasure || stateFromXp(sessionStartXp).lv >= 1) && step.hideMsg;   // 新ステージ（たからさがし）は さいしょから ガイドに 答えを出さない
   showGuide(step.stepName, hideAns ? step.hideMsg : step.message, false);
   ['tateru', 'kakeru', 'hiku', 'orosu'].forEach(t => $('tab-' + t).classList.toggle('on', t === step.stepName));
 }
@@ -1751,6 +1791,7 @@ function newProblem() {
    まちがいポップアップ（1.8秒は入力できない）
    ============================================================ */
 function showWrongPopup(msg) {
+  if (treasure) { showTreasureFail(); return; }
   if (isWrongPopupShowing) return;
   isWrongPopupShowing = true;
   sound.play('wrong');
@@ -1816,7 +1857,7 @@ function openTimeSelectModal(stage) {
     const lock = lockReason(stage, n);
     b.classList.toggle('locked', !!lock);
     const cap = b.querySelector('.cap');
-    if (cap) cap.innerHTML = lock || (n === 5 ? '集中ボーナス<br>+1問分' : '集中ボーナス<br>+2問分');
+    if (cap) cap.innerHTML = lock || (n === 5 ? '集中ボーナス<br>+1問分' : '集中ボーナス<br>+3問分');
   });
   $('timeModal').hidden = false;
 }
@@ -1835,6 +1876,14 @@ function fmtTimeJa(sec) { sec = Math.max(0, Math.round(sec)); const m = Math.flo
    ============================================================ */
 if (!Array.isArray(saved.seen)) saved.seen = ['1-0'];
 const STAGE_KEYS = Object.keys(STAGES);   // stage1〜stage5
+if (DBG_ALL) {
+  const total = PROBLEMS_PER_LV.reduce((x, y) => x + y, 0) * XP_PER_PROBLEM;   // MAXまでの エネルギー
+  const all = [];
+  STAGE_KEYS.forEach((k, i) => { saved.pets[k] = total; for (let l = 0; l <= MAX_LV; l++) all.push(`${i + 1}-${l}`); });
+  saved.seen = all; saved.nsUnlocked = true;   // レインボー(saved.rb)は そのまま
+  persist();
+}
+if (DBG_CLEAR || DBG_ALL) { try { history.replaceState(null, '', location.pathname + location.hash); } catch (e) {} }   // 2回目の読みこみで もういちど 実行されないように ?〜 を消す
 
 /* ============================================================
    新ステージ（5コースぜんぶ MAX で かいほう）
@@ -1843,7 +1892,7 @@ const NS_DEBUG = /[?&]newstage\b/.test(location.search);   // 動作かくにん
 if (!saved.rb) saved.rb = { own: [], miss: 0 };
 if (!Array.isArray(saved.rb.own)) saved.rb.own = [];
 if (typeof saved.rb.miss !== 'number') saved.rb.miss = 0;
-const RB_COL = { c1: '#f472b6', c2: '#a855f7', c3: '#7e22ce', c4: '#f3e8ff', bg1: '#fff1f8', bg2: '#ece9ff', ac: '#a855f7' };
+const RB_COL = { c1: '#f9a8d4', c2: '#ec4899', c3: '#be185d', c4: '#fce7f3', bg1: '#fff1f7', bg2: '#fde6f0', ac: '#ec4899' };   // 宝箱のなかま＝ピンク
 const NEW_STAGES = [
   { k: 1, name: 'もり',     art: 'stage1', spot: [78.5, 53], course: 1, chars: 'A05 A07 C01 C02 C05 C06 C07 D01 D02 D04 D05 D06 D07 D08 D09 D10 D12 D13 D15 D16'.split(' ') },
   { k: 2, name: 'うみ',     art: 'stage2', spot: [17.5, 73], course: 2, chars: 'A01 A08 A12 A15 H01 H03 H04 H05 H06 H07 H08 H09 H10 H11 H12 H13 H14 H15 H16 J09'.split(' ') },
@@ -1853,6 +1902,7 @@ const NEW_STAGES = [
   { k: 6, name: 'しんでん', art: 'stage6', spot: [85, 55],   course: 0, chars: 'A06 A10 A14 C12 C13 E03 E08 I06 I16 J01 J02 J03 J04 J06 J10 J11 J12 J13 J15 J16'.split(' ') }
 ];
 const RB_TOTAL = 120;
+const TZ_PROBLEMS = 2;   // たからばこが出るまでの問題数
 // 宝箱の絵（ステージごと ①〜⑦）
 const TIER_BOX = {
   1: ['M01', 'M03', 'K1-1', 'K1-2', 'K1-3', 'M15', 'M16'], 2: ['M01', 'M03', 'K2-1', 'K2-2', 'K2-3', 'M15', 'M16'],
@@ -1864,6 +1914,7 @@ const BOX_W2 = [27, 26, 16, 13, 8, 5, 5];      // 箱が出る%（相性あり�
 const BOX_C  = [1, 3, 15, 50, 85, 100, 100];   // あけたとき キャラが出る%
 const rand = (arr) => arr[Math.floor(Math.random() * arr.length)];
 
+function rbOwnedView() { return NS_DEBUG ? NEW_STAGES.reduce((a, x) => a.concat(x.chars), []) : saved.rb.own; }   // ?newstage のときは ぜんぶ ひらいた ことにして みせる
 function allMax() { return NS_DEBUG || STAGE_KEYS.every(k => petState(k).isMax); }
 function nsColors(k) { return k === 6 ? RB_COL : STAGES['stage' + k]; }
 function makeRb(el, id) {
@@ -1875,7 +1926,7 @@ function makeRb(el, id) {
 }
 function currentFav() {
   const f = saved.fav || '1-0';
-  if (f.startsWith('rb:')) return saved.rb.own.includes(f.slice(3)) ? f : '1-0';
+  if (f.startsWith('rb:')) return rbOwnedView().includes(f.slice(3)) ? f : '1-0';
   return ownedList().includes(f) ? f : '1-0';
 }
 // セットしている（左上の）キャラの色が ステージに あうか
@@ -1895,34 +1946,44 @@ function pickTier(k) {
   for (let i = 0; i < 7; i++) { r -= w[i]; if (r < 0) return i; }
   return 6;
 }
+// 同じ子は 出ない。出せる子がいない（このステージを出しきって 他ステージ側も 出ない）ときは null（からっぽ）
 function pickChar(k) {
   const own = new Set(saved.rb.own);
   const mine = NEW_STAGES[k - 1].chars;
   const left = mine.filter(id => !own.has(id));
-  if (left.length) return { id: rand(left), isNew: true };          // このステージの 手に入れていない子を さきに
+  if (left.length) return { id: rand(left) };                      // このステージの 手に入れていない子を さきに
   const others = [];
   NEW_STAGES.forEach(s => { if (s.k !== k) s.chars.forEach(id => { if (!own.has(id)) others.push(id); }); });
-  if (others.length && Math.random() < 0.5) return { id: rand(others), isNew: true };   // 出しきったら 50%で ほかのステージの子
-  return { id: rand(mine), isNew: false };
+  if (others.length && Math.random() < 0.5) return { id: rand(others) };   // 出しきったら 50%で ほかのステージの子
+  return null;
 }
 
+// 120体ぜんぶ そろっている → 宝箱は かならず からっぽ
+function allRbOwned() { const own = new Set(saved.rb.own); return NEW_STAGES.every(s => s.chars.every(id => own.has(id))); }
 let treasure = null;        // 宝さがし中: { k }
 let nsIdx = Math.max(0, Math.min(5, saved.nsIdx || 0));
 function buildNsHero() {
   const hero = document.querySelector('.hero');
   const on = allMax();
   hero.classList.toggle('ns', on);
-  if (!on) return;
+  if (!on) { syncMatch(); return; }
   const s = NEW_STAGES[nsIdx];
   stageColors(hero, nsColors(s.k));
-  hero.style.setProperty('--gobg', s.k === 6 ? 'linear-gradient(90deg,#f472b6,#fbbf24,#34d399,#60a5fa,#a78bfa)' : '');
+  hero.style.setProperty('--gobg', '');
   const panel = $('nsPanel');
-  panel.innerHTML = `<img class="nsart" src="images/stage/${s.art}.webp" alt=""><span class="nsspot" style="left:${s.spot[0]}%;top:${s.spot[1]}%"></span>`;
+  panel.innerHTML = `<img class="nsart" src="images/stage/${s.art}.webp" alt="">`;
   $('nsNo').textContent = `ステージ${s.k}`;
   $('nsName').textContent = s.name;
   $('nsDots').innerHTML = NEW_STAGES.map((x, i) => `<i class="${i === nsIdx ? 'on' : ''}"></i>`).join('');
   const own = new Set(saved.rb.own);
-  $('nsCnt').textContent = `このステージの なかま ${s.chars.filter(id => own.has(id)).length} / ${s.chars.length}`;
+  const got = s.chars.filter(id => own.has(id)).length;
+  $('nsCnt').textContent = `このステージの なかま ${got} / ${s.chars.length}`;
+  syncMatch();
+}
+function syncMatch() {
+  const on = allMax() && nsAffinity(NEW_STAGES[nsIdx].k);
+  $('buddyBtn').classList.toggle('match', !!on);
+  $('nsPanel').classList.toggle('match', !!on);
 }
 function nsMove(d) {
   sound.play('tap');
@@ -1935,7 +1996,7 @@ function startTreasure() {
   const s = NEW_STAGES[nsIdx];
   treasure = { k: s.k };
   $('chestModal').hidden = true;
-  startGame('stage4', 5);
+  startGame('stage4', TZ_PROBLEMS);
 }
 function updateTreasureCard(force) {
   const s = NEW_STAGES[treasure.k - 1];
@@ -1951,35 +2012,39 @@ function updateTreasureCard(force) {
   $('xpNext').innerHTML = left > 0 ? `たからばこまで あと <b>${left}</b>問` : 'たからばこが あらわれる！';
 }
 
+/* --- たからさがしは まちがえたら おしまい --- */
+function showTreasureFail() {
+  if (isWrongPopupShowing) return;
+  isWrongPopupShowing = true;
+  gameActive = false; stopTimer();
+  sound.play('wrong');
+  $('tzFail').hidden = false;
+}
 /* --- たからばこの 演出 --- */
 let chPhase = 0, chTier = 0;
 const STAR_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 2.6 2.9 6 6.6.9-4.8 4.6 1.2 6.5L12 17.4l-5.9 3.2 1.2-6.5L2.5 9.5l6.6-.9z" fill="#fde047" stroke="#b45309" stroke-width="1.4" stroke-linejoin="round"/></svg>';
 const STAR_OFF = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 2.6 2.9 6 6.6.9-4.8 4.6 1.2 6.5L12 17.4l-5.9 3.2 1.2-6.5L2.5 9.5l6.6-.9z" fill="rgba(255,255,255,.18)" stroke="rgba(255,255,255,.5)" stroke-width="1.4" stroke-linejoin="round"/></svg>';
-const TIER_TITLE = ['ふつうの たからばこ', 'ふつうの たからばこ', 'ちょっと いい たからばこ', 'いい たからばこだ！', 'きたいできる たからばこだ！', 'これは かくていだ！', 'きらきらの たからばこ！ かくていだ！'];
+const TIER_TITLE = ['ふつうの たからばこ', 'ふつうの たからばこ', 'ちょっと いい たからばこ', 'いい たからばこだ！', 'きたいできる たからばこだ！', 'すごい たからばこだ！', 'きらきらの たからばこ！'];
 function showChest() {
   gameActive = false; isTransition = false; stopTimer();
   const k = treasure.k, s = NEW_STAGES[k - 1];
-  chTier = pickTier(k); chPhase = 0;
+  chTier = allRbOwned() ? 0 : pickTier(k); chPhase = 0;   // かならず からっぽ のときは いちばん しょぼい箱(①)
   const id = TIER_BOX[k][chTier];
   $('chBg').style.backgroundImage = `url(images/stage/${s.art}.webp)`;
-  $('chChest').src = `images/chest/${id}.webp`;
-  $('chStars').innerHTML = chTier <= 4 ? Array.from({ length: 5 }, (_, i) => i <= chTier ? STAR_SVG : STAR_OFF).join('') : '<span style="color:#fde047">かくてい！</span>';
+  { const c0 = $('chChest'); c0.onload = () => c0.style.setProperty('--f', (c0.naturalWidth / 300).toFixed(3)); c0.src = `images/chest/${id}.webp`; }
+  $('chStars').innerHTML = Array.from({ length: 7 }, (_, i) => i <= chTier ? STAR_SVG : STAR_OFF).join('');
   $('chTitle').textContent = 'たからばこを みつけた！';
   $('chSub').textContent = TIER_TITLE[chTier];
   $('chOpen').hidden = false; $('chOpen').textContent = 'あける！'; $('chEnd').hidden = true;
   const ch = $('chChest'), dim = $('chDim'), rays = $('chRays'), rew = $('chRew');
   ch.classList.remove('wob'); ch.getAnimations && ch.getAnimations().forEach(a => a.cancel());
-  ch.style.opacity = 0; rays.style.opacity = 0; rew.style.opacity = 0; $('chNew').style.display = 'none'; dim.style.opacity = 0;
+  ch.style.opacity = 0; rays.style.opacity = 0; rew.style.opacity = 0; dim.style.opacity = 0;
   $('chestModal').hidden = false;
-  // かくれていた たからばこの ばしょから とびだす
-  const W = $('app').clientWidth, H = $('app').clientHeight, side = Math.max(W, H);
-  const sx = (W - side) / 2 + s.spot[0] / 100 * side, sy = (H - side) / 2 + s.spot[1] / 100 * side;
-  const dx = sx - W / 2, dy = sy - H * (isPortrait ? 0.40 : 0.42);
   sound.play('hint');
   if (dim.animate) dim.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 600, fill: 'forwards' }); else dim.style.opacity = 1;
   if (ch.animate) {
     ch.animate([
-      { transform: `translate(${dx}px,${dy}px) scale(.18)`, opacity: 0 },
+      { transform: 'translate(0,14px) scale(.2)', opacity: 0 },
       { opacity: 1, offset: .2 },
       { transform: 'translate(0,0) scale(1.08)', opacity: 1, offset: .8 },
       { transform: 'translate(0,0) scale(1)', opacity: 1 }
@@ -1997,20 +2062,30 @@ function openChest() {
   $('chOpen').hidden = true;
   const hit = Math.random() * 100 < BOX_C[chTier];
   let res = null;
-  if (hit) { res = pickChar(k); if (res.isNew) saved.rb.own.push(res.id); saved.rb.miss = 0; }
+  if (hit) res = pickChar(k);
+  if (res) { saved.rb.own.push(res.id); saved.rb.miss = 0; }
   else saved.rb.miss++;
   persist();
-  if (ch.animate) ch.animate([
-    { transform: 'translateX(0) rotate(0)' }, { transform: 'translateX(-10px) rotate(-5deg)' }, { transform: 'translateX(10px) rotate(5deg)' },
-    { transform: 'translateX(-8px) rotate(-4deg)' }, { transform: 'translateX(8px) rotate(4deg)' }, { transform: 'translateX(0) rotate(0)' }
-  ], { duration: 700, easing: 'ease-in-out' });
+  // ガタガタ… 中心を軸に その場で ぐらぐら（左右10度 × 2〜3往復）しながら すこし ふくらんで、もどる
+  if (ch.animate) {
+    const E = 'ease-in-out';
+    ch.animate([
+      { transform: 'rotate(0deg) scale(1)', offset: 0, easing: E },
+      { transform: 'rotate(0deg) scale(1.01)', offset: .07, easing: E },
+      { transform: 'rotate(-10deg) scale(1.04)', offset: .20, easing: E },
+      { transform: 'rotate(9deg) scale(1.07)', offset: .36, easing: E },
+      { transform: 'rotate(-10deg) scale(1.09)', offset: .52, easing: E },
+      { transform: 'rotate(7deg) scale(1.08)', offset: .68, easing: E },
+      { transform: 'rotate(-3deg) scale(1.04)', offset: .84, easing: E },
+      { transform: 'rotate(0deg) scale(1)', offset: 1 }
+    ], { duration: 900 });
+  }
   T(() => {
     if (res) {
       sound.play('evolve');
       makeRbImg($('chRewImg'), res.id);
-      $('chNew').style.display = res.isNew ? 'block' : 'none';
       $('chTitle').textContent = 'なかまを ゲット！';
-      $('chSub').textContent = res.isNew ? 'あたらしい なかまが やってきた！ なかまずかんを みてみよう' : 'もう なかまに なっている子だよ！';
+      $('chSub').textContent = 'あたらしい なかまが やってきた！ なかまずかんを みてみよう';
       rays.style.opacity = 1;
       if (rays.animate) rays.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 500, fill: 'forwards' });
       if (ch.animate) ch.animate([{ transform: 'scale(1)', opacity: 1 }, { transform: 'scale(1.6)', opacity: 0 }], { duration: 450, fill: 'forwards', easing: 'ease-out' });
@@ -2018,20 +2093,43 @@ function openChest() {
       if (rew.animate) rew.animate([{ transform: 'scale(.1) rotate(-20deg)', opacity: 0 }, { transform: 'scale(1.15) rotate(4deg)', opacity: 1, offset: .65 }, { transform: 'scale(1) rotate(0)', opacity: 1 }], { duration: 750, easing: 'ease-out', fill: 'forwards' });
     } else {
       sound.play('wrong');
-      $('chTitle').textContent = 'からっぽだった…';
-      $('chSub').textContent = 'でも だいじょうぶ！ つぎは きっと みつかるよ';
-      if (ch.animate) ch.animate([{ transform: 'scale(1)', opacity: 1 }, { transform: 'scale(.9) translateY(14px)', opacity: .35 }], { duration: 600, fill: 'forwards' });
+      $('chTitle').textContent = 'たからばこからは なにも でてこなかった…';
+      { const own = new Set(saved.rb.own), stageDone = NEW_STAGES[treasure.k - 1].chars.every(id => own.has(id));
+        $('chSub').textContent = allRbOwned() ? 'なかまは ぜんぶ あつめたよ！ すごい！' : stageDone ? 'ちがうステージも さがしてみよう！' : 'もういちど ちょうせんしてみよう！'; }
+      smokePuff();
+      if (ch.animate) ch.animate([{ transform: 'scale(1)', opacity: 1 }, { transform: 'scale(1.15)', opacity: 1, offset: .35 }, { transform: 'scale(.6)', opacity: 0 }], { duration: 650, fill: 'forwards', easing: 'ease-in' });
     }
     $('chStars').innerHTML = '';
     $('chEnd').hidden = false;
     renderBuddy(); buildNsHero();
-  }, 750);
+  }, 950);
+}
+// からっぽのとき: けむりが ぼわんと ひろがって きえる
+const SMOKE_USE = [1, 3, 12, 15];
+function smokePuff() {
+  const box = $('chSmoke');
+  box.innerHTML = '';
+  const n = SMOKE_USE[Math.floor(Math.random() * SMOKE_USE.length)];
+  const img = document.createElement('img');
+  img.src = `images/smoke/s${String(n).padStart(2, '0')}.webp`;
+  img.alt = ''; img.draggable = false;
+  const w = 380;
+  img.style.cssText = `position:absolute;left:${-w / 2}px;top:${-w / 2}px;width:${w}px;opacity:0;pointer-events:none;-webkit-user-drag:none`;
+  box.appendChild(img);
+  if (img.animate) img.animate([
+    { transform: 'scale(.25)', opacity: 0 },
+    { transform: 'scale(1)', opacity: 1, offset: .3 },
+    { transform: 'scale(1.08) translateY(-10px)', opacity: 1, offset: .62 },
+    { transform: 'scale(1.3) translateY(-34px)', opacity: 0 }
+  ], { duration: 1700, easing: 'ease-out', fill: 'forwards' });
+  else img.style.opacity = 1;
 }
 function makeRbImg(img, id) { img.src = `images/rainbow/rb_${id}.webp`; }
 
 
 function ownedList() {
   const list = [];
+  if (NS_DEBUG) { STAGE_KEYS.forEach((k, i) => { for (let l = 0; l <= MAX_LV; l++) list.push(`${i + 1}-${l}`); }); return list; }   // ?newstage: ぜんぶ ひらく
   STAGE_KEYS.forEach((key, idx) => {
     const c = idx + 1;
     const xp = saved.pets[key] || 0;
@@ -2053,6 +2151,7 @@ function renderBuddy() {
     document.documentElement.style.setProperty('--bg2', RB_COL.bg2);
     document.documentElement.style.setProperty('--accent', RB_COL.ac);
     $('buddyBtn').classList.toggle('has-new', hasNew());
+    syncMatch();
     return;
   }
   const [c, l] = fav.split('-').map(Number);
@@ -2063,10 +2162,12 @@ function renderBuddy() {
   document.documentElement.style.setProperty('--bg2', bst.bg2);
   document.documentElement.style.setProperty('--accent', bst.ac);   // タイトルの文字の色も
   $('buddyBtn').classList.toggle('has-new', hasNew());
+  syncMatch();
 }
 
 function openZukan() {
   sound.play('tap');
+  $('zkDone').hidden = true;
   const owned = ownedList();
   const seen = new Set(saved.seen);
   const fav = currentFav();
@@ -2103,11 +2204,11 @@ function openZukan() {
     body.appendChild(sec);
   });
   if (allMax()) {   // レインボー（5コースぜんぶ MAX になるまで かくれている。もっている子だけ ならぶ）
-    const myRb = NEW_STAGES.reduce((a, s) => a.concat(s.chars), []).filter(id => saved.rb.own.includes(id));
+    const myRb = NEW_STAGES.reduce((a, s) => a.concat(s.chars), []).filter(id => rbOwnedView().includes(id));
     const sec = document.createElement('div');
     sec.className = 'zk-course';
     stageColors(sec, RB_COL);
-    sec.innerHTML = `<h4>レインボー　${myRb.length} / ${RB_TOTAL}</h4><div class="zk-grid"></div>` + (myRb.length ? '' : '<p class="zk-tip" style="margin:8px 4px 0">あたらしい ステージの たからばこから なかまを みつけよう！</p>');
+    sec.innerHTML = `<h4>宝箱　${myRb.length} / ${RB_TOTAL}</h4><div class="zk-grid"></div>` + (myRb.length ? '' : '<p class="zk-tip" style="margin:8px 4px 0">あたらしい ステージの たからばこから なかまを みつけよう！</p>');
     const grid = sec.querySelector('.zk-grid');
     myRb.forEach(id => {
       const b = document.createElement('button');
@@ -2138,8 +2239,9 @@ function chooseFav(k) {
   sound.play('ok');
   document.querySelectorAll('#zkBody .zk-item').forEach(el => el.classList.toggle('fav', el.dataset.k === k));
   renderBuddy();
-  const t = $('zkToast');
-  if (t.animate) t.animate([{ opacity: 0, transform: 'translate(-50%, 8px)' }, { opacity: 1, transform: 'translate(-50%, 0)', offset: .2 }, { opacity: 1, offset: .8 }, { opacity: 0 }], { duration: 1400 });
+  const t = $('zkDone');
+  t.hidden = false;
+  if (t.animate) t.animate([{ opacity: 0, transform: 'translate(-50%, 10px)' }, { opacity: 1, transform: 'translate(-50%, 0)' }], { duration: 260, easing: 'ease-out' });
   const bb = $('buddyPet');
   if (bb.animate) bb.animate([{ transform: 'scale(.6)' }, { transform: 'scale(1.15)' }, { transform: 'scale(1)' }], { duration: 380 });
 }
@@ -2240,8 +2342,8 @@ function showResult(kind) {
   const unlocks = [];
   let isNew = false;
   if (isClear) {
-    // 集中ボーナス（5問は1問分、10問は2問分）
-    const bonusProblems = selectedCount === 10 ? 2 : selectedCount === 5 ? 1 : 0;
+    // 集中ボーナス（5問は1問分、10問は3問分）
+    const bonusProblems = selectedCount === 10 ? 3 : selectedCount === 5 ? 1 : 0;
     const bonus = bonusProblems * XP_PER_PROBLEM;
     if (bonus > 0) {
       saved.pets[currentStage] = (saved.pets[currentStage] || 0) + bonus;
@@ -2401,6 +2503,7 @@ function returnToMenu() {
   $('wrongModal').hidden = true;
   $('evoModal').hidden = true;
   $('chestModal').hidden = true;
+  $('tzFail').hidden = true;
   treasure = null;
   isPaused = false;
   $('gameScreen').hidden = true;
@@ -2490,12 +2593,12 @@ window.addEventListener('keydown', (e) => {
 
 // モーダルが開いている間は、拡大縮小した箱の外側も同じ色で暗くする
 function syncShade() {
-  const open = ['timeModal', 'wrongModal', 'resultModal', 'evoModal', 'zukanModal', 'chestModal'].filter(id => !$(id).hidden);
+  const open = ['timeModal', 'wrongModal', 'resultModal', 'evoModal', 'zukanModal', 'chestModal', 'tzFail'].filter(id => !$(id).hidden);
   $('shade').hidden = open.length === 0;
   $('shade').classList.toggle('light', open.length === 1 && open[0] === 'wrongModal');
 }
 const shadeObserver = new MutationObserver(syncShade);
-['timeModal', 'wrongModal', 'resultModal', 'evoModal', 'zukanModal', 'chestModal'].forEach(id => shadeObserver.observe($(id), { attributes: true, attributeFilter: ['hidden'] }));
+['timeModal', 'wrongModal', 'resultModal', 'evoModal', 'zukanModal', 'chestModal', 'tzFail'].forEach(id => shadeObserver.observe($(id), { attributes: true, attributeFilter: ['hidden'] }));
 
 $('nsPrev').addEventListener('click', () => nsMove(-1));
 $('nsNext').addEventListener('click', () => nsMove(1));
@@ -2503,15 +2606,17 @@ $('nsGo').addEventListener('click', startTreasure);
 $('nsPanel').addEventListener('click', startTreasure);
 $('chOpen').addEventListener('click', openChest);
 $('chChest').addEventListener('click', openChest);
-$('chAgain').addEventListener('click', startTreasure);
+$('tzMenu').addEventListener('click', () => { $('tzFail').hidden = true; returnToMenu(); });
 $('chMenu').addEventListener('click', returnToMenu);
 $('buddyBtn').addEventListener('click', openZukan);
 $('zkClose').addEventListener('click', closeZukan);
+$('zkOk').addEventListener('click', closeZukan);
 $('zukanModal').addEventListener('click', (e) => { if (e.target === $('zukanModal')) closeZukan(); });
 
 applySoundIcon();
 buildLevelList();
 renderBuddy();
+setTimeout(preloadPets, 600);
 buildNsHero();
 fitToWindow();
 ['resize', 'pageshow'].forEach(t => window.addEventListener(t, fitToWindow));
