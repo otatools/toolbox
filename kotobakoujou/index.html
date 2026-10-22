@@ -20443,7 +20443,7 @@
         });
     }
     // 絵を かきなおしたら IMG_V を かえる → ブラウザに のこった ふるい絵ではなく あたらしい絵を よみなおす
-    var IMG_V = '20261022f';
+    var IMG_V = '20261022g';
     function vsrc(u) { return (u && /^(custom|pack\d+)\//.test(u) && u.indexOf('?') < 0) ? u + '?v=' + IMG_V : u; }
     function loadFirst(urls) {
         if (!urls.length) return Promise.resolve(null);
@@ -20724,6 +20724,7 @@
                 btnMaybe._guess = null;
             } else {
                 msgEl.textContent = 'まだ つくれない ことば みたい';
+                try { refreshIfOld(function () { msgEl.textContent = 'あたらしい ばんに なおすよ…'; }); } catch (e) {}
                 try { if (window.__logUnknown && !CONJ_HIT) window.__logUnknown(word, false, guess); } catch (e) {}
                 btnFix.hidden = false;
                 btnMaybe.hidden = true;
@@ -20925,7 +20926,7 @@
     /* ---------- タブを あけっぱなしでも あたらしい ばんに なる ---------- */
     // ひらいた ときの index.html の ばんごうを おぼえて、「つぎの ことば」を おしたとき、
     // 1じかん いじょう たっていたら サーバーに きいて、かわっていたら じどうで よみなおす
-    var APP_TAG = null, APP_CHECKED = Date.now(), APP_GAP = 60 * 60 * 1000;
+    var APP_TAG = null, APP_CHECKED = Date.now(), APP_GAP = 10 * 60 * 1000;
     function appTag(cb) {
         try {
             if (!/^https?:$/.test(location.protocol) || !window.fetch) return cb(null);
@@ -20935,6 +20936,18 @@
         } catch (e) { cb(null); }
     }
     appTag(function (t) { APP_TAG = t; });
+    // 「まだ つくれない ことば」が でたとき：ふるい ばんの せいかも しれないので、すぐ サーバーに きく
+    function refreshIfOld(onNew) {
+        if (!APP_TAG) return;
+        APP_CHECKED = Date.now();
+        appTag(function (t) {
+            if (t && t !== APP_TAG) { try { if (onNew) onNew(); } catch (e) {} setTimeout(function () { try { location.reload(); } catch (e) {} }, 1500); }
+        });
+    }
+    // タブを また ひらいたとき・ときどき：あそんでいない（ことば を うっていない）ときだけ、あたらしい ばんか しらべる
+    document.addEventListener('visibilitychange', function () { if (!document.hidden) maybeRefreshApp(); });
+    window.addEventListener('focus', function () { maybeRefreshApp(); });
+    setInterval(function () { if (!document.hidden) maybeRefreshApp(); }, 5 * 60 * 1000);
     function maybeRefreshApp() {
         if (!APP_TAG || Date.now() - APP_CHECKED < APP_GAP) return;
         APP_CHECKED = Date.now();
