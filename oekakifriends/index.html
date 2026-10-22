@@ -230,7 +230,7 @@
             <button class="btn btn-sub" onclick="backToSelect()">もどる</button>
         </div>
 
-        <div class="footer">お絵かきクイズ フレンズ | Ver 3.3 | ota tools</div>
+        <div class="footer">お絵かきクイズ フレンズ | Ver 3.4 | ota tools</div>
     </div>
 
     <script>
@@ -301,7 +301,7 @@
         // （ensureVersionOk参照）。すでにキャッシュされた古いページがそのまま動いていて、
         // 新しいバージョンの人と混ざって遊ぶと、部屋の中のデータの形が食いちがって
         // おかしな動きになることがあるのを防ぐため。
-        const APP_VERSION = "3.3";
+        const APP_VERSION = "3.4";
         function isVersionOlder(a, b) {
             const pa = String(a).split('.').map(n => parseInt(n, 10) || 0);
             const pb = String(b).split('.').map(n => parseInt(n, 10) || 0);
@@ -522,12 +522,17 @@
         // 結果を待たずに裏でこっそり実行する（失敗しても部屋作成そのものには影響させない）。
         function cleanupStaleFinishedRooms() {
             const STALE_AFTER_MS = 6 * 60 * 60 * 1000; // 6時間
-            db.ref('casual_rooms').orderByChild('state/phase').equalTo('final').once('value')
+            // 【通信量の注意】以前は「phaseがfinalの部屋」で探していたが、その条件だと
+            // Firebase側で絞りこめず（インデックスが無いため）、部屋を作るたびに全部屋の
+            // 情報を丸ごとダウンロードしていた。「作られてから6時間以上たった部屋」だけを、
+            // createdAtの古い順に最大50件だけ取ってくるようにする（ルール側に
+            // ".indexOn": ["createdAt"] を入れておくと、サーバー側で絞りこまれる）。
+            db.ref('casual_rooms').orderByChild('createdAt').endAt(Date.now() - STALE_AFTER_MS).limitToFirst(50).once('value')
                 .then(snap => {
                     const now = Date.now();
                     snap.forEach(child => {
                         const room = child.val();
-                        if (room && room.createdAt && (now - room.createdAt) > STALE_AFTER_MS) {
+                        if (room && room.createdAt && (now - room.createdAt) > STALE_AFTER_MS && room.state && room.state.phase === 'final') {
                             db.ref(`casual_rooms/${child.key}`).remove().catch(() => {});
                         }
                     });
@@ -694,50 +699,5 @@
             location.href = 'room.html';
         }
     </script>
-<script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-    import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-    import { getFirestore, doc, setDoc, updateDoc, increment, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-
-    const firebaseConfig = {
-        apiKey: "AIzaSyB4fpt6ffIuTBDJo_9g37kYr6KOWNgIcEY",
-        authDomain: "otatoolssite.firebaseapp.com",
-        projectId: "otatoolssite",
-        storageBucket: "otatoolssite.firebasestorage.app",
-        messagingSenderId: "20522292752",
-        appId: "1:20522292752:web:22fba7fecb61736593dc95"
-    };
-
-    // アプリ固有のID
-    const THIS_APP_ID = "33"; 
-    
-    const PORTAL_APP_ID = "otatoolssite-v1";
-    const app = initializeApp(firebaseConfig);
-    const db = getFirestore(app);
-    const auth = getAuth(app);
-    signInAnonymously(auth).then(async () => {
-        const todayStr = new Date().toISOString().split('T')[0];
-        const storageKey = `ota_visited_${THIS_APP_ID}`;
-        
-        if (localStorage.getItem(storageKey) === todayStr) {
-            return;
-        }
-        const docRef = doc(db, 'artifacts', PORTAL_APP_ID, 'public', 'data', 'app_views', THIS_APP_ID);
-                try {
-            const docSnap = await getDoc(docRef);
-            if (docSnap.exists()) {
-                await updateDoc(docRef, { count: increment(1) });
-            } else {
-                await setDoc(docRef, { count: 1 }); 
-            }
-            localStorage.setItem(storageKey, todayStr);
-        } catch (e) { 
-            console.error("閲覧数のカウントに失敗しました:", e); 
-        }
-    }).catch((error) => {
-        console.error("Firebase認証エラー:", error);
-    });
-</script>
-
 </body>
 </html>

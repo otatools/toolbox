@@ -587,7 +587,7 @@ canvas { touch-action: none; -webkit-user-select: none; user-select: none; }
         </div>
         <button type="button" class="btn btn-sub" style="margin-top:10px;" onclick="leaveRoomToMenu()">メインメニューへもどる</button>
     </div>
-    <div class="lobby-version-footer">お絵かきクイズ フレンズ | Ver 3.3 | ota tools</div>
+    <div class="lobby-version-footer">お絵かきクイズ フレンズ | Ver 3.4 | ota tools</div>
     </div>
 </div>
 
@@ -785,7 +785,7 @@ const db = firebase.database();
 // 通常index.html側のチェックを通ってからしか来ないはずだが、ブックマークや
 // タブを開いたままにしていた場合など、直接ここに来るケースの保険として
 // こちらにも同じチェックを入れておく。
-const APP_VERSION = "3.3";
+const APP_VERSION = "3.4";
 function isVersionOlder(a, b) {
     const pa = String(a).split('.').map(n => parseInt(n, 10) || 0);
     const pb = String(b).split('.').map(n => parseInt(n, 10) || 0);
@@ -1973,7 +1973,7 @@ function isVeryDarkColor(hex) {
 // 折り返す（このサイズ探し自体は失敗にせず、いちばん小さいサイズのまま折り返させる）。
 function fitTextOneLine(el, containerEl, sizes) {
     const cs = getComputedStyle(containerEl);
-    const availableWidth = containerEl.clientWidth - parseFloat(cs.paddingLeft || 0) - parseFloat(cs.paddingRight || 0);
+    const availableWidth = Math.max(containerEl.clientWidth, document.documentElement.clientWidth * 0.92) - parseFloat(cs.paddingLeft || 0) - parseFloat(cs.paddingRight || 0);
     el.style.whiteSpace = 'nowrap';
     let chosenSize = sizes[sizes.length - 1];
     for (const size of sizes) {
@@ -2128,6 +2128,53 @@ function computeSidebarCapacity() {
 //  ・それより多く、左右半分ずつなら通常サイズで入る → 左右に半分ずつ
 //  ・それでも入らない（40人など） → 名前タグは出さない。ふきだしは画面上の「ふきだし置き場」に
 //    名前つきで出す（crowdedMode=true）。キーボードなどは左右いっぱいまで使える。
+// 【通信量の大事な注意】部屋の情報（casual_rooms/{room}）を丸ごと1本の.on('value')で
+// 見ると、だれかの点数・正解フラグ・接続状態など、部屋の中の1か所が変わるたびに
+// 部屋の情報ぜんぶ（参加者40人分など）が全員に送りなおされ、通信量の大半を占めていた。
+// そこで、項目ごと（state・progress・settingsなど）に分けて見張り、参加者（users）は
+// 1人ずつの単位（child_added/changed/removed）で受け取る。こうすると、変わった部分だけが
+// 届く。受け取った部分をこの端末の中で組み立てなおして、今までと同じ形の「部屋の情報」
+// として、今までどおりのしくみ（下のsubscribeRoomDataに渡す処理）に渡す。
+// usedWords（このゲームで出たお題の一覧）はホストが必要なときにonceで読むだけなので見張らない。
+// 1回の書きこみで複数の項目が変わったとき（update()）は、同じタイミングでまとめて届くので、
+// 少し待ってから1回だけ処理する（途中の半端な状態で画面を作らないため）。
+const ROOM_VALUE_KEYS = ['hostUid', 'createdAt', 'settings', 'turnOrder', 'progress', 'state', 'hostSessionId', 'pendingSettings'];
+function subscribeRoomData(onData) {
+    const parts = {};
+    const users = {};
+    const loaded = {};
+    let usersLoaded = false;
+    let scheduled = false;
+    function dispatch() {
+        scheduled = false;
+        if (!usersLoaded || !ROOM_VALUE_KEYS.every(k => loaded[k])) return; // 最初は全部そろってから
+        const data = {};
+        ROOM_VALUE_KEYS.forEach(k => { if (parts[k] !== null && parts[k] !== undefined) data[k] = parts[k]; });
+        if (Object.keys(users).length > 0) data.users = { ...users };
+        onData(Object.keys(data).length > 0 ? data : null);
+    }
+    function schedule() {
+        if (scheduled) return;
+        scheduled = true;
+        // setTimeoutだと、裏に回したタブ（ホストのタブなど）で最大1分おくれることがあるので使わない
+        Promise.resolve().then(dispatch);
+    }
+    const base = `casual_rooms/${myRoom}`;
+    ROOM_VALUE_KEYS.forEach(k => {
+        db.ref(`${base}/${k}`).on('value', vsnap => {
+            parts[k] = vsnap.val();
+            loaded[k] = true;
+            schedule();
+        });
+    });
+    const usersRef = db.ref(`${base}/users`);
+    usersRef.on('child_added', c => { users[c.key] = c.val(); schedule(); });
+    usersRef.on('child_changed', c => { users[c.key] = c.val(); schedule(); });
+    usersRef.on('child_removed', c => { delete users[c.key]; schedule(); });
+    // 参加者の最初の一覧がそろったことを知るためだけの1回読み（child_addedと同じ場所なので、
+    // データ自体は1回しか送られてこない）。
+    usersRef.once('value').then(() => { usersLoaded = true; schedule(); });
+}
 let latestRoomData = null;     // 部屋の情報の最新のコピー（部屋のリスナーが更新する）
 let hostOutOfTriesMap = {};    // ホストだけ：いまのお題で答える回数を使いきった人（uid -> お題キー）
 // 出来事（回数を使いきった人）が変わった時にも、部屋の情報が変わった時と同じ判定をする
@@ -2458,8 +2505,7 @@ authReady.then(async () => {
         });
     }
 
-    db.ref(`casual_rooms/${myRoom}`).on('value', snap => {
-        const data = snap.val();
+    subscribeRoomData(data => {
         latestRoomData = data;
         // data.stateが無い場合も「部屋が無い」のと同じあつかいにする。ロビー中に
         // 更新（リロード）すると、切断のごく一瞬だけ「部屋ごと自動削除」onDisconnectが
@@ -3781,6 +3827,49 @@ function floodFillOn(targetCtx, w, h, rawX, rawY, fillColorHex) {
     }
     targetCtx.putImageData(imgData, 0, 0);
 }
+</script>
+<script>
+// ロビー画面（部屋の設定・参加者の画面）を、ウィンドウの大きさに合わせて拡大・縮小する。
+// パソコンなど横幅がある画面では、箱の幅が680pxまでで止まって左右があまり、ウィンドウが
+// 低いと下が切れてスクロールが必要だった。そこで、ふだんの大きさ（zoom=1）の箱の
+// 幅・高さをはかり、「ウィンドウにちょうど収まる倍率」を求めてCSSのzoomで一括して拡大縮小する。
+// 倍率が変わっても中のレイアウトは変わらない（そのまま全体が大きく・小さくなる）ので、
+// 計算は常にzoom=1の状態ではかった値で行う。スマホなど狭い画面（640px未満）は今までどおり。
+(function () {
+    const screenEl = document.getElementById('lobbyScreen');
+    const wrap = screenEl && screenEl.querySelector('.lobby-box-wrap');
+    if (!wrap) return;
+    const MARGIN = 0.96, MIN_ZOOM = 0.5, MAX_ZOOM = 2.5;
+    let rafId = 0, applying = false;
+    function reset() {
+        wrap.style.zoom = ''; wrap.style.width = ''; wrap.style.maxWidth = '';
+    }
+    function fit() {
+        rafId = 0;
+        if (screenEl.style.display === 'none' || window.innerWidth < 640) { reset(); return; }
+        applying = true;
+        reset();
+        const w1 = wrap.offsetWidth, h1 = wrap.offsetHeight;
+        if (w1 > 0 && h1 > 0) {
+            const z = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, (window.innerWidth * MARGIN) / w1, (window.innerHeight * MARGIN) / h1));
+            wrap.style.maxWidth = 'none';
+            wrap.style.width = w1 + 'px';
+            wrap.style.zoom = String(z);
+        }
+        // この関数自身が起こしたスタイル変更を、下の監視が拾って無限に繰り返さないようにする
+        setTimeout(() => { applying = false; }, 0);
+    }
+    function schedule() { if (!rafId) rafId = requestAnimationFrame(fit); }
+    window.addEventListener('resize', schedule);
+    window.addEventListener('orientationchange', schedule);
+    new MutationObserver(muts => {
+        if (applying) return;
+        if (muts.every(m => m.target === wrap && m.type === 'attributes')) return;
+        schedule();
+    }).observe(screenEl, { childList: true, subtree: true, attributes: true, characterData: true, attributeFilter: ['style', 'class', 'hidden'] });
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(schedule);
+    schedule();
+})();
 </script>
 </body>
 </html>
