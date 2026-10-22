@@ -99,6 +99,7 @@ button {
   border-radius: 999px; font-weight: 800; white-space: nowrap;
 }
 .svg-ico { display: block; }
+.svg-ico[hidden] { display: none; }
 
 /* ============================================================
    メニュー画面
@@ -564,11 +565,11 @@ button {
   font-size: 13px; font-weight: 800; color: var(--ink-2); background: #eef3f8; line-height: 1;
 }
 .help-btn:active { background: #dde6ef; }
-.help-btn b { font-size: 11px; padding: 3px 6px; border-radius: 8px; background: #cbd5e1; color: #fff; }
+.help-btn b { font-size: 11px; padding: 3px 0; width: 32px; text-align: center; border-radius: 8px; background: #cbd5e1; color: #fff; }
 .help-btn.on { background: #ffe4ea; color: #be123c; }
 .help-btn.on b { background: #e11d48; }
 .is-portrait .help-btn { height: 38px; padding: 0 7px; font-size: 11px; gap: 3px; }
-.is-portrait .help-btn b { font-size: 10px; padding: 2px 4px; }
+.is-portrait .help-btn b { font-size: 10px; padding: 2px 0; width: 28px; }
 .lines { position: absolute; left: 0; top: 0; overflow: visible; pointer-events: none; z-index: 3; }
 
 /* せいかい スタンプ */
@@ -747,13 +748,14 @@ button {
   background: var(--gobg, linear-gradient(180deg, var(--c1), var(--c2))); box-shadow: 0 5px 0 var(--c3, #333);
   text-shadow: 0 1px 0 rgba(0,0,0,.25); touch-action: manipulation; -webkit-tap-highlight-color: transparent;
 }
+.ns-go .ns-ico { width: 34px; height: 34px; flex: none; object-fit: contain; margin: -4px 0; pointer-events: none; filter: drop-shadow(0 1px 0 rgba(0,0,0,.25)); }
 .ns-go:active { transform: translateY(4px); box-shadow: 0 1px 0 var(--c3, #333); }
 .ns-cnt { text-align: center; font-size: 12px; font-weight: 800; color: var(--ink-2); }
 .is-portrait .ns-title b { font-size: 16px; }
 .is-portrait .ns-title small { font-size: 10px; }
 .is-portrait .ns-arrow { width: 32px; height: 32px; border-radius: 11px; }
 .is-portrait .ns-go { height: 42px; font-size: 14px; border-radius: 13px; gap: 5px; }
-.is-portrait .ns-go .svg-ico { width: 18px; height: 18px; }
+.is-portrait .ns-go .ns-ico { width: 28px; height: 28px; margin: -3px 0; }
 .is-portrait .ns-cnt { font-size: 10.5px; }
 
 /* --- たからばこ --- */
@@ -827,7 +829,7 @@ button {
           </div>
           <div class="ns-dots" id="nsDots"></div>
           <button class="ns-go" id="nsGo" type="button">
-            <svg class="svg-ico" width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 11.5C3 7.4 7 5 12 5s9 2.4 9 6.5V19H3z" fill="#fff"/><path d="M3 11.5h18" stroke="rgba(0,0,0,.25)" stroke-width="1.6"/><rect x="10" y="10" width="4" height="4.6" rx="1" fill="rgba(0,0,0,.35)"/></svg>
+            <img class="ns-ico" src="images/icon/ic01.png" alt="" draggable="false">
             たからばこを さがす！
           </button>
           <div class="ns-cnt" id="nsCnt"></div>
@@ -1126,8 +1128,9 @@ function toggleHelper() {
   if (gameActive && currentProblem) drawGame();
 }
 function applySoundIcon() {
-  $('icoSoundOn').hidden = sound.muted;
-  $('icoSoundOff').hidden = !sound.muted;
+  // SVG要素には .hidden が ないので、属性で切りかえる
+  $('icoSoundOn').toggleAttribute('hidden', !!sound.muted);
+  $('icoSoundOff').toggleAttribute('hidden', !sound.muted);
 }
 function toggleSound() {
   sound.muted = !sound.muted;
@@ -1366,10 +1369,10 @@ function analyzeProblem(dividend, divisor) {
     const lineLen = Math.max(prodStr.length, String(currentWorkingVal).length);
     subtractionLines.push({ r: currentRow, c: qCol - lineLen + 1, cols: lineLen, stepIndexTrigger: steps.length });
     // くり上がり（ほじょ表示用）: 割る数の右の位から 1けたずつ かけたときの くり上がり。
-    // まだ かける位が のこっているときだけ、つぎの（左どなりの）マスに 小さく出す
+    // くり上がりが あるときは、つぎの（左どなりの）マスに 小さく出す（いちばん左の位のあとは、そのまま左の数字になる）
     const carryAt = [];
     { let cr = 0; const dd = divisorStr.split('').reverse().map(Number);
-      for (let j = 0; j < dd.length; j++) { const part = dd[j] * qDigit + cr; cr = Math.floor(part / 10); carryAt[j] = (j < dd.length - 1 && cr > 0) ? cr : 0; } }
+      for (let j = 0; j < dd.length; j++) { const part = dd[j] * qDigit + cr; cr = Math.floor(part / 10); carryAt[j] = cr > 0 ? cr : 0; } }
     for (let i = prodStr.length - 1; i >= 0; i--) {
       steps.push({
         carryOut: carryAt[prodStr.length - 1 - i] || 0,
