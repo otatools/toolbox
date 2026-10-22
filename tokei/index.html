@@ -4896,9 +4896,13 @@
             if (homeDisc) homeDisc.classList.add('evo-charge');
             sound.evolveBuild(1.1);
             homeAnimTimers.push(setTimeout(() => {
-                if (homeDisc) homeDisc.classList.remove('evo-charge');
-                if (bubble) { bubble.textContent = oldBubble; delete bubble.dataset.prev; }
                 if (onHomeScreen()) runEvolution();
+                // しんかの がめんが ゆっくり かぶさって みえなくなってから、セリフと ゆれを もとに もどす
+                // （すぐ もどすと、がめんが かわる まえに セリフが 一しゅん もとに もどって みえてしまうため）
+                setTimeout(() => {
+                    if (homeDisc) homeDisc.classList.remove('evo-charge');
+                    if (bubble && bubble.dataset.prev !== undefined) { bubble.textContent = oldBubble; delete bubble.dataset.prev; }
+                }, 1000);
             }, 1200));
         }
 
@@ -5318,22 +5322,6 @@
             initDragInteraction();
         }
 
-        // デバッグ用：URLの末尾に ?xp=数字 を つけて ひらくと、その数字ぶんの スター（けいけんち）が はいる（例：.../tokei/?xp=500）
-        // １回だけ はいる：はいったあとは URL から ?xp を けすので、さいよみこみしても ふえない
-        function applyUrlXp() {
-            try {
-                const u = new URL(location.href);
-                const raw = u.searchParams.get('xp');
-                if (raw === null) return;
-                const n = parseInt(raw, 10);
-                u.searchParams.delete('xp');
-                history.replaceState(null, '', u.pathname + (u.search || '') + u.hash);
-                if (!isFinite(n) || n <= 0) return;
-                state.totalStars += Math.min(n, 99999);
-                saveProgress();
-            } catch (_) { /* noop */ }
-        }
-
         function initApp() {
             drawClockFace();
             initEvents();
@@ -5341,7 +5329,6 @@
             const loaded = loadProgress();
             if (loaded) updateLevelButtonsUI();
             applyUrlSound();
-            applyUrlXp();
             applySoundUI();
             updateMissionUI();
             updateCalBadge();
