@@ -36,12 +36,13 @@
 <main>
   <h1>？になったことば</h1>
   <div class="bar"><button id="reload">最新にする</button><button id="csv">CSVでほぞん（Excel用）</button><button id="exclBtn" disabled>除外に入れる</button><button id="restoreBtn" disabled hidden>全部の方へ戻す</button><button id="del" class="del" disabled>選んだものを消す</button></div>
-  <div class="flt" id="flt"><button data-f="all" class="on">全部<small id="fc_all"></small></button><button data-f="guess">「〇〇？」がでた<small id="fc_guess"></small></button><button data-f="none">？だけ<small id="fc_none"></small></button><button data-f="blocked">使えないことば<small id="fc_blocked"></small></button><button data-f="excl">除外リスト（消えない・CSVに入らない）<small id="fc_excl"></small></button><button data-f="reg">辞書にあるので かくしていたことば<small id="fc_reg"></small></button></div>
+  <div class="flt" id="flt"><button data-f="all" class="on">全部<small id="fc_all"></small></button><button data-f="guess">「〇〇？」がでた<small id="fc_guess"></small></button><button data-f="none">？だけ<small id="fc_none"></small></button><button data-f="blocked">使えないことば<small id="fc_blocked"></small></button><button data-f="junk">存在しないことば（ぐちゃぐちゃ）<small id="fc_junk"></small></button><button data-f="excl">除外リスト（消えない・CSVに入らない）<small id="fc_excl"></small></button><button data-f="reg">辞書にあるので かくしていたことば<small id="fc_reg"></small></button></div>
   <div id="exclAdd" hidden style="margin:8px 0;padding:10px;background:#f4f7ff;border-radius:8px"><div style="font-size:.9em;margin-bottom:4px">ここに ことばを いれると、まとめて 除外リストに くわえます（いくつでも：改行か「、」「,」でくぎる）。こどもが また いれても 除外リストに はいります。</div><textarea id="exclTxt" rows="3" style="width:100%;box-sizing:border-box;font-size:16px"></textarea><button id="exclAddBtn" style="margin-top:6px">除外リストに くわえる</button></div>
   <div id="msg"></div>
   <table><thead><tr><th class="c"><input type="checkbox" id="all" aria-label="ぜんぶ えらぶ"></th><th class="s" data-s="word">ことば<i></i></th><th class="s" data-s="count" style="text-align:right">回数<i></i></th><th class="s" data-s="last">さいご<i></i></th></tr></thead><tbody id="body"></tbody></table>
   <p id="total"></p>
 </main>
+<script src="kanadict.js"></script>
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
 import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
@@ -49,6 +50,7 @@ import { getDatabase, ref, get, remove, update } from "https://www.gstatic.com/f
 const cfg = { apiKey: "AIzaSyBjnWqAcunbf_TBPraMHZRmI1bPjTnFhQU", authDomain: "typing-48f95.firebaseapp.com", databaseURL: "https://typing-48f95-default-rtdb.asia-southeast1.firebasedatabase.app", projectId: "typing-48f95", storageBucket: "typing-48f95.firebasestorage.app", messagingSenderId: "1045024853093", appId: "1:1045024853093:web:3484649a3b1544bb51ca8c" };
 const app = initializeApp(cfg, 'stats'), auth = getAuth(app), db = getDatabase(app);
 let rows = [], filt = 'all', sortKey = 'count', sortDir = -1;
+let LOCALJ = {}; try { LOCALJ = JSON.parse(localStorage.getItem('kotoba.junk') || '{}') || {}; } catch (e) {}
 let LOCAL = {}; try { LOCAL = JSON.parse(localStorage.getItem('kotoba.excl') || '{}') || {}; } catch (e) {}
 function looksRandom(w, kf) {
   if (w.length >= 5 && new Set(w.split('')).size <= 2) return true;
@@ -57,6 +59,44 @@ function looksRandom(w, kf) {
   for (let i = 0; i < w.length; i++) for (let j = i + 3; j <= w.length && j <= i + 12; j++) { if (kf(w.slice(i, j))) for (let k = i; k < j; k++) cov[k] = true; }
   return cov.filter(Boolean).length / w.length < 0.5;
 }
+
+// ===== 「ぜったいに そんざいしない ことば（ぐちゃぐちゃに うった もの）」の はんてい =====
+// 辞書（kanadict.js）の たんごを つなげて つくれない、かつ 4もじ いじょう（または ありえない かな ならび）だけを 「ない」と する。うたがわしい ものは ふくめない。
+const JK = (() => {
+  const P = new Set('のはがをにでともへやかねよ'.split(''));
+  const A = new Set((window.KANA_A || '').split(' ').filter(Boolean)), D = new Set(A);
+  (window.KANA_N || '').split(' ').filter(Boolean).forEach(w => D.add(w));
+  const ENDS = new Set(['た','て','ない','なかった','なくて','ます','ました','ません','ましょう','たい','たく','たかった','ている','てる','ていた','てた','ちゃう','ちゃった','れる','られる','せる','させる','れた','ば','れば','よう','ろ','ず','ぬ','く','くて','かった','くない','さ','み','そう','すぎる','ながら','たり','って','んで','いで','いた','った','んだ','いだ','し']);
+  const SUF = new Set(['だ','です','でした','じゃ','だった','だよ','ね','よ','さん','ちゃん','くん','たち','ら','など','みたい','な','に','で','の','と','も','は','が','を','へ','や','から','まで','より','って','だけ','しか','ほど','こそ']);
+  const STEM = new Set(); A.forEach(d => { if (d.length >= 3 && 'るうくぐすつぬぶむい'.indexOf(d[d.length - 1]) >= 0) STEM.add(d.slice(0, -1)); });
+  const pieceOk = (s, first) => {
+    if (s.length === 1) return P.has(s) && !first;
+    if (D.has(s)) return true;
+    for (let k = 2; k <= s.length; k++) if (STEM.has(s.slice(0, k)) && ENDS.has(s.slice(k))) return true;
+    for (let k = 2; k < s.length; k++) if (D.has(s.slice(0, k)) && SUF.has(s.slice(k))) return true;
+    if (s.length >= 3 && 'っんりと'.indexOf(s[s.length - 1]) >= 0 && D.has(s.slice(0, -1))) return true;
+    return false;
+  };
+  const part = (w, kf) => {
+    const n = w.length;
+    if (n >= 4 && n % 2 === 0 && w.slice(0, n / 2).repeat(2) === w && new Set(w.slice(0, n / 2)).size >= 2) return true;
+    if (n >= 6 && n % 3 === 0 && w.slice(0, n / 3).repeat(3) === w && new Set(w.slice(0, n / 3)).size >= 2) return true;
+    const ok = new Array(n + 1).fill(false); ok[0] = true;
+    for (let i = 0; i < n; i++) { if (!ok[i]) continue;
+      for (let j = i + 1; j <= Math.min(n, i + 16); j++) if (!ok[j] && (pieceOk(w.slice(i, j), i === 0) || (kf && j - i >= 2 && kf(w.slice(i, j))))) ok[j] = true; }
+    return ok[n];
+  };
+  const anomaly = w => /^[っんーぁぃぅぇぉゃゅょゎ]/.test(w) || [...w].some((c, i) => 'ゃゅょ'.indexOf(c) >= 0 && (i === 0 || 'きしちにひみりぎじぢびぴいゐ'.indexOf(w[i - 1]) < 0)) || /っ[あいうえおなにぬねのまみむめもやゆよらりるれろわをんっー]/.test(w) || /(.)\1\1/.test(w);
+  return (w, kf) => {
+    if (!window.KANA_A || !/^[ぁ-ゖー]+$/.test(w)) return false;
+    if (kf && kf(w)) return false;
+    if (D.has(w)) return false;
+    if (/(.)\1\1/.test(w)) return true;
+    if (part(w, kf)) return false;
+    if (/.[ーぁぃぅぇぉ]/.test(w) && !/(.)\1\1/.test(w)) return false;
+    return w.length >= 4 ? true : anomaly(w);
+  };
+})();
 // いまの辞書（index.html）に のっている ことばは ひょうじしない：index.html を かくして よみこみ、__known で しらべる
 const known = new Promise(res => {
   try {
@@ -66,7 +106,7 @@ const known = new Promise(res => {
   } catch (e) { res(null); }
   setTimeout(() => res(null), 20000);
 });
-const pass = r => filt === 'excl' ? r.excl : filt === 'reg' ? (r.reg && !r.excl) : !r.excl && !r.reg && (filt === 'all' || (filt === 'guess' ? !!r.guess && !r.blocked : filt === 'none' ? !r.guess && !r.blocked : r.blocked));
+const pass = r => filt === 'excl' ? r.excl : filt === 'junk' ? (r.junk && !r.excl) : filt === 'reg' ? (r.reg && !r.excl) : !r.excl && !r.reg && !r.junk && (filt === 'all' || (filt === 'guess' ? !!r.guess && !r.blocked : filt === 'none' ? !r.guess && !r.blocked : r.blocked));
 const fmt = d => d ? d.getFullYear() + '/' + (d.getMonth()+1) + '/' + d.getDate() + ' ' + String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0') : '';
 async function load() {
   const msg = document.getElementById('msg'); msg.textContent = '';
@@ -74,27 +114,29 @@ async function load() {
     if (!auth.currentUser) await signInAnonymously(auth);
     const snap = await get(ref(db, 'kotoba_unknown'));
     const v = snap.val() || {};
-    rows = Object.keys(v).map(k => ({ key: k, word: v[k].word || k, count: v[k].count || 0, last: v[k].last ? new Date(v[k].last) : null, blocked: !!v[k].blocked, guess: v[k].guess || '', hit: v[k].hit || '', exclv: v[k].excl }));
+    rows = Object.keys(v).map(k => ({ key: k, word: v[k].word || k, count: v[k].count || 0, last: v[k].last ? new Date(v[k].last) : null, blocked: !!v[k].blocked, guess: v[k].guess || '', hit: v[k].hit || '', exclv: v[k].excl, junkv: v[k].junk }));
     const kf = await known;
     rows.forEach(r => {
       r.reg = !!kf && !r.blocked && !!kf(r.word);
       const ov = r.exclv !== undefined ? r.exclv : LOCAL[r.key];
-      r.excl = ov !== undefined ? !!ov : (!r.blocked && !r.reg && !r.guess && looksRandom(r.word, kf));
+      r.excl = ov !== undefined ? !!ov : false;
+      const jv = r.junkv !== undefined ? r.junkv : LOCALJ[r.key];
+      r.junk = jv !== undefined ? !!jv : (!r.excl && !r.blocked && !r.reg && !r.guess && (looksRandom(r.word, kf) || JK(r.word, kf)));
     });
     rows.sort((a, b) => b.count - a.count || (b.last||0) - (a.last||0));
     render();
   } catch (e) { msg.textContent = 'よみこめませんでした：' + e.message; }
 }
 function render() {
-    ['all','guess','none','blocked','excl','reg'].forEach(f => { const o = filt; filt = f; document.getElementById('fc_' + f).textContent = rows.filter(pass).length; filt = o; });
+    ['all','guess','none','blocked','junk','excl','reg'].forEach(f => { const o = filt; filt = f; document.getElementById('fc_' + f).textContent = rows.filter(pass).length; filt = o; });
     document.querySelectorAll('#flt button').forEach(b => b.classList.toggle('on', b.dataset.f === filt));
     const cmp = (x, y) => { const a = x[0], b = y[0]; let d = sortKey === 'word' ? a.word.localeCompare(b.word, 'ja') : sortKey === 'last' ? (a.last || 0) - (b.last || 0) : a.count - b.count; if (!d) d = sortKey === 'count' ? (b.last || 0) - (a.last || 0) : a.word.localeCompare(b.word, 'ja'); return d * sortDir; };
     const shown = rows.map((r, i) => [r, i]).filter(x => pass(x[0])).sort(cmp);
     document.querySelectorAll('th.s').forEach(h => { h.querySelector('i').textContent = h.dataset.s === sortKey ? (sortDir > 0 ? '▲' : '▼') : ''; });
     document.getElementById('body').innerHTML = shown.map(([r, i]) => '<tr data-i="' + i + '"' + (r.blocked ? ' style="background:#fff0f0"' : '') + '><td class="c"><input type="checkbox" class="chk" data-i="' + i + '"></td><td>' + r.word.replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])) + (r.blocked ? ' <small style="color:#a33a3a">【使えないことば' + (r.hit ? '：「' + r.hit.replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])) + '」にひっかかった' : '') + '】</small>' : '') + (r.guess ? ' <small style="color:#2f6f9f">→ 「' + r.guess.replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])) + '？」と表示</small>' : '') + '</td><td class="n">' + r.count + '</td><td>' + fmt(r.last) + '</td></tr>').join('');
     document.getElementById('all').checked = false; updSel();
-    document.getElementById('restoreBtn').hidden = filt !== 'excl'; document.getElementById('exclBtn').hidden = filt === 'excl';
-    document.getElementById('del').hidden = filt === 'excl'; document.getElementById('csv').disabled = filt === 'excl'; document.getElementById('exclAdd').hidden = filt !== 'excl';
+    document.getElementById('restoreBtn').hidden = filt !== 'excl' && filt !== 'junk'; document.getElementById('exclBtn').hidden = filt === 'excl';
+    document.getElementById('del').hidden = filt === 'excl'; document.getElementById('csv').disabled = filt === 'excl' || filt === 'junk'; document.getElementById('exclAdd').hidden = filt !== 'excl';
     const hid = rows.filter(r => r.reg && !r.excl).length;
     const sr = shown.map(x => x[0]);
     document.getElementById('total').textContent = sr.length + 'しゅるい／ごうけい ' + sr.reduce((s, r) => s + r.count, 0) + '回' + (hid ? '（辞書にあるので ひょうじしていない ことば：' + hid + 'しゅるい。「ぜんぶ えらぶ」で けすと、これも いっしょに きえます）' : '');
@@ -148,8 +190,24 @@ async function setExcl(val) {
   }
   render();
 }
+async function setJunk(val) {
+  const sel = chks().filter(c => c.checked).map(c => rows[+c.dataset.i]);
+  if (!sel.length) return;
+  const msg = document.getElementById('msg'); msg.textContent = '';
+  try {
+    if (!auth.currentUser) await signInAnonymously(auth);
+    const u = {}; sel.forEach(r => { u[r.key + '/junk'] = val; });
+    await update(ref(db, 'kotoba_unknown'), u);
+    sel.forEach(r => { r.junk = val; r.junkv = val; });
+  } catch (e) {
+    sel.forEach(r => { LOCALJ[r.key] = val; r.junk = val; });
+    try { localStorage.setItem('kotoba.junk', JSON.stringify(LOCALJ)); } catch (e2) {}
+    msg.textContent = 'サーバーに かきこめなかったので、このブラウザだけに きおくしました：' + e.message;
+  }
+  render();
+}
 document.getElementById('exclBtn').onclick = () => setExcl(true);
-document.getElementById('restoreBtn').onclick = () => setExcl(false);
+document.getElementById('restoreBtn').onclick = () => filt === 'junk' ? setJunk(false) : setExcl(false);
 
 document.getElementById('exclAddBtn').onclick = async () => {
   const ws = Array.from(new Set(document.getElementById('exclTxt').value.split(/[\n\r,、，\t]+/).map(w => w.replace(/[.$#\[\]\/\s]/g, '')).filter(w => w && w.length <= 20)));
