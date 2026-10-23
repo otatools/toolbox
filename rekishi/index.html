@@ -1278,7 +1278,7 @@ document.addEventListener('wheel', function(e){ if(e.ctrlKey) e.preventDefault()
    ・つながらないとき（オフライン／ファイルを直接開いているとき）は何もしない
    ・同じ版へ何度も読みこみ直して止まらなくならないよう、1つの版につき1回だけ
    ============================================================ */
-var BUILD_ID = '20261022-2250';
+var BUILD_ID = '20261023-1050';
 var updateCheckBusy = false;
 var updateCheckLast = 0;
 var UPDATE_EVERY_MS = 10 * 60 * 1000;   // 前回の確認から10分たっていたら、次にボタンを押したときに確認する
@@ -3524,6 +3524,20 @@ function hcRow(ids, y, w, gap, hi, noMarkers){
   }
   return { html: out, x0: x0, gapX: function(g){ return x0 + g * (w + gap) + gap / 2; } };
 }
+/* 場札の列：open番目に、カードが入る「あいた間（点線のわく）」を作る。▲には置かなくても、カードの間にそのまま入れればOK */
+function hcRowOpen(ids, y, w, gap, open, openW){
+  var n = ids.length, h = Math.round(w * 2.18);
+  var total = n * w + openW + n * gap;
+  var x = Math.round((360 - total) / 2), out = '', cx = 0;
+  for(var i = 0; i <= n; i++){
+    if(i === open){
+      out += '<div style="position:absolute;left:' + x + 'px;top:' + y + 'px;width:' + openW + 'px;height:' + h + 'px;border:3px dashed #c0392b;border-radius:10px;background:rgba(255,232,190,.7)"></div>';
+      cx = x + openW / 2; x += openW + gap;
+    }
+    if(i < n){ out += hcTl(ids[i], x, y, w); x += w + gap; }
+  }
+  return { html: out, cx: cx, bottom: y + h };
+}
 function hcJudge(ok, x, y){
   var src = (document.getElementById(ok ? 'judge-mark-maru' : 'judge-mark-batsu') || {}).src || '';
   return '<img class="howto-judge" alt="" src="' + src + '" style="left:' + x + 'px;top:' + y + 'px">';
@@ -3553,8 +3567,8 @@ var HOWTO = {
     { t: '手札のカードを置こう',
       d: '手札のカードの人物が<b>いつの時代</b>か考えて、入ると思う<b>カードとカードの間</b>へ指で動かそう。▲の上にぴったり置かなくても大丈夫だよ。▲をタップしても置けるよ。',
       draw: function(){
-        var r = hcRow([16, 4, 8], 2, 66, 26, 2);
-        return r.html + hcHand(6, 8, 176, 104, -4) + hcArrow(118, 210, r.gapX(2), 176);
+        var r = hcRowOpen([16, 4, 8], 2, 66, 12, 2, 70);
+        return r.html + hcHand(6, 8, 176, 104, -4) + hcArrow(118, 212, r.cx - 6, r.bottom - 36);
       } },
     { t: '正解すると＋5秒',
       d: '正解すると<b>1枚ゲット</b>！ 制限時間も<b>5秒ふえる</b>よ。はじめの制限時間は<b>30秒</b>。',
@@ -3589,9 +3603,9 @@ var HOWTO = {
     { t: '順番に1枚ずつ置こう',
       d: '名前が<b>赤くかこまれた人の番</b>だよ。自分の番になったら、手札から1枚選んで、入ると思う<b>カードとカードの間</b>へ置こう。',
       draw: function(){
-        var r = hcRow([16, 4, 8], 34, 58, 26, 2);
+        var r = hcRowOpen([16, 4, 8], 34, 58, 12, 2, 62);
         return hcChip('たろう', 74, 0, { me: true, turn: true, cnt: 5 }) + hcChip('はなこ', 196, 0, { cnt: 5 }) +
-          r.html + hcHand(6, 8, 194, 94, -4) + hcArrow(114, 222, r.gapX(2), 194);
+          r.html + hcHand(6, 8, 194, 94, -4) + hcArrow(114, 226, r.cx - 6, r.bottom - 30);
       } },
     { t: 'まちがえたら山札から1枚引く',
       d: '正解でもまちがいでも、出したカードは<b>場札の正しい場所</b>に入るよ。正解なら手札が<b>1枚へる</b>。まちがえると山札から<b>1枚引く</b>ので、手札はへらないよ。',
@@ -4670,6 +4684,5 @@ function renderDebugCardsScreen(){
         console.error("Firebase認証エラー:", error);
     });
 </script>
-
 </body>
 </html>
