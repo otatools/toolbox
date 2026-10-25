@@ -995,7 +995,7 @@ h1{ font-size:1.5rem; text-align:center; letter-spacing:.05em; }
         </g>
       </svg>
 
-      <div class="home-circle"><div class="home-ver">歴史ならべ｜ver.1.0｜ota tools</div></div>
+      <div class="home-circle"><div class="home-ver">歴史ならべ｜ver.1.1｜ota tools</div></div>
     </div>
 
     <div class="home-inner">
@@ -1278,7 +1278,7 @@ document.addEventListener('wheel', function(e){ if(e.ctrlKey) e.preventDefault()
    ・つながらないとき（オフライン／ファイルを直接開いているとき）は何もしない
    ・同じ版へ何度も読みこみ直して止まらなくならないよう、1つの版につき1回だけ
    ============================================================ */
-var BUILD_ID = '20261023-1050';
+var BUILD_ID = '20261025-0940';
 var updateCheckBusy = false;
 var updateCheckLast = 0;
 var UPDATE_EVERY_MS = 10 * 60 * 1000;   // 前回の確認から10分たっていたら、次にボタンを押したときに確認する
@@ -3318,25 +3318,38 @@ function submitRankEntry(){
   var btn = document.getElementById('rank-submit');
   btn.disabled = true;
   var entry = { n: name, p: pref, s: info.score, t: Date.now(), d: rankDevId() };
+  var keys = rankKeys();
+  var hitIds = info.hits.map(function(h){ return h.id; });
   ensureDb().then(function(db){
-    var refs = info.hits.map(function(h){ return db.collection(RANK_COLL).doc(h.key); });
+    // 登録するランキングだけでなく、今の「本日・今週・今月・通算」すべてを読んで、
+    // この端末の過去の記録の名前・地域も、いま入れた名前にそろえる
+    var refs = RANK_BOARDS.map(function(b){ return db.collection(RANK_COLL).doc(keys[b.id]); });
     return db.runTransaction(function(tx){
       return Promise.all(refs.map(function(r){ return tx.get(r); })).then(function(snaps){
         var out = [];
         snaps.forEach(function(sn, i){
-          var es = cleanEntries(sn.exists ? sn.data().entries : [], info.hits[i].id);
-          if(myBest(es) >= entry.s){ out.push(es); return; }   // すでにこの端末の記録のほうが高い → 変更しない
-          es = es.filter(function(e){ return e.d !== entry.d; }).concat([entry]).sort(rankCmp).slice(0, rankTop(info.hits[i].id));
-          tx.set(refs[i], { entries: es });
+          var id = RANK_BOARDS[i].id, changed = false;
+          var es = cleanEntries(sn.exists ? sn.data().entries : [], id).map(function(e){
+            if(e.d === entry.d && (e.n !== entry.n || (e.p || '') !== entry.p)){
+              changed = true;
+              return { n: entry.n, p: entry.p, s: e.s, t: e.t, d: e.d };
+            }
+            return e;
+          });
+          if(hitIds.indexOf(id) >= 0 && myBest(es) < entry.s){   // 登録するランキング：この端末の記録を新しいものに置きかえる
+            es = es.filter(function(e){ return e.d !== entry.d; }).concat([entry]).sort(rankCmp).slice(0, rankTop(id));
+            changed = true;
+          }
+          if(changed) tx.set(refs[i], { entries: es });
           out.push(es);
         });
         return out;
       });
     });
   }).then(function(out){
-    info.hits.forEach(function(h, i){
-      rankMem[h.key] = { entries: out[i], at: Date.now() };
-      updateThr(h.id, h.key, out[i]);
+    RANK_BOARDS.forEach(function(b, i){
+      rankMem[keys[b.id]] = { entries: out[i], at: Date.now() };
+      updateThr(b.id, keys[b.id], out[i]);
     });
     rankMine = { t: entry.t, s: entry.s, n: entry.n };
     // 本日のランキングに登録したときだけ、本日の「点数ごとの人数」に数える（登録しなかった記録は数えない）
