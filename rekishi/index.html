@@ -934,6 +934,13 @@ h1{ font-size:1.5rem; text-align:center; letter-spacing:.05em; }
 .rank-me[hidden]{ display:none; }
 .rank-me b{ color:var(--accent); font-size:1.2em; }
 .rank-period{ margin-bottom:clamp(8px, 1.6vh, 16px); }
+.rank-period-row{ display:flex; align-items:center; justify-content:center; gap:4px; max-width:22em; margin:0 auto clamp(8px, 1.6vh, 16px); }
+#ranking-screen .rank-period-row{ margin-bottom:clamp(4px, 1vh, 10px); }
+#ranking-screen .rank-period-row .rank-period{ margin:0; flex:1 1 auto; text-align:center; }
+.rank-arrow{ flex:0 0 auto; position:relative; width:34px; height:30px; padding:0; margin:0; -webkit-appearance:none; appearance:none; line-height:0;
+  border:1px solid #b9ae93; background:#fffdf6; color:#3f3a2e; font-family:var(--mincho); font-size:22px; cursor:pointer; }
+.rank-arrow span{ position:absolute; left:50%; top:50%; transform:translate(-50%, -54%); line-height:1; }
+.rank-arrow:active{ background:#efe6cf; }
 .rank-list{ list-style:none; margin:0 auto; padding:0; max-width:22em; font-size:clamp(14px, min(2.55vh, 4.2vw), 22px); text-align:left; }   /* 名前は5文字までなので、横に広げすぎない（行と同じ文字サイズ基準） */
 .rank-row{
   display:grid; grid-template-columns:1.7em minmax(0,1fr) 2.8em 2.2em 2.8em 2.8em; align-items:center; column-gap:5px;   /* 地域・世代・日付・点数は決まった幅にそろえる */
@@ -1019,7 +1026,9 @@ h1{ font-size:1.5rem; text-align:center; letter-spacing:.05em; }
   #ranking-screen .wa-inner{ padding-top:6px; }
   #ranking-screen .wa-title{ font-size:18px; margin-bottom:2px; }
   #ranking-screen .rank-tab{ padding-top:2px; padding-bottom:2px; font-size:13px; }
-  #ranking-screen .rank-period{ margin-bottom:2px; font-size:12px; }
+  #ranking-screen .rank-period{ font-size:12px; }
+  #ranking-screen .rank-period-row{ margin-bottom:2px; }
+  .rank-arrow{ width:30px; height:24px; font-size:18px; }
   .rank-list{ font-size:13px; }
   .rank-row{ font-size:13px; padding-top:1px; padding-bottom:1px; }
   .rank-pages{ grid-template-columns:repeat(10, auto); margin-top:4px; gap:4px; }   /* 横向きは1段に並べる */
@@ -1297,7 +1306,11 @@ h1{ font-size:1.5rem; text-align:center; letter-spacing:.05em; }
         <button type="button" class="wa-chip rank-tab" data-board="m">今月</button>
         <button type="button" class="wa-chip rank-tab" data-board="a">通算</button>
       </div>
-      <p class="wa-note rank-period" id="rank-period"></p>
+      <div class="rank-period-row">
+        <button type="button" class="rank-arrow" id="rank-prev" aria-label="前の日・週・月"><span>‹</span></button>
+        <p class="wa-note rank-period" id="rank-period"></p>
+        <button type="button" class="rank-arrow" id="rank-next" aria-label="新しい日・週・月へ"><span>›</span></button>
+      </div>
       <ol class="rank-list" id="rank-list"></ol>
       <div class="rank-pages" id="rank-pages" hidden></div>
       <p class="rank-me" id="rank-me" hidden></p>
@@ -1369,7 +1382,7 @@ document.addEventListener('wheel', function(e){ if(e.ctrlKey) e.preventDefault()
    ・つながらないとき（オフライン／ファイルを直接開いているとき）は何もしない
    ・同じ版へ何度も読みこみ直して止まらなくならないよう、1つの版につき1回だけ
    ============================================================ */
-var BUILD_ID = '20261026-1910';
+var BUILD_ID = '20261027-0840';
 var updateCheckBusy = false;
 var updateCheckLast = 0;
 var UPDATE_EVERY_MS = 10 * 60 * 1000;   // 前回の確認から10分たっていたら、次にボタンを押したときに確認する
@@ -3122,10 +3135,23 @@ function rankKeys(){
   var mon = new Date(d.getFullYear(), d.getMonth(), d.getDate() - ((d.getDay() + 6) % 7));   // 月曜はじまり
   return { d: 'd-' + rkYmd(d), h: 'h-' + rkYmd(d), w: 'w-' + rkYmd(mon), m: 'm-' + d.getFullYear() + '-' + rkPad(d.getMonth() + 1), a: 'all' };
 }
-function rankPeriodText(id){
+/* 見ているランキングが「いくつ前」か（0＝いま。日は6日前まで、週・月は1つ前まで見られる） */
+var RANK_BACK_MAX = { d: 6, w: 1, m: 1, a: 0 };
+var rankOff = 0;
+function rankKeyAt(id, off){
   var d = new Date();
+  if(id === 'd'){ var dd = new Date(d.getFullYear(), d.getMonth(), d.getDate() - off); return 'd-' + rkYmd(dd); }
+  if(id === 'w'){ var mon = new Date(d.getFullYear(), d.getMonth(), d.getDate() - ((d.getDay() + 6) % 7) - 7 * off); return 'w-' + rkYmd(mon); }
+  if(id === 'm'){ var mm = new Date(d.getFullYear(), d.getMonth() - off, 1); return 'm-' + mm.getFullYear() + '-' + rkPad(mm.getMonth() + 1); }
+  return 'all';
+}
+function rankPeriodText(id, off){
+  off = off || 0;
+  var d = new Date();
+  if(id === 'd') d = new Date(d.getFullYear(), d.getMonth(), d.getDate() - off);
+  if(id === 'm') d = new Date(d.getFullYear(), d.getMonth() - off, 1);
   if(id === 'w'){
-    var mon = new Date(d.getFullYear(), d.getMonth(), d.getDate() - ((d.getDay() + 6) % 7));
+    var mon = new Date(d.getFullYear(), d.getMonth(), d.getDate() - ((d.getDay() + 6) % 7) - 7 * off);
     var sun = new Date(mon.getFullYear(), mon.getMonth(), mon.getDate() + 6);
     return (mon.getMonth() + 1) + '/' + mon.getDate() + '（月）〜 ' + (sun.getMonth() + 1) + '/' + sun.getDate() + '（日）';
   }
@@ -3481,19 +3507,50 @@ function rankStopLive(){
 function selectRankTab(id){
   rankTab = id;
   rankPageAuto = true;     // タブを開いたときは、自分のいるページ（いなければ1〜10位）から
+  rankOff = 0;             // タブを押したら、いつも「いま」のランキングにもどる
   document.querySelectorAll('.rank-tab').forEach(function(b){ b.classList.toggle('selected', b.getAttribute('data-board') === id); });
-  document.getElementById('rank-period').textContent = rankPeriodText(id);
+  rankPaintPeriod();
   rankStartLive(id);
+}
+/* 日付（期間）の表示と、左右の矢印 */
+function rankPaintPeriod(){
+  document.getElementById('rank-period').textContent = rankPeriodText(rankTab, rankOff);
+  var max = RANK_BACK_MAX[rankTab] || 0;
+  document.getElementById('rank-prev').style.visibility = rankOff < max ? 'visible' : 'hidden';   // 古いほうへ
+  document.getElementById('rank-next').style.visibility = rankOff > 0 ? 'visible' : 'hidden';      // 新しいほうへ（いまにもどる）
+}
+function rankNav(delta){
+  var max = RANK_BACK_MAX[rankTab] || 0;
+  var n = Math.max(0, Math.min(max, rankOff + delta));
+  if(n === rankOff) return;
+  rankOff = n;
+  rankPageAuto = true;
+  rankPaintPeriod();
+  rankStartLive(rankTab);
 }
 var rankReqSeq = 0;
 function rankStartLive(id){
   rankStopLive();
-  var key = rankKeys()[id];
+  var key = rankKeyAt(id, rankOff);
+  var past = rankOff > 0;     // 過去のランキングは、もう変わらないので1回だけ読む
   var msg = document.getElementById('rank-msg');
   var mem = rankMem[key];
   if(mem){ msg.textContent = ''; paintRankList(mem.entries); }   // 前に見た内容をとりあえず出しておく（すぐ最新に置きかわる）
   else { document.getElementById('rank-list').innerHTML = ''; msg.textContent = '読みこみ中…'; }
   var seq = ++rankReqSeq;
+  if(past && mem && Date.now() - mem.at < 10 * 60 * 1000) return;   // 少し前に読んだものがあれば、読みなおさない
+  if(past){
+    ensureDb().then(function(db){ return db.collection(RANK_COLL).doc(key).get(); }).then(function(snap){
+      if(seq !== rankReqSeq) return;
+      var entries = cleanEntries(snap.exists ? snap.data().entries : [], id);
+      rankMem[key] = { entries: entries, at: Date.now() };
+      paintRankList(entries);
+    }).catch(function(){
+      if(seq !== rankReqSeq) return;
+      if(!rankMem[key]) msg.textContent = 'ランキングを読みこめませんでした';
+    });
+    return;
+  }
   ensureDb().then(function(db){
     if(seq !== rankReqSeq) return;
     rankUnsub = db.collection(RANK_COLL).doc(key).onSnapshot(function(snap){
@@ -3542,7 +3599,7 @@ function paintRankList(entries){
   var isDay = (rankTab === 'd');
   var myIdx = -1;
   entries.forEach(function(e, i){ if(myIdx < 0 && isMineEntry(e)) myIdx = i; });
-  if(isDay) paintMyDayRank(myIdx);
+  if(isDay && rankOff === 0) paintMyDayRank(myIdx);
   if(!entries.length){ msg.textContent = 'まだ記録がありません'; return; }
   var start = 0, end = entries.length;
   if(isDay){
@@ -3837,10 +3894,12 @@ function openHowto(mode, from){
     if(!b) return;
     rankPage = parseInt(b.getAttribute('data-page'), 10) || 0;
     rankPageAuto = false;
-    var mem = rankMem[rankKeys().d];
+    var mem = rankMem[rankKeyAt('d', rankOff)];
     if(mem) paintRankList(mem.entries);
   });
   document.getElementById('rank-back-btn').addEventListener('click', function(){ rankLeave(); showScreen(rankBack); });
+  document.getElementById('rank-prev').addEventListener('click', function(){ rankNav(1); });
+  document.getElementById('rank-next').addEventListener('click', function(){ rankNav(-1); });
   document.querySelectorAll('.rank-tab').forEach(function(b){
     b.addEventListener('click', function(){ selectRankTab(b.getAttribute('data-board')); });
   });
