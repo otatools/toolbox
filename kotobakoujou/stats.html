@@ -35,7 +35,7 @@
 <body>
 <main>
   <h1>？になったことば</h1>
-  <div class="bar"><button id="reload">最新にする</button><button id="csv">CSVでほぞん（Excel用）</button><button id="exclBtn" disabled>除外に入れる</button><button id="restoreBtn" disabled hidden>全部の方へ戻す</button><button id="del" class="del" disabled>選んだものを消す</button></div>
+  <div class="bar"><button id="reload">最新にする</button><button id="csv">CSVでほぞん（Excel用）</button><button id="exclBtn" disabled>除外に入れる</button><button id="restoreBtn" disabled hidden>選んだものを全部に入れる</button><button id="del" class="del" disabled>選んだものを消す</button></div>
   <div class="flt" id="flt"><button data-f="all" class="on">全部<small id="fc_all"></small></button><button data-f="guess" title="「〇〇？」と表示した言葉">「〇〇？」<small id="fc_guess"></small></button><button data-f="none" title="？だけ表示した言葉">？だけ<small id="fc_none"></small></button><button data-f="blocked" title="使えないことば">使えない<small id="fc_blocked"></small></button><button data-f="junk" title="存在しない言葉（でたらめ入力）">ぐちゃぐちゃ<small id="fc_junk"></small></button><button data-f="excl" title="除外リスト（消えない・CSVに入らない）">除外<small id="fc_excl"></small></button><button data-f="reg" title="辞書にあるので隠していた言葉">辞書にある<small id="fc_reg"></small></button></div>
   <div id="exclAdd" hidden style="margin:8px 0;padding:10px;background:#f4f7ff;border-radius:8px"><div style="font-size:.9em;margin-bottom:4px">ここに ことばを いれると、まとめて 除外リストに くわえます（いくつでも：改行か「、」「,」でくぎる）。こどもが また いれても 除外リストに はいります。</div><textarea id="exclTxt" rows="3" style="width:100%;box-sizing:border-box;font-size:16px"></textarea><button id="exclAddBtn" style="margin-top:6px">除外リストに くわえる</button></div>
   <div id="msg"></div>
@@ -50,6 +50,7 @@ import { getDatabase, ref, get, remove, update } from "https://www.gstatic.com/f
 const cfg = { apiKey: "AIzaSyBjnWqAcunbf_TBPraMHZRmI1bPjTnFhQU", authDomain: "typing-48f95.firebaseapp.com", databaseURL: "https://typing-48f95-default-rtdb.asia-southeast1.firebasedatabase.app", projectId: "typing-48f95", storageBucket: "typing-48f95.firebasestorage.app", messagingSenderId: "1045024853093", appId: "1:1045024853093:web:3484649a3b1544bb51ca8c" };
 const app = initializeApp(cfg, 'stats'), auth = getAuth(app), db = getDatabase(app);
 let rows = [], filt = 'all', sortKey = 'count', sortDir = -1;
+let LOCALB = {}; try { LOCALB = JSON.parse(localStorage.getItem('kotoba.unblk') || '{}') || {}; } catch (e) {}
 let LOCALJ = {}; try { LOCALJ = JSON.parse(localStorage.getItem('kotoba.junk') || '{}') || {}; } catch (e) {}
 let LOCAL = {}; try { LOCAL = JSON.parse(localStorage.getItem('kotoba.excl') || '{}') || {}; } catch (e) {}
 function looksRandom(w, kf) {
@@ -114,7 +115,7 @@ async function load() {
     if (!auth.currentUser) await signInAnonymously(auth);
     const snap = await get(ref(db, 'kotoba_unknown'));
     const v = snap.val() || {};
-    rows = Object.keys(v).map(k => ({ key: k, word: v[k].word || k, count: v[k].count || 0, last: v[k].last ? new Date(v[k].last) : null, blocked: !!v[k].blocked, guess: v[k].guess || '', hit: v[k].hit || '', exclv: v[k].excl, junkv: v[k].junk }));
+    rows = Object.keys(v).map(k => ({ key: k, word: v[k].word || k, count: v[k].count || 0, last: v[k].last ? new Date(v[k].last) : null, blocked: !!v[k].blocked && !(v[k].unblk !== undefined ? v[k].unblk : LOCALB[k]), wasBlocked: !!v[k].blocked, guess: v[k].guess || '', hit: v[k].hit || '', exclv: v[k].excl, junkv: v[k].junk }));
     const kf = await known;
     rows.forEach(r => {
       r.reg = !!kf && !r.blocked && !!kf(r.word);
@@ -135,7 +136,7 @@ function render() {
     document.querySelectorAll('th.s').forEach(h => { h.querySelector('i').textContent = h.dataset.s === sortKey ? (sortDir > 0 ? '▲' : '▼') : ''; });
     document.getElementById('body').innerHTML = shown.map(([r, i]) => '<tr data-i="' + i + '"' + (r.blocked ? ' style="background:#fff0f0"' : '') + '><td class="c"><input type="checkbox" class="chk" data-i="' + i + '"></td><td>' + r.word.replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])) + (r.blocked ? ' <small style="color:#a33a3a">【使えないことば' + (r.hit ? '：「' + r.hit.replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])) + '」にひっかかった' : '') + '】</small>' : '') + (r.guess ? ' <small style="color:#2f6f9f">→ 「' + r.guess.replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])) + '？」と表示</small>' : '') + '</td><td class="n">' + r.count + '</td><td>' + fmt(r.last) + '</td></tr>').join('');
     document.getElementById('all').checked = false; updSel();
-    document.getElementById('restoreBtn').hidden = filt !== 'excl' && filt !== 'junk'; document.getElementById('exclBtn').hidden = filt === 'excl';
+    document.getElementById('restoreBtn').hidden = filt !== 'excl' && filt !== 'junk' && filt !== 'blocked'; document.getElementById('exclBtn').hidden = filt === 'excl';
     document.getElementById('del').hidden = filt === 'excl'; document.getElementById('csv').disabled = filt === 'excl' || filt === 'junk'; document.getElementById('exclAdd').hidden = filt !== 'excl';
     const hid = rows.filter(r => r.reg && !r.excl).length;
     const sr = shown.map(x => x[0]);
@@ -207,7 +208,23 @@ async function setJunk(val) {
   render();
 }
 document.getElementById('exclBtn').onclick = () => setExcl(true);
-document.getElementById('restoreBtn').onclick = () => filt === 'junk' ? setJunk(false) : setExcl(false);
+async function unBlock() {
+  const sel = chks().filter(c => c.checked).map(c => rows[+c.dataset.i]);
+  if (!sel.length) return;
+  const msg = document.getElementById('msg'); msg.textContent = '';
+  try {
+    if (!auth.currentUser) await signInAnonymously(auth);
+    const u = {}; sel.forEach(r => { u[r.key + '/unblk'] = true; });
+    await update(ref(db, 'kotoba_unknown'), u);
+  } catch (e) {
+    sel.forEach(r => { LOCALB[r.key] = true; });
+    try { localStorage.setItem('kotoba.unblk', JSON.stringify(LOCALB)); } catch (e2) {}
+    msg.textContent = 'サーバーに かきこめなかったので、このブラウザだけに きおくしました：' + e.message;
+  }
+  sel.forEach(r => { r.blocked = false; });
+  render();
+}
+document.getElementById('restoreBtn').onclick = () => filt === 'blocked' ? unBlock() : filt === 'junk' ? setJunk(false) : setExcl(false);
 
 document.getElementById('exclAddBtn').onclick = async () => {
   const ws = Array.from(new Set(document.getElementById('exclTxt').value.split(/[\n\r,、，\t]+/).map(w => w.replace(/[.$#\[\]\/\s]/g, '')).filter(w => w && w.length <= 20)));
