@@ -12,6 +12,10 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="theme-color" content="#dff3ea">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="ひっ算マスター">
 <title>教育アプリ｜わり算のひっ算マスター</title>
 <meta name="description" content="「たてる・かける・ひく・おろす」の順番で、わり算のひっ算を1マスずつ書いて身につける練習ゲームです。正解するたびにたまごが育ちます。ota toolsのアプリの1つです。">
 <meta name="author" content="太田圭一">
@@ -66,6 +70,8 @@
 
 html { background: var(--bg2, #dcf0f8); }
 html, body { margin: 0; padding: 0; }
+:root { --safe-t: env(safe-area-inset-top, 0px); --safe-r: env(safe-area-inset-right, 0px); --safe-b: env(safe-area-inset-bottom, 0px); --safe-l: env(safe-area-inset-left, 0px); }
+#safeProbe { position: fixed; left: 0; top: 0; width: 0; height: 0; visibility: hidden; pointer-events: none; padding: var(--safe-t) var(--safe-r) var(--safe-b) var(--safe-l); }
 body {
   height: var(--app-h);
   overflow: hidden;
@@ -857,7 +863,7 @@ button {
       <div class="levels">
         <div id="levelList" style="display:contents"></div>
       </div>
-      <p class="ver">わり算のひっ算マスター｜ver.1.1｜ota tools</p>
+      <p class="ver">わり算のひっ算マスター｜ver.1.2｜ota tools</p>
     </section>
 
     <!-- ===================== ゲーム ===================== -->
@@ -867,7 +873,7 @@ button {
           <svg class="svg-ico" width="20" height="20" viewBox="0 0 20 20" aria-hidden="true"><path d="M12.5 4 6.5 10l6 6" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
           <span id="backText">もどる</span>
         </button>
-        <span class="chip stage-pill" id="stagePill"><span id="stagePillShort">コース1</span><span class="long" id="stagePillLong">1桁でわる</span></span>
+        <span class="chip stage-pill" id="stagePill"><span id="stagePillShort">コース1</span><span class="long" id="stagePillLong">2桁 ÷ 1桁</span></span>
         <span class="spacer"></span>
         <span class="solved">せいかい <b id="solvedCount">0</b> / <span id="goalCount">5</span>問</span>
         <button class="help-btn" id="helpBtn" type="button" aria-label="くり上がりのほじょ（ON/OFF）">ほじょ<b id="helpState">ON</b></button>
@@ -913,7 +919,7 @@ button {
       <div class="modal-box" id="timeBox">
         <div class="pet time-pet" id="timePet"></div>
         <h3>何問 ちょうせんする？</h3>
-        <p class="sub" id="timeStageText">コース1：1桁でわる</p>
+        <p class="sub" id="timeStageText">コース1：2桁 ÷ 1桁</p>
         <div class="time-btns">
           <button class="time-btn" type="button" data-n="1" style="--tc:#6366f1"><b>1<small>問</small></b><span>サクッと</span></button>
           <button class="time-btn" type="button" data-n="5" style="--tc:#2563eb"><span class="lk"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7.5 10.5V8a4.5 4.5 0 0 1 9 0v2.5" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round"/><rect x="4.5" y="10" width="15" height="11" rx="2.6" fill="#fff"/><circle cx="12" cy="14.6" r="1.7" fill="#64748b"/><rect x="11.1" y="15.2" width="1.8" height="3.2" rx=".9" fill="#64748b"/></svg></span><b>5<small>問</small></b><span class="cap">集中ボーナス<br>+1問分</span></button>
@@ -1171,11 +1177,11 @@ function toggleSound() {
    ステージ・モンスターのデータ
    ============================================================ */
 const STAGES = {
-  stage1: { lv: 1, title: '1桁でわる',         ex: '84 ÷ 3、576 ÷ 7',      tag: 'きそ',      c1: '#34d399', c2: '#059669', c3: '#047857', c4: '#d1fae5', bg1: '#e9f8ef', bg2: '#dcf0f8', ac: '#0d9488' },
-  stage2: { lv: 2, title: '2桁でわる（商1桁）', ex: '86 ÷ 21、195 ÷ 32',    tag: 'チャレンジ', c1: '#60a5fa', c2: '#2563eb', c3: '#1d4ed8', c4: '#dbeafe', bg1: '#e6f0ff', bg2: '#dbe8fb', ac: '#2563eb' },
-  stage3: { lv: 3, title: '2桁でわる（商2桁）', ex: '736 ÷ 23、892 ÷ 38',   tag: 'たつじん',   c1: '#a78bfa', c2: '#7c3aed', c3: '#6d28d9', c4: '#ede9fe', bg1: '#f1ecff', bg2: '#e7e1fb', ac: '#7c3aed' },
-  stage4: { lv: 4, title: '4桁のわり算',        ex: '3456 ÷ 8、5412 ÷ 23',  tag: '超達人',     c1: '#fb7185', c2: '#e11d48', c3: '#be123c', c4: '#ffe4e6', bg1: '#ffecef', bg2: '#fbe2e7', ac: '#e11d48' },
-  stage5: { lv: 5, title: '4桁 ÷ 3桁',          ex: '4896 ÷ 153、8452 ÷ 234', tag: '極達人',   c1: '#fbbf24', c2: '#ef4444', c3: '#c2410c', c4: '#fef3c7', bg1: '#fff4df', bg2: '#fde8d0', ac: '#ea580c' }
+  stage1: { lv: 1, title: '2桁 ÷ 1桁',     ex: '56 ÷ 7、84 ÷ 4',      tag: 'きそ',      c1: '#34d399', c2: '#059669', c3: '#047857', c4: '#d1fae5', bg1: '#e9f8ef', bg2: '#dcf0f8', ac: '#0d9488' },
+  stage2: { lv: 2, title: '3桁 ÷ 1桁',            ex: '576 ÷ 7、845 ÷ 6',    tag: 'チャレンジ', c1: '#60a5fa', c2: '#2563eb', c3: '#1d4ed8', c4: '#dbeafe', bg1: '#e6f0ff', bg2: '#dbe8fb', ac: '#2563eb' },
+  stage3: { lv: 3, title: '2桁 ÷ 2桁',            ex: '86 ÷ 21、95 ÷ 32',   tag: 'たつじん',   c1: '#a78bfa', c2: '#7c3aed', c3: '#6d28d9', c4: '#ede9fe', bg1: '#f1ecff', bg2: '#e7e1fb', ac: '#7c3aed' },
+  stage4: { lv: 4, title: '3桁 ÷ 2桁',            ex: '736 ÷ 23、892 ÷ 38',  tag: '超達人',     c1: '#fb7185', c2: '#e11d48', c3: '#be123c', c4: '#ffe4e6', bg1: '#ffecef', bg2: '#fbe2e7', ac: '#e11d48' },
+  stage5: { lv: 5, title: '4桁 ÷ 2桁',            ex: '5412 ÷ 23、8452 ÷ 34', tag: '極達人',   c1: '#fbbf24', c2: '#ef4444', c3: '#c2410c', c4: '#fef3c7', bg1: '#fff4df', bg2: '#fde8d0', ac: '#ea580c' }
 };
 
 /* ============================================================
@@ -1323,30 +1329,35 @@ function generateProblem(stage) {
   const ri = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min;
   const rem = (d) => exact ? 0 : always ? ri(1, d - 1) : Math.floor(Math.random() * d);
   let dividend, divisor;
-  // 範囲の決まっている コース（4桁）は、はみ出したら作り直す（むりに けずると 割り切れなくなるため）
-  for (let tries = 0; tries < 200; tries++) {
-    if (stage === 'stage1') {
-      divisor = ri(2, 9);
-      dividend = ri(12, 91) * divisor + rem(divisor);
-      break;
-    } else if (stage === 'stage2') {
-      divisor = ri(12, 91);
-      dividend = ri(2, 9) * divisor + rem(divisor);
-      break;
-    } else if (stage === 'stage3') {
-      divisor = ri(12, 51);
-      dividend = ri(12, 91) * divisor + rem(divisor);
-      break;
-    } else if (stage === 'stage4') {
-      if (Math.random() > 0.5) { divisor = ri(12, 91); dividend = ri(20, 319) * divisor + rem(divisor); }
-      else { divisor = ri(2, 9); dividend = ri(120, 919) * divisor + rem(divisor); }
-    } else {
-      divisor = ri(102, 901);
-      // わりきれる問題のときは、商が2けた（十の位から商が立つ）にする
-      dividend = ri(exact ? 10 : 2, 31) * divisor + rem(divisor);
+  // わる数の範囲・わられる数の範囲・商の範囲を 指定して つくる（はみ出したら作り直す）
+  const make = (dMin, dMax, vMin, vMax, qMin, qMax) => {
+    for (let t = 0; t < 500; t++) {
+      const d = ri(dMin, dMax);
+      const lo = Math.max(qMin, Math.ceil(vMin / d)), hi = Math.min(qMax, Math.floor(vMax / d));
+      if (lo > hi) continue;
+      const v = ri(lo, hi) * d + rem(d);
+      if (v >= vMin && v <= vMax) return [v, d];
     }
-    if (dividend >= 1000 && dividend <= 9999) break;
+    return null;
+  };
+  let pair = null;
+  if (stage === 'stage1') {          // 小3：九九の わり算 ／ かんたんな 2桁 ÷ 1桁
+    pair = Math.random() < 0.5 ? make(2, 9, 10, 99, 2, 9) : make(2, 9, 20, 99, 10, 99);
+  } else if (stage === 'stage2') {   // 3桁 ÷ 1桁
+    pair = make(2, 9, 100, 999, 11, 999);
+  } else if (stage === 'stage3') {   // 2桁 ÷ 2桁
+    pair = make(11, 49, 20, 99, 2, 9);
+  } else if (stage === 'stage4') {   // 3桁 ÷ 2桁
+    pair = make(11, 99, 100, 999, 2, 99);
+  } else if (stage === 'stage5') {   // 4桁 ÷ 2桁
+    pair = make(11, 99, 1000, 9999, 11, 999);
+  } else {                           // 宝さがし：3桁 ÷ 2桁 ／ 4桁 ÷ 2桁 ／ 3桁 ÷ 3桁（すべて あまりあり）
+    const r = Math.random();
+    pair = r < 0.34 ? make(11, 99, 100, 999, 2, 99)
+         : r < 0.67 ? make(11, 99, 1000, 9999, 11, 999)
+         : make(101, 499, 100, 999, 2, 9);
   }
+  [dividend, divisor] = pair;
   return analyzeProblem(dividend, divisor);
 }
 
@@ -1867,7 +1878,7 @@ function closeEvolve() {
 function newProblem() {
   currentStepIndex = 0;
   filled = {};
-  currentProblem = generateProblem(treasure ? (Math.random() < 0.5 ? 'stage4' : 'stage5') : currentStage);
+  currentProblem = generateProblem(treasure ? 'treasure' : currentStage);
   updateStepStateUI();
 }
 
@@ -2647,6 +2658,12 @@ function setAppHeight() {
   const h = window.visualViewport ? window.visualViewport.height : window.innerHeight;
   if (h > 0) document.documentElement.style.setProperty('--app-h', `${Math.round(h)}px`);
 }
+function safeInsets() {   // ノッチ・ホームバーの ぶん（ふつうの Safari では ぜんぶ 0）
+  let p = $('safeProbe');
+  if (!p) { p = document.createElement('div'); p.id = 'safeProbe'; document.body.appendChild(p); }
+  const cs = getComputedStyle(p);
+  return { t: parseFloat(cs.paddingTop) || 0, r: parseFloat(cs.paddingRight) || 0, b: parseFloat(cs.paddingBottom) || 0, l: parseFloat(cs.paddingLeft) || 0 };
+}
 function fitToWindow() {
   setAppHeight();
   const vw = window.visualViewport ? window.visualViewport.width : window.innerWidth;
@@ -2659,8 +2676,9 @@ function fitToWindow() {
   app.classList.toggle('is-portrait', portrait);
   app.classList.toggle('is-landscape', !portrait);
   const [bw, bh] = portrait ? [460, 860] : [1000, 640];
-  const scale = Math.min((vw - 8) / bw, (vh - 8) / bh, 1.6);
-  app.style.transform = `translate(-50%, -50%) scale(${scale})`;
+  const sf = safeInsets();
+  const scale = Math.min((vw - 8 - sf.l - sf.r) / bw, (vh - 8 - sf.t - sf.b) / bh, 1.6);
+  app.style.transform = `translate(calc(-50% + ${(sf.l - sf.r) / 2}px), calc(-50% + ${(sf.t - sf.b) / 2}px)) scale(${scale})`;
   if (changed) {
     buildKeypad();
     if (!$('gameScreen').hidden) drawGame();
@@ -2717,6 +2735,12 @@ applyHelper();
 buildLevelList();
 renderBuddy();
 setTimeout(preloadPets, 600);
+// あたらしい ステージの絵を 先に ぜんぶ よみこんでおく（はじめて 矢印を おしたとき 灰色に ならないように）
+const nsArtKeep = [];
+function preloadNsArt() {
+  NEW_STAGES.forEach(s => { const im = new Image(); im.decoding = 'async'; im.src = `images/stage/${s.art}.webp`; nsArtKeep.push(im); if (im.decode) im.decode().catch(() => {}); });
+}
+setTimeout(preloadNsArt, 200);
 buildNsHero();
 fitToWindow();
 ['resize', 'pageshow'].forEach(t => window.addEventListener(t, fitToWindow));
