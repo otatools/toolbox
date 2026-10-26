@@ -9,20 +9,52 @@
   gtag('config', 'G-YTH979WTKL');
 </script>
     <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>オンライン回答ボード - Ver 5.5</title>
+    <title>オンライン回答ボード - ver.5.6</title>
     <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-database-compat.js"></script>
     <style>
-        body { background: #0047AB; color: white; font-family: sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; flex-direction: column; }
-        .box { background: rgba(255,255,255,0.2); padding: 40px; border-radius: 20px; width: 400px; text-align: center; border: 1px solid rgba(255,255,255,0.3); }
-        .btn { width: 100%; padding: 18px; border: none; border-radius: 10px; font-weight: bold; cursor: pointer; margin: 15px 0; font-size: 20px; }
+        * { touch-action: manipulation; }
+        :root { --app-h: 100vh; }
+        body { background: #0047AB; color: white; font-family: sans-serif; display: flex; align-items: center; justify-content: center; min-height: var(--app-h); margin: 0; flex-direction: column; padding: 16px 16px 40px; box-sizing: border-box; }
+        .box { background: rgba(255,255,255,0.2); padding: clamp(22px, 3.2vw, 52px); border-radius: 20px; box-sizing: border-box; width: min(100%, clamp(480px, 34vw, 640px)); text-align: center; border: 1px solid rgba(255,255,255,0.3); }
+        .box h2 { font-size: clamp(22px, 1.9vw, 34px); }
+        .btn { width: 100%; padding: clamp(14px, 1.4vw, 24px); border: none; border-radius: 10px; font-weight: bold; cursor: pointer; margin: 15px 0; font-size: clamp(18px, 1.6vw, 28px); }
         .btn-white { background: #fff; color: #0047AB; }
         .btn-gold { background: #ffcc00; color: #333; }
-        .warning { margin-top: 20px; font-size: 14px; background: rgba(0,0,0,0.3); padding: 15px; border-radius: 10px; line-height: 1.6; text-align: left; }
+        .warning { margin-top: 20px; font-size: clamp(13px, 1.1vw, 19px); background: rgba(0,0,0,0.3); padding: 15px; border-radius: 10px; line-height: 1.6; text-align: left; }
+        @media (max-height: 500px) { body { padding: 8px 16px 30px; } .box { padding: 14px 24px; width: min(100%, 520px); } .box h2 { margin: 0 0 4px; font-size: 20px; } .btn { padding: 10px; margin: 8px 0; font-size: 17px; } .warning { margin-top: 8px; padding: 8px 12px; font-size: 12px; line-height: 1.5; } }
         
         /* 全ページ共通のフッターデザイン */
         .footer { position: fixed; bottom: 5px; width: 100%; text-align: center; font-size: 12px; color: rgba(255,255,255,0.4); border-top: 1px solid rgba(255,255,255,0.1); padding-top: 5px; }
     </style></head><body>
+    <script>
+        // iOS: ピンチ拡大の抑止・拡大されたままの自己修復・実際の画面の高さ
+        ['gesturestart', 'gesturechange', 'gestureend'].forEach(type => {
+            document.addEventListener(type, (e) => e.preventDefault(), { passive: false });
+        });
+        function resetZoomIfNeeded() {
+            if (!window.visualViewport || window.visualViewport.scale <= 1.02) return;
+            const meta = document.querySelector('meta[name="viewport"]');
+            if (!meta) return;
+            const original = meta.getAttribute('content');
+            meta.setAttribute('content', original + ', maximum-scale=1.0');
+            requestAnimationFrame(() => meta.setAttribute('content', original));
+        }
+        function setAppHeight() {
+            const el = document.activeElement;
+            if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA')) return;
+            const h = window.visualViewport ? window.visualViewport.height : window.innerHeight;
+            if (h > 0) document.documentElement.style.setProperty('--app-h', `${Math.round(h)}px`);
+        }
+        setAppHeight();
+        ['resize', 'pageshow'].forEach(t => window.addEventListener(t, setAppHeight));
+        window.addEventListener('orientationchange', () => setTimeout(setAppHeight, 250));
+        if (window.visualViewport) {
+            window.visualViewport.addEventListener('resize', () => { setAppHeight(); resetZoomIfNeeded(); });
+            window.visualViewport.addEventListener('scroll', resetZoomIfNeeded);
+        }
+        document.addEventListener('gestureend', () => setTimeout(resetZoomIfNeeded, 50), { passive: true });
+    </script>
     <div class="box">
         <h2 style="margin-top:0">オンライン回答ボード</h2>
         <button class="btn btn-white" onclick="location.href='answer.html'">回答者ページを表示</button>
@@ -33,7 +65,7 @@
         </div>
     </div>
 
-    <div class="footer">オンライン回答ボード | Ver 5.5 | ota tools</div>
+    <div class="footer">オンライン回答ボード | ver.5.6 | ota tools</div>
 
     <script>
         const config = { apiKey: "AIzaSyCQeNeHqy9VbtBv-hYHa7nantsoE6KLigw", authDomain: "ota-tools.firebaseapp.com", databaseURL: "https://ota-tools-default-rtdb.firebaseio.com", projectId: "ota-tools", appId: "1:671143719220:web:c89149c15de830e6d03561" };

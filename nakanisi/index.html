@@ -6,6 +6,12 @@
     <title>Image Sequence Viewer</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
+        /* iPad/iPhone のダブルタップ拡大・長押しメニューを防ぐ */
+        * {
+            touch-action: manipulation;
+            -webkit-touch-callout: none;
+        }
+
         body, html {
             margin: 0;
             padding: 0;
@@ -18,8 +24,8 @@
 
         .container {
             position: relative;
-            width: 100vw;
-            height: 100vh;
+            width: 100%;
+            height: 100%;
             display: flex;
             justify-content: center;
             align-items: center;
@@ -37,7 +43,7 @@
         }
 
         .img-item {
-            height: 95vh;
+            height: 95%;
             width: auto;
             max-width: 50vw;
             object-fit: contain;
@@ -82,10 +88,14 @@
             transform: translateX(-50%);
             z-index: 100;
             background: rgba(40, 40, 40, 0.8);
-            padding: 12px 24px;
+            padding: 12px clamp(12px, 4vw, 24px);
             border-radius: 16px;
             display: flex;
-            gap: 15px;
+            gap: clamp(8px, 3vw, 15px);
+            /* スマホの狭い画面で横にはみ出さないようにする */
+            box-sizing: border-box;
+            width: max-content;
+            max-width: calc(100vw - 24px);
             backdrop-filter: blur(20px);
             border: 1px solid rgba(255,255,255,0.3);
             box-shadow: 0 20px 50px rgba(0,0,0,0.6);
@@ -100,8 +110,11 @@
             padding: 12px 15px;
             outline: none;
             text-align: center;
-            font-size: 1.2rem;
-            width: 220px;
+            font-size: clamp(1.2rem, 1.4vw, 1.6rem);
+            width: clamp(220px, 18vw, 320px);
+            min-width: 0;
+            flex: 1 1 auto;
+            box-sizing: border-box;
             transition: all 0.3s;
         }
 
@@ -118,11 +131,12 @@
             background: #ffffff;
             color: #000000;
             border: none;
-            padding: 10px 30px;
+            padding: 10px clamp(18px, 5vw, 30px);
+            flex-shrink: 0;
             border-radius: 8px;
             cursor: pointer;
             font-weight: bold;
-            font-size: 1.1rem;
+            font-size: clamp(1.1rem, 1.3vw, 1.5rem);
             transition: all 0.3s;
         }
 
@@ -136,9 +150,10 @@
             animation: shakeAnim 0.4s;
         }
         @keyframes shakeAnim {
-            0%, 100% { transform: translateX(0); }
-            25% { transform: translateX(-10px); }
-            75% { transform: translateX(10px); }
+            /* 入力欄の箱は translateX(-50%) で中央に置いているので、ゆれる間もそれを保つ */
+            0%, 100% { transform: translateX(-50%); }
+            25% { transform: translateX(calc(-50% - 10px)); }
+            75% { transform: translateX(calc(-50% + 10px)); }
         }
     </style>
 </head>
@@ -154,6 +169,25 @@
     </div>
 
     <script>
+        // iPad/iPhone の Safari はピンチ拡大を touch-action だけでは止めきれないので、
+        // gesture イベントを止め、それでも拡大されたときは等倍に戻す
+        ['gesturestart', 'gesturechange', 'gestureend'].forEach(type => {
+            document.addEventListener(type, (e) => e.preventDefault(), { passive: false });
+        });
+        function resetZoomIfNeeded() {
+            if (!window.visualViewport || window.visualViewport.scale <= 1.02) return;
+            const meta = document.querySelector('meta[name="viewport"]');
+            if (!meta) return;
+            const original = meta.getAttribute('content');
+            meta.setAttribute('content', original + ', maximum-scale=1.0');
+            requestAnimationFrame(() => meta.setAttribute('content', original));
+        }
+        if (window.visualViewport) {
+            window.visualViewport.addEventListener('resize', resetZoomIfNeeded);
+            window.visualViewport.addEventListener('scroll', resetZoomIfNeeded);
+        }
+        document.addEventListener('gestureend', () => setTimeout(resetZoomIfNeeded, 50), { passive: true });
+
         const passwords = [
             "go", "hutari", "nakama", "asobu", "tannkenn", 
             "boukenn", "seityou", "bokutatinoki", "minori", "manabinoki"  

@@ -7,6 +7,36 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <!-- Lucide Icons -->
   <script src="https://unpkg.com/lucide@latest"></script>
+  <style>
+    /* ダブルタップ拡大を無効化(スクロール・ピンチは残る) */
+    * { touch-action: manipulation; -webkit-touch-callout: none; }
+    html { background: #f9fafb; }
+    body { overscroll-behavior-y: none; }
+    /* iOS は16px未満の入力欄にフォーカスすると勝手に拡大する */
+    @media (hover: none) and (pointer: coarse) {
+      input, select, textarea { font-size: 16px !important; }
+    }
+  </style>
+  <script>
+    // iPad/iPhone Safari のピンチ拡大を止める
+    ['gesturestart', 'gesturechange', 'gestureend'].forEach(type => {
+      document.addEventListener(type, (e) => e.preventDefault(), { passive: false });
+    });
+    // それでも拡大されたままになったときの保険(等倍へ戻す)
+    function resetZoomIfNeeded() {
+      if (!window.visualViewport || window.visualViewport.scale <= 1.02) return;
+      const meta = document.querySelector('meta[name="viewport"]');
+      if (!meta) return;
+      const original = meta.getAttribute('content');
+      meta.setAttribute('content', original + ', maximum-scale=1.0');
+      requestAnimationFrame(() => meta.setAttribute('content', original));
+    }
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener('resize', resetZoomIfNeeded);
+      window.visualViewport.addEventListener('scroll', resetZoomIfNeeded);
+    }
+    document.addEventListener('gestureend', () => setTimeout(resetZoomIfNeeded, 50), { passive: true });
+  </script>
 </head>
 <body class="bg-gray-50 text-gray-800 font-sans min-h-screen">
   

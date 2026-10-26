@@ -7,6 +7,7 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@400;700;800&display=swap" rel="stylesheet">
     <style>
+        * { touch-action: manipulation; }
         :root { --app-h: 100vh; }
         @supports (height: 100dvh) { :root { --app-h: 100dvh; } }
         html, body { height: var(--app-h); overscroll-behavior: none; }
@@ -81,6 +82,27 @@
         }
 
         .tab-btn.active { background: #14532d; color: #fff; }
+
+        /* 大きい画面では横幅を広げ、ボードをいっぱいまで使う */
+        body > .max-w-6xl { max-width: clamp(72rem, 92vw, 1600px); }
+        #edit-svg { max-width: none; max-height: 100%; }
+        header button { white-space: nowrap; }
+
+        /* 縦に積む画面（スマホ・タブレット縦・横長スマホ）では、ページ全体を縦スクロールにして
+           下の「コード作成」「コピー」まで届くようにする。ボードは見やすい高さを確保する */
+        @media (max-width: 1023px) {
+            html, body { height: auto; }
+            body { min-height: var(--app-h); overflow-x: hidden !important; overflow-y: auto !important; }
+            #board-container { flex: none; height: clamp(240px, 72vw, 72vh); }
+        }
+        @media (max-width: 520px) {
+            header { padding: 8px 10px !important; }
+            header .space-x-3 > span:first-child { display: none; }
+            header .space-x-3 > div { margin-left: 0 !important; }
+            header h1 { font-size: 15px; line-height: 1.3; }
+            header p { font-size: 10px; }
+            header button { font-size: 11px; padding: 6px 8px; }
+        }
     </style>
 </head>
 <body class="w-screen overflow-hidden flex flex-col items-center p-2 md:p-4 text-emerald-100 select-none">
@@ -176,6 +198,19 @@
         window.addEventListener('resize', setAppHeight);
         window.addEventListener('orientationchange', () => setTimeout(setAppHeight, 250));
         if (window.visualViewport) window.visualViewport.addEventListener('resize', setAppHeight);
+
+        /* 拡大されたまま戻らなくなったときの保険 */
+        function resetZoomIfNeeded() {
+            if (!window.visualViewport || window.visualViewport.scale <= 1.02) return;
+            const meta = document.querySelector('meta[name="viewport"]');
+            if (!meta) return;
+            const original = meta.getAttribute('content');
+            meta.setAttribute('content', original + ', maximum-scale=1.0');
+            requestAnimationFrame(() => meta.setAttribute('content', original));
+        }
+        window.visualViewport && window.visualViewport.addEventListener('resize', resetZoomIfNeeded);
+        window.visualViewport && window.visualViewport.addEventListener('scroll', resetZoomIfNeeded);
+        document.addEventListener('gestureend', () => setTimeout(resetZoomIfNeeded, 50), { passive: true });
 
         // index.html と全く同じ形の定義（座標がズレないように共通化）
         const TANGRAM_SHAPES = {

@@ -16,6 +16,7 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@400;700;900&display=block" rel="stylesheet">
     <style>
+        * { touch-action: manipulation; -webkit-touch-callout: none; }
         :root {
             --neon-blue: #00f3ff;
             --neon-blue-glow: #00f3ff;
@@ -377,6 +378,37 @@
                 gap: 0.125rem !important;
             }
         }
+        /* PC・タブレット：ウィンドウの大きさに合わせて全体(rem基準)を連続的に拡大縮小 */
+        @media (min-width: 1024px) and (min-height: 700px) {
+            html { font-size: clamp(16px, min(2.1vh, 1.5vw), 22px); }
+            .container-app { max-width: 75rem; }
+        }
+        /* 高さが低い画面(PCでウィンドウを低くした時など)：お題確認・準備・タイマー画面を縮める */
+        @media (max-height: 640px) {
+            #check-screen > .mt-8 { margin-top: 0.25rem; }
+            #check-screen h2 { font-size: 1.5rem; }
+            #reveal-area { min-height: 0; padding: 1rem; }
+            #check-screen > .mb-8 { margin-bottom: 0.25rem; }
+            #check-screen > .mb-8 > * + * { margin-top: 0.5rem; }
+            #reveal-btn, #next-player-btn { padding-top: 0.6rem; padding-bottom: 0.6rem; }
+            #ready-screen h2 { font-size: 2.25rem; margin-bottom: 0.75rem; }
+            #ready-screen p { margin-bottom: 1rem; font-size: 1rem; }
+            #ready-screen button { padding-top: 0.9rem; padding-bottom: 0.9rem; }
+            #timer-screen > .relative { width: 13rem; margin-bottom: 0.75rem; }
+            #timer-screen > button { padding-top: 0.75rem; padding-bottom: 0.75rem; }
+        }
+        /* スマホ横向きなど、さらに高さが低い画面 */
+        @media (max-height: 460px) {
+            .container-app { height: 96vh; height: 96dvh; }
+            #setup-screen h1.neon-title { font-size: 1.5rem !important; }
+            #timer-screen > .relative { width: 9.5rem; margin-bottom: 0.5rem; }
+            #timer-display { font-size: 2.5rem; }
+            .fab-recall { width: 64px; height: 64px; bottom: 12px; right: 12px; }
+        }
+        /* タッチ端末では背景の常時アニメーションを止めて発熱を抑える(見た目はそのまま) */
+        @media (hover: none) and (pointer: coarse) {
+            body { animation: none; }
+        }
     </style>
 </head>
 <body onload="init()">
@@ -441,7 +473,7 @@
             </div>
             <div class="flex flex-col items-center mt-4 gap-2">
                 <button onclick="startGame()" class="w-full md:w-2/3 btn-main text-white font-black py-5 text-xl">捜査を開始する</button>
-                <div class="text-[10px] text-white/20 tracking-widest font-bold">ポリス vs スパイ　|　ver7.0　|　ota tools</div>
+                <div class="text-[10px] text-white/20 tracking-widest font-bold">ポリス vs スパイ　|　ver.7.1　|　ota tools</div>
             </div>
         </div>
 
@@ -897,6 +929,24 @@ const themes = {
                 knob.classList.replace('translate-x-7', 'translate-x-1');
             }
         }
+
+        // iOS Safari の勝手な拡大を防ぐ（ピンチ・拡大されたままの保険）
+        ['gesturestart', 'gesturechange', 'gestureend'].forEach(type => {
+            document.addEventListener(type, (e) => e.preventDefault(), { passive: false });
+        });
+        function resetZoomIfNeeded() {
+            if (!window.visualViewport || window.visualViewport.scale <= 1.02) return;
+            const meta = document.querySelector('meta[name="viewport"]');
+            if (!meta) return;
+            const original = meta.getAttribute('content');
+            meta.setAttribute('content', original + ', maximum-scale=1.0');
+            requestAnimationFrame(() => meta.setAttribute('content', original));
+        }
+        if (window.visualViewport) {
+            window.visualViewport.addEventListener('resize', resetZoomIfNeeded);
+            window.visualViewport.addEventListener('scroll', resetZoomIfNeeded);
+        }
+        document.addEventListener('gestureend', () => setTimeout(resetZoomIfNeeded, 50), { passive: true });
 
         function init() {
             // 初期値を「さん」なしに変更

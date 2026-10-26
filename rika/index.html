@@ -15,6 +15,36 @@
     <title>水のしみこみ方 くらべてみよう！</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
+        :root { --app-h: 100vh; }
+        @supports (height: 100dvh) { :root { --app-h: 100dvh; } }
+        * { touch-action: manipulation; -webkit-touch-callout: none; }
+        html { background-color: #f0f8ff; }
+        body { height: var(--app-h) !important; overscroll-behavior-y: none; -webkit-user-select: none; user-select: none; }
+        canvas { touch-action: none; }
+
+        /* はじめの画面：画面サイズに合わせて連続的に拡大縮小 */
+        #start-card { padding: clamp(20px, 4vmin, 60px); max-width: min(92vw, 1000px); }
+        #start-card h1 { font-size: clamp(24px, 7vw, 64px); font-size: clamp(24px, min(7vw, 8dvh), 80px); white-space: nowrap; margin-bottom: clamp(10px, 2.5vh, 32px); }
+        #start-card p { font-size: clamp(15px, 4.2vw, 30px); font-size: clamp(15px, min(4.2vw, 3.7dvh), 38px); margin-bottom: clamp(16px, 3.5vh, 44px); }
+        #goto-sim-btn { font-size: clamp(18px, 5vw, 34px); font-size: clamp(18px, min(5vw, 4.4dvh), 44px); padding: clamp(12px, 2.2vh, 26px) clamp(24px, 5vw, 64px); white-space: nowrap; }
+
+        /* じっけん画面：盤面を固定デザインのまま丸ごと拡大縮小する */
+        #sim-fit { flex: 1 1 0; min-height: 0; position: relative; overflow: hidden; }
+        #sim-stage { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); transform-origin: center center; margin: 0; width: max-content; }
+        #sim-controls button { white-space: nowrap; }
+        #conclusion-card { max-width: min(92vw, 860px); max-height: calc(var(--app-h) - 24px); overflow-y: auto; overflow-x: hidden; padding: clamp(16px, 3vmin, 40px); }
+        #conclusion-card h3 { font-size: clamp(20px, 5vw, 36px); font-size: clamp(20px, min(5vw, 4.2dvh), 36px); }
+        #conclusion-card p { font-size: clamp(15px, 4vw, 26px); font-size: clamp(15px, min(4vw, 2.9dvh), 26px); margin-bottom: clamp(12px, 2.5vh, 32px); }
+        #close-modal-btn { font-size: clamp(17px, 2.6vh, 28px); }
+        #sim-stage.is-portrait { flex-wrap: wrap; width: 544px; column-gap: 24px; row-gap: 14px; }
+        #sim-stage.is-portrait #sim-controls { order: 3; flex-direction: row; width: 100%; }
+        @media (max-width: 560px) {
+            #sim-header h1 { font-size: 17px; }
+            #back-to-start-btn { font-size: 12px; padding: 5px 10px; white-space: nowrap; }
+        }
+        @media (max-height: 480px) {
+            #sim-footer { height: 2.5rem; }
+        }
         body {
             background-color: #f0f8ff;
             font-family: 'Hiragino Maru Gothic ProN', 'Rounded Mplus 1c', 'Comic Sans MS', sans-serif;
@@ -37,7 +67,7 @@
 
     <!-- ================= START SCREEN (メイン画面) ================= -->
     <div id="start-screen" class="flex-grow flex flex-col justify-center items-center px-4 py-6 text-center">
-        <div class="bg-white p-8 rounded-3xl shadow-xl border-4 border-blue-200 max-w-2xl transform transition-all">
+        <div id="start-card" class="bg-white p-8 rounded-3xl shadow-xl border-4 border-blue-200 max-w-2xl transform transition-all">
             <h1 class="text-4xl md:text-5xl font-bold text-blue-600 mb-6 tracking-wide flex justify-center items-center gap-3">
                 💧 水のしみこみ方 💧<br class="sm:hidden">
             </h1>
@@ -55,7 +85,7 @@
     <!-- ================= SIMULATOR SCREEN (実験画面) ================= -->
     <div id="sim-screen" class="hidden flex-grow flex flex-col justify-between px-4 py-3 h-full">
         <!-- ミニヘッダー -->
-        <div class="flex justify-between items-center border-b border-blue-100 pb-2">
+        <div id="sim-header" class="flex justify-between items-center gap-2 border-b border-blue-100 pb-2">
             <h1 class="text-xl md:text-2xl font-bold text-blue-600 flex items-center gap-2">
                 💧 水のしみこみ方 じっけん中
             </h1>
@@ -65,7 +95,8 @@
         </div>
 
         <!-- メインシミュレーションエリア (1366x598で綺麗に収まる高さ) -->
-        <div class="flex flex-row justify-center gap-6 items-center my-auto">
+        <div id="sim-fit">
+        <div id="sim-stage" class="flex flex-row justify-center gap-6 items-center my-auto">
             
             <!-- 土のキャンバス -->
             <div class="flex flex-col items-center">
@@ -82,7 +113,7 @@
             </div>
 
             <!-- 操作・コントロール（中央配置） -->
-            <div class="flex flex-col gap-3 justify-center items-center px-2">
+            <div id="sim-controls" class="flex flex-col gap-3 justify-center items-center px-2">
                 <button id="start-btn" class="bg-blue-500 hover:bg-blue-600 text-white font-bold text-lg py-3 px-6 rounded-full shadow-md transition transform hover:scale-105 active:scale-95 flex items-center gap-1">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 14l-7 7m0 0l-7-7m7 7V3" /></svg>
                     水をながす
@@ -108,9 +139,10 @@
             </div>
 
         </div>
+        </div>
 
         <!-- 下部のスペースプレースホルダー（通常は薄いグレー、結果が出たら「まとめ」を重ねて表示） -->
-        <div class="h-16 flex items-center justify-center">
+        <div id="sim-footer" class="h-16 flex items-center justify-center">
             <div id="wait-message" class="text-gray-500 font-bold text-base">
                 上の「水をながす」ボタンをおしてみよう！
             </div>
@@ -119,7 +151,7 @@
 
     <!-- ================= CONCLUSION MODAL (まとめポップアップ) ================= -->
     <div id="conclusion-modal" class="fixed inset-0 bg-black/50 z-50 hidden flex justify-center items-center px-4">
-        <div class="bg-yellow-50 p-6 rounded-2xl shadow-2xl border-4 border-yellow-400 max-w-xl text-center transform scale-95 transition-all">
+        <div id="conclusion-card" class="bg-yellow-50 p-6 rounded-2xl shadow-2xl border-4 border-yellow-400 max-w-xl text-center transform scale-95 transition-all">
             <h3 class="text-2xl font-bold text-yellow-800 mb-3 flex justify-center items-center gap-2">
                 🌟 じっけんから わかったこと
             </h3>
@@ -510,6 +542,7 @@
             document.getElementById('goto-sim-btn').addEventListener('click', () => {
                 document.getElementById('start-screen').classList.add('hidden');
                 document.getElementById('sim-screen').classList.remove('hidden');
+                fitSim();
                 simSoil.reset();
                 simGravel.reset();
             });
@@ -563,6 +596,46 @@
                 }, 500);
             }
         }
+
+        // --- 画面サイズ対応（iOSの拡大防止・高さの実測・盤面の拡大縮小） ---
+        ['gesturestart', 'gesturechange', 'gestureend'].forEach(type => {
+            document.addEventListener(type, (e) => e.preventDefault(), { passive: false });
+        });
+        function resetZoomIfNeeded() {
+            if (!window.visualViewport || window.visualViewport.scale <= 1.02) return;
+            const meta = document.querySelector('meta[name="viewport"]');
+            if (!meta) return;
+            const original = meta.getAttribute('content');
+            meta.setAttribute('content', original + ', maximum-scale=1.0');
+            requestAnimationFrame(() => meta.setAttribute('content', original));
+        }
+        function setAppHeight() {
+            const h = window.visualViewport ? window.visualViewport.height : window.innerHeight;
+            if (h > 0) document.documentElement.style.setProperty('--app-h', `${Math.round(h)}px`);
+        }
+        function fitSim() {
+            const scr = document.getElementById('sim-screen');
+            if (!scr || scr.classList.contains('hidden')) return;
+            const fit = document.getElementById('sim-fit');
+            const stage = document.getElementById('sim-stage');
+            const vw = window.visualViewport ? window.visualViewport.width : window.innerWidth;
+            const vh = window.visualViewport ? window.visualViewport.height : window.innerHeight;
+            stage.classList.toggle('is-portrait', vw / vh < 1 && vw < 700);
+            const nw = stage.offsetWidth, nh = stage.offsetHeight;
+            const aw = fit.clientWidth - 4, ah = fit.clientHeight - 4;
+            if (!nw || !nh || aw <= 0 || ah <= 0) return;
+            const scale = Math.min(aw / nw, ah / nh, 1.8);
+            stage.style.transform = `translate(-50%, -50%) scale(${scale})`;
+        }
+        function onViewportChange() { setAppHeight(); fitSim(); }
+        setAppHeight();
+        ['resize', 'pageshow'].forEach(t => window.addEventListener(t, onViewportChange));
+        window.addEventListener('orientationchange', () => setTimeout(onViewportChange, 250));
+        if (window.visualViewport) {
+            window.visualViewport.addEventListener('resize', () => { onViewportChange(); resetZoomIfNeeded(); });
+            window.visualViewport.addEventListener('scroll', () => { setAppHeight(); resetZoomIfNeeded(); });
+        }
+        document.addEventListener('gestureend', () => setTimeout(resetZoomIfNeeded, 50), { passive: true });
 
         // ページ読み込み完了時にスタート
         window.onload = function () {

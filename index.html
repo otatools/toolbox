@@ -12,9 +12,11 @@
 </script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ota tools | 小学校教員が作った教育アプリ集</title>
+    <title>ota tools｜小学校の先生が作った無料の教育アプリ集</title>
     <meta name="description" content="otatoolsは、大阪市の現役小学校教員が制作した、無料教育アプリ集です。小学校の授業や家庭で使える知育・教育ゲームを多数公開中。">
-    <meta name="robots" content="index, follow">
+    <meta name="keywords" content="教育アプリ,学習アプリ,知育アプリ,知育,無料,小学校,小学生,授業,家庭学習,タブレット,1人1台端末,ota tools">
+    <meta name="author" content="太田圭一">
+    <meta name="robots" content="index, follow, max-image-preview:large">
     <link rel="canonical" href="https://otatools.github.io/toolbox/">
 
     <!-- ファビコン -->
@@ -26,13 +28,13 @@
     <meta property="og:site_name" content="ota tools">
     <meta property="og:locale" content="ja_JP">
     <meta property="og:url" content="https://otatools.github.io/toolbox/">
-    <meta property="og:title" content="ota tools | 小学校教員が作った教育アプリ集">
+    <meta property="og:title" content="ota tools｜小学校の先生が作った無料の教育アプリ集">
     <meta property="og:description" content="大阪市の現役小学校教員が制作した、授業や家庭で使える無料の教育・学習用アプリ集です。ゲーム・授業用ツール・便利ツール・校務支援ツールを多数公開中。">
     <meta property="og:image" content="https://otatools.github.io/toolbox/logo.png">
 
     <!-- Twitter Card -->
     <meta name="twitter:card" content="summary">
-    <meta name="twitter:title" content="ota tools | 小学校教員が作った教育アプリ集">
+    <meta name="twitter:title" content="ota tools｜小学校の先生が作った無料の教育アプリ集">
     <meta name="twitter:description" content="大阪市の現役小学校教員が制作した、授業や家庭で使える無料の教育・学習用アプリ集です。">
     <meta name="twitter:image" content="https://otatools.github.io/toolbox/logo.png">
 
@@ -596,9 +598,13 @@
 
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700;900&family=Noto+Sans+JP:wght@400;500;700;900&display=swap');
-        
+
+        /* iOSのダブルタップ拡大を防ぐ(スクロールは残る) */
+        * { touch-action: manipulation; }
+
         html {
             overflow-y: scroll;
+            overflow-x: hidden;
         }
 
         body { 
@@ -837,9 +843,9 @@
                                 <input type="text" placeholder="アプリを検索..." className="bg-transparent outline-none text-sm w-full font-medium" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />
                             </div>
                         </div>
-                        <div className="max-w-6xl mx-auto px-4 pt-1 pb-3 overflow-x-auto no-scrollbar flex gap-2">
+                        <div className="max-w-6xl mx-auto px-4 pt-1 pb-3 overflow-x-auto no-scrollbar flex flex-wrap sm:flex-nowrap gap-2">
                             {categories.map(cat => (
-                                <button key={cat.id} onClick={() => setActiveCategory(cat.id)} className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-bold border whitespace-nowrap transition-all ${activeCategory === cat.id ? "bg-blue-600 text-white border-blue-600 shadow-md" : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"}`}>
+                                <button key={cat.id} onClick={() => setActiveCategory(cat.id)} className={`flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-1.5 sm:py-2 rounded-full text-xs sm:text-sm font-bold border whitespace-nowrap transition-all ${activeCategory === cat.id ? "bg-blue-600 text-white border-blue-600 shadow-md" : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"}`}>
                                     <i data-lucide={cat.icon} className="w-4 h-4"></i>{cat.label}
                                 </button>
                             ))}
@@ -919,7 +925,7 @@
 
                     {isGeneratorOpen && (
                         <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm flex items-center justify-center z-[100] p-4">
-                            <div className="bg-white rounded-[2rem] w-full max-w-lg p-10 shadow-2xl border border-slate-100 overflow-hidden relative">
+                            <div className="bg-white rounded-[2rem] w-full max-w-lg max-h-[calc(100dvh-2rem)] p-6 sm:p-10 shadow-2xl border border-slate-100 overflow-x-hidden overflow-y-auto relative">
                                 <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-blue-400 to-cyan-400"></div>
                                 
                                 <div className="flex justify-between items-start mb-10">
@@ -1013,6 +1019,25 @@
 
         const root = ReactDOM.createRoot(document.getElementById('root'));
         root.render(<App />);
+    </script>
+    <script>
+        /* iOS Safari のピンチ拡大を止め、拡大されたままになったら等倍へ戻す */
+        ['gesturestart', 'gesturechange', 'gestureend'].forEach(function (type) {
+            document.addEventListener(type, function (e) { e.preventDefault(); }, { passive: false });
+        });
+        function resetZoomIfNeeded() {
+            if (!window.visualViewport || window.visualViewport.scale <= 1.02) return;
+            var meta = document.querySelector('meta[name="viewport"]');
+            if (!meta) return;
+            var original = meta.getAttribute('content');
+            meta.setAttribute('content', original + ', maximum-scale=1.0');
+            requestAnimationFrame(function () { meta.setAttribute('content', original); });
+        }
+        if (window.visualViewport) {
+            window.visualViewport.addEventListener('resize', resetZoomIfNeeded);
+            window.visualViewport.addEventListener('scroll', resetZoomIfNeeded);
+        }
+        document.addEventListener('gestureend', function () { setTimeout(resetZoomIfNeeded, 50); }, { passive: true });
     </script>
 </body>
 </html>

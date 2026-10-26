@@ -1,6 +1,14 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
+  <!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-YTH979WTKL"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+  gtag('config', 'G-YTH979WTKL');
+</script>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>音読クエスト</title>
@@ -9,6 +17,13 @@
   <script src="https://unpkg.com/lucide@latest"></script>
   
   <style>
+    /* iPad/iPhone のダブルタップ拡大・長押しメニューを防ぐ（サインの欄は .touch-none のまま） */
+    * { touch-action: manipulation; -webkit-touch-callout: none; }
+    /* iOS Safari では 100vh(h-screen) がツールバーぶん大きく、下のメニューが隠れることがあるので、
+       高さは JS が実測した --app-h を使う */
+    :root { --app-h: 100vh; }
+    @supports (height: 100dvh) { :root { --app-h: 100dvh; } }
+    body.h-screen { height: var(--app-h); overscroll-behavior-y: none; }
     .custom-scrollbar::-webkit-scrollbar { height: 8px; width: 8px; }
     .custom-scrollbar::-webkit-scrollbar-track { background: #f1f5f9; border-radius: 4px; }
     .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
@@ -24,6 +39,38 @@
 <body class="bg-slate-50 text-slate-800 selection:bg-blue-100 font-sans h-screen overflow-hidden flex flex-col">
 
   <div id="app" class="h-full flex flex-col"></div>
+
+  <script>
+    // iPad/iPhone の Safari はピンチ拡大を touch-action だけでは止めきれないので、
+    // gesture イベントを止め、それでも拡大されたときは等倍に戻す
+    ['gesturestart', 'gesturechange', 'gestureend'].forEach(type => {
+      document.addEventListener(type, (e) => e.preventDefault(), { passive: false });
+    });
+    function resetZoomIfNeeded() {
+      if (!window.visualViewport || window.visualViewport.scale <= 1.02) return;
+      const meta = document.querySelector('meta[name="viewport"]');
+      if (!meta) return;
+      const original = meta.getAttribute('content');
+      meta.setAttribute('content', original + ', maximum-scale=1.0');
+      requestAnimationFrame(() => meta.setAttribute('content', original));
+    }
+    document.addEventListener('gestureend', () => setTimeout(resetZoomIfNeeded, 50), { passive: true });
+
+    // 画面の高さを実測して --app-h に入れる（文字入力中はキーボードで縮めない）
+    function setAppHeight() {
+      const el = document.activeElement;
+      if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA')) return;
+      const h = window.visualViewport ? window.visualViewport.height : window.innerHeight;
+      if (h > 0) document.documentElement.style.setProperty('--app-h', `${Math.round(h)}px`);
+    }
+    setAppHeight();
+    ['resize', 'pageshow'].forEach(t => window.addEventListener(t, setAppHeight));
+    window.addEventListener('orientationchange', () => setTimeout(setAppHeight, 250));
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener('resize', () => { setAppHeight(); resetZoomIfNeeded(); });
+      window.visualViewport.addEventListener('scroll', () => { setAppHeight(); resetZoomIfNeeded(); });
+    }
+  </script>
 
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
@@ -515,7 +562,7 @@
     window.closeCalendarSignature = () => { state.calendarSignatureToShow = null; render(); };
 
     const renderStickerImg = (s, customClass = "w-full h-full object-contain drop-shadow-md") => {
-      return `<img src="${s.image}" onerror="this.outerHTML='<span class=\\'drop-shadow-md\\'>${s.fallbackEmoji}</span>'" class="${customClass}" alt="${s.name}" draggable="false" />`;
+      return `<img src="${s.image}" onerror="this.outerHTML='<span class=\\'drop-shadow-md\\'>${s.fallbackEmoji || ''}</span>'" class="${customClass}" alt="${s.name}" draggable="false" />`;
     };
 
     window.buySticker = async (stickerId, price, name) => {

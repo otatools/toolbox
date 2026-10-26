@@ -1,10 +1,11 @@
 <!DOCTYPE html><html lang="ja"><head>
     <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>回答ボード - Ver 5.5</title>
+    <title>回答ボード - ver.5.6</title>
     <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-database-compat.js"></script>
     <style>
-        body { margin: 0; background-color: #0047AB; overflow: hidden; font-family: sans-serif; touch-action: none; display: flex; flex-direction: column; height: 100vh; }
+        :root { --app-h: 100vh; }
+        body { margin: 0; background-color: #0047AB; overflow: hidden; font-family: sans-serif; touch-action: none; display: flex; flex-direction: column; height: var(--app-h); -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
         .red-mode { background-color: #C2185B !important; }
         .judge-layer { position: fixed; top: 0; left: 0; width: 100%; height: 100%; display: none; pointer-events: none; z-index: 500; align-items: center; justify-content: center; opacity: 0.6; }
         #correctMark { width: 60vh; height: 60vh; border: 60px solid white; border-radius: 50%; box-sizing: border-box; }
@@ -18,6 +19,7 @@
         #timerDisp { position: fixed; top: 10px; right: 20px; font-size: 45px; font-weight: bold; color: white; z-index: 1000; pointer-events: none; text-shadow: 2px 2px 4px rgba(0,0,0,0.5); }
         #userInfo { position: fixed; top: 10px; left: 15px; color: white; font-size: 18px; font-weight: bold; z-index: 100; }
         #orientOverlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #000; color: #fff; z-index: 9999; display: none; flex-direction: column; align-items: center; justify-content: center; }
+        #orientOverlay h1 { font-size: clamp(20px, 6vw, 32px); text-align: center; padding: 0 16px; }
         @media screen and (orientation: portrait) { #orientOverlay { display: flex; } }
 
         #startOverlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 71, 171, 0.95); z-index: 2000; display: flex; flex-direction: column; align-items: center; justify-content: center; color: white; }
@@ -28,9 +30,37 @@
         #eraserBtn.active { background: #ffcc00; color: #000; }
         #clearBtn { position: fixed; bottom: 45px; right: 20px; background: rgba(0,0,0,0.8); width: 60px; height: 60px; border-radius: 50%; display: flex; align-items: center; justify-content: center; z-index: 100; font-size: 30px; color: white; cursor: pointer; user-select: none; -webkit-user-select: none; }
         
-        .footer { background: #222; padding: 5px; text-align: center; font-size: 12px; color: #777; border-top: 1px solid #444; width: 100%; z-index: 1; }
-        #canvas { flex-grow: 1; width: 100%; }
+        .footer { background: #222; padding: 5px; text-align: center; font-size: 12px; color: #777; border-top: 1px solid #444; width: 100%; box-sizing: border-box; z-index: 1; }
+        #canvas { flex-grow: 1; width: 100%; touch-action: none; }
     </style></head><body>
+    <script>
+        // iOS: ピンチ拡大の抑止・拡大されたままの自己修復・実際の画面の高さ
+        ['gesturestart', 'gesturechange', 'gestureend'].forEach(type => {
+            document.addEventListener(type, (e) => e.preventDefault(), { passive: false });
+        });
+        function resetZoomIfNeeded() {
+            if (!window.visualViewport || window.visualViewport.scale <= 1.02) return;
+            const meta = document.querySelector('meta[name="viewport"]');
+            if (!meta) return;
+            const original = meta.getAttribute('content');
+            meta.setAttribute('content', original + ', maximum-scale=1.0');
+            requestAnimationFrame(() => meta.setAttribute('content', original));
+        }
+        function setAppHeight() {
+            const el = document.activeElement;
+            if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA')) return;
+            const h = window.visualViewport ? window.visualViewport.height : window.innerHeight;
+            if (h > 0) document.documentElement.style.setProperty('--app-h', `${Math.round(h)}px`);
+        }
+        setAppHeight();
+        ['resize', 'pageshow'].forEach(t => window.addEventListener(t, setAppHeight));
+        window.addEventListener('orientationchange', () => setTimeout(setAppHeight, 250));
+        if (window.visualViewport) {
+            window.visualViewport.addEventListener('resize', () => { setAppHeight(); resetZoomIfNeeded(); });
+            window.visualViewport.addEventListener('scroll', resetZoomIfNeeded);
+        }
+        document.addEventListener('gestureend', () => setTimeout(resetZoomIfNeeded, 50), { passive: true });
+    </script>
     <div id="orientOverlay"><h1>画面を横向きにしてください</h1></div>
     <div id="startOverlay">
         <button id="fullBtn" style="padding:25px 50px; font-size:24px; border-radius:15px; border:none; background:#ffcc00; font-weight:bold; cursor:pointer;" onclick="goFull()">全画面で開始</button>
@@ -42,7 +72,7 @@
     
     <canvas id="canvas"></canvas>
 
-    <div class="footer">オンライン回答ボード | Ver 5.5 | ota tools</div>
+    <div class="footer">オンライン回答ボード | ver.5.6 | ota tools</div>
 
     <div class="toolbar" id="toolbar">
         <div class="pen-opt" onclick="setPen(4, this)" style="width:10px; height:10px;"></div>
@@ -67,9 +97,19 @@
         let drawing = false, points = [];
 
         function resize() { 
-            canvas.width = window.innerWidth; 
-            canvas.height = window.innerHeight - 25; 
+            const w = window.innerWidth, h = window.innerHeight - 25;
+            // サイズが変わっていなければ何もしない(iOSはアドレスバーの開閉だけでresizeが来て、描いた絵が消えるため)
+            if (canvas.width === w && canvas.height === h) return;
+            let snapshot = null;
+            if (canvas.width > 0 && canvas.height > 0) {
+                snapshot = document.createElement('canvas');
+                snapshot.width = canvas.width; snapshot.height = canvas.height;
+                snapshot.getContext('2d').drawImage(canvas, 0, 0);
+            }
+            canvas.width = w; 
+            canvas.height = h; 
             ctx.lineCap="round"; ctx.lineJoin="round"; 
+            if (snapshot) ctx.drawImage(snapshot, 0, 0);
         }
         window.addEventListener('resize', resize); resize();
 

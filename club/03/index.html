@@ -7,6 +7,7 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@400;700;800&display=swap" rel="stylesheet">
     <style>
+        * { touch-action: manipulation; }
         :root { --app-h: 100vh; }
         @supports (height: 100dvh) { :root { --app-h: 100dvh; } }
 
@@ -126,6 +127,32 @@
             transform: translateY(3px);
             box-shadow: 0 1px 0 #292524;
         }
+
+        /* 大きい画面では横幅を広げ、盤面をウィンドウいっぱいまで拡大する */
+        #screen-home > .max-w-4xl,
+        #screen-game > .max-w-4xl {
+            max-width: clamp(56rem, 88vw, 1320px);
+        }
+        #game-svg { max-width: none; max-height: 100%; }
+        #home-stage-grid button { font-size: clamp(20px, 3.2vmin, 34px); }
+
+        /* スマホ縦：ヘッダーのボタンや操作説明が折り返して崩れないようにする */
+        #screen-game header button { white-space: nowrap; }
+        #screen-game footer { flex-wrap: wrap; justify-content: center; column-gap: 14px; row-gap: 2px; }
+        #screen-game footer > div { white-space: nowrap; }
+        @media (max-width: 520px) {
+            #screen-game header { padding: 8px 10px; }
+            #screen-game header h1 { font-size: 15px; white-space: nowrap; }
+            #screen-game header .space-x-3 > span:first-child { display: none; }
+            #screen-game header .space-x-3 > div { margin-left: 0; }
+            #screen-game header button { font-size: 11px; padding: 6px 8px; }
+            #screen-game footer { font-size: 10px; padding: 6px 8px; }
+            #screen-game footer .text-base { font-size: 13px; }
+        }
+        /* タッチ端末ではぼかし効果を切る（発熱対策） */
+        @media (hover: none) and (pointer: coarse) {
+            .backdrop-blur, .backdrop-blur-sm, .backdrop-blur-md { -webkit-backdrop-filter: none; backdrop-filter: none; }
+        }
     </style>
 </head>
 <body class="w-screen overflow-hidden text-amber-100 select-none">
@@ -141,7 +168,7 @@
         </header>
 
         <main class="relative w-full max-w-4xl flex-1 my-2 min-h-0 wood-board rounded-3xl p-4 md:p-6 overflow-y-auto">
-            <div id="home-stage-grid" class="grid gap-3 md:gap-4" style="grid-template-columns: repeat(auto-fill, minmax(64px, 1fr));"></div>
+            <div id="home-stage-grid" class="grid gap-3 md:gap-4" style="grid-template-columns: repeat(auto-fill, minmax(clamp(64px, 11vmin, 120px), 1fr));"></div>
         </main>
     </div>
 
@@ -280,6 +307,19 @@
         if (window.visualViewport) {
             window.visualViewport.addEventListener('resize', setAppHeight);
         }
+
+        /* 拡大されたまま戻らなくなったときの保険 */
+        function resetZoomIfNeeded() {
+            if (!window.visualViewport || window.visualViewport.scale <= 1.02) return;
+            const meta = document.querySelector('meta[name="viewport"]');
+            if (!meta) return;
+            const original = meta.getAttribute('content');
+            meta.setAttribute('content', original + ', maximum-scale=1.0');
+            requestAnimationFrame(() => meta.setAttribute('content', original));
+        }
+        window.visualViewport && window.visualViewport.addEventListener('resize', resetZoomIfNeeded);
+        window.visualViewport && window.visualViewport.addEventListener('scroll', resetZoomIfNeeded);
+        document.addEventListener('gestureend', () => setTimeout(resetZoomIfNeeded, 50), { passive: true });
 
         /* Web Audio API - カチッとハマるリアルな質感音響 */
         class SoundEffects {

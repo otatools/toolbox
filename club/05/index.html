@@ -39,6 +39,7 @@
         }
         html, body {
             height: 100%;
+            overscroll-behavior: none;
             margin: 0;
             padding: 0;
             background-color: #0B0F19;
@@ -96,6 +97,14 @@
             justify-content: space-between;
         }
 
+        /* 横長の画面では階のカードを2列に並べ、スクロールせずに全部見えるようにする */
+        #app.landscape #floors-container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
+        #app.landscape #floors-container > * { margin-top: 0 !important; }
+
         /* Glassmorphism custom styling */
         .glass-panel {
             background: rgba(30, 41, 59, 0.92);
@@ -131,6 +140,11 @@
         }
         .btn-press:active {
             transform: scale(0.94);
+        }
+
+        /* タッチ端末ではすりガラスのぼかしを切る（発熱・描画の重さ対策。見た目の色はほぼ同じ） */
+        @media (hover: none) and (pointer: coarse) {
+            .glass-panel { -webkit-backdrop-filter: none; backdrop-filter: none; background: rgba(30, 41, 59, 0.97); }
         }
 
         /* Custom Scrollbar */
@@ -700,8 +714,10 @@
         function fitToWindow() {
             const app = document.getElementById('app');
             if (!app) return;
-            const vw = window.innerWidth;
-            const vh = window.innerHeight;
+            // iOSのツールバー分を除いた実際に見えている大きさを使う
+            const vv = window.visualViewport;
+            const vw = vv ? vv.width : window.innerWidth;
+            const vh = vv ? vv.height : window.innerHeight;
 
             const isPortrait = (vw / vh) < 1.15;
             app.classList.toggle('portrait', isPortrait);
@@ -709,7 +725,7 @@
 
             const baseW = isPortrait ? PORTRAIT_W : LANDSCAPE_W;
             const baseH = isPortrait ? PORTRAIT_H : LANDSCAPE_H;
-            const scale = Math.min((vw - 8) / baseW, (vh - 8) / baseH, 1.4);
+            const scale = Math.min((vw - 8) / baseW, (vh - 8) / baseH, 1.6);
             app.style.transform = `translate(-50%, -50%) scale(${scale})`;
         }
 
@@ -726,6 +742,29 @@
             switchView('egg'); // Start at egg view
         });
         window.addEventListener('resize', fitToWindow);
+        window.addEventListener('pageshow', fitToWindow);
+        window.addEventListener('load', fitToWindow);
+        window.addEventListener('orientationchange', () => setTimeout(fitToWindow, 250));
+        if (window.visualViewport) {
+            window.visualViewport.addEventListener('resize', fitToWindow);
+            window.visualViewport.addEventListener('scroll', fitToWindow);
+        }
+
+        // iOS Safari：ピンチ拡大を止める＋拡大されたまま戻らない時の保険
+        ['gesturestart', 'gesturechange', 'gestureend'].forEach(type => {
+            document.addEventListener(type, (e) => e.preventDefault(), { passive: false });
+        });
+        function resetZoomIfNeeded() {
+            if (!window.visualViewport || window.visualViewport.scale <= 1.02) return;
+            const meta = document.querySelector('meta[name="viewport"]');
+            if (!meta) return;
+            const original = meta.getAttribute('content');
+            meta.setAttribute('content', original + ', maximum-scale=1.0');
+            requestAnimationFrame(() => meta.setAttribute('content', original));
+        }
+        window.visualViewport && window.visualViewport.addEventListener('resize', resetZoomIfNeeded);
+        window.visualViewport && window.visualViewport.addEventListener('scroll', resetZoomIfNeeded);
+        document.addEventListener('gestureend', () => setTimeout(resetZoomIfNeeded, 50), { passive: true });
 
         function selectEgg(index) {
             playSound('tap');

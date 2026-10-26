@@ -49,6 +49,43 @@
         .choice-btn:active {
             transform: scale(0.96) translateY(4px);
         }
+
+        /* 画面の高さ（iOSのツールバー分を除いた実測値をJSで入れる） */
+        :root { --app-h: 100vh; }
+        @supports (height: 100dvh) { :root { --app-h: 100dvh; } }
+        body { overscroll-behavior-y: none; }
+        .border-3 { border-width: 3px; }
+
+        /* 大きい画面では横幅を少し広げる */
+        header > .max-w-4xl, main.max-w-4xl { max-width: clamp(56rem, 62vw, 76rem); }
+
+        /* ゲーム画面：ウィンドウの高さいっぱいに合わせて、問題と答えのボタンを大きく見せる（スクロールなしで1画面） */
+        #screen-game > div {
+            min-height: 0;
+            height: max(270px, calc(var(--app-h) - 96px));
+            max-height: 1000px;
+        }
+        @media (min-width: 640px) {
+            #screen-game > div { height: max(270px, calc(var(--app-h) - 128px)); }
+        }
+        #screen-game > div > .grid {
+            height: 36%;
+            min-height: 100px;
+        }
+        #q-word-display { font-size: clamp(2.25rem, min(9vw, 9vh), 8rem); }
+        #choice-left-text, #choice-right-text { font-size: clamp(3rem, min(12vw, 11vh), 10rem); line-height: 1.1; }
+        #feedback-icon { font-size: clamp(2.5rem, 13vh, 6rem); line-height: 1; }
+        #feedback-text { font-size: clamp(1.25rem, 5vh, 1.875rem); }
+        #feedback-detail { margin-top: 0.25rem; }
+        @media (max-height: 480px) {
+            body > header { padding-top: 6px !important; padding-bottom: 6px !important; }
+            body:has(#screen-game:not(.hidden)) > main { padding-top: 6px !important; padding-bottom: 6px !important; }
+            #screen-game > div { height: max(220px, calc(var(--app-h) - 72px)) !important; }
+            #screen-game > div > .flex-grow > .mb-2, #q-category { display: none; }
+            #q-word-display { margin-top: 4px; margin-bottom: 4px; }
+        }
+        #screen-title h1 { font-size: clamp(1.6rem, 6.4vw, 3.4rem); white-space: nowrap; }
+        #screen-game > div > .flex-grow { min-height: 0; padding-top: 12px; padding-bottom: 12px; }
     </style>
 </head>
 <body class="bg-amber-50 text-slate-800 min-h-screen flex flex-col justify-between overflow-x-hidden selection:bg-yellow-200">
@@ -903,6 +940,19 @@
         window.onload = function() {
             loadState();
         };
+
+        function setAppHeight() {
+            const el = document.activeElement;
+            if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA')) return;
+            const h = window.visualViewport ? window.visualViewport.height : window.innerHeight;
+            if (h > 0) document.documentElement.style.setProperty('--app-h', `${Math.round(h)}px`);
+        }
+        setAppHeight();
+        ['resize', 'pageshow'].forEach(t => window.addEventListener(t, setAppHeight));
+        window.addEventListener('orientationchange', () => setTimeout(setAppHeight, 250));
+        if (window.visualViewport) {
+            window.visualViewport.addEventListener('resize', setAppHeight);
+        }
 
         window.onresize = function() {
             const canvas = document.getElementById('confetti-canvas');
