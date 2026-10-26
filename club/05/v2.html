@@ -1,0 +1,1634 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <!-- Google tag (gtag.js) -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-YTH979WTKL"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+      gtag('config', 'G-YTH979WTKL');
+    </script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>計算ダンジョン - 卵から始まる大冒険！</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts: Zen Maru Gothic -->
+    <link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@700;900&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        game: {
+                            bg: '#0F172A',
+                            card: '#1E293B',
+                            accent: '#F59E0B',
+                            green: '#10B981',
+                            blue: '#3B82F6',
+                            purple: '#8B5CF6',
+                            pink: '#EC4899',
+                            danger: '#EF4444'
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['"Zen Maru Gothic"', 'sans-serif']
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        * {
+            touch-action: manipulation;
+            -webkit-touch-callout: none;
+            box-sizing: border-box;
+        }
+        html, body {
+            height: 100%;
+            margin: 0;
+            padding: 0;
+            background-color: #0B0F19;
+            color: #FFFFFF;
+            font-family: 'Zen Maru Gothic', sans-serif;
+            overflow: hidden;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        /* STRICT HIDDEN DISPLAY RULE */
+        .hidden {
+            display: none !important;
+        }
+
+        /* Scaled container system for all devices */
+        #app {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) scale(1);
+            transform-origin: center center;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            overflow: hidden;
+            background-color: #0F172A;
+            opacity: 0;
+            border-radius: 24px;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.8);
+        }
+        #app.portrait { width: 480px; height: 900px; }
+        #app.landscape { width: 1000px; height: 680px; }
+        #app.is-ready {
+            opacity: 1;
+            transition: opacity 0.25s ease-out;
+        }
+
+        /* Responsive Layouts for Landscape Mode */
+        #app.landscape #battle-view {
+            flex-direction: row;
+            gap: 16px;
+            align-items: stretch;
+        }
+        #app.landscape .battle-left {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+        #app.landscape .battle-right {
+            width: 380px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+
+        /* Glassmorphism custom styling */
+        .glass-panel {
+            background: rgba(30, 41, 59, 0.92);
+            backdrop-filter: blur(12px);
+            border: 2px solid rgba(255, 255, 255, 0.12);
+        }
+
+        .glass-card {
+            background: rgba(15, 23, 42, 0.85);
+            border: 2px solid rgba(245, 158, 11, 0.35);
+        }
+
+        @keyframes float {
+            0%, 100% { transform: translateY(0px) rotate(0deg); }
+            50% { transform: translateY(-8px) rotate(2deg); }
+        }
+        @keyframes popIn {
+            0% { transform: scale(0.6); opacity: 0; }
+            80% { transform: scale(1.05); }
+            100% { transform: scale(1); opacity: 1; }
+        }
+        @keyframes pulseGlow {
+            0%, 100% { box-shadow: 0 0 15px rgba(245, 158, 11, 0.4); }
+            50% { box-shadow: 0 0 35px rgba(245, 158, 11, 0.9); }
+        }
+
+        .animate-float { animation: float 3s ease-in-out infinite; }
+        .animate-pop { animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+        .pulse-glow { animation: pulseGlow 2s infinite; }
+
+        .btn-press {
+            transition: all 0.1s ease;
+        }
+        .btn-press:active {
+            transform: scale(0.94);
+        }
+
+        /* Stacked fraction */
+        .frac { display: inline-flex; flex-direction: column; align-items: center; vertical-align: middle; margin: 0 0.15em; line-height: 1.05; font-size: 0.8em; }
+        .frac > span:first-child { border-bottom: 0.09em solid currentColor; padding: 0 0.25em 0.05em; }
+        .frac > span:last-child { padding: 0.05em 0.25em 0; }
+        #answer-preview .frac { font-size: 0.6em; }
+        #app.portrait #battle-view .glass-panel.rounded-3xl { padding-top: 0.6rem; padding-bottom: 0.6rem; }
+        #app.portrait .battle-right .grid button { padding-top: 0.3rem; padding-bottom: 0.3rem; font-size: 1.6rem; line-height: 2rem; }
+        #app.portrait #boss-skills-bar { padding: 0.4rem; }
+        #app.portrait #boss-skills-bar button { padding: 0.15rem; }
+        #app.portrait #enemy-avatar { font-size: 3.6rem; }
+        #question-text { word-break: keep-all; line-height: 1.25; }
+
+        /* Custom Scrollbar */
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+    </style>
+</head>
+<body>
+    <div id="app" class="portrait text-white">
+
+        <!-- HEADER BAR (ALWAYS VISIBLE EXCEPT EGG SELECT) -->
+        <header id="header-bar" class="w-full glass-panel sticky top-0 z-40 px-4 py-3 flex items-center justify-between border-b border-slate-700 shadow-xl hidden">
+            <!-- Left: Buddy status & Level -->
+            <div class="flex items-center gap-3">
+                <div id="header-buddy-icon" class="w-12 h-12 rounded-2xl bg-gradient-to-tr from-amber-500 to-yellow-300 flex items-center justify-center text-3xl shadow-md border-2 border-amber-300">
+                    🥚
+                </div>
+                <div>
+                    <div class="flex items-center gap-2">
+                        <span id="header-buddy-name" class="text-lg font-black text-amber-300">？？？</span>
+                        <span id="header-buddy-level" class="bg-amber-500 text-slate-950 font-black text-xs px-2 py-0.5 rounded-full">Lv.1</span>
+                    </div>
+                    <!-- EXP Bar -->
+                    <div class="w-32 h-3 bg-slate-800 rounded-full overflow-hidden border border-slate-600 mt-1">
+                        <div id="header-exp-bar" class="h-full bg-gradient-to-r from-emerald-400 to-green-500 w-0 transition-all duration-300"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right: World Round & Key Status -->
+            <div class="flex items-center gap-2">
+                <div id="world-badge" class="bg-purple-900/90 border border-purple-400/60 text-purple-200 px-3 py-1.5 rounded-xl text-xs font-black">
+                    世界 1
+                </div>
+                <div id="key-badge" class="bg-slate-800 border border-slate-600 px-3 py-1.5 rounded-xl text-xs font-black flex items-center gap-1 text-slate-400">
+                    <span>🔑 鍵:</span>
+                    <span id="key-status-text" class="text-rose-400">なし</span>
+                </div>
+            </div>
+        </header>
+
+        <!-- MAIN VIEW CONTAINER -->
+        <main class="flex-1 w-full mx-auto p-4 flex flex-col justify-between relative z-10 overflow-y-auto no-scrollbar">
+
+            <!-- VIEW 1: EGG SELECTION SCREEN -->
+            <section id="egg-view" class="flex-1 flex flex-col items-center justify-between py-2 animate-pop">
+                <div class="text-center my-2">
+                    <span class="bg-amber-500/20 text-amber-300 border border-amber-500/40 text-sm font-black px-4 py-1.5 rounded-full inline-block mb-2">
+                        ✨ 相棒モンスターを選ぼう！
+                    </span>
+                    <h2 class="text-2xl sm:text-3xl font-black text-white">計算ダンジョンへようこそ！</h2>
+                    <p class="text-xs sm:text-sm text-slate-300 mt-1">タマゴの下の「かんたん」か「むずかしい」をタップ！（タイプごとに強さが続くよ）</p>
+                </div>
+
+                <!-- 6 Eggs Grid (rendered by renderEggs) -->
+                <div id="egg-grid" class="grid grid-cols-3 gap-2 sm:gap-3 my-auto w-full max-w-xl px-1"></div>
+
+                <div class="w-full text-center py-2">
+                    <p class="text-xs text-slate-400">※持っているタイプは、進化した姿で表示されるよ。同じタイプなら強さが引きつがれる！</p>
+                </div>
+            </section>
+
+            <!-- VIEW 2: DUNGEON MAP SCREEN -->
+            <section id="map-view" class="hidden flex-1 flex flex-col justify-between py-2 space-y-3">
+                <!-- Buddy Info Box -->
+                <div class="glass-panel p-4 rounded-3xl flex items-center justify-between border-2 border-amber-500/30 shadow-lg">
+                    <div class="flex items-center gap-4">
+                        <div id="map-buddy-avatar" class="text-5xl bg-slate-800/80 p-2.5 rounded-2xl border border-slate-700 animate-float shadow-inner">
+                            🐱
+                        </div>
+                        <div>
+                            <div class="flex items-center gap-2">
+                                <h3 id="map-buddy-name" class="text-xl font-black text-amber-400">マメニャン</h3>
+                                <span id="map-buddy-type" class="text-xs bg-slate-800 text-slate-300 px-2 py-0.5 rounded-md border border-slate-700">🌱 くさ</span>
+                            </div>
+                            <div class="text-xs text-slate-300 mt-1">
+                                つよさ: <span id="map-buddy-atk" class="font-black text-emerald-400">15</span> ATK
+                                | 体力: <span id="map-buddy-hp" class="font-black text-rose-400">100/100</span>
+                            </div>
+                            <div class="mt-1">
+                                <button id="btn-toggle-diff" onclick="toggleDifficulty()" class="text-xs font-black px-3 py-1 rounded-full border border-purple-400 bg-purple-900/60 text-purple-200 btn-press">むずかしさ: かんたん ⇄</button>
+                            </div>
+                            <div class="text-xs text-amber-300/90 mt-1 font-bold flex items-center gap-1">
+                                <span>自動装備:</span>
+                                <span id="map-equipped-item" class="text-white font-black bg-slate-900/60 px-2 py-0.5 rounded-lg border border-slate-700">なし</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Dungeon Floor Selection Cards -->
+                <div class="flex-1 my-1 space-y-2.5 overflow-y-auto pr-1 no-scrollbar max-h-[460px]">
+                    <h3 class="text-sm font-black text-amber-400 flex items-center justify-between px-1">
+                        <span>🏰 計算ダンジョンマップ（1階〜5階 ＆ ラスボス）</span>
+                        <span class="text-xs text-slate-400 font-normal">クリアでキー入手！</span>
+                    </h3>
+
+                    <!-- Floor Cards Container -->
+                    <div id="floors-container" class="space-y-2">
+                        <!-- TRIO BOSS (3 numbers, 1 question) -->
+                        <div id="floor-card-trio" class="glass-panel p-3 rounded-2xl border-2 border-sky-400/60 flex items-center justify-between gap-2">
+                            <div class="flex items-center gap-3">
+                                <div class="w-12 h-12 rounded-xl bg-sky-500/20 border border-sky-300 flex items-center justify-center text-2xl shrink-0">🎲</div>
+                                <div>
+                                    <div class="font-black text-base text-white">3つの数字ボス</div>
+                                    <div class="text-xs text-sky-300">1+2+3=？ のように3つの数で1問勝負！</div>
+                                </div>
+                            </div>
+                            <button onclick="startTrioBattle()" class="bg-gradient-to-r from-sky-400 to-blue-500 text-slate-950 font-black px-4 py-2.5 rounded-xl text-sm border border-sky-200 shadow btn-press whitespace-nowrap">
+                                挑戦する！
+                            </button>
+                        </div>
+
+                        <!-- Floor 1 -->
+                        <div id="floor-card-1" class="glass-panel p-3 rounded-2xl border-2 border-emerald-500/50 flex items-center justify-between gap-2">
+                            <div class="flex items-center gap-3">
+                                <div class="w-12 h-12 rounded-xl bg-emerald-500/20 border border-emerald-400 flex items-center justify-center text-2xl font-black text-emerald-300 shrink-0">1F</div>
+                                <div>
+                                    <div class="font-black text-base text-white">1階：はじまりの森</div>
+                                    <div class="text-xs text-emerald-400">クリア報酬: 🗡️ 伝説のつるぎ</div>
+                                </div>
+                            </div>
+                            <button onclick="startFloorBattle(1)" class="bg-gradient-to-r from-emerald-500 to-green-600 text-slate-950 font-black px-4 py-2.5 rounded-xl text-sm border border-emerald-300 shadow btn-press">
+                                挑戦する！
+                            </button>
+                        </div>
+
+                        <!-- Floor 2 -->
+                        <div id="floor-card-2" class="glass-panel p-3 rounded-2xl border-2 border-slate-700 flex items-center justify-between gap-2 opacity-60">
+                            <div class="flex items-center gap-3">
+                                <div class="w-12 h-12 rounded-xl bg-slate-800 border border-slate-700 flex items-center justify-center text-2xl font-black text-slate-400 shrink-0">2F</div>
+                                <div>
+                                    <div class="font-black text-base text-white">2階：こおりの洞窟</div>
+                                    <div class="text-xs text-slate-400">ボス能力: ❄️ 時間停止スキル</div>
+                                </div>
+                            </div>
+                            <button id="btn-floor-2" onclick="startFloorBattle(2)" disabled class="bg-slate-700 text-slate-400 font-black px-4 py-2.5 rounded-xl text-sm border border-slate-600 shadow">
+                                🔒 ロック
+                            </button>
+                        </div>
+
+                        <!-- Floor 3 -->
+                        <div id="floor-card-3" class="glass-panel p-3 rounded-2xl border-2 border-slate-700 flex items-center justify-between gap-2 opacity-60">
+                            <div class="flex items-center gap-3">
+                                <div class="w-12 h-12 rounded-xl bg-slate-800 border border-slate-700 flex items-center justify-center text-2xl font-black text-slate-400 shrink-0">3F</div>
+                                <div>
+                                    <div class="font-black text-base text-white">3階：かみなりのくさむら</div>
+                                    <div class="text-xs text-slate-400">ボス能力: ⚡ 雷撃ダメージ</div>
+                                </div>
+                            </div>
+                            <button id="btn-floor-3" onclick="startFloorBattle(3)" disabled class="bg-slate-700 text-slate-400 font-black px-4 py-2.5 rounded-xl text-sm border border-slate-600 shadow">
+                                🔒 ロック
+                            </button>
+                        </div>
+
+                        <!-- Floor 4 -->
+                        <div id="floor-card-4" class="glass-panel p-3 rounded-2xl border-2 border-slate-700 flex items-center justify-between gap-2 opacity-60">
+                            <div class="flex items-center gap-3">
+                                <div class="w-12 h-12 rounded-xl bg-slate-800 border border-slate-700 flex items-center justify-center text-2xl font-black text-slate-400 shrink-0">4F</div>
+                                <div>
+                                    <div class="font-black text-base text-white">4階：たいようの神殿</div>
+                                    <div class="text-xs text-slate-400">ボス能力: 💖 HP全回復</div>
+                                </div>
+                            </div>
+                            <button id="btn-floor-4" onclick="startFloorBattle(4)" disabled class="bg-slate-700 text-slate-400 font-black px-4 py-2.5 rounded-xl text-sm border border-slate-600 shadow">
+                                🔒 ロック
+                            </button>
+                        </div>
+
+                        <!-- Floor 5 -->
+                        <div id="floor-card-5" class="glass-panel p-3 rounded-2xl border-2 border-slate-700 flex items-center justify-between gap-2 opacity-60">
+                            <div class="flex items-center gap-3">
+                                <div class="w-12 h-12 rounded-xl bg-slate-800 border border-slate-700 flex items-center justify-center text-2xl font-black text-slate-400 shrink-0">5F</div>
+                                <div>
+                                    <div class="font-black text-base text-white">5階：天空の塔</div>
+                                    <div class="text-xs text-slate-400">クリア報酬: 🔑 まぼろしの鍵</div>
+                                </div>
+                            </div>
+                            <button id="btn-floor-5" onclick="startFloorBattle(5)" disabled class="bg-slate-700 text-slate-400 font-black px-4 py-2.5 rounded-xl text-sm border border-slate-600 shadow">
+                                🔒 ロック
+                            </button>
+                        </div>
+
+                        <!-- LAST BOSS CASTLE -->
+                        <div id="floor-card-boss" class="glass-panel p-4 rounded-3xl border-2 border-purple-500/60 bg-gradient-to-r from-purple-950/60 to-slate-900 flex items-center justify-between gap-2 shadow-xl">
+                            <div class="flex items-center gap-3">
+                                <div class="w-14 h-14 rounded-2xl bg-purple-900/80 border-2 border-purple-400 flex items-center justify-center text-3xl shrink-0 pulse-glow">👑</div>
+                                <div>
+                                    <div class="font-black text-lg text-purple-300">魔王の城（ラスボス）</div>
+                                    <div class="text-xs text-purple-200" id="boss-unlock-hint">鍵を手に入れると挑戦できる！</div>
+                                </div>
+                            </div>
+                            <button id="btn-boss" onclick="startBossBattle()" disabled class="bg-slate-800 text-slate-500 font-black px-5 py-3 rounded-2xl text-base border border-slate-700 shadow">
+                                🔒 鍵が必要
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Bottom Navigation buttons -->
+                <div class="grid grid-cols-3 gap-2 pt-2 border-t border-slate-800">
+                    <button onclick="openDexModal()" class="bg-slate-800 hover:bg-slate-700 p-3 rounded-2xl border border-slate-700 text-amber-300 font-black text-sm flex items-center justify-center gap-1 btn-press shadow">
+                        <span>📖 図鑑</span>
+                    </button>
+                    <button onclick="toggleDifficultyMode()" class="bg-slate-800 hover:bg-slate-700 p-3 rounded-2xl border border-slate-700 text-purple-300 font-black text-sm flex items-center justify-center gap-1 btn-press shadow">
+                        <span id="diff-toggle-text">⚙️ 計算: たしざん</span>
+                    </button>
+                    <button onclick="goEggSelect()" class="bg-slate-800 hover:bg-slate-700 p-3 rounded-2xl border border-slate-700 text-emerald-300 font-black text-sm flex items-center justify-center gap-1 btn-press shadow">
+                        <span>🥚 タマゴえらび</span>
+                    </button>
+                </div>
+            </section>
+
+            <!-- VIEW 3: BATTLE ARENA SCREEN -->
+            <section id="battle-view" class="hidden flex-1 flex flex-col justify-between py-1">
+                
+                <!-- Battle Left: Monster Box & Question -->
+                <div class="battle-left flex flex-col justify-between space-y-2">
+                    <!-- Enemy Card -->
+                    <div class="glass-panel rounded-3xl p-4 flex flex-col items-center justify-center relative border-2 border-slate-700 shadow-2xl">
+                        <!-- Enemy HP Bar -->
+                        <div class="w-full flex justify-between items-center text-xs font-black text-slate-300 mb-1">
+                            <span id="enemy-name" class="text-base text-amber-400">ボスモンスター</span>
+                            <span>HP: <span id="enemy-hp-text">100/100</span></span>
+                        </div>
+                        <div class="w-full h-3 bg-slate-900 rounded-full overflow-hidden p-0.5 border border-slate-700 mb-2">
+                            <div id="enemy-hp-bar" class="h-full bg-rose-500 rounded-full transition-all duration-300 w-full"></div>
+                        </div>
+
+                        <!-- Enemy Illustration -->
+                        <div class="my-1 relative">
+                            <div id="enemy-glow" class="absolute inset-0 rounded-full blur-xl bg-purple-500/30"></div>
+                            <div id="enemy-avatar" class="text-7xl sm:text-8xl relative z-10 animate-float drop-shadow-[0_8px_8px_rgba(0,0,0,0.6)]">
+                                🐲
+                            </div>
+                        </div>
+
+                        <!-- Timer Status Bar -->
+                        <div class="w-full bg-slate-900/90 rounded-2xl px-3 py-1.5 border border-slate-800 flex items-center justify-between mt-1">
+                            <span class="text-xs font-black text-slate-300">制限時間:</span>
+                            <span id="battle-timer" class="text-xl font-black text-amber-300">30s</span>
+                        </div>
+                    </div>
+
+                    <!-- Question Board (Very Large Text for Elementary Students) -->
+                    <div class="glass-panel rounded-3xl p-4 border-2 border-amber-500/50 text-center shadow-xl">
+                        <div class="flex items-center justify-between mb-1">
+                            <p class="text-xs font-black text-amber-400">けいさんもんだい（Enterで決定）</p>
+                            <button onclick="retreat()" class="text-xs font-black text-slate-300 bg-slate-800 border border-slate-600 px-3 py-1 rounded-full btn-press">↩ にげる</button>
+                        </div>
+                        <div id="question-text" class="text-4xl sm:text-5xl font-black text-white tracking-wide my-2 font-mono drop-shadow-md">
+                            12 + 8 = ?
+                        </div>
+
+                        <!-- Answer Input Preview -->
+                        <div class="flex items-center justify-center gap-3 mt-2">
+                            <span class="text-sm font-black text-slate-300">こたえ:</span>
+                            <div id="answer-preview" class="min-w-[130px] h-12 bg-slate-950 rounded-2xl border-2 border-amber-400 flex items-center justify-center text-3xl font-black text-amber-300 px-4 shadow-inner">
+                                ?
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Battle Right: Boss Skills & Big Numeric Pad -->
+                <div class="battle-right flex flex-col justify-between space-y-2">
+                    <!-- Boss Skills Bar -->
+                    <div id="boss-skills-bar" class="glass-panel rounded-2xl p-2.5 border border-purple-500/40">
+                        <div class="text-xs font-black text-purple-300 mb-1.5 flex items-center justify-between">
+                            <span>⚡ ボス能力（スキル）</span>
+                            <span class="text-[10px] text-slate-400">1バトル1回発動！</span>
+                        </div>
+                        <div id="boss-skills-container" class="grid grid-cols-4 gap-1.5">
+                            <button id="skill-flame" onclick="useBossSkill('flame')" disabled class="bg-slate-800 opacity-40 p-2 rounded-xl text-xs font-black text-slate-400 flex flex-col items-center btn-press">
+                                <span class="text-xl">🔥</span>
+                                <span class="text-[10px]">1問パス</span>
+                            </button>
+                            <button id="skill-ice" onclick="useBossSkill('ice')" disabled class="bg-slate-800 opacity-40 p-2 rounded-xl text-xs font-black text-slate-400 flex flex-col items-center btn-press">
+                                <span class="text-xl">❄️</span>
+                                <span class="text-[10px]">時間停止</span>
+                            </button>
+                            <button id="skill-thunder" onclick="useBossSkill('thunder')" disabled class="bg-slate-800 opacity-40 p-2 rounded-xl text-xs font-black text-slate-400 flex flex-col items-center btn-press">
+                                <span class="text-xl">⚡</span>
+                                <span class="text-[10px]">大打撃</span>
+                            </button>
+                            <button id="skill-heal" onclick="useBossSkill('heal')" disabled class="bg-slate-800 opacity-40 p-2 rounded-xl text-xs font-black text-slate-400 flex flex-col items-center btn-press">
+                                <span class="text-xl">💖</span>
+                                <span class="text-[10px]">全回復</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Big Numpad for Touch / Mouse -->
+                    <div class="glass-panel p-3 rounded-3xl border border-slate-700 shadow-xl">
+                        <div class="grid grid-cols-3 gap-2">
+                            <button onclick="pressNum(1)" class="bg-slate-800 hover:bg-slate-700 text-3xl font-black py-2.5 rounded-2xl border border-slate-600 btn-press">1</button>
+                            <button onclick="pressNum(2)" class="bg-slate-800 hover:bg-slate-700 text-3xl font-black py-2.5 rounded-2xl border border-slate-600 btn-press">2</button>
+                            <button onclick="pressNum(3)" class="bg-slate-800 hover:bg-slate-700 text-3xl font-black py-2.5 rounded-2xl border border-slate-600 btn-press">3</button>
+                            <button onclick="pressNum(4)" class="bg-slate-800 hover:bg-slate-700 text-3xl font-black py-2.5 rounded-2xl border border-slate-600 btn-press">4</button>
+                            <button onclick="pressNum(5)" class="bg-slate-800 hover:bg-slate-700 text-3xl font-black py-2.5 rounded-2xl border border-slate-600 btn-press">5</button>
+                            <button onclick="pressNum(6)" class="bg-slate-800 hover:bg-slate-700 text-3xl font-black py-2.5 rounded-2xl border border-slate-600 btn-press">6</button>
+                            <button onclick="pressNum(7)" class="bg-slate-800 hover:bg-slate-700 text-3xl font-black py-2.5 rounded-2xl border border-slate-600 btn-press">7</button>
+                            <button onclick="pressNum(8)" class="bg-slate-800 hover:bg-slate-700 text-3xl font-black py-2.5 rounded-2xl border border-slate-600 btn-press">8</button>
+                            <button onclick="pressNum(9)" class="bg-slate-800 hover:bg-slate-700 text-3xl font-black py-2.5 rounded-2xl border border-slate-600 btn-press">9</button>
+                            <button onclick="clearNum()" class="bg-rose-950/80 hover:bg-rose-900 text-rose-300 font-black py-2.5 rounded-2xl border border-rose-800 text-lg btn-press">けす</button>
+                            <button onclick="pressNum(0)" class="bg-slate-800 hover:bg-slate-700 text-3xl font-black py-2.5 rounded-2xl border border-slate-600 btn-press">0</button>
+                            <button onclick="submitAnswer()" class="bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-400 hover:to-green-500 text-slate-950 font-black py-2.5 rounded-2xl border border-emerald-400 text-xl btn-press shadow-lg">けってい</button>
+                        </div>
+                        <div id="extra-keys" class="hidden flex gap-2 mt-2">
+                            <button id="key-dot" onclick="pressChar('.')" class="flex-1 bg-sky-950/80 hover:bg-sky-900 text-sky-200 text-3xl font-black py-2 rounded-2xl border border-sky-700 btn-press">.</button>
+                            <button id="key-slash" onclick="pressChar('/')" class="flex-1 bg-sky-950/80 hover:bg-sky-900 text-sky-200 text-3xl font-black py-2 rounded-2xl border border-sky-700 btn-press">／</button>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <!-- MODAL 1: ANSWER FEEDBACK POPUP -->
+        <div id="feedback-modal" class="hidden fixed inset-0 bg-black/80 backdrop-blur-md z-50 flex items-center justify-center p-4">
+            <div class="glass-panel w-full max-w-sm rounded-3xl p-6 text-center border-2 border-slate-600 shadow-2xl animate-pop">
+                <div id="feedback-icon" class="text-7xl mb-2">⭕</div>
+                <h3 id="feedback-title" class="text-3xl font-black text-emerald-400 mb-1">せいかい！</h3>
+                <p id="feedback-detail" class="text-base text-slate-200 mb-6">すごいぞ！ダメージを与えた！</p>
+                <button id="feedback-next-btn" onclick="nextQuestionOrFinish()" class="w-full bg-gradient-to-r from-amber-500 to-yellow-400 text-slate-950 py-3.5 rounded-2xl font-black text-xl shadow-lg btn-press">
+                    つぎへ (Enter) ➔
+                </button>
+            </div>
+        </div>
+
+        <!-- MODAL 2: FLOOR CLEAR & AUTO-EQUIP MODAL -->
+        <div id="reward-modal" class="hidden fixed inset-0 bg-black/85 backdrop-blur-md z-50 flex items-center justify-center p-4">
+            <div class="glass-panel w-full max-w-md rounded-3xl p-6 text-center border-2 border-amber-400 shadow-2xl animate-pop">
+                <div class="text-6xl mb-2 animate-bounce">🎉</div>
+                <h2 class="text-3xl font-black text-amber-400 mb-1">フロア撃破！</h2>
+                <p id="reward-floor-title" class="text-base font-bold text-slate-200 mb-4">1階のボスを倒した！</p>
+
+                <!-- Rewards Grid -->
+                <div class="bg-slate-900/90 rounded-2xl p-4 border border-slate-700 space-y-3 mb-6 text-left">
+                    <div class="flex items-center gap-3">
+                        <div id="reward-item-icon" class="text-3xl bg-amber-500/20 p-2 rounded-xl">🗡️</div>
+                        <div>
+                            <div id="reward-item-label" class="text-xs text-amber-300 font-bold">【自動装着】獲得した装備</div>
+                            <div id="reward-item-name" class="font-black text-base text-white">伝説のつるぎ (+15 攻撃力)</div>
+                        </div>
+                    </div>
+                    <div id="reward-skill-box" class="flex items-center gap-3 border-t border-slate-800 pt-2">
+                        <div class="text-3xl bg-purple-500/20 p-2 rounded-xl">⚡</div>
+                        <div>
+                            <div class="text-xs text-purple-300 font-bold">【ボス能力獲得】</div>
+                            <div id="reward-skill-name" class="font-black text-base text-white">🔥 火炎スキル (1問パス)</div>
+                        </div>
+                    </div>
+                </div>
+
+                <button onclick="closeRewardModal()" class="w-full bg-gradient-to-r from-emerald-500 to-green-500 text-slate-950 py-3.5 rounded-2xl font-black text-xl shadow-lg btn-press">
+                    冒険をつづける (Enter) ➔
+                </button>
+            </div>
+        </div>
+
+        <!-- MODAL 3: LAST BOSS TROPHY / CERTIFICATE MODAL -->
+        <div id="trophy-modal" class="hidden fixed inset-0 bg-black/90 backdrop-blur-md z-50 flex items-center justify-center p-4">
+            <div class="glass-panel w-full max-w-md rounded-3xl p-6 text-center border-4 border-yellow-400 bg-gradient-to-b from-amber-950/80 to-slate-950 shadow-2xl animate-pop">
+                <div class="text-7xl mb-2 animate-bounce">🏆</div>
+                <span class="bg-amber-400 text-slate-950 text-xs font-black px-3 py-1 rounded-full uppercase">Congratulations!</span>
+                <h2 class="text-3xl font-black text-amber-300 mt-2 mb-2">計算ダンジョンの勇者・表彰状</h2>
+                
+                <div class="bg-amber-100/10 rounded-2xl p-4 border border-amber-400/40 text-slate-100 text-sm leading-relaxed mb-5 text-left font-serif">
+                    <p class="font-bold text-center text-amber-300 text-base mb-2">【 計算ダンジョンマスターの証 】</p>
+                    <p id="trophy-text">
+                        見事、暗黒魔王を撃破し「計算ダンジョン」の全エリアを制覇しました！あなたの素晴らしい計算力と勇気をここに称えます。
+                    </p>
+                </div>
+
+                <div class="text-xs text-amber-300 mb-4 font-bold">
+                    ✨ 次の「さらにむずかしい世界」へ挑戦できます！<br>（つよさ・自動装備・ボス能力はすべて引き継がれます）
+                </div>
+
+                <button onclick="advanceToNextWorld()" class="w-full bg-gradient-to-r from-amber-400 to-yellow-300 text-slate-950 py-4 rounded-2xl font-black text-xl shadow-xl btn-press">
+                    次のむずかしい世界へ (Enter) ➔
+                </button>
+            </div>
+        </div>
+
+        <!-- MODAL 4: MONSTER DEX -->
+        <div id="dex-modal" class="hidden fixed inset-0 bg-black/85 backdrop-blur-md z-50 flex items-center justify-center p-4">
+            <div class="glass-panel w-full max-w-md rounded-3xl p-5 border-2 border-slate-700 shadow-2xl flex flex-col max-h-[85vh]">
+                <div class="flex justify-between items-center mb-3 border-b border-slate-700 pb-2">
+                    <h3 class="text-xl font-black text-amber-400">📖 モンスターずかん</h3>
+                    <button onclick="closeDexModal()" class="text-2xl font-black text-slate-400 hover:text-white px-2">✕</button>
+                </div>
+                
+                <div id="dex-grid" class="grid grid-cols-3 gap-2.5 overflow-y-auto pr-1 no-scrollbar flex-1 p-1">
+                    <!-- Dynamic Dex Cards -->
+                </div>
+            </div>
+        </div>
+
+        <!-- TOAST NOTIFICATION -->
+        <div id="toast" class="fixed top-16 left-1/2 -translate-x-1/2 bg-slate-900 border-2 border-amber-400 text-amber-300 px-5 py-2.5 rounded-full text-sm font-black shadow-2xl opacity-0 pointer-events-none transition-all duration-300 z-50 flex items-center gap-2">
+            <span id="toast-icon">✨</span>
+            <span id="toast-msg">メッセージ</span>
+        </div>
+
+    </div><!-- /#app -->
+
+    <script>
+        /* SOUND SYNTHESIZER (Web Audio API) */
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        let audioCtx = null;
+
+        function initAudio() {
+            if (!audioCtx) audioCtx = new AudioContext();
+        }
+
+        function playSound(type) {
+            try {
+                if (!audioCtx) initAudio();
+                const now = audioCtx.currentTime;
+
+                if (type === 'tap') {
+                    const osc = audioCtx.createOscillator();
+                    const gain = audioCtx.createGain();
+                    osc.connect(gain); gain.connect(audioCtx.destination);
+                    osc.frequency.setValueAtTime(450, now);
+                    osc.frequency.exponentialRampToValueAtTime(850, now + 0.08);
+                    gain.gain.setValueAtTime(0.25, now);
+                    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.08);
+                    osc.start(now); osc.stop(now + 0.08);
+                } else if (type === 'correct') {
+                    const osc = audioCtx.createOscillator();
+                    const gain = audioCtx.createGain();
+                    osc.type = 'triangle';
+                    osc.connect(gain); gain.connect(audioCtx.destination);
+                    osc.frequency.setValueAtTime(523.25, now);
+                    osc.frequency.setValueAtTime(659.25, now + 0.1);
+                    osc.frequency.setValueAtTime(783.99, now + 0.2);
+                    gain.gain.setValueAtTime(0.3, now);
+                    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.35);
+                    osc.start(now); osc.stop(now + 0.35);
+                } else if (type === 'wrong') {
+                    const osc = audioCtx.createOscillator();
+                    const gain = audioCtx.createGain();
+                    osc.type = 'sawtooth';
+                    osc.connect(gain); gain.connect(audioCtx.destination);
+                    osc.frequency.setValueAtTime(220, now);
+                    osc.frequency.setValueAtTime(140, now + 0.15);
+                    gain.gain.setValueAtTime(0.3, now);
+                    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.3);
+                    osc.start(now); osc.stop(now + 0.3);
+                } else if (type === 'levelup') {
+                    [523, 659, 783, 1046].forEach((f, i) => {
+                        const o = audioCtx.createOscillator();
+                        const g = audioCtx.createGain();
+                        o.connect(g); g.connect(audioCtx.destination);
+                        o.frequency.setValueAtTime(f, now + i * 0.08);
+                        g.gain.setValueAtTime(0.2, now + i * 0.08);
+                        g.gain.exponentialRampToValueAtTime(0.01, now + i * 0.08 + 0.2);
+                        o.start(now + i * 0.08); o.stop(now + i * 0.08 + 0.2);
+                    });
+                } else if (type === 'skill') {
+                    const o = audioCtx.createOscillator();
+                    const g = audioCtx.createGain();
+                    o.type = 'sine'; o.connect(g); g.connect(audioCtx.destination);
+                    o.frequency.setValueAtTime(300, now);
+                    o.frequency.exponentialRampToValueAtTime(1200, now + 0.3);
+                    g.gain.setValueAtTime(0.3, now);
+                    g.gain.exponentialRampToValueAtTime(0.01, now + 0.3);
+                    o.start(now); o.stop(now + 0.3);
+                }
+            } catch(e) {}
+        }
+
+        // GAME STATE
+        const state = {
+            world: 1, // 周回（世界数）※タイプごとに記録
+            difficulty: 'easy', // easy | hard ※タイプごとに記録
+            currentTypeId: null,
+            pets: {},
+            skillUsed: {},
+            mathMode: 'add', // add, sub, mul, div
+            
+            // Buddy character
+            buddy: {
+                id: null,
+                name: '未選択',
+                icon: '🥚',
+                type: '🌱 くさ',
+                level: 1,
+                exp: 0,
+                maxExp: 100,
+                baseAtk: 15,
+                hp: 100,
+                maxHp: 100
+            },
+
+            // Dungeon & Equipment
+            unlockedFloor: 1,
+            hasKey: false,
+            equippedWeapon: { name: 'なし', atkBonus: 0 },
+
+            // Acquired Boss Skills
+            skills: {
+                flame: false,
+                ice: false,
+                thunder: false,
+                heal: false
+            },
+
+            // Dex
+            dex: {},
+
+            // Battle temp state
+            inBattle: false,
+            currentFloor: 1,
+            enemy: { name: '', icon: '', hp: 100, maxHp: 100, atk: 10 },
+            userInputValue: '',
+            currentQuestion: { text: '', ans: 0 },
+            battleTimer: 30,
+            timerInterval: null,
+            timeStopped: false
+        };
+
+        // MONSTER POOL (each type has 4 evolution forms; STAGE_LEVELS = level at which each form appears)
+        const STAGE_LEVELS = [1, 3, 6, 9];
+        const MONSTER_POOL = [
+            { id: 'm1', egg: 'ほのお', type: '🔥 ほのお', border: 'border-rose-400/60', text: 'text-rose-300',
+              forms: [{icon:'🔥',name:'ヒノタマ'},{icon:'🐱',name:'メラニャン'},{icon:'🐯',name:'ブレイズタイガ'},{icon:'🐉',name:'ほのおのりゅう'}] },
+            { id: 'm2', egg: 'みず', type: '💧 みず', border: 'border-blue-400/60', text: 'text-blue-300',
+              forms: [{icon:'💧',name:'ミズプク'},{icon:'🐧',name:'アクアペン'},{icon:'🐬',name:'ナミイルカ'},{icon:'🐳',name:'ダイカイクジラ'}] },
+            { id: 'm3', egg: 'くさ', type: '🌱 くさ', border: 'border-emerald-400/60', text: 'text-emerald-300',
+              forms: [{icon:'🌱',name:'ミドリン'},{icon:'🐣',name:'リーフコッコ'},{icon:'🐔',name:'ハヤテコケ'},{icon:'🦚',name:'エメラルドクジャク'}] },
+            { id: 'm4', egg: 'でんき', type: '⚡ でんき', border: 'border-amber-400/60', text: 'text-amber-300',
+              forms: [{icon:'🐭',name:'ビリマウス'},{icon:'🦁',name:'エレキライオン'},{icon:'🐺',name:'ライジンウルフ'},{icon:'🦄',name:'いかずちユニコーン'}] },
+            { id: 'm5', egg: 'どく', type: '🟣 どく', border: 'border-purple-400/60', text: 'text-purple-300',
+              forms: [{icon:'🍄',name:'ドクキノコ'},{icon:'🐻',name:'ポイズンベア'},{icon:'🦂',name:'ヴェノムスコーピオ'},{icon:'🐍',name:'ヴェノムヒュドラ'}] },
+            { id: 'm6', egg: 'ひかり', type: '✨ ひかり', border: 'border-yellow-300/60', text: 'text-yellow-200',
+              forms: [{icon:'🐤',name:'ヒカリヒヨコ'},{icon:'🦅',name:'ゴールデンホーク'},{icon:'🦉',name:'ホーリーオウル'},{icon:'🦢',name:'ホーリースワン'}] }
+        ];
+
+        // BOSS POOL
+        const BOSS_POOL = [
+            { floor: 1, name: 'ほのおの魔龍', icon: '🐲', skill: 'flame', weapon: '伝説のほのお剣' },
+            { floor: 2, name: 'こおりの巨人', icon: '🗿', skill: 'ice', weapon: '氷結のツララやり' },
+            { floor: 3, name: 'らいじん鳥', icon: '⚡', skill: 'thunder', weapon: '雷光のバトルアックス' },
+            { floor: 4, name: 'たいようの守護神', icon: '☀️', skill: 'heal', weapon: '太陽のせいなる杖' },
+            { floor: 5, name: 'てんくうのドラゴン', icon: '🐉', skill: 'key', weapon: 'まぼろしの鍵' },
+            { floor: 'boss', name: '暗黒魔王ダーク', icon: '👑', skill: 'master', weapon: '魔王のトロフィー' }
+        ];
+
+        /* STRICT VIEW NAVIGATION CONTROLLER */
+        function switchView(viewName) {
+            // Views: 'egg', 'map', 'battle'
+            const eggView = document.getElementById('egg-view');
+            const mapView = document.getElementById('map-view');
+            const battleView = document.getElementById('battle-view');
+            const headerBar = document.getElementById('header-bar');
+
+            // Hide all first
+            eggView.classList.add('hidden');
+            mapView.classList.add('hidden');
+            battleView.classList.add('hidden');
+
+            if (viewName === 'egg') {
+                eggView.classList.remove('hidden');
+                headerBar.classList.add('hidden');
+            } else if (viewName === 'map') {
+                mapView.classList.remove('hidden');
+                headerBar.classList.remove('hidden');
+            } else if (viewName === 'battle') {
+                battleView.classList.remove('hidden');
+                headerBar.classList.remove('hidden');
+            }
+        }
+
+        // Window auto scaling for responsive layout
+        const PORTRAIT_W = 480, PORTRAIT_H = 900;
+        const LANDSCAPE_W = 1000, LANDSCAPE_H = 680;
+
+        function fitToWindow() {
+            const app = document.getElementById('app');
+            if (!app) return;
+            const vw = window.innerWidth;
+            const vh = window.innerHeight;
+
+            const isPortrait = (vw / vh) < 1.15;
+            app.classList.toggle('portrait', isPortrait);
+            app.classList.toggle('landscape', !isPortrait);
+
+            const baseW = isPortrait ? PORTRAIT_W : LANDSCAPE_W;
+            const baseH = isPortrait ? PORTRAIT_H : LANDSCAPE_H;
+            const scale = Math.min((vw - 8) / baseW, (vh - 8) / baseH, 1.4);
+            app.style.transform = `translate(-50%, -50%) scale(${scale})`;
+        }
+
+        function revealApp() {
+            fitToWindow();
+            setTimeout(() => {
+                const app = document.getElementById('app');
+                if (app) app.classList.add('is-ready');
+            }, 150);
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            loadGame();
+            refreshModeText();
+            renderEggs();
+            revealApp();
+            switchView('egg'); // Start at egg view
+        });
+        window.addEventListener('resize', fitToWindow);
+
+        function getType(id) { return MONSTER_POOL.find(m => m.id === id); }
+        function getStage(level) {
+            let st = 0;
+            STAGE_LEVELS.forEach((lv, i) => { if (level >= lv) st = i; });
+            return st;
+        }
+        function formOf(id, level) { return getType(id).forms[getStage(level)]; }
+
+        function getPet(id) {
+            if (!state.pets[id]) {
+                state.pets[id] = {
+                    played: false, difficulty: 'easy', world: 1,
+                    level: 1, exp: 0, maxExp: 100, baseAtk: 15, hp: 100, maxHp: 100,
+                    unlockedFloor: 1, hasKey: false,
+                    equippedWeapon: { name: 'なし', atkBonus: 0 },
+                    skills: { flame: false, ice: false, thunder: false, heal: false }
+                };
+            }
+            return state.pets[id];
+        }
+
+        function refreshBuddyForm() {
+            const m = getType(state.buddy.id);
+            if (!m) return;
+            const f = formOf(m.id, state.buddy.level);
+            state.buddy.icon = f.icon;
+            state.buddy.name = f.name;
+            state.buddy.type = m.type;
+        }
+
+        function loadPet(id) {
+            const p = getPet(id);
+            state.currentTypeId = id;
+            state.buddy = { id: id, level: p.level, exp: p.exp, maxExp: p.maxExp, baseAtk: p.baseAtk, hp: p.hp, maxHp: p.maxHp, name: '', icon: '', type: '' };
+            refreshBuddyForm();
+            state.world = p.world;
+            state.unlockedFloor = p.unlockedFloor;
+            state.hasKey = p.hasKey;
+            state.equippedWeapon = Object.assign({}, p.equippedWeapon);
+            state.skills = Object.assign({}, p.skills);
+            state.difficulty = p.difficulty;
+        }
+
+        const SAVE_KEY = 'calcDungeon_save_v2';
+        function saveGame() {
+            try {
+                localStorage.setItem(SAVE_KEY, JSON.stringify({ pets: state.pets, dex: state.dex, mathMode: state.mathMode }));
+            } catch (e) {}
+        }
+        function loadGame() {
+            try {
+                const raw = localStorage.getItem(SAVE_KEY);
+                if (!raw) return;
+                const d = JSON.parse(raw);
+                if (d && d.pets) state.pets = d.pets;
+                if (d && d.dex) state.dex = d.dex;
+                if (d && d.mathMode) state.mathMode = d.mathMode;
+            } catch (e) {}
+        }
+        function savePet() {
+            const id = state.currentTypeId;
+            if (id && state.pets[id]) {
+                const b = state.buddy;
+                Object.assign(state.pets[id], {
+                    world: state.world, level: b.level, exp: b.exp, maxExp: b.maxExp,
+                    baseAtk: b.baseAtk, hp: b.hp, maxHp: b.maxHp,
+                    unlockedFloor: state.unlockedFloor, hasKey: state.hasKey,
+                    equippedWeapon: Object.assign({}, state.equippedWeapon),
+                    skills: Object.assign({}, state.skills),
+                    difficulty: state.difficulty
+                });
+            }
+            saveGame();
+        }
+
+        const DIFF_NAME = { easy: 'かんたん', hard: 'むずかしい' };
+        const MODE_NAME = { add: 'たしざん', sub: 'ひきざん', mul: 'かけざん', div: 'わりざん', dec: 'しょうすう', frac: 'ぶんすう' };
+
+        function renderEggs() {
+            const g = document.getElementById('egg-grid');
+            if (!g) return;
+            g.innerHTML = '';
+            MONSTER_POOL.forEach((m, i) => {
+                const p = state.pets[m.id];
+                const played = !!(p && p.played);
+                const f = played ? formOf(m.id, p.level) : null;
+                const stage = played ? getStage(p.level) : -1;
+                const icon = played ? f.icon : '🥚';
+                const name = played ? f.name : m.egg + 'のタマゴ';
+                const dots = m.forms.map((_, k) => k <= stage ? '●' : '○').join(' ');
+                const last = p ? p.difficulty : 'easy';
+                const info = played ? `Lv.${p.level} ／ 世界${p.world}` : 'はじめて';
+                const btn = (d) => `<button onclick="selectEgg(${i}, '${d}')" class="flex-1 py-1.5 rounded-lg text-[11px] font-black border btn-press whitespace-nowrap ${
+                    (played && last === d) ? 'bg-amber-400 text-slate-950 border-amber-200' : 'bg-slate-800 text-slate-200 border-slate-600'}">${DIFF_NAME[d]}</button>`;
+                const card = document.createElement('div');
+                card.className = `glass-panel p-2 rounded-3xl flex flex-col items-center border-2 ${m.border}`;
+                card.innerHTML = `
+                    <div class="text-5xl mb-0.5 animate-float" style="animation-delay:${i * 0.15}s">${icon}</div>
+                    <span class="text-xs font-black ${m.text} text-center leading-tight">${name}</span>
+                    <span class="text-[10px] text-slate-300 mt-0.5">${m.type}</span>
+                    <span class="text-[10px] text-amber-300 font-bold">${info}</span>
+                    <span class="text-[9px] text-slate-400 tracking-widest mb-1">${played ? dots : '○ ○ ○ ○'}</span>
+                    <div class="flex gap-1 w-full">${btn('easy')}${btn('hard')}</div>`;
+                g.appendChild(card);
+            });
+        }
+
+        function goEggSelect() {
+            playSound('tap');
+            savePet();
+            state.inBattle = false;
+            renderEggs();
+            switchView('egg');
+        }
+
+        function selectEgg(index, diff) {
+            playSound('tap');
+            const chosen = MONSTER_POOL[index % MONSTER_POOL.length];
+            if (state.currentTypeId) savePet();
+
+            const p = getPet(chosen.id);
+            const first = !p.played;
+            p.played = true;
+            if (diff) p.difficulty = diff;
+            if (!state.dex[chosen.id]) state.dex[chosen.id] = 1;
+
+            loadPet(chosen.id);
+
+            if (first) showToast(`卵が割れた！ ${state.buddy.name} が誕生したよ！`, '🐣');
+            else showToast(`おかえり！ ${state.buddy.name}（Lv.${state.buddy.level}）／${DIFF_NAME[state.difficulty]}`, '🐣');
+            playSound('levelup');
+
+            switchView('map');
+            updateUI();
+        }
+
+        function toggleDifficulty() {
+            playSound('tap');
+            state.difficulty = state.difficulty === 'easy' ? 'hard' : 'easy';
+            showToast(`むずかしさを「${DIFF_NAME[state.difficulty]}」にしたよ！`, '🎚️');
+            updateUI();
+        }
+
+        function retreat() {
+            if (!state.inBattle) return;
+            playSound('tap');
+            clearInterval(state.timerInterval);
+            document.getElementById('feedback-modal').classList.add('hidden');
+            state.inBattle = false;
+            switchView('map');
+            updateUI();
+        }
+
+        function gainExp(amount) {
+            if (state.buddy.level >= 10) {
+                state.buddy.exp = state.buddy.maxExp;
+                return;
+            }
+
+            state.buddy.exp += amount;
+            if (state.buddy.exp >= state.buddy.maxExp) {
+                const oldStage = getStage(state.buddy.level);
+                const oldForm = formOf(state.buddy.id, state.buddy.level);
+                state.buddy.exp -= state.buddy.maxExp;
+                state.buddy.level++;
+                state.buddy.maxExp = state.buddy.level * 60;
+                state.buddy.baseAtk += 8;
+                state.buddy.maxHp += 20;
+                state.buddy.hp = state.buddy.maxHp;
+
+                playSound('levelup');
+                const newStage = getStage(state.buddy.level);
+                refreshBuddyForm();
+                if (newStage > oldStage) {
+                    showToast(`しんか！ ${oldForm.name} ➔ ${state.buddy.name}`, state.buddy.icon);
+                } else {
+                    showToast(`レベルアップ！ Lv.${state.buddy.level} になった！`, '⭐');
+                }
+            }
+            savePet();
+        }
+
+        const R = (a, b) => Math.floor(Math.random() * (b - a + 1)) + a;
+        const gcd = (a, b) => b ? gcd(b, a % b) : Math.abs(a);
+        const f1 = (x) => (x / 10).toFixed(1);
+        const f2 = (x) => (x / 100).toFixed(2);
+        const numOf = (v, places) => Number(v.toFixed(places));
+
+        function qNum(plain, ans, kind) {
+            return { html: plain, plain: plain, kind: kind || 'num', ans: ans, ansText: String(ans) };
+        }
+
+        function buildInt(mode, hard, w, trio) {
+            let a, b, c;
+            if (!trio) {
+                if (mode === 'add') {
+                    a = hard ? R(20, 60 + 30 * w) : R(2, 10 * w + 1);
+                    b = hard ? R(20, 60 + 30 * w) : R(2, 10 * w + 1);
+                    return qNum(`${a} + ${b}`, a + b);
+                } else if (mode === 'sub') {
+                    if (hard) { a = R(40, 80 + 40 * w); b = R(15, a - 5); }
+                    else { a = R(5, 12 * w + 4); b = R(1, a); }
+                    return qNum(`${a} − ${b}`, a - b);
+                } else if (mode === 'mul') {
+                    if (hard) { a = R(11, 15 + 5 * w); b = R(3, 8 + w); }
+                    else { a = R(1, 9); b = R(1, 9); }
+                    return qNum(`${a} × ${b}`, a * b);
+                } else {
+                    if (hard) { b = R(3, 9); const q = R(11, 15 + 4 * w); return qNum(`${b * q} ÷ ${b}`, q); }
+                    b = R(2, 9); const q = R(1, 9);
+                    return qNum(`${b * q} ÷ ${b}`, q);
+                }
+            }
+            // 3 numbers
+            if (mode === 'add') {
+                const lo = hard ? 10 : 1, hi = hard ? 40 + 20 * w : 9 + 5 * w;
+                a = R(lo, hi); b = R(lo, hi); c = R(lo, hi);
+                return qNum(`${a} + ${b} + ${c}`, a + b + c);
+            } else if (mode === 'sub') {
+                if (hard) { a = R(60, 120 + 40 * w); b = R(11, 30); c = R(11, 30); }
+                else { a = R(20, 35 + 10 * w); b = R(1, 8); c = R(1, 8); }
+                return qNum(`${a} − ${b} − ${c}`, a - b - c);
+            } else if (mode === 'mul') {
+                const hi = hard ? 9 : 5;
+                a = R(2, hi); b = R(2, hi); c = R(2, hi);
+                return qNum(`${a} × ${b} × ${c}`, a * b * c);
+            } else {
+                b = hard ? R(2, 6) : R(2, 4);
+                c = hard ? R(2, 6) : R(2, 4);
+                const q = hard ? R(5, 15) : R(2, 9);
+                return qNum(`${q * b * c} ÷ ${b} ÷ ${c}`, q);
+            }
+        }
+
+        function buildDec(hard, w, trio) {
+            const fx = hard ? f2 : f1;
+            const sc = hard ? 100 : 10;
+            let a, b, c;
+            if (!trio) {
+                const op = R(0, 3);
+                if (!hard) {
+                    if (op === 0) { a = R(11, 99); b = R(11, 99); return qNum(`${f1(a)} + ${f1(b)}`, numOf((a + b) / 10, 1), 'dec'); }
+                    if (op === 1) { a = R(21, 99); b = R(11, a - 1); return qNum(`${f1(a)} − ${f1(b)}`, numOf((a - b) / 10, 1), 'dec'); }
+                    if (op === 2) { a = R(11, 59); b = R(2, 9); return qNum(`${f1(a)} × ${b}`, numOf(a * b / 10, 1), 'dec'); }
+                    b = R(2, 9); const q = R(11, 40);
+                    return qNum(`${f1(q * b)} ÷ ${b}`, numOf(q / 10, 1), 'dec');
+                }
+                if (op === 0) { a = R(101, 999); b = R(101, 999); return qNum(`${f2(a)} + ${f2(b)}`, numOf((a + b) / 100, 2), 'dec'); }
+                if (op === 1) { a = R(301, 999); b = R(101, a - 1); return qNum(`${f2(a)} − ${f2(b)}`, numOf((a - b) / 100, 2), 'dec'); }
+                if (op === 2) { a = R(11, 99); b = R(2, 9); return qNum(`${f1(a)} × ${f1(b)}`, numOf(a * b / 100, 2), 'dec'); }
+                const m = R(2, 9), q = R(2, 12);
+                return qNum(`${f1(q * m)} ÷ ${f1(m)}`, q, 'dec');
+            }
+            const pat = R(0, 2);
+            const lo = hard ? 101 : 11, hi = hard ? 700 : 60;
+            if (pat === 0) {
+                a = R(lo, hi); b = R(lo, hi); c = R(lo, hi);
+                return qNum(`${fx(a)} + ${fx(b)} + ${fx(c)}`, numOf((a + b + c) / sc, hard ? 2 : 1), 'dec');
+            } else if (pat === 1) {
+                a = hard ? R(1000, 1500) : R(100, 200);
+                b = hard ? R(101, 450) : R(11, 50);
+                c = hard ? R(101, 450) : R(11, 50);
+                return qNum(`${fx(a)} − ${fx(b)} − ${fx(c)}`, numOf((a - b - c) / sc, hard ? 2 : 1), 'dec');
+            }
+            a = R(lo, hi); b = R(lo, hi); c = R(lo, a + b - 1);
+            return qNum(`${fx(a)} + ${fx(b)} − ${fx(c)}`, numOf((a + b - c) / sc, hard ? 2 : 1), 'dec');
+        }
+
+        function frHtml(n, d) {
+            return d === 1 ? String(n) : `<span class="frac"><span>${n}</span><span>${d}</span></span>`;
+        }
+        function frPlain(n, d) { return d === 1 ? String(n) : `${n}/${d}`; }
+        function frRed(f) { const g = gcd(f.n, f.d) || 1; return { n: f.n / g, d: f.d / g }; }
+        const frAdd = (x, y) => ({ n: x.n * y.d + y.n * x.d, d: x.d * y.d });
+        const frSub = (x, y) => ({ n: x.n * y.d - y.n * x.d, d: x.d * y.d });
+
+        function qFrac(parts, ops, ansFrac) {
+            // parts: [{n,d}], ops: ['+', ...]
+            let html = '', plain = '';
+            parts.forEach((p, i) => {
+                if (i > 0) { html += ` ${ops[i - 1]} `; plain += ` ${ops[i - 1]} `; }
+                html += frHtml(p.n, p.d);
+                plain += frPlain(p.n, p.d);
+            });
+            const r = frRed(ansFrac);
+            return { html: html, plain: plain, kind: 'frac', ans: r, ansText: frPlain(r.n, r.d) };
+        }
+
+        function buildFrac(hard, w, trio) {
+            if (!trio) {
+                const op = R(0, 3);
+                if (!hard) {
+                    if (op === 0) { const d = R(4, 10), a = R(1, d - 2), b = R(1, d - 1 - a);
+                        return qFrac([{n:a,d:d},{n:b,d:d}], ['+'], {n:a+b,d:d}); }
+                    if (op === 1) { const d = R(4, 10), a = R(2, d - 1), b = R(1, a - 1);
+                        return qFrac([{n:a,d:d},{n:b,d:d}], ['−'], {n:a-b,d:d}); }
+                    if (op === 2) { const d = R(2, 9), n = R(1, d - 1), k = R(2, 6);
+                        return qFrac([{n:n,d:d},{n:k,d:1}], ['×'], {n:n*k,d:d}); }
+                    const d = R(2, 6), n = R(1, d - 1), k = R(2, 5);
+                    return qFrac([{n:n,d:d},{n:k,d:1}], ['÷'], {n:n,d:d*k});
+                }
+                let d1 = R(2, 6), d2 = R(2, 6), a, b;
+                if (op <= 1) {
+                    for (let t = 0; t < 60; t++) {
+                        d1 = R(2, 6); d2 = R(2, 6);
+                        if (d1 === d2) continue;
+                        a = R(1, d1 - 1); b = R(1, d2 - 1);
+                        if (op === 0) break;
+                        if (a * d2 > b * d1) break;
+                    }
+                    if (op === 0) return qFrac([{n:a,d:d1},{n:b,d:d2}], ['+'], frAdd({n:a,d:d1},{n:b,d:d2}));
+                    if (a * d2 <= b * d1) { a = d1 - 1; d2 = d1 + 1; b = 1; }
+                    return qFrac([{n:a,d:d1},{n:b,d:d2}], ['−'], frSub({n:a,d:d1},{n:b,d:d2}));
+                }
+                d1 = R(2, 7); d2 = R(2, 7);
+                const n1 = R(1, d1 - 1), n2 = R(1, d2 - 1);
+                if (op === 2) return qFrac([{n:n1,d:d1},{n:n2,d:d2}], ['×'], {n:n1*n2,d:d1*d2});
+                return qFrac([{n:n1,d:d1},{n:n2,d:d2}], ['÷'], {n:n1*d2,d:d1*n2});
+            }
+            // 3 numbers
+            const pat = R(0, 1);
+            if (!hard) {
+                const d = R(9, 12);
+                if (pat === 0) {
+                    const a = R(1, 3), b = R(1, 3), c = R(1, 3);
+                    return qFrac([{n:a,d:d},{n:b,d:d},{n:c,d:d}], ['+', '+'], {n:a+b+c,d:d});
+                }
+                const a = R(2, 4), b = R(2, 4), c = R(1, a + b - 1);
+                return qFrac([{n:a,d:d},{n:b,d:d},{n:c,d:d}], ['+', '−'], {n:a+b-c,d:d});
+            }
+            const dens = [2, 3, 4, 6];
+            for (let t = 0; t < 80; t++) {
+                const p = [0, 1, 2].map(() => { const d = dens[R(0, 3)]; return { n: R(1, d - 1), d: d }; });
+                let res = frAdd(p[0], p[1]);
+                if (pat === 0) { res = frAdd(res, p[2]); }
+                else { res = frSub(res, p[2]); if (res.n <= 0) continue; }
+                return qFrac(p, pat === 0 ? ['+', '+'] : ['+', '−'], res);
+            }
+            return qFrac([{n:1,d:2},{n:1,d:3},{n:1,d:6}], ['+', '+'], {n:1,d:1});
+        }
+
+        function buildQuestion(mode, diff, w, trio) {
+            const hard = diff === 'hard';
+            const ws = Math.min(w, 4);
+            if (mode === 'dec') return buildDec(hard, ws, trio);
+            if (mode === 'frac') return buildFrac(hard, ws, trio);
+            return buildInt(mode, hard, ws, trio);
+        }
+
+        function checkAnswer(input, q) {
+            if (q.kind === 'frac') {
+                let n, d;
+                if (input.indexOf('/') >= 0) {
+                    const parts = input.split('/');
+                    if (parts[0] === '' || parts[1] === '') return false;
+                    n = parseInt(parts[0], 10); d = parseInt(parts[1], 10);
+                } else { n = parseInt(input, 10); d = 1; }
+                if (isNaN(n) || isNaN(d) || d === 0) return false;
+                return n * q.ans.d === q.ans.n * d;
+            }
+            const v = parseFloat(input);
+            if (isNaN(v)) return false;
+            return Math.abs(v - q.ans) < 1e-6;
+        }
+
+        function updateExtraKeys() {
+            const row = document.getElementById('extra-keys');
+            const dot = document.getElementById('key-dot');
+            const sl = document.getElementById('key-slash');
+            const isDec = state.mathMode === 'dec', isFrac = state.mathMode === 'frac';
+            row.classList.toggle('hidden', !(isDec || isFrac));
+            dot.classList.toggle('hidden', !isDec);
+            sl.classList.toggle('hidden', !isFrac);
+        }
+
+        function generateQuestion() {
+            state.userInputValue = '';
+            updateAnswerPreview();
+
+            const trio = state.currentFloor === 'trio';
+            const q = buildQuestion(state.mathMode, state.difficulty, state.world, trio);
+            state.currentQuestion = q;
+
+            const el = document.getElementById('question-text');
+            el.innerHTML = q.html + ' = ?';
+            const L = q.plain.length;
+            el.style.fontSize = (L > 24 ? 24 : L > 19 ? 28 : L > 14 ? 34 : L > 10 ? 40 : 48) + 'px';
+            updateExtraKeys();
+        }
+
+        function startFloorBattle(floor) {
+            playSound('tap');
+            state.inBattle = true;
+            state.currentFloor = floor;
+
+            const bossData = BOSS_POOL[floor - 1];
+            const hpCalc = (70 + floor * 35) * state.world;
+            state.enemy = {
+                name: bossData.name,
+                icon: bossData.icon,
+                hp: hpCalc,
+                maxHp: hpCalc,
+                atk: 10 + floor * 5
+            };
+
+            setupBattleUI();
+        }
+
+        function startTrioBattle() {
+            playSound('tap');
+            state.inBattle = true;
+            state.currentFloor = 'trio';
+            const pool = [['ボスゴブリン', '👹'], ['ティラノ', '🦖'], ['クラーケン', '🐙'], ['ロボキング', '🤖'], ['ダークドラゴン', '🐲']];
+            const pick = pool[R(0, pool.length - 1)];
+            state.enemy = { name: `3つの数字ボス ${pick[0]}`, icon: pick[1], hp: 1, maxHp: 1, atk: 0 };
+            setupBattleUI();
+        }
+
+        function startBossBattle() {
+            if (!state.hasKey) return;
+            playSound('tap');
+            state.inBattle = true;
+            state.currentFloor = 'boss';
+
+            const bossData = BOSS_POOL[5]; // Dark King
+            const hpCalc = 350 * state.world;
+            state.enemy = {
+                name: bossData.name,
+                icon: bossData.icon,
+                hp: hpCalc,
+                maxHp: hpCalc,
+                atk: 25 * state.world
+            };
+
+            setupBattleUI();
+        }
+
+        function setupBattleUI() {
+            switchView('battle');
+
+            document.getElementById('enemy-name').innerText = state.enemy.name;
+            document.getElementById('enemy-avatar').innerText = state.enemy.icon;
+            updateEnemyHpBar();
+
+            state.timerMax = state.currentFloor === 'trio' ? 60 : 30;
+            state.battleTimer = state.timerMax;
+            document.getElementById('battle-timer').innerText = `${state.battleTimer}s`;
+            state.timeStopped = false;
+            state.skillUsed = {};
+            startTimer();
+
+            updateBossSkillButtons();
+            generateQuestion();
+        }
+
+        function startTimer() {
+            clearInterval(state.timerInterval);
+            state.timerInterval = setInterval(() => {
+                if (state.timeStopped) return;
+                state.battleTimer--;
+                document.getElementById('battle-timer').innerText = `${state.battleTimer}s`;
+
+                if (state.battleTimer <= 0) {
+                    clearInterval(state.timerInterval);
+                    playSound('wrong');
+                    showToast('タイムアップ！モンスターの反撃！', '⚠️');
+                    state.battleTimer = state.timerMax || 30;
+                    startTimer();
+                }
+            }, 1000);
+        }
+
+        function updateEnemyHpBar() {
+            const pct = Math.max(0, (state.enemy.hp / state.enemy.maxHp) * 100);
+            document.getElementById('enemy-hp-bar').style.width = `${pct}%`;
+            document.getElementById('enemy-hp-text').innerText = `${Math.ceil(state.enemy.hp)}/${state.enemy.maxHp}`;
+        }
+
+        function pressNum(n) {
+            playSound('tap');
+            if (state.userInputValue.length < 7) {
+                state.userInputValue += n.toString();
+                updateAnswerPreview();
+            }
+        }
+
+        function pressChar(ch) {
+            playSound('tap');
+            const v = state.userInputValue;
+            if (v.length >= 7) return;
+            if (ch === '.' && state.mathMode === 'dec' && v.indexOf('.') < 0) {
+                state.userInputValue = (v === '' ? '0' : v) + '.';
+            } else if (ch === '/' && state.mathMode === 'frac' && v !== '' && v.indexOf('/') < 0) {
+                state.userInputValue = v + '/';
+            } else { return; }
+            updateAnswerPreview();
+        }
+
+        function clearNum() {
+            playSound('tap');
+            state.userInputValue = '';
+            updateAnswerPreview();
+        }
+
+        function updateAnswerPreview() {
+            const p = document.getElementById('answer-preview');
+            const v = state.userInputValue;
+            if (v === '') { p.innerText = '?'; return; }
+            if (v.indexOf('/') >= 0) {
+                const parts = v.split('/');
+                p.innerHTML = `<span class="frac"><span>${parts[0]}</span><span>${parts[1] === '' ? '&nbsp;' : parts[1]}</span></span>`;
+            } else {
+                p.innerText = v;
+            }
+        }
+
+        function submitAnswer() {
+            if (!state.inBattle || state.userInputValue === '') return;
+            if (!document.getElementById('feedback-modal').classList.contains('hidden')) return;
+
+            const isCorrect = checkAnswer(state.userInputValue, state.currentQuestion);
+
+            const modal = document.getElementById('feedback-modal');
+            const icon = document.getElementById('feedback-icon');
+            const title = document.getElementById('feedback-title');
+            const detail = document.getElementById('feedback-detail');
+
+            if (isCorrect) {
+                playSound('correct');
+                const totalAtk = state.buddy.baseAtk + state.equippedWeapon.atkBonus;
+                state.enemy.hp = Math.max(0, state.enemy.hp - totalAtk);
+                updateEnemyHpBar();
+
+                gainExp(25);
+
+                icon.innerText = '⭕';
+                title.innerText = 'せいかい！';
+                title.className = 'text-3xl font-black text-emerald-400 mb-1';
+                detail.innerText = `${totalAtk} のこうげきダメージを与えた！`;
+            } else {
+                playSound('wrong');
+                icon.innerText = '❌';
+                title.innerText = 'ざんねん！';
+                title.className = 'text-3xl font-black text-rose-500 mb-1';
+                detail.innerText = `正解は「${state.currentQuestion.ansText}」でした！つぎは頑張ろう！`;
+            }
+
+            modal.classList.remove('hidden');
+        }
+
+        function nextQuestionOrFinish() {
+            document.getElementById('feedback-modal').classList.add('hidden');
+
+            if (state.enemy.hp <= 0) {
+                clearInterval(state.timerInterval);
+                handleBattleVictory();
+            } else {
+                generateQuestion();
+            }
+        }
+
+        function handleBattleVictory() {
+            playSound('levelup');
+
+            if (state.currentFloor === 'trio') {
+                gainExp(60);
+                document.getElementById('reward-floor-title').innerText = `3つの数字ボス「${state.enemy.name.replace('3つの数字ボス ', '')}」をたおした！`;
+                document.getElementById('reward-item-icon').innerText = '⭐';
+                document.getElementById('reward-item-label').innerText = '【ごほうび】';
+                document.getElementById('reward-item-name').innerText = 'けいけんち +60（+せいかいぶん）';
+                document.getElementById('reward-skill-box').classList.add('hidden');
+                document.getElementById('reward-modal').classList.remove('hidden');
+            } else if (state.currentFloor === 'boss') {
+                document.getElementById('trophy-modal').classList.remove('hidden');
+            } else {
+                document.getElementById('reward-item-icon').innerText = '🗡️';
+                document.getElementById('reward-item-label').innerText = '【自動装着】獲得した装備';
+                const floorIdx = state.currentFloor;
+                const bossInfo = BOSS_POOL[floorIdx - 1];
+
+                if (state.unlockedFloor <= floorIdx) {
+                    state.unlockedFloor = floorIdx + 1;
+                }
+
+                if (floorIdx === 5) {
+                    state.hasKey = true;
+                }
+
+                // Automatic Equipment Application
+                const atkValue = 15 * floorIdx * state.world;
+                state.equippedWeapon = {
+                    name: `${bossInfo.weapon} (+${atkValue})`,
+                    atkBonus: atkValue
+                };
+
+                // Unlock Skill
+                if (bossInfo.skill !== 'key') {
+                    state.skills[bossInfo.skill] = true;
+                }
+
+                // Render Reward Modal
+                document.getElementById('reward-floor-title').innerText = `${floorIdx}階のボス「${bossInfo.name}」を倒した！`;
+                document.getElementById('reward-item-name').innerText = `${bossInfo.weapon} (+${atkValue} 攻撃力)`;
+                
+                if (bossInfo.skill !== 'key') {
+                    document.getElementById('reward-skill-box').classList.remove('hidden');
+                    document.getElementById('reward-skill-name').innerText = `✨ ${getSkillName(bossInfo.skill)}`;
+                } else {
+                    document.getElementById('reward-skill-box').classList.add('hidden');
+                }
+
+                document.getElementById('reward-modal').classList.remove('hidden');
+            }
+
+            updateUI();
+        }
+
+        function closeRewardModal() {
+            playSound('tap');
+            document.getElementById('reward-modal').classList.add('hidden');
+            switchView('map');
+            state.inBattle = false;
+            updateUI();
+        }
+
+        function advanceToNextWorld() {
+            playSound('tap');
+            document.getElementById('trophy-modal').classList.add('hidden');
+
+            // Advance world round (this type only)
+            state.world++;
+            state.unlockedFloor = 1;
+            state.hasKey = false;
+            state.inBattle = false;
+
+            showToast(`「世界 ${state.world}」へ進んだよ！ すきなタマゴをえらぼう！`, '🌟');
+
+            updateUI();
+            renderEggs();
+            switchView('egg');
+        }
+
+        function useBossSkill(skillType) {
+            if (!state.inBattle || !state.skills[skillType] || state.skillUsed[skillType]) return;
+
+            playSound('skill');
+            state.skillUsed[skillType] = true; // 1 use per battle
+
+            if (skillType === 'flame') {
+                showToast('🔥 火炎スキル！ 1問自動正解！', '🔥');
+                state.userInputValue = state.currentQuestion.ansText;
+                submitAnswer();
+            } else if (skillType === 'ice') {
+                showToast('❄️ 氷結スキル！ 制限時間を停止！', '❄️');
+                state.timeStopped = true;
+            } else if (skillType === 'thunder') {
+                showToast('⚡ 雷撃スキル！ 敵のHPを大きく削った！', '⚡');
+                state.enemy.hp = Math.max(0, state.enemy.hp - 80);
+                updateEnemyHpBar();
+                if (state.enemy.hp <= 0) handleBattleVictory();
+            } else if (skillType === 'heal') {
+                showToast('💖 全回復スキル！ 相棒のHPが満タンに！', '💖');
+                state.buddy.hp = state.buddy.maxHp;
+            }
+
+            updateBossSkillButtons();
+        }
+
+        function getSkillName(s) {
+            if (s === 'flame') return '火炎スキル (1問自動正解)';
+            if (s === 'ice') return '氷結スキル (時間停止)';
+            if (s === 'thunder') return '雷撃スキル (大打撃)';
+            if (s === 'heal') return '回復スキル (HP全回復)';
+            return '';
+        }
+
+        function updateBossSkillButtons() {
+            const skills = ['flame', 'ice', 'thunder', 'heal'];
+            const bar = document.getElementById('boss-skills-bar');
+            if (bar) bar.classList.toggle('hidden', !skills.some(k => state.skills[k]));
+            skills.forEach(s => {
+                const btn = document.getElementById(`skill-${s}`);
+                if (btn) {
+                    if (state.skills[s] && !state.skillUsed[s]) {
+                        btn.disabled = false;
+                        btn.className = "bg-gradient-to-b from-purple-600 to-indigo-700 text-white p-2 rounded-xl text-xs font-black flex flex-col items-center btn-press shadow-md border border-purple-400";
+                    } else {
+                        btn.disabled = true;
+                        btn.className = "bg-slate-800 opacity-40 p-2 rounded-xl text-xs font-black text-slate-400 flex flex-col items-center";
+                    }
+                }
+            });
+        }
+
+        function updateUI() {
+            // Header stats
+            document.getElementById('header-buddy-icon').innerText = state.buddy.icon;
+            document.getElementById('header-buddy-name').innerText = state.buddy.name;
+            document.getElementById('header-buddy-level').innerText = `Lv.${state.buddy.level}`;
+            
+            const expPct = Math.min(100, (state.buddy.exp / state.buddy.maxExp) * 100);
+            document.getElementById('header-exp-bar').style.width = `${expPct}%`;
+
+            document.getElementById('world-badge').innerText = `世界 ${state.world}`;
+            
+            const keyText = document.getElementById('key-status-text');
+            if (state.hasKey) {
+                keyText.innerText = '所持中！';
+                keyText.className = 'text-amber-300 font-black animate-pulse';
+            } else {
+                keyText.innerText = 'なし';
+                keyText.className = 'text-rose-400';
+            }
+
+            // Map stats
+            document.getElementById('map-buddy-avatar').innerText = state.buddy.icon;
+            document.getElementById('map-buddy-name').innerText = state.buddy.name;
+            document.getElementById('map-buddy-type').innerText = `${state.buddy.type} ・ ${DIFF_NAME[state.difficulty]}`;
+            document.getElementById('btn-toggle-diff').innerText = `むずかしさ: ${DIFF_NAME[state.difficulty]} ⇄`;
+            document.getElementById('header-buddy-name').title = '';
+            document.getElementById('map-buddy-atk').innerText = state.buddy.baseAtk + state.equippedWeapon.atkBonus;
+            document.getElementById('map-buddy-hp').innerText = `${state.buddy.hp}/${state.buddy.maxHp}`;
+            document.getElementById('map-equipped-item').innerText = state.equippedWeapon.name;
+
+            // Floor Buttons Unlock State
+            for (let f = 2; f <= 5; f++) {
+                const card = document.getElementById(`floor-card-${f}`);
+                const btn = document.getElementById(`btn-floor-${f}`);
+                if (f <= state.unlockedFloor) {
+                    card.classList.remove('opacity-60');
+                    card.className = "glass-panel p-3 rounded-2xl border-2 border-emerald-500/50 flex items-center justify-between gap-2";
+                    btn.disabled = false;
+                    btn.innerText = "挑戦する！";
+                    btn.className = "bg-gradient-to-r from-emerald-500 to-green-600 text-slate-950 font-black px-4 py-2.5 rounded-xl text-sm border border-emerald-300 shadow btn-press";
+                }
+            }
+
+            // Boss Card Unlock
+            const bossBtn = document.getElementById('btn-boss');
+            const bossHint = document.getElementById('boss-unlock-hint');
+            if (state.hasKey) {
+                bossBtn.disabled = false;
+                bossBtn.innerText = "魔王に挑む！";
+                bossBtn.className = "bg-gradient-to-r from-purple-500 to-pink-500 text-white font-black px-5 py-3 rounded-2xl text-base border border-purple-300 shadow-xl btn-press pulse-glow";
+                bossHint.innerText = "まぼろしの鍵で封印が解除された！";
+            }
+            savePet();
+        }
+
+        function toggleDifficultyMode() {
+            playSound('tap');
+            const modes = ['add', 'sub', 'mul', 'div', 'dec', 'frac'];
+            let idx = modes.indexOf(state.mathMode);
+            state.mathMode = modes[(idx + 1) % modes.length];
+            refreshModeText();
+            saveGame();
+            showToast(`計算を「${MODE_NAME[state.mathMode]}」にしたよ！`, '⚙️');
+        }
+
+        function refreshModeText() {
+            document.getElementById('diff-toggle-text').innerText = `⚙️ ${MODE_NAME[state.mathMode]}`;
+        }
+
+        function openDexModal() {
+            playSound('tap');
+            renderDexGrid();
+            document.getElementById('dex-modal').classList.remove('hidden');
+        }
+
+        function closeDexModal() {
+            playSound('tap');
+            document.getElementById('dex-modal').classList.add('hidden');
+        }
+
+        function renderDexGrid() {
+            const grid = document.getElementById('dex-grid');
+            grid.innerHTML = '';
+
+            MONSTER_POOL.forEach(m => {
+                const found = (state.dex[m.id] || 0) > 0;
+                const p = state.pets[m.id];
+                const lv = p ? p.level : 1;
+                const stage = found ? getStage(lv) : -1;
+                const f = found ? formOf(m.id, lv) : null;
+                const card = document.createElement('div');
+                card.className = `p-3 rounded-2xl border text-center flex flex-col items-center justify-center ${
+                    found ? 'bg-slate-800 border-amber-400 text-white' : 'bg-slate-900 border-slate-800 text-slate-600 grayscale'
+                }`;
+                const small = m.forms.map((fm, k) => `<span class="text-base">${k <= stage ? fm.icon : '❓'}</span>`).join('');
+                card.innerHTML = `
+                    <div class="text-4xl mb-1">${found ? f.icon : '❓'}</div>
+                    <div class="text-xs font-black truncate w-full">${found ? f.name : '？？？'}</div>
+                    <div class="text-[10px] text-amber-300 mt-1">${found ? `Lv.${lv} ／ ${m.type}` : '未発見'}</div>
+                    <div class="flex gap-0.5 mt-1 justify-center">${small}</div>
+                `;
+                grid.appendChild(card);
+            });
+        }
+
+        function showToast(msg, icon = '✨') {
+            const toast = document.getElementById('toast');
+            document.getElementById('toast-msg').innerText = msg;
+            document.getElementById('toast-icon').innerText = icon;
+            toast.classList.remove('opacity-0', 'pointer-events-none');
+            toast.classList.add('opacity-100');
+            setTimeout(() => {
+                toast.classList.remove('opacity-100');
+                toast.classList.add('opacity-0', 'pointer-events-none');
+            }, 2200);
+        }
+
+        document.addEventListener('keydown', (e) => {
+            // Priority 1: Answer Feedback Modal
+            const feedbackModal = document.getElementById('feedback-modal');
+            if (!feedbackModal.classList.contains('hidden')) {
+                if (e.key === 'Enter') {
+                    nextQuestionOrFinish();
+                    return;
+                }
+            }
+
+            // Priority 2: Floor Reward Modal
+            const rewardModal = document.getElementById('reward-modal');
+            if (!rewardModal.classList.contains('hidden')) {
+                if (e.key === 'Enter') {
+                    closeRewardModal();
+                    return;
+                }
+            }
+
+            // Priority 3: Trophy Modal
+            const trophyModal = document.getElementById('trophy-modal');
+            if (!trophyModal.classList.contains('hidden')) {
+                if (e.key === 'Enter') {
+                    advanceToNextWorld();
+                    return;
+                }
+            }
+
+            // Priority 4: Egg Selection View
+            const eggView = document.getElementById('egg-view');
+            if (!eggView.classList.contains('hidden')) {
+                if (e.key === 'Enter') {
+                    selectEgg(0); // Choose first type on Enter (keeps its saved difficulty)
+                    return;
+                }
+            }
+
+            // Priority 5: Active Battle Inputs
+            if (state.inBattle) {
+                if (e.key >= '0' && e.key <= '9') {
+                    pressNum(parseInt(e.key));
+                } else if (e.key === '.' || e.key === '/') {
+                    e.preventDefault();
+                    pressChar(e.key);
+                } else if (e.key === 'Backspace') {
+                    clearNum();
+                } else if (e.key === 'Enter') {
+                    submitAnswer();
+                }
+            }
+        });
+
+        window.onload = function() {
+            revealApp();
+        };
+    </script>
+</body>
+</html>

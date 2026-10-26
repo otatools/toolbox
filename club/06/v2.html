@@ -1,0 +1,1126 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <!-- Google tag (gtag.js) -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-YTH979WTKL"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+      gtag('config', 'G-YTH979WTKL');
+    </script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ナゾダゾ - たのしい なぞなぞ あぷり</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Canvas Confetti CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    <!-- Google Fonts for Friendly Look -->
+    <link href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@400;700;900&display=swap" rel="stylesheet">
+    <style>
+        /* §1 ダブルタップ拡大・長押し選択ルーペ防止 */
+        * {
+            touch-action: manipulation;
+            -webkit-touch-callout: none;
+        }
+
+        body {
+            font-family: 'M PLUS Rounded 1c', sans-serif;
+            background-color: #f0fdf4;
+            user-select: none;
+            -webkit-user-select: none;
+            -webkit-text-size-adjust: 100%;
+        }
+
+        /* 電池のビジュアルスタイル（スマホは小さめ） */
+        .battery-container {
+            position: relative;
+            width: 52px;
+            height: 120px;
+            margin-top: 14px;
+            background: #1e293b;
+            border: 4px solid #334155;
+            border-radius: 14px;
+            padding: 5px;
+            display: flex;
+            flex-direction: column-reverse; /* 下から上にたまる */
+            gap: 5px;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.3), inset 0 2px 4px rgba(255, 255, 255, 0.1);
+        }
+        @media (min-width: 768px) {
+            .battery-container { width: 70px; height: 170px; padding: 6px; gap: 6px; border-radius: 16px; }
+        }
+
+        /* 電池の凸部分 */
+        .battery-top {
+            position: absolute;
+            top: -14px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 24px;
+            height: 12px;
+            background: #475569;
+            border-top-left-radius: 6px;
+            border-top-right-radius: 6px;
+            border: 3px solid #334155;
+            border-bottom: none;
+        }
+
+        /* 電池の各セル (4分割) */
+        .battery-cell {
+            flex: 1;
+            border-radius: 6px;
+            background: #334155;
+            transition: background 0.4s ease, box-shadow 0.4s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .battery-cell.filled {
+            background: linear-gradient(135deg, #4ade80, #22c55e);
+            box-shadow: 0 0 12px #22c55e;
+        }
+
+        .battery-cell.filled.supercharged {
+            background: linear-gradient(135deg, #fef08a, #facc15, #f97316);
+            animation: pulse-gold 0.8s infinite alternate;
+            box-shadow: 0 0 15px #facc15;
+        }
+
+        @keyframes pulse-gold {
+            0% { filter: brightness(1); transform: scale(1); }
+            100% { filter: brightness(1.25); transform: scale(1.02); }
+        }
+
+        /* チャージ光沢エフェクト */
+        .battery-cell.filled::after {
+            content: '';
+            position: absolute;
+            top: 0; left: -100%;
+            width: 100%; height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.6), transparent);
+            animation: shine 1.5s infinite;
+        }
+
+        @keyframes shine {
+            100% { left: 100%; }
+        }
+
+        /* ポップアップアニメーション */
+        .pop-in {
+            animation: popIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+        }
+
+        @keyframes popIn {
+            0% { opacity: 0; transform: scale(0.8) translateY(20px); }
+            100% { opacity: 1; transform: scale(1) translateY(0); }
+        }
+
+        .btn-action {
+            transition: all 0.15s ease;
+            box-shadow: 0 6px 0 rgba(0,0,0,0.15);
+        }
+        .btn-action:active {
+            transform: translateY(4px);
+            box-shadow: 0 2px 0 rgba(0,0,0,0.15);
+        }
+
+        /* 手書きキャンバス */
+        #write-canvas {
+            display: block;
+            width: 100%;
+            height: clamp(140px, 26vh, 250px);
+            background: #ffffff;
+            border: 3px dashed #6ee7b7;
+            border-radius: 16px;
+            touch-action: none; /* 手書き中に画面が動かない */
+        }
+        #write-canvas.locked { border-color: #cbd5e1; opacity: 0.85; }
+
+        /* 残り時間が少ないとき */
+        .time-warn { color: #f87171 !important; animation: blink 0.6s infinite alternate; }
+        @keyframes blink { 0% { opacity: 1; } 100% { opacity: 0.45; } }
+
+        /* 得点トースト */
+        .toast {
+            position: fixed;
+            left: 50%;
+            top: 96px;
+            transform: translateX(-50%);
+            z-index: 40;
+            padding: 8px 18px;
+            border-radius: 9999px;
+            font-weight: 900;
+            font-size: 18px;
+            white-space: nowrap;
+            pointer-events: none;
+            animation: toastUp 1s ease-out forwards;
+            box-shadow: 0 6px 14px rgba(0,0,0,0.2);
+        }
+        @keyframes toastUp {
+            0% { opacity: 0; transform: translate(-50%, 10px) scale(0.8); }
+            15% { opacity: 1; transform: translate(-50%, 0) scale(1.05); }
+            80% { opacity: 1; transform: translate(-50%, -6px) scale(1); }
+            100% { opacity: 0; transform: translate(-50%, -16px) scale(1); }
+        }
+
+        .count-num { animation: countPop 0.7s ease-out; }
+        @keyframes countPop {
+            0% { transform: scale(0.4); opacity: 0; }
+            40% { transform: scale(1.15); opacity: 1; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col justify-between items-center p-3 md:p-6 text-slate-800 bg-emerald-50">
+
+    <!-- ヘッダーバー -->
+    <header class="w-full max-w-3xl flex justify-between items-center mb-3 bg-white px-4 py-2.5 rounded-2xl shadow-md border-2 border-emerald-200">
+        <div class="flex items-center gap-2 cursor-pointer" onclick="goToTitle()">
+            <span class="text-3xl">⚡</span>
+            <h1 class="text-2xl md:text-3xl font-black text-emerald-600 tracking-wider">ナゾダゾ</h1>
+        </div>
+        <div class="flex items-center gap-3">
+            <button id="sound-toggle" onclick="toggleSound()" class="p-2 bg-emerald-100 hover:bg-emerald-200 rounded-xl text-base md:text-xl font-bold text-emerald-700 transition">
+                🔊 おと: ON
+            </button>
+        </div>
+    </header>
+
+    <!-- メインコンテンツエリア -->
+    <main class="w-full max-w-3xl flex-1 flex flex-col justify-center items-center">
+
+        <!-- 1. タイトル画面（難易度選択） -->
+        <div id="screen-title" class="w-full bg-white p-5 md:p-8 rounded-3xl shadow-xl border-4 border-emerald-300 text-center pop-in">
+            <div class="inline-block bg-amber-100 text-amber-800 text-sm md:text-base font-bold px-4 py-1.5 rounded-full mb-3 border border-amber-300">
+                しょうがくせいむけ なぞなぞゲーム！
+            </div>
+            <h2 class="text-3xl md:text-5xl font-black text-slate-800 mb-2">
+                ナゾダゾ <span class="text-emerald-500">⚡</span>
+            </h2>
+            <p class="text-slate-600 font-bold mb-5 text-sm md:text-base leading-relaxed">
+                <span class="text-rose-500 font-extrabold text-lg">5ふん</span>で なんもん とけるかな？<br>
+                こたえは <span class="text-emerald-600 font-extrabold">てがき</span>で かこう！<br>
+                4もん せいかいで でんちが まんたん！<br>
+                そのときは <span class="text-amber-500 font-extrabold text-lg">てんすうが 2ばい</span> だよ！
+            </p>
+
+            <div class="space-y-4 max-w-md mx-auto">
+                <!-- やさしい -->
+                <button onclick="startGame('easy')" class="btn-action w-full bg-gradient-to-r from-emerald-400 to-green-500 hover:from-emerald-500 hover:to-green-600 text-white font-extrabold text-xl md:text-2xl py-3 px-5 rounded-2xl border-b-4 border-green-700 text-left">
+                    <div class="flex items-center justify-between">
+                        <span>🌱 やさしい</span>
+                        <span class="text-xs md:text-sm bg-white/30 px-3 py-1 rounded-full">ひんとなし</span>
+                    </div>
+                    <div id="best-easy" class="text-xs md:text-sm font-bold opacity-90 mt-1"></div>
+                </button>
+
+                <!-- ふつう -->
+                <button onclick="startGame('normal')" class="btn-action w-full bg-gradient-to-r from-amber-400 to-orange-500 hover:from-amber-500 hover:to-orange-600 text-white font-extrabold text-xl md:text-2xl py-3 px-5 rounded-2xl border-b-4 border-orange-700 text-left">
+                    <div class="flex items-center justify-between">
+                        <span>⭐ ふつう</span>
+                        <span class="text-xs md:text-sm bg-white/30 px-3 py-1 rounded-full">ひんとあり</span>
+                    </div>
+                    <div id="best-normal" class="text-xs md:text-sm font-bold opacity-90 mt-1"></div>
+                </button>
+
+                <!-- むずかしい -->
+                <button onclick="startGame('hard')" class="btn-action w-full bg-gradient-to-r from-rose-400 to-red-500 hover:from-rose-500 hover:to-red-600 text-white font-extrabold text-xl md:text-2xl py-3 px-5 rounded-2xl border-b-4 border-red-700 text-left">
+                    <div class="flex items-center justify-between">
+                        <span>🔥 むずかしい</span>
+                        <span class="text-xs md:text-sm bg-white/30 px-3 py-1 rounded-full">ひんとあり</span>
+                    </div>
+                    <div id="best-hard" class="text-xs md:text-sm font-bold opacity-90 mt-1"></div>
+                </button>
+            </div>
+
+            <!-- あそびかた -->
+            <div class="mt-6 pt-5 border-t border-slate-100 text-xs md:text-sm text-slate-500 font-bold leading-relaxed">
+                ① もんだいを よんで、かみに かくように てがきで こたえる<br>
+                ② 「こたえあわせ」で せいかいを みて、⭕か❌を じぶんで えらぶ<br>
+                ③ まえの じぶんの ベストを こえたら 🎆 はなびが あがるよ！
+            </div>
+        </div>
+
+        <!-- 2. プレイ画面 -->
+        <div id="screen-play" class="w-full bg-white p-3 md:p-5 rounded-3xl shadow-xl border-4 border-emerald-300 hidden">
+
+            <!-- ステータス -->
+            <div class="flex items-center justify-between mb-2">
+                <span id="diff-badge" class="px-3 py-1 bg-emerald-100 text-emerald-800 rounded-full font-black text-sm">やさしい</span>
+                <span class="text-slate-500 font-bold text-sm"><span id="q-num" class="text-xl text-emerald-600 font-black">1</span> もんめ</span>
+            </div>
+            <div class="grid grid-cols-4 gap-1.5 md:gap-2 mb-2 text-center">
+                <div class="bg-slate-800 text-white rounded-xl py-1.5">
+                    <div class="text-[10px] md:text-xs text-amber-300 font-bold">⏱ のこり</div>
+                    <div id="time-left" class="text-xl md:text-2xl font-black tabular-nums">5:00</div>
+                </div>
+                <div class="bg-amber-50 border border-amber-200 rounded-xl py-1.5">
+                    <div class="text-[10px] md:text-xs text-amber-600 font-bold">てん</div>
+                    <div id="current-score" class="text-xl md:text-2xl font-black text-amber-500 tabular-nums">0</div>
+                </div>
+                <div class="bg-emerald-50 border border-emerald-200 rounded-xl py-1.5">
+                    <div class="text-[10px] md:text-xs text-emerald-600 font-bold">せいかい</div>
+                    <div class="text-xl md:text-2xl font-black text-emerald-600 tabular-nums"><span id="correct-count">0</span><span class="text-xs">もん</span></div>
+                </div>
+                <div class="bg-orange-50 border border-orange-200 rounded-xl py-1.5">
+                    <div class="text-[10px] md:text-xs text-orange-600 font-bold">⚡ 2ばい</div>
+                    <div class="text-xl md:text-2xl font-black text-orange-500 tabular-nums"><span id="full-count">0</span><span class="text-xs">かい</span></div>
+                </div>
+            </div>
+            <div class="h-2.5 bg-slate-200 rounded-full overflow-hidden mb-3">
+                <div id="time-bar" class="h-full bg-emerald-400 rounded-full" style="width:100%"></div>
+            </div>
+
+            <!-- 問題 ＆ 電池 -->
+            <div class="flex gap-3 items-stretch mb-3">
+                <!-- 問題表示エリア -->
+                <div class="flex-1 min-w-0 bg-slate-50 p-3 md:p-5 rounded-2xl border-2 border-slate-200 flex flex-col justify-between">
+                    <div>
+                        <div class="text-xs font-bold text-emerald-600 mb-1">【 もんだい 】</div>
+                        <p id="question-text" class="text-lg md:text-2xl font-black text-slate-800 leading-relaxed"></p>
+                    </div>
+                    <div id="hint-box" class="mt-2 text-xs md:text-sm text-amber-700 bg-amber-50 p-2 rounded-lg hidden">
+                        💡 <strong>ひんと:</strong> <span id="hint-text"></span>
+                    </div>
+                </div>
+
+                <!-- 電池エリア -->
+                <div class="flex flex-col items-center justify-center px-3 py-2 bg-slate-800 rounded-2xl text-white shadow-inner flex-shrink-0">
+                    <div class="text-[11px] md:text-xs font-bold text-amber-300 text-center">⚡ でんち</div>
+                    <div class="battery-container">
+                        <div class="battery-top"></div>
+                        <!-- cell-1 が一番下。下から上にたまる -->
+                        <div id="cell-1" class="battery-cell"></div>
+                        <div id="cell-2" class="battery-cell"></div>
+                        <div id="cell-3" class="battery-cell"></div>
+                        <div id="cell-4" class="battery-cell"></div>
+                    </div>
+                    <div class="mt-2 text-[11px] md:text-xs font-extrabold text-slate-300 text-center">
+                        <span id="energy-count" class="text-amber-400 text-sm">0</span>/4
+                    </div>
+                </div>
+            </div>
+
+            <!-- 手書きエリア -->
+            <div class="relative mb-3">
+                <canvas id="write-canvas"></canvas>
+                <div id="write-placeholder" class="absolute inset-0 flex items-center justify-center text-slate-300 font-black text-lg md:text-2xl pointer-events-none text-center px-4">
+                    ここに てがきで こたえを かいてね ✏️
+                </div>
+            </div>
+
+            <!-- 書いているとき -->
+            <div id="write-actions" class="flex gap-2">
+                <button onclick="clearCanvasByUser()" class="btn-action bg-slate-200 hover:bg-slate-300 text-slate-700 font-extrabold px-5 py-3 rounded-2xl text-base md:text-lg">
+                    🧽 けす
+                </button>
+                <button onclick="revealAnswer()" class="btn-action flex-1 bg-emerald-500 hover:bg-emerald-600 text-white font-extrabold py-3 px-6 rounded-2xl text-lg md:text-xl">
+                    こたえあわせ ➔
+                </button>
+            </div>
+
+            <!-- こたえあわせ -->
+            <div id="check-panel" class="hidden">
+                <div class="bg-emerald-50 border-2 border-emerald-300 rounded-2xl p-3 md:p-4 mb-3">
+                    <div class="text-xs font-bold text-emerald-600">せいかいは…</div>
+                    <div id="answer-text" class="text-3xl md:text-4xl font-black text-emerald-700 my-1 break-words"></div>
+                    <div id="explain-text" class="text-xs md:text-sm text-emerald-900 font-bold leading-relaxed"></div>
+                </div>
+                <div class="text-center text-xs font-bold text-slate-500 mb-2">じぶんの こたえは あってたかな？ しょうじきに えらぼう！</div>
+                <div class="flex gap-3">
+                    <button onclick="judge(true)" class="btn-action flex-1 bg-gradient-to-r from-emerald-400 to-green-500 text-white font-extrabold py-3.5 rounded-2xl text-xl border-b-4 border-green-700">
+                        ⭕ あってた！
+                    </button>
+                    <button onclick="judge(false)" class="btn-action flex-1 bg-gradient-to-r from-slate-400 to-slate-500 text-white font-extrabold py-3.5 rounded-2xl text-xl border-b-4 border-slate-600">
+                        ❌ ざんねん
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 3. 結果（リザルト）画面 -->
+        <div id="screen-result" class="w-full bg-white p-5 md:p-8 rounded-3xl shadow-xl border-4 border-emerald-300 text-center hidden pop-in">
+            <div id="result-badge" class="inline-block bg-amber-400 text-slate-900 text-sm font-black px-4 py-1.5 rounded-full mb-2">
+                5ふんかん おつかれさま！
+            </div>
+            <h2 class="text-2xl md:text-4xl font-black text-slate-800 mb-3">けっか はっぴょう！</h2>
+
+            <div class="bg-gradient-to-br from-amber-50 to-orange-50 p-5 rounded-3xl border-2 border-amber-200 mb-4 relative overflow-hidden">
+                <div class="text-slate-500 font-bold text-sm mb-1">ゲットした てんすう</div>
+                <div class="text-5xl md:text-6xl font-black text-amber-500 my-1">
+                    <span id="final-score">0</span> <span class="text-2xl">てん</span>
+                </div>
+
+                <div class="grid grid-cols-2 gap-2 mt-3 text-sm font-bold">
+                    <div class="bg-white rounded-xl py-2 border border-emerald-200">
+                        <div class="text-xs text-emerald-600">せいかい</div>
+                        <div class="text-2xl font-black text-emerald-600"><span id="final-correct">0</span><span class="text-sm">もん</span></div>
+                    </div>
+                    <div class="bg-white rounded-xl py-2 border border-orange-200">
+                        <div class="text-xs text-orange-600">⚡ 2ばいに なった</div>
+                        <div class="text-2xl font-black text-orange-500"><span id="final-full">0</span><span class="text-sm">かい</span></div>
+                    </div>
+                </div>
+                <div id="bonus-detail" class="mt-2 text-xs text-slate-500 font-bold"></div>
+
+                <div id="rank-title" class="mt-3 text-xl md:text-2xl font-black text-emerald-600"></div>
+            </div>
+
+            <!-- ベスト比較 -->
+            <div id="record-box" class="rounded-2xl p-3 mb-4 border-2 bg-slate-50 border-slate-200">
+                <div id="record-title" class="text-lg md:text-xl font-black text-slate-700"></div>
+                <div id="record-msg" class="text-sm font-bold text-slate-500 mt-1"></div>
+            </div>
+
+            <div class="flex flex-col sm:flex-row gap-3">
+                <button onclick="goToTitle()" class="btn-action flex-1 bg-slate-200 hover:bg-slate-300 text-slate-700 font-extrabold py-3.5 rounded-2xl text-lg">
+                    🏠 タイトルへ
+                </button>
+                <button onclick="startGame(currentDifficulty)" class="btn-action flex-1 bg-emerald-500 hover:bg-emerald-600 text-white font-extrabold py-3.5 rounded-2xl text-lg">
+                    🔄 もういちど あそぶ
+                </button>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- カウントダウン -->
+    <div id="countdown-overlay" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/70 hidden">
+        <div class="text-center">
+            <div id="countdown-num" class="text-white font-black text-8xl md:text-9xl"></div>
+            <div class="text-amber-300 font-black text-xl mt-2">5ふんで なんもん とけるかな？</div>
+        </div>
+    </div>
+
+    <!-- じかんぎれ -->
+    <div id="timeup-overlay" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/70 hidden">
+        <div class="text-white font-black text-6xl md:text-8xl text-center">⏰<br>そこまで！</div>
+    </div>
+
+    <footer class="w-full max-w-3xl text-center text-xs text-slate-400 font-bold mt-3">
+        © ナゾダゾ - たのしいなぞなぞアプリ
+    </footer>
+
+    <script>
+        /* -------------------------------------------------------------
+           1. サウンドエフェクト (Web Audio API)
+        ------------------------------------------------------------- */
+        /* §18 音ON/OFF設定をlocalStorageから復元 */
+        let soundEnabled = true;
+        try {
+            const saved = localStorage.getItem('nazonazo.sound');
+            if (saved !== null) soundEnabled = (saved === 'true');
+        } catch(e) {}
+
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        let audioCtx = null;
+        let audioUnlocked = false;
+
+        function initAudio() {
+            if (!audioCtx) {
+                audioCtx = new AudioContext();
+            }
+            /* §17 iOS: 無音バッファを1回再生して音声出力を有効化 */
+            if (!audioUnlocked && audioCtx.state === 'running') {
+                try {
+                    const b = audioCtx.createBuffer(1, 1, audioCtx.sampleRate);
+                    const s = audioCtx.createBufferSource();
+                    s.buffer = b; s.connect(audioCtx.destination); s.start(0);
+                    audioUnlocked = true;
+                } catch(e) {}
+            }
+        }
+
+        /* §17 アプリ復帰時にAudioContextを再開 */
+        document.addEventListener('visibilitychange', () => {
+            if (!document.hidden && audioCtx && audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+        });
+
+        function playSound(type) {
+            if (!soundEnabled) return;
+            initAudio();
+
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+
+            const now = audioCtx.currentTime;
+
+            if (type === 'click') {
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(400, now);
+                osc.frequency.exponentialRampToValueAtTime(800, now + 0.08);
+                gain.gain.setValueAtTime(0.15, now);
+                gain.gain.linearRampToValueAtTime(0.01, now + 0.08);
+                osc.start(now);
+                osc.stop(now + 0.08);
+            } else if (type === 'correct') {
+                const notes = [523.25, 659.25, 783.99, 1046.50];
+                notes.forEach((freq, idx) => {
+                    const o = audioCtx.createOscillator();
+                    const g = audioCtx.createGain();
+                    o.connect(g);
+                    g.connect(audioCtx.destination);
+                    o.type = 'triangle';
+                    o.frequency.setValueAtTime(freq, now + idx * 0.08);
+                    g.gain.setValueAtTime(0.2, now + idx * 0.08);
+                    g.gain.linearRampToValueAtTime(0.01, now + idx * 0.08 + 0.2);
+                    o.start(now + idx * 0.08);
+                    o.stop(now + idx * 0.08 + 0.2);
+                });
+            } else if (type === 'wrong') {
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(150, now);
+                osc.frequency.setValueAtTime(120, now + 0.15);
+                gain.gain.setValueAtTime(0.2, now);
+                gain.gain.linearRampToValueAtTime(0.01, now + 0.3);
+                osc.start(now);
+                osc.stop(now + 0.3);
+            } else if (type === 'charge') {
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(300, now);
+                osc.frequency.exponentialRampToValueAtTime(1200, now + 0.3);
+                gain.gain.setValueAtTime(0.2, now);
+                gain.gain.linearRampToValueAtTime(0.01, now + 0.3);
+                osc.start(now);
+                osc.stop(now + 0.3);
+            } else if (type === 'fever') {
+                [440, 554.37, 659.25, 880].forEach((freq, idx) => {
+                    const o = audioCtx.createOscillator();
+                    const g = audioCtx.createGain();
+                    o.connect(g);
+                    g.connect(audioCtx.destination);
+                    o.type = 'square';
+                    o.frequency.setValueAtTime(freq, now + idx * 0.1);
+                    g.gain.setValueAtTime(0.15, now + idx * 0.1);
+                    g.gain.linearRampToValueAtTime(0.01, now + idx * 0.1 + 0.3);
+                    o.start(now + idx * 0.1);
+                    o.stop(now + idx * 0.1 + 0.3);
+                });
+            } else if (type === 'boom') {
+                // はなび「ドン」
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(160, now);
+                osc.frequency.exponentialRampToValueAtTime(40, now + 0.35);
+                gain.gain.setValueAtTime(0.35, now);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + 0.4);
+                osc.start(now);
+                osc.stop(now + 0.4);
+            }
+        }
+
+        function toggleSound() {
+            soundEnabled = !soundEnabled;
+            document.getElementById('sound-toggle').innerText = soundEnabled ? '🔊 おと: ON' : '🔇 おと: OFF';
+            /* §18 設定をlocalStorageに保存 */
+            try { localStorage.setItem('nazonazo.sound', String(soundEnabled)); } catch(e) {}
+        }
+
+        /* -------------------------------------------------------------
+           2. 問題データ（すべて てがきで こたえる）
+              q: もんだい / a: こたえ（表示用） / hint: ひんと / explain: かいせつ
+        ------------------------------------------------------------- */
+        const QUESTION_BANK = {
+            easy: [
+                { q: "おなかの まんなかに あるのは なあに？", a: "な",
+                  explain: "「お・な・か」の まんなかの もじは「な」だよ！" },
+                { q: "こたえは かんたん！ あしたの てんきは なあに？", a: "かんたん",
+                  explain: "「こたえは かんたん」と いっているから、こたえは「かんたん」なんだよ！" },
+                { q: "からだに「くび」は いくつ ある？", a: "7つ",
+                  explain: "「くび」1つ＋「てくび」2つ＋「あしくび」2つ＋「ちくび」2つ＝ぜんぶで 7つだよ！" },
+                { q: "「しょうがっこう」と「おとな」、どっちが おおきい？", a: "しょうがっこう",
+                  explain: "「おとな」は ひとのことだけど、「しょうがっこう」は おおきな たてもの！たてもののほうが ずっと おおきいよね！" },
+                { q: "パンは パンでも たべられない パンは なあに？", a: "フライパン",
+                  explain: "りょうりに つかう「フライパン」は たべられないね！" },
+                { q: "うしろから よんでも おなじ やさいは なあに？", a: "トマト",
+                  explain: "「ト・マ・ト」は うしろから よんでも「トマト」だね！" },
+                { q: "あしが 10ぽん ある いきものは なあに？", a: "イカ",
+                  explain: "イカは あしが 10ぽん（うでが 8ほん と ながい あしが 2ほん）あるよ！" },
+                { q: "たこは たこでも そらを とぶ たこは なあに？", a: "たこ（あげる たこ）",
+                  explain: "おしょうがつに あげる「たこ」は そらを とぶね！" },
+                { q: "うさぎと かめが かけっこを したよ。ゴールに さきに ついたのは どっち？", a: "かめ",
+                  explain: "おはなしの「うさぎと かめ」では、うさぎが ひるねを して、かめが かったよ！" },
+                { q: "ももたろうの おともは いぬ、さる、あと ひとつは なに？", a: "きじ",
+                  explain: "ももたろうの おともは いぬ・さる・きじ だよ！" },
+                { q: "にじは なんしょく ある？", a: "7しょく（7いろ）",
+                  explain: "にほんでは にじは 7いろと いわれているよ！ あか・だいだい・き・みどり・あお・あい・むらさき だね！" },
+                { q: "しんごうの まんなかの いろは なあに？", a: "きいろ",
+                  explain: "しんごうは あお・き・あか の じゅんばんで、まんなかは「きいろ」だよ！" }
+            ],
+            normal: [
+                { q: "まんいんでんしゃでも まいにち かならず すわれるのは なぜ？", a: "うんてんし（さん）",
+                  hint: "でんしゃの いちばんまえで そうじゅうしている ひとだよ！",
+                  explain: "でんしゃの うんてんしさんは、いつでも じぶんせんようの うんてんせきに すわれるね！" },
+                { q: "たろうくんが かじの いえに いたのは なぜ？", a: "しょうぼうし（さん）",
+                  hint: "かじのとき かけつけてくれる ひとは だれ？",
+                  explain: "「かじのいえ」に きているのは「しょうぼうし」さん！ひを けすのが おしごとだからね！" },
+                { q: "いちにちじゅう くるくる まわっているのに つかれないのは なぜ？", a: "とけい",
+                  hint: "へやの かべや うでについていて、じかんを おしえてくれるもの！",
+                  explain: "とけいの はりは ずっとくるくる まわりつづけているよ！とまったら たいへんだから、つかれずに うごきつづけているんだね！" },
+                { q: "いちまいの かみを きらずに 10まいにするには どうする？", a: "「10まい」と かく",
+                  hint: "かみに えんぴつで「もじ」を かくんだよ！",
+                  explain: "かみに「10まい（じゅうまい）」と もじを かけば、きらなくても 10まいになるね！" },
+                { q: "じぶんの ものなのに、ほかの ひとの ほうが よく つかう ものは なあに？", a: "なまえ",
+                  hint: "ともだちが よんでくれる ときに つかうよ！",
+                  explain: "じぶんの「なまえ」は、まわりの ひとが よぶときに たくさん つかうね！" },
+                { q: "いちばん はやい たべものは なあに？", a: "ファストフード",
+                  hint: "「はやい」を えいごで いうと「ファスト」だよ！",
+                  explain: "「ファスト（はやい）フード（たべもの）」だから、いちばん はやい たべものなんだね！" },
+                { q: "うしろから よんでも おなじ かみの ものは なあに？", a: "しんぶんし",
+                  hint: "5もじだよ！ まいあさ いえに とどく、よみものの かみ！",
+                  explain: "「し・ん・ぶ・ん・し」は うしろから よんでも おなじだね！" },
+                { q: "ゆきだるまが いちばん きらいな きせつは？", a: "なつ",
+                  hint: "ゆきだるまは あつい と どうなっちゃう？",
+                  explain: "なつは あつくて ゆきだるまが とけちゃうから、きらいなんだね！" },
+                { q: "あしが 4ほん あるのに あるけない ものは なあに？", a: "いす（つくえ）",
+                  hint: "きょうしつに あるよ！ すわったり、ノートを おいたり！",
+                  explain: "いす や つくえ には あしが あるけど、あるけないね！" },
+                { q: "ひらくと おおきくなって、あめの ひに みんなを まもってくれる ものは？", a: "かさ",
+                  hint: "あめの ひに さす もの！",
+                  explain: "「かさ」は ひらくと おおきくなって、あめから まもってくれるね！" },
+                { q: "3びきの こぶた。いちばん じょうぶな いえは なにで できている？", a: "レンガ",
+                  hint: "わらの いえ、きの いえ、そして…？",
+                  explain: "3びきめの こぶたは「レンガ」の いえを つくって、おおかみから まもれたよ！" },
+                { q: "ももたろうが いぬ・さる・きじに あげた たべものは なあに？", a: "きびだんご",
+                  hint: "だんごの なかま だよ！",
+                  explain: "ももたろうは「きびだんご」を あげて、おともに したんだよ！" }
+            ],
+            hard: [
+                { q: "チョコレート、プリン、ドーナツ。3じのおやつの ときに でてきたのは？", a: "プリン",
+                  hint: "「3じ」には「3もじ」という いみも あるよ！3つの おかしを かぞえてみて！",
+                  explain: "「3じ（＝3もじ）」のおやつは「プリン（ぷ・り・ん）」だけ！チョコレートは 6もじ、ドーナツは 4もじだね！" },
+                { q: "にんじんを 10ぽん しゅうかくしようと して 3ぼん とったら、てもとに あるのは いくつ？", a: "3ぼん",
+                  hint: "じぶんが じっさいに「とった（てにいれた）」ほんすうを かぞえてね！",
+                  explain: "じぶんが とって てにもっているのは、とった「3ぼん」だけだね！" },
+                { q: "よるも ねずに はたらいているのに なぜ げんき？", a: "ねずみ",
+                  hint: "どうぶつの なまえが はいっているよ！「ねず・に」",
+                  explain: "ねていない（ねずに）のではなくて、どうぶつの「ネズミ」が はたらいているからなんだね！" },
+                { q: "かいがいりょこうに いけなかった むしは なあに？", a: "か",
+                  hint: "「かいがい」を もじって みよう！「か・いがい」",
+                  explain: "「かいがい」は「か・いがい」＝「か（むしの か）」いがい！だから「か」だけ かいがいに いけなかったんだね！" },
+                { q: "あさは 4ほん、ひるは 2ほん、よるは 3ぼんの あしで あるく ものは なあに？", a: "にんげん",
+                  hint: "あかちゃんは はいはい、おじいさんは つえを つくよ！",
+                  explain: "あかちゃん（4ほん）→ おとな（2ほん）→ つえを つく おとしより（3ぼん）。ひとの いっしょうの ことだよ！" },
+                { q: "たけやぶが やけた ことを あらわす、うしろから よんでも おなじ 7もじは？", a: "たけやぶやけた",
+                  hint: "「たけやぶ」と「やけた」を つなげてみよう！",
+                  explain: "「た・け・や・ぶ・や・け・た」は うしろから よんでも おなじだね！" },
+                { q: "にわには にわ にわとりが います。にわとりは なんわ いる？", a: "2わ",
+                  hint: "「にわ」には 2つの いみが あるよ！ ばしょと かず！",
+                  explain: "「にわには にわ」は「にわ（おにわ）には にわ（2わ）」。だから にわとりは 2わ だよ！" },
+                { q: "50おんで いちばん はじめの もじと いちばん さいごの もじを つなげて よむと なんて よむ？", a: "あん",
+                  hint: "はじめは「あ」、さいごは しりとりで まけちゃう もじ！",
+                  explain: "いちばん はじめの「あ」と いちばん さいごの「ん」で「あん」だね！" }
+            ]
+        };
+
+        /* -------------------------------------------------------------
+           3. ゲーム状態
+        ------------------------------------------------------------- */
+        const TOTAL_SEC = 300;         // 5ふん
+        const POINT_PER_Q = 5;         // 1もんの てん
+        const FULL_BONUS = 20;         // まんたん ボーナス（4もん ぶんが 2ばい）
+        const LOWFX = window.matchMedia && matchMedia('(hover: none) and (pointer: coarse)').matches;
+
+        let currentDifficulty = 'easy';
+        let score = 0;
+        let correctCount = 0;
+        let fullCount = 0;
+        let energyCount = 0;           // 電池エネルギー (0〜4)
+        let qNumber = 0;
+        let queue = [];
+        let currentQ = null;
+        let lastQ = null;
+        let phase = 'idle';            // idle / countdown / write / check / next / over
+        let endAt = 0;
+        let timerId = null;
+        let resetTimer = null;
+        let runId = 0;                 // ゲームのたびに増やし、古いタイマーを無効にする
+
+        const DIFF_NAMES = { easy: '🌱 やさしい', normal: '⭐ ふつう', hard: '🔥 むずかしい' };
+
+        /* -------------------------------------------------------------
+           4. ベストスコア（localStorage）
+        ------------------------------------------------------------- */
+        function loadBest(diff) {
+            try {
+                const v = localStorage.getItem('nazonazo.best.' + diff);
+                if (v) {
+                    const o = JSON.parse(v);
+                    if (o && typeof o.score === 'number') return o;
+                }
+            } catch(e) {}
+            return null;
+        }
+        function saveBest(diff, obj) {
+            try { localStorage.setItem('nazonazo.best.' + diff, JSON.stringify(obj)); } catch(e) {}
+        }
+        function refreshBest() {
+            ['easy', 'normal', 'hard'].forEach(d => {
+                const b = loadBest(d);
+                document.getElementById('best-' + d).innerText =
+                    b ? `🏆 ベスト: ${b.score}てん（${b.correct}もん）` : 'まだ きろくが ないよ';
+            });
+        }
+
+        /* -------------------------------------------------------------
+           5. 画面遷移
+        ------------------------------------------------------------- */
+        function showScreen(screenId) {
+            ['screen-title', 'screen-play', 'screen-result'].forEach(id => {
+                document.getElementById(id).classList.add('hidden');
+            });
+            document.getElementById(screenId).classList.remove('hidden');
+            if (screenId === 'screen-title') refreshBest();
+            window.scrollTo(0, 0);
+            playSound('click');
+        }
+
+        function stopTimers() {
+            runId++;
+            clearInterval(timerId);
+            clearTimeout(resetTimer);
+            timerId = null;
+            document.getElementById('countdown-overlay').classList.add('hidden');
+            document.getElementById('timeup-overlay').classList.add('hidden');
+        }
+
+        function goToTitle() {
+            stopTimers();
+            phase = 'idle';
+            showScreen('screen-title');
+        }
+
+        /* -------------------------------------------------------------
+           6. ゲーム開始 〜 カウントダウン
+        ------------------------------------------------------------- */
+        function startGame(difficulty) {
+            initAudio();
+            stopTimers();
+            const myRun = runId;
+
+            currentDifficulty = difficulty;
+            score = 0; correctCount = 0; fullCount = 0; energyCount = 0; qNumber = 0;
+            queue = []; currentQ = null; lastQ = null;
+            phase = 'countdown';
+
+            document.getElementById('diff-badge').innerText = DIFF_NAMES[difficulty];
+            document.getElementById('question-text').innerText = '';
+            document.getElementById('hint-box').classList.add('hidden');
+            updateBatteryUI();
+            updateStats(TOTAL_SEC);
+            setPanel('write');
+            showScreen('screen-play');
+
+            const overlay = document.getElementById('countdown-overlay');
+            const num = document.getElementById('countdown-num');
+            overlay.classList.remove('hidden');
+
+            const seq = ['3', '2', '1', 'スタート！'];
+            let i = 0;
+            function step() {
+                if (myRun !== runId) return;
+                if (i >= seq.length) {
+                    overlay.classList.add('hidden');
+                    beginTimer(myRun);
+                    return;
+                }
+                num.className = '';
+                void num.offsetWidth; // アニメーションをやり直す
+                num.className = 'text-white font-black count-num ' + (i === 3 ? 'text-5xl md:text-7xl' : 'text-8xl md:text-9xl');
+                num.innerText = seq[i];
+                playSound(i === 3 ? 'charge' : 'click');
+                i++;
+                setTimeout(step, 750);
+            }
+            step();
+        }
+
+        function beginTimer(myRun) {
+            endAt = Date.now() + TOTAL_SEC * 1000;
+            timerId = setInterval(() => tick(myRun), 250);
+            nextQuestion();
+        }
+
+        function tick(myRun) {
+            if (myRun !== runId) return;
+            const left = Math.max(0, Math.ceil((endAt - Date.now()) / 1000));
+            updateStats(left);
+            if (left <= 0) timeUp(myRun);
+        }
+
+        function fmtTime(sec) {
+            return Math.floor(sec / 60) + ':' + String(sec % 60).padStart(2, '0');
+        }
+
+        function updateStats(left) {
+            const t = document.getElementById('time-left');
+            t.innerText = fmtTime(left);
+            t.classList.toggle('time-warn', left <= 30 && left > 0);
+            const bar = document.getElementById('time-bar');
+            bar.style.width = (left / TOTAL_SEC * 100) + '%';
+            bar.className = 'h-full rounded-full ' + (left <= 30 ? 'bg-rose-500' : (left <= 60 ? 'bg-amber-400' : 'bg-emerald-400'));
+            document.getElementById('current-score').innerText = score;
+            document.getElementById('correct-count').innerText = correctCount;
+            document.getElementById('full-count').innerText = fullCount;
+        }
+
+        function timeUp(myRun) {
+            clearInterval(timerId);
+            timerId = null;
+            phase = 'over';
+            document.getElementById('timeup-overlay').classList.remove('hidden');
+            playSound('fever');
+            setTimeout(() => {
+                if (myRun !== runId) return;
+                document.getElementById('timeup-overlay').classList.add('hidden');
+                showResultScreen();
+            }, 1700);
+        }
+
+        /* -------------------------------------------------------------
+           7. 問題の出題
+        ------------------------------------------------------------- */
+        function shuffle(arr) {
+            const a = arr.slice();
+            for (let i = a.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [a[i], a[j]] = [a[j], a[i]];
+            }
+            return a;
+        }
+
+        function pickQuestion() {
+            if (queue.length === 0) {
+                queue = shuffle(QUESTION_BANK[currentDifficulty]);
+                // 直前と同じ問題が続かないようにする
+                if (queue.length > 1 && queue[0] === lastQ) {
+                    [queue[0], queue[queue.length - 1]] = [queue[queue.length - 1], queue[0]];
+                }
+            }
+            return queue.shift();
+        }
+
+        function nextQuestion() {
+            currentQ = pickQuestion();
+            lastQ = currentQ;
+            qNumber++;
+            document.getElementById('q-num').innerText = qNumber;
+            document.getElementById('question-text').innerText = currentQ.q;
+
+            const hintBox = document.getElementById('hint-box');
+            if (currentQ.hint) {
+                document.getElementById('hint-text').innerText = currentQ.hint;
+                hintBox.classList.remove('hidden');
+            } else {
+                hintBox.classList.add('hidden');
+            }
+
+            setPanel('write');
+            clearCanvas();
+            phase = 'write';
+        }
+
+        function setPanel(mode) {
+            document.getElementById('write-actions').classList.toggle('hidden', mode !== 'write');
+            document.getElementById('check-panel').classList.toggle('hidden', mode !== 'check');
+            document.getElementById('write-canvas').classList.toggle('locked', mode !== 'write');
+        }
+
+        /* -------------------------------------------------------------
+           8. 手書きキャンバス
+        ------------------------------------------------------------- */
+        const wc = document.getElementById('write-canvas');
+        const wctx = wc.getContext('2d');
+        const placeholder = document.getElementById('write-placeholder');
+        let canvasW = 0, canvasH = 0;
+        let drawing = false;
+        let pointerIdInUse = null;
+
+        /* §12 サイズが変わったときだけ作り直す（iOSのアドレスバー開閉でresizeが飛んでも消さない） */
+        function fitCanvas() {
+            const r = wc.getBoundingClientRect();
+            const w = Math.round(r.width), h = Math.round(r.height);
+            if (!w || !h) return;
+            if (w === canvasW && h === canvasH) return;
+            const dpr = Math.min(2, window.devicePixelRatio || 1);
+            canvasW = w; canvasH = h;
+            wc.width = w * dpr;
+            wc.height = h * dpr;
+            wctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+            wctx.lineCap = 'round';
+            wctx.lineJoin = 'round';
+            wctx.lineWidth = 8;
+            wctx.strokeStyle = '#1e293b';
+            wctx.fillStyle = '#1e293b';
+        }
+
+        function clearCanvas() {
+            fitCanvas();
+            wctx.clearRect(0, 0, canvasW, canvasH);
+            placeholder.classList.remove('hidden');
+        }
+
+        function clearCanvasByUser() {
+            if (phase !== 'write') return;
+            playSound('click');
+            clearCanvas();
+        }
+
+        function canvasPos(e) {
+            const r = wc.getBoundingClientRect();
+            return { x: e.clientX - r.left, y: e.clientY - r.top };
+        }
+
+        wc.addEventListener('pointerdown', (e) => {
+            if (phase !== 'write') return;
+            e.preventDefault();
+            drawing = true;
+            pointerIdInUse = e.pointerId;
+            try { wc.setPointerCapture(e.pointerId); } catch(_) {}
+            const p = canvasPos(e);
+            placeholder.classList.add('hidden');
+            // 点（てん・まる）も書けるように
+            wctx.beginPath();
+            wctx.arc(p.x, p.y, wctx.lineWidth / 2, 0, Math.PI * 2);
+            wctx.fill();
+            wctx.beginPath();
+            wctx.moveTo(p.x, p.y);
+        });
+
+        wc.addEventListener('pointermove', (e) => {
+            if (!drawing || e.pointerId !== pointerIdInUse) return;
+            e.preventDefault();
+            const p = canvasPos(e);
+            wctx.lineTo(p.x, p.y);
+            wctx.stroke();
+            wctx.beginPath();
+            wctx.moveTo(p.x, p.y);
+        });
+
+        function endStroke(e) {
+            if (e.pointerId !== pointerIdInUse) return;
+            drawing = false;
+            pointerIdInUse = null;
+        }
+        wc.addEventListener('pointerup', endStroke);
+        wc.addEventListener('pointercancel', endStroke);
+
+        /* §1 Pointer Eventを使うときも touch の既定動作（ルーペ・スクロール）を止める */
+        wc.addEventListener('touchstart', (e) => e.preventDefault(), { passive: false });
+        wc.addEventListener('touchmove', (e) => e.preventDefault(), { passive: false });
+
+        /* -------------------------------------------------------------
+           9. こたえあわせ ＆ 判定
+        ------------------------------------------------------------- */
+        function revealAnswer() {
+            if (phase !== 'write') return;
+            phase = 'check';
+            drawing = false;
+            playSound('click');
+            document.getElementById('answer-text').innerText = currentQ.a;
+            document.getElementById('explain-text').innerText = currentQ.explain;
+            setPanel('check');
+            // 画面が小さくても ⭕❌ ボタンが見えるようにする
+            const panel = document.getElementById('check-panel');
+            setTimeout(() => panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 50);
+        }
+
+        function judge(isCorrect) {
+            if (phase !== 'check') return;
+            phase = 'next';
+            const myRun = runId;
+
+            if (isCorrect) onCorrect();
+            else onWrong();
+
+            setTimeout(() => {
+                if (myRun !== runId || phase !== 'next') return;
+                nextQuestion();
+            }, isCorrect ? 500 : 300);
+        }
+
+        function onCorrect() {
+            playSound('correct');
+            // 前の「まんたん」が残っていたらすぐに空にする
+            if (energyCount >= 4) {
+                clearTimeout(resetTimer);
+                energyCount = 0;
+            }
+            correctCount++;
+            score += POINT_PER_Q;
+            energyCount++;
+
+            if (energyCount === 4) {
+                fullCount++;
+                score += FULL_BONUS;
+                showToast(`⚡ まんたん！ 2ばい！ +${POINT_PER_Q + FULL_BONUS}てん`, 'bg-gradient-to-r from-orange-400 to-amber-400 text-white');
+                setTimeout(() => {
+                    playSound('fever');
+                    confetti({ particleCount: LOWFX ? 40 : 80, spread: 70, origin: { y: 0.6 }, zIndex: 2000 });
+                }, 250);
+                // 少し見せてから空にして、次のまんたんを めざす
+                resetTimer = setTimeout(() => {
+                    energyCount = 0;
+                    updateBatteryUI();
+                }, 1300);
+            } else {
+                setTimeout(() => playSound('charge'), 250);
+                showToast(`⭕ せいかい！ +${POINT_PER_Q}てん`, 'bg-emerald-500 text-white');
+            }
+            updateBatteryUI();
+            updateScoreOnly();
+        }
+
+        function onWrong() {
+            playSound('wrong');
+            showToast('ざんねん！ つぎへ！', 'bg-slate-500 text-white');
+        }
+
+        function updateScoreOnly() {
+            document.getElementById('current-score').innerText = score;
+            document.getElementById('correct-count').innerText = correctCount;
+            document.getElementById('full-count').innerText = fullCount;
+        }
+
+        function showToast(text, cls) {
+            const el = document.createElement('div');
+            el.className = 'toast ' + cls;
+            el.innerText = text;
+            document.body.appendChild(el);
+            setTimeout(() => el.remove(), 1050);
+        }
+
+        function updateBatteryUI() {
+            document.getElementById('energy-count').innerText = energyCount;
+            for (let i = 1; i <= 4; i++) {
+                const cell = document.getElementById(`cell-${i}`);
+                if (i <= energyCount) {
+                    cell.classList.add('filled');
+                    cell.classList.toggle('supercharged', energyCount === 4);
+                } else {
+                    cell.classList.remove('filled', 'supercharged');
+                }
+            }
+        }
+
+        /* -------------------------------------------------------------
+           10. 結果発表 ＆ ベスト更新（はなび）
+        ------------------------------------------------------------- */
+        function fireworks(durationMs) {
+            const end = Date.now() + durationMs;
+            const colors = ['#f87171', '#fbbf24', '#34d399', '#60a5fa', '#c084fc', '#ffffff'];
+            let n = 0;
+            const iv = setInterval(() => {
+                if (Date.now() > end) { clearInterval(iv); return; }
+                confetti({
+                    startVelocity: 28,
+                    spread: 360,
+                    ticks: 70,
+                    gravity: 0.9,
+                    zIndex: 2000,
+                    particleCount: LOWFX ? 28 : 55,
+                    colors: colors,
+                    origin: { x: 0.1 + Math.random() * 0.8, y: Math.random() * 0.5 }
+                });
+                if (n % 2 === 0) playSound('boom');
+                n++;
+            }, 320);
+            playSound('fever');
+            setTimeout(() => playSound('fever'), 1500);
+        }
+
+        function showResultScreen() {
+            const finalScore = score;
+            const diff = currentDifficulty;
+            const prev = loadBest(diff);
+
+            document.getElementById('final-score').innerText = finalScore;
+            document.getElementById('final-correct').innerText = correctCount;
+            document.getElementById('final-full').innerText = fullCount;
+            document.getElementById('result-badge').innerText = DIFF_NAMES[diff] + '  5ふんかん おつかれさま！';
+            document.getElementById('bonus-detail').innerText =
+                `（${correctCount}もん × ${POINT_PER_Q}てん ＋ 2ばいボーナス ${fullCount}かい × ${FULL_BONUS}てん）`;
+
+            // ランク
+            const rankTitle = document.getElementById('rank-title');
+            if (correctCount >= 20) rankTitle.innerText = '👑 でんせつの なぞなぞはかせ！';
+            else if (correctCount >= 12) rankTitle.innerText = '⭐ なぞなぞ めいじん！';
+            else if (correctCount >= 6) rankTitle.innerText = '🌱 なぞなぞ ものしりさん！';
+            else rankTitle.innerText = '🐣 つぎは がんばろう！';
+
+            // ベスト比較
+            const box = document.getElementById('record-box');
+            const title = document.getElementById('record-title');
+            const msg = document.getElementById('record-msg');
+            box.className = 'rounded-2xl p-3 mb-4 border-2 bg-slate-50 border-slate-200';
+            let doFireworks = false;
+            let doMiniConfetti = false;
+
+            if (finalScore <= 0) {
+                title.innerText = 'つぎは 1もん せいかいを めざそう！';
+                msg.innerText = prev ? `いまの ベスト: ${prev.score}てん（${prev.correct}もん）` : '';
+            } else if (!prev) {
+                saveBest(diff, { score: finalScore, correct: correctCount, full: fullCount });
+                box.className = 'rounded-2xl p-3 mb-4 border-2 bg-emerald-50 border-emerald-300';
+                title.innerText = '🏆 はじめての きろくが できたよ！';
+                msg.innerText = 'つぎは このスコアを こえて、はなびを あげよう！';
+                doMiniConfetti = true;
+            } else if (finalScore > prev.score) {
+                saveBest(diff, { score: finalScore, correct: correctCount, full: fullCount });
+                box.className = 'rounded-2xl p-3 mb-4 border-2 bg-amber-50 border-amber-400';
+                title.innerText = '🎆 じぶんの ベストを こえた！ しんきろく！';
+                const diffCorrect = correctCount - prev.correct;
+                msg.innerText = `まえの ベスト ${prev.score}てん（${prev.correct}もん）→ ${finalScore}てん（${correctCount}もん）` +
+                    (diffCorrect > 0 ? `  ${diffCorrect}もん ふえたよ！` : '');
+                doFireworks = true;
+            } else if (finalScore === prev.score) {
+                title.innerText = 'ベストと おなじ スコア！';
+                msg.innerText = `ベスト: ${prev.score}てん（${prev.correct}もん）  あと 1もんで こえられるよ！`;
+            } else {
+                title.innerText = `ベストまで あと ${prev.score - finalScore}てん！`;
+                msg.innerText = `いまの ベスト: ${prev.score}てん（${prev.correct}もん）`;
+            }
+
+            showScreen('screen-result');
+
+            if (doFireworks) {
+                setTimeout(() => fireworks(5000), 200);
+            } else if (doMiniConfetti || finalScore >= 100) {
+                confetti({ particleCount: LOWFX ? 60 : 120, spread: 80, origin: { y: 0.6 }, zIndex: 2000 });
+            }
+        }
+
+        /* -------------------------------------------------------------
+           11. 共通のモバイル対策
+        ------------------------------------------------------------- */
+        /* §1 ピンチ拡大を止める（Safari独自のgestureイベント） */
+        ['gesturestart', 'gesturechange', 'gestureend'].forEach(type => {
+            document.addEventListener(type, (e) => e.preventDefault(), { passive: false });
+        });
+
+        /* §1 ピンチ拡大の自己修復（最後の保険） */
+        function resetZoomIfNeeded() {
+            if (!window.visualViewport || window.visualViewport.scale <= 1.02) return;
+            const meta = document.querySelector('meta[name="viewport"]');
+            if (!meta) return;
+            const original = meta.getAttribute('content');
+            meta.setAttribute('content', original + ', maximum-scale=1.0');
+            requestAnimationFrame(() => meta.setAttribute('content', original));
+        }
+        if (window.visualViewport) {
+            window.visualViewport.addEventListener('resize', resetZoomIfNeeded);
+            window.visualViewport.addEventListener('scroll', resetZoomIfNeeded);
+        }
+        document.addEventListener('gestureend', () => setTimeout(resetZoomIfNeeded, 50), { passive: true });
+
+        /* §18 起動時に音ボタンの表示をlocalStorageの設定に合わせる */
+        document.getElementById('sound-toggle').innerText = soundEnabled ? '🔊 おと: ON' : '🔇 おと: OFF';
+        refreshBest();
+    </script>
+</body>
+</html>
