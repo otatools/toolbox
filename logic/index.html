@@ -929,7 +929,7 @@ function buildHintPool(c, ps, crimeH, mode) {
     });
     if (c.d <= 15) add("num", `${H}のたん生日は、1日から15日のあいだだ。`, p => p.d <= 15);
     else add("num", `${H}のたん生日は、16日から31日のあいだだ。`, p => p.d >= 16);
-    [[1, 10], [11, 20], [21, 31]].forEach(([s, e]) => {
+    [[1, 10], [11, 20], [21, 31], [1, 20], [11, 31]].forEach(([s, e]) => {
         if (c.d >= s && c.d <= e) add("num", `${H}のたん生日は、${s}日から${e}日のあいだだ。`, p => p.d >= s && p.d <= e);
     });
     if (hi) {
@@ -965,6 +965,14 @@ function buildHintPool(c, ps, crimeH, mode) {
         const has = wears(c, col);
         add("cloth", `${H}は、${col}のものを身につけて${has ? "いる" : "いない"}。`, p => wears(p, col) === has);
     });
+    // 色2つのヒント：「はん人のくつ下は赤色か青色だ」
+    parts.forEach(([k, label]) => {
+        colors.forEach(other => {
+            if (other === c[k]) return;
+            const pair = colors.indexOf(c[k]) < colors.indexOf(other) ? [c[k], other] : [other, c[k]];
+            add("cloth", `${H}の${label}は、${pair[0]}か${pair[1]}だ。`, p => p[k] === pair[0] || p[k] === pair[1]);
+        });
+    });
     [[0, 2], [0, 1], [1, 2]].forEach(([i, j]) => {
         const [ki, li] = parts[i], [kj, lj] = parts[j];
         const same = c[ki] === c[kj];
@@ -985,7 +993,7 @@ function buildHintPool(c, ps, crimeH, mode) {
         const has = hasItem(c, icon);
         add("item", `${H}は${itemLabel(icon)}を持って${has ? "いる" : "いない"}。`, p => hasItem(p, icon) === has);
     });
-    if (hi) {
+    {   // 持ち物2つのヒント（中学年・高学年どちらも）
         for (let i = 0; i < ITEM_KEYS.length; i++) for (let j = i + 1; j < ITEM_KEYS.length; j++) {
             const a = ITEM_KEYS[i], b = ITEM_KEYS[j];
             if (!hasItem(c, a) && !hasItem(c, b)) add("item", `${H}は${itemLabel(a)}も${itemLabel(b)}も持っていない。`, p => !hasItem(p, a) && !hasItem(p, b));
@@ -993,10 +1001,10 @@ function buildHintPool(c, ps, crimeH, mode) {
         }
     }
 
-    // --- 時間（アリバイ） ---
-    // 「はん行は○時から○時のあいだにおきた」→ その時間ずっとアリバイがある人は犯人ではない
-    const crimeWord = hi ? "犯行" : "はん行";
-    for (let a = crimeH - 2; a <= crimeH; a++) for (let b = crimeH + 1; b <= crimeH + 3; b++) {
+    // --- 時間（アリバイ）：高学年だけ。中学年には難しかったので出さない ---
+    // 「犯行は○時から○時のあいだにおきた」→ その時間ずっとアリバイがある人は犯人ではない
+    const crimeWord = "犯行";
+    if (hi) for (let a = crimeH - 2; a <= crimeH; a++) for (let b = crimeH + 1; b <= crimeH + 3; b++) {
         if (a < 8 || b > 15 || b - a > 3) continue;
         add("time", `${crimeWord}は${a}時から${b}時のあいだにおきた。`, p => !covers(p, a, b));
     }
@@ -1023,10 +1031,13 @@ function assignHints(c, ps, crimeH, mode) {
         let mask = 0n;
         ps.forEach((p, i) => { if (h.fn(p)) mask |= 1n << BigInt(i); });
         if (!(mask & CBIT)) return;                // 犯人に当てはまらないヒントは使わない（念のため）
-        if (seen.has(h.text)) return;
-        seen.add(h.text);
+        // 言い方がちがっても、当てはまる人が同じヒントは「同じヒント」とみなして1つだけ使う
+        const mk = mask.toString();
+        if (seen.has(h.text) || seen.has(mk)) return;
+        seen.add(h.text); seen.add(mk);
         cand.push({ ...h, mask, count: popcount(mask) });
     });
+    const wide = cand.filter(h => h.count >= 2 && h.count < N);
     let usable = cand.filter(h => h.count >= minCount && h.count <= maxCount);
     if (usable.length < 3) usable = cand.filter(h => h.count >= 2 && h.count < N);
     if (usable.length === 0) usable = cand.filter(h => h.count < N);
@@ -1050,6 +1061,7 @@ function assignHints(c, ps, crimeH, mode) {
     };
 
     // 1つずつヒントを足していき、全部合わせたときにちょうど犯人1人になるようにする
+    let relaxed = false;
     const tryBuild = (need) => {
         const S = [];
         let cur = ALL;
@@ -1070,33 +1082,47 @@ function assignHints(c, ps, crimeH, mode) {
             cur &= picked.mask;
         }
         if (cur !== CBIT || S.length > N) return null;
-        // ヒントの種類を少し増やす（条件をこわさないものだけ）。大人数では同じヒントを2〜3人で持つ
-        const distinctTarget = N <= 12 ? N : Math.ceil(N * 0.55);
-        const extras = shuffleArray(usable.filter(h => !S.includes(h)));
+        // 全員にちがうヒントを配る（同じヒントの子が出ないように）。
+        // まずちょうどよく絞れるものから、足りなければ少し強い/弱いものからも選ぶ。どれも条件はこわさない
+        const near = (h) => Math.abs(h.count / N - target) + Math.random() * 0.08;   // 目標の強さに近い順（少しだけばらつかせる）
+        const extras = [...usable.filter(h => !S.includes(h)).sort((x, y) => near(x) - near(y)),
+                        ...wide.filter(h => !usable.includes(h) && !S.includes(h)).sort((x, y) => near(x) - near(y))];
         for (const h of extras) {
-            if (S.length >= distinctTarget) break;
-            if (okToAdd(h, S, need)) S.push(h);
+            if (S.length >= N) break;
+            if (!S.includes(h) && okToAdd(h, S, need)) S.push(h);
         }
-        // 全員に1つずつ配る（必要なヒントは必ず全部入れ、あとは順番にくり返す）
+        if (S.length < N && !relaxed) return null;
+        // それでも足りないとき（人数にくらべて特ちょうが少ないとき）だけ、くり返しを使う
         const base = shuffleArray([...S]);
         const list = [];
         for (let i = 0; i < N; i++) list.push(base[i % base.length]);
         return list;
     };
 
-    // need：このくらいの人数に聞かないと犯人が決まらない（40人なら5人）
-    const need0 = N >= 30 ? 5 : (N >= 20 ? 4 : (N >= 8 ? 3 : 2));
+    // need：このくらいの人数に聞かないと犯人が決まらない（20人以上なら4人）。
+    // 5人にすると、条件を守るために弱いヒント（ほとんど絞れないもの）が多く混ざってしまった
+    const need0 = N >= 20 ? 4 : (N >= 8 ? 3 : 2);
     for (let need = need0; need >= 1; need--) {
-        for (let attempt = 0; attempt < 150; attempt++) {
+        for (let attempt = 0; attempt < 60; attempt++) {
             const list = tryBuild(need);
             if (list) return shuffleArray(list).map(h => h.text);
         }
+    }
+    relaxed = true;
+    for (let attempt = 0; attempt < 60; attempt++) {
+        const list = tryBuild(1);
+        if (list) return shuffleArray(list).map(h => h.text);
     }
     // どうしても組めないとき（同じ特ちょうの人ばかりなど）は、絞れるヒントをそのまま配る
     return ps.map(() => pickOne(usable).text);
 }
 
 // 服の色・持ち物・アリバイを配る
+// 同じ人が続けて犯人にならないよう、親機に最近の犯人を覚えておく
+const culpritId = (p) => `${p.name}|${p.idNum}`;
+const getRecentCulprits = () => { try { return JSON.parse(lsGet('detective_recent_culprits') || '[]') || []; } catch (e) { return []; } };
+function rememberCulprit(p) { lsSet('detective_recent_culprits', JSON.stringify([culpritId(p), ...getRecentCulprits()].slice(0, 5))); }
+
 function assignTraits(playerList, crimeH) {
     const n = playerList.length;
     ["cloth", "pants", "socks"].forEach(cat => {
@@ -1120,7 +1146,14 @@ function assignTraits(playerList, crimeH) {
         const s = 8 + Math.floor(Math.random() * (15 - 8 - L + 1));
         return [s, s + L];
     };
-    const culprit = pickOne(playerList);
+    // 前回の犯人は、選ばれにくくする（ほかの人の5分の1）。前々回の犯人は半分くらい。
+    // 「ぜったいに選ばれない」にすると、その人の容疑が最初から消えてしまうので、少しは選ばれるようにしておく
+    const recent = getRecentCulprits();
+    const weightOf = (p) => recent[0] === culpritId(p) ? 0.2 : (recent[1] === culpritId(p) ? 0.5 : 1);
+    const totalW = playerList.reduce((sum, p) => sum + weightOf(p), 0);
+    let r = Math.random() * totalW;
+    let culprit = playerList[playerList.length - 1];
+    for (const p of playerList) { r -= weightOf(p); if (r < 0) { culprit = p; break; } }
     playerList.forEach(p => {
         let a = randAlibi();
         if (p === culprit) {
@@ -1162,6 +1195,7 @@ document.getElementById('start-game-btn').onclick = async () => {
             finalPlayers: finalPlayers,
             crimeHour: crimeH
         });
+        rememberCulprit(culprit);
     } catch (e) {
         console.error(e); btn.disabled = false; alert("開始できませんでした。もう一度ためしてね");
     }
@@ -1228,7 +1262,7 @@ function renderInvestigationList() {
                 <span class="list-cell">${p.m}月${p.d}日${t("birth")}</span>
                 <span class="list-cell">${t("cloth")}:${colorHtml(p.cloth)}　${t("pants")}:${colorHtml(p.pants)}　${t("socks")}:${colorHtml(p.socks)}</span>
                 <span class="list-cell">${t("items")}:${p.items}</span>
-                <span class="list-cell" style="color:#4ecca3;">${t("alibi")}:${alibiText(p)}</span>
+                ${gameMode === "high" ? `<span class="list-cell" style="color:#4ecca3;">${t("alibi")}:${alibiText(p)}</span>` : ""}
             </div>
         </div>
         <div class="check-controls">
