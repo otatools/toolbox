@@ -36,7 +36,7 @@
 <main>
   <h1>？になったことば</h1>
   <div class="bar"><button id="reload">最新にする</button><button id="csv">CSVでほぞん（Excel用）</button><button id="exclBtn" disabled>除外に入れる</button><button id="restoreBtn" disabled hidden>選んだものを全部に入れる</button><button id="del" class="del" disabled>選んだものを消す</button></div>
-  <div class="flt" id="flt"><button data-f="all" class="on">全部<small id="fc_all"></small></button><button data-f="guess" title="「〇〇？」と表示した言葉">「〇〇？」<small id="fc_guess"></small></button><button data-f="none" title="？だけ表示した言葉">？だけ<small id="fc_none"></small></button><button data-f="blocked" title="使えないことば">使えない<small id="fc_blocked"></small></button><button data-f="junk" title="存在しない言葉（でたらめ入力）">ぐちゃぐちゃ<small id="fc_junk"></small></button><button data-f="excl" title="除外リスト（消えない・CSVに入らない）">除外<small id="fc_excl"></small></button><button data-f="reg" title="辞書にあるので隠していた言葉">辞書にある<small id="fc_reg"></small></button></div>
+  <div class="flt" id="flt"><button data-f="all" class="on">全部<small id="fc_all"></small></button><button data-f="guess" title="「〇〇？」と表示した言葉">「〇〇？」<small id="fc_guess"></small></button><button data-f="none" title="？だけ表示した言葉">？だけ<small id="fc_none"></small></button><button data-f="blocked" title="使えないことば">使えない<small id="fc_blocked"></small></button><button data-f="junk" title="存在しない言葉（でたらめ入力）">ぐちゃぐちゃ<small id="fc_junk"></small></button><button data-f="excl" title="除外リスト（消えない・CSVに入らない）">除外<small id="fc_excl"></small></button><button data-f="qty" title="数量のことば（よにん・はちびき・いっこ・いちおくえん…）">数量<small id="fc_qty"></small></button><button data-f="reg" title="辞書にあるので隠していた言葉">辞書にある<small id="fc_reg"></small></button></div>
   <div id="exclAdd" hidden style="margin:8px 0;padding:10px;background:#f4f7ff;border-radius:8px"><div style="font-size:.9em;margin-bottom:4px">ここに ことばを いれると、まとめて 除外リストに くわえます（いくつでも：改行か「、」「,」でくぎる）。こどもが また いれても 除外リストに はいります。</div><textarea id="exclTxt" rows="3" style="width:100%;box-sizing:border-box;font-size:16px"></textarea><button id="exclAddBtn" style="margin-top:6px">除外リストに くわえる</button></div>
   <div id="msg"></div>
   <table><thead><tr><th class="c"><input type="checkbox" id="all" aria-label="ぜんぶ えらぶ"></th><th class="s" data-s="word">ことば<i></i></th><th class="s" data-s="count" style="text-align:right">回数<i></i></th><th class="s" data-s="last">さいご<i></i></th></tr></thead><tbody id="body"></tbody></table>
@@ -99,15 +99,16 @@ const JK = (() => {
   };
 })();
 // いまの辞書（index.html）に のっている ことばは ひょうじしない：index.html を かくして よみこみ、__known で しらべる
+let QTYF = null;
 const known = new Promise(res => {
   try {
     const f = document.createElement('iframe'); f.style.display = 'none'; f.src = 'index.html';
-    f.onload = () => { let n = 0; const t = setInterval(() => { try { if (f.contentWindow.__known) { clearInterval(t); res(f.contentWindow.__known); } } catch (e) {} if (++n > 100) { clearInterval(t); res(null); } }, 100); };
+    f.onload = () => { let n = 0; const t = setInterval(() => { try { if (f.contentWindow.__known) { clearInterval(t); QTYF = f.contentWindow.__isQty || null; res(f.contentWindow.__known); } } catch (e) {} if (++n > 100) { clearInterval(t); res(null); } }, 100); };
     document.body.appendChild(f);
   } catch (e) { res(null); }
   setTimeout(() => res(null), 20000);
 });
-const pass = r => filt === 'excl' ? r.excl : filt === 'junk' ? (r.junk && !r.excl) : filt === 'reg' ? (r.reg && !r.excl) : !r.excl && !r.reg && !r.junk && (filt === 'all' || (filt === 'guess' ? !!r.guess && !r.blocked : filt === 'none' ? !r.guess && !r.blocked : r.blocked));
+const pass = r => filt === 'excl' ? r.excl : filt === 'junk' ? (r.junk && !r.excl) : filt === 'reg' ? (r.reg && !r.excl) : filt === 'qty' ? (r.qty && !r.excl) : !r.excl && !r.reg && !r.junk && !r.qty && (filt === 'all' || (filt === 'guess' ? !!r.guess && !r.blocked : filt === 'none' ? !r.guess && !r.blocked : r.blocked));
 const fmt = d => d ? d.getFullYear() + '/' + (d.getMonth()+1) + '/' + d.getDate() + ' ' + String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0') : '';
 async function load() {
   const msg = document.getElementById('msg'); msg.textContent = '';
@@ -115,21 +116,22 @@ async function load() {
     if (!auth.currentUser) await signInAnonymously(auth);
     const snap = await get(ref(db, 'kotoba_unknown'));
     const v = snap.val() || {};
-    rows = Object.keys(v).map(k => ({ key: k, word: v[k].word || k, count: v[k].count || 0, last: v[k].last ? new Date(v[k].last) : null, blocked: !!v[k].blocked && !(v[k].unblk !== undefined ? v[k].unblk : LOCALB[k]), wasBlocked: !!v[k].blocked, guess: v[k].guess || '', hit: v[k].hit || '', exclv: v[k].excl, junkv: v[k].junk }));
+    rows = Object.keys(v).map(k => ({ key: k, word: v[k].word || k, count: v[k].count || 0, last: v[k].last ? new Date(v[k].last) : null, blocked: !!v[k].blocked && !(v[k].unblk !== undefined ? v[k].unblk : LOCALB[k]), wasBlocked: !!v[k].blocked, guess: v[k].guess || '', hit: v[k].hit || '', exclv: v[k].excl, junkv: v[k].junk, qtyv: v[k].qty }));
     const kf = await known;
     rows.forEach(r => {
-      r.reg = !!kf && !r.blocked && !!kf(r.word);
+      r.qty = !r.blocked && (r.qtyv === true || (!!QTYF && !!QTYF(r.word)));
+      r.reg = !!kf && !r.blocked && !r.qty && !!kf(r.word);
       const ov = r.exclv !== undefined ? r.exclv : LOCAL[r.key];
       r.excl = ov !== undefined ? !!ov : false;
       const jv = r.junkv !== undefined ? r.junkv : LOCALJ[r.key];
-      r.junk = jv !== undefined ? !!jv : (!r.excl && !r.blocked && !r.reg && !r.guess && (looksRandom(r.word, kf) || JK(r.word, kf)));
+      r.junk = jv !== undefined ? !!jv : (!r.excl && !r.blocked && !r.reg && !r.qty && !r.guess && (looksRandom(r.word, kf) || JK(r.word, kf)));
     });
     rows.sort((a, b) => b.count - a.count || (b.last||0) - (a.last||0));
     render();
   } catch (e) { msg.textContent = 'よみこめませんでした：' + e.message; }
 }
 function render() {
-    ['all','guess','none','blocked','junk','excl','reg'].forEach(f => { const o = filt; filt = f; document.getElementById('fc_' + f).textContent = rows.filter(pass).length; filt = o; });
+    ['all','guess','none','blocked','junk','excl','reg','qty'].forEach(f => { const o = filt; filt = f; document.getElementById('fc_' + f).textContent = rows.filter(pass).length; filt = o; });
     document.querySelectorAll('#flt button').forEach(b => b.classList.toggle('on', b.dataset.f === filt));
     const cmp = (x, y) => { const a = x[0], b = y[0]; let d = sortKey === 'word' ? a.word.localeCompare(b.word, 'ja') : sortKey === 'last' ? (a.last || 0) - (b.last || 0) : a.count - b.count; if (!d) d = sortKey === 'count' ? (b.last || 0) - (a.last || 0) : a.word.localeCompare(b.word, 'ja'); return d * sortDir; };
     const shown = rows.map((r, i) => [r, i]).filter(x => pass(x[0])).sort(cmp);
