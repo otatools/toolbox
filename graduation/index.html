@@ -187,6 +187,10 @@
         /* 句読点（。、）は縦書きのマス目内で右上寄りに書くのが原稿用紙の慣習 */
         /* 画面上の表示は元の中央寄せに戻す（右上寄せは保存画像の側だけで行う） */
         .kuten { display: inline-block; }
+        /* 「。」」は、句点を単独で打ったときと全く同じ位置に置き、閉じかぎを同じマスに重ねる。
+           閉じかぎは少し下げて句点とぶつからないようにする */
+        .kuten-kagi { display: inline-block; position: relative; }
+        .kuten-kagi .kk-kagi { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; transform: translateY(0.2em); }
 
         /* コンテナの調整 */
         #output-wrapper { width: 100%; display: flex; justify-content: center; align-items: flex-start; overflow: hidden; }
@@ -354,7 +358,7 @@
 </div>
 
 <div class="footer-info">
-    卒業文集清書ツール ｜ ver.10.1 ｜ ota tools
+    卒業文集清書ツール ｜ ver.10.2 ｜ ota tools
 </div>
 
 <div id="output-wrapper">
@@ -707,11 +711,19 @@
 
     // マスの中での文字の向き・位置を決める（数字の詰め文字/括弧の回転/句読点の右上寄せ）
     function charClass(raw) {
+        if (/^[。、][」』]$/.test(raw)) return 'kuten-kagi';
         if (/^[0-9]+$/.test(raw)) return 'tcy';
         if (/[（）]/.test(raw)) return 'zenkaku-bracket';
         if (/[()]/.test(raw)) return 'force-rotate';
         if (/[。、]/.test(raw)) return 'kuten';
         return '';
+    }
+
+    // マス1つ分の中身（HTML）。句読点＋閉じかぎは2文字を重ねて1マスに入れる
+    function cellHtml(d) {
+        const cls = charClass(d);
+        if (cls === 'kuten-kagi') return `<span class="kuten kuten-kagi">${d[0]}<span class="kk-kagi">${d[1]}</span></span>`;
+        return `<span class="${cls}">${fixSymbol(d)}</span>`;
     }
 
     function generatePaper() {
@@ -775,7 +787,8 @@
 
         const isEnd = (c) => /[。、）」』)]/.test(c);
         const isStart = (c) => /[（「『(]/.test(c);
-        let tokens = bodyText.match(/[0-9]{1,2}|[０-９]|[^\n]|\n/g) || [];
+        // 「。」」「、』」などは句読点と閉じかぎを1マスに入れるので、ひとまとまりの文字として扱う
+        let tokens = bodyText.match(/[。、][」』]|[0-9]{1,2}|[０-９]|[^\n]|\n/g) || [];
         let curC = startCol, curR = 0;
 
         for (let i = 0; i < tokens.length; i++) {
@@ -821,7 +834,7 @@
                     cell.style.fontSize = `${Math.min(22, (550 / ROWS))}px`;
                     let d = colData[idx]?.cells[r] || '';
                     if (d) {
-                        cell.innerHTML = `<span class="${charClass(d)}">${fixSymbol(d)}</span>`;
+                        cell.innerHTML = cellHtml(d);
                     }
                     line.appendChild(cell);
                 }
@@ -831,7 +844,7 @@
                     exc.style.top = `calc(100% + (${ei} * (100% / ${ROWS})))`;
                     exc.style.height = `calc(100% / ${ROWS})`;
                     exc.style.fontSize = `${Math.min(22, (550 / ROWS))}px`;
-                    exc.innerHTML = `<span class="${charClass(ex)}">${fixSymbol(ex)}</span>`;
+                    exc.innerHTML = cellHtml(ex);
                     line.appendChild(exc);
                 });
                 paper.appendChild(line);
@@ -1003,6 +1016,12 @@
         const kind = charClass(raw); // CSS側と同じ判定ロジックを共用
         ctx.fillStyle = '#222';
         ctx.font = `${fontSizePx}px ${fontFamily}`;
+        if (kind === 'kuten-kagi') {
+            // 閉じかぎはマスの中央より少し下、句読点はいつも通りマスの右上に書く
+            drawCharInCell(ctx, raw[1], cx, cy + fontSizePx * 0.25, fontSizePx, fontFamily);
+            drawCharInCell(ctx, raw[0], cx, cy, fontSizePx, fontFamily);
+            return;
+        }
         if (kind === 'tcy') {
             // text-combine-upright の再現：半角文字は全角の約半分の幅なので、
             // 縮めず等倍のまま横に並べれば自然に1マス分に収まる。
