@@ -99,11 +99,11 @@ const JK = (() => {
   };
 })();
 // いまの辞書（index.html）に のっている ことばは ひょうじしない：index.html を かくして よみこみ、__known で しらべる
-let QTYF = null;
+let QTYF = null, CURV = '';
 const known = new Promise(res => {
   try {
     const f = document.createElement('iframe'); f.style.display = 'none'; f.src = 'index.html';
-    f.onload = () => { let n = 0; const t = setInterval(() => { try { if (f.contentWindow.__known) { clearInterval(t); QTYF = f.contentWindow.__isQty || null; res(f.contentWindow.__known); } } catch (e) {} if (++n > 100) { clearInterval(t); res(null); } }, 100); };
+    f.onload = () => { let n = 0; const t = setInterval(() => { try { if (f.contentWindow.__known) { clearInterval(t); QTYF = f.contentWindow.__isQty || null; CURV = f.contentWindow.__IMGV || ''; res(f.contentWindow.__known); } } catch (e) {} if (++n > 100) { clearInterval(t); res(null); } }, 100); };
     document.body.appendChild(f);
   } catch (e) { res(null); }
   setTimeout(() => res(null), 20000);
@@ -116,7 +116,7 @@ async function load() {
     if (!auth.currentUser) await signInAnonymously(auth);
     const snap = await get(ref(db, 'kotoba_unknown'));
     const v = snap.val() || {};
-    rows = Object.keys(v).map(k => ({ key: k, word: v[k].word || k, count: v[k].count || 0, last: v[k].last ? new Date(v[k].last) : null, blocked: !!v[k].blocked && !(v[k].unblk !== undefined ? v[k].unblk : LOCALB[k]), wasBlocked: !!v[k].blocked, guess: v[k].guess || '', hit: v[k].hit || '', exclv: v[k].excl, junkv: v[k].junk, qtyv: v[k].qty }));
+    rows = Object.keys(v).map(k => ({ key: k, word: v[k].word || k, count: v[k].count || 0, last: v[k].last ? new Date(v[k].last) : null, blocked: !!v[k].blocked && !(v[k].unblk !== undefined ? v[k].unblk : LOCALB[k]), wasBlocked: !!v[k].blocked, guess: v[k].guess || '', hit: v[k].hit || '', exclv: v[k].excl, junkv: v[k].junk, qtyv: v[k].qty, imgfail: !!v[k].imgfail, ver: v[k].v || '' }));
     const kf = await known;
     rows.forEach(r => {
       r.qty = !r.blocked && (r.qtyv === true || (!!QTYF && !!QTYF(r.word)));
@@ -136,7 +136,7 @@ function render() {
     const cmp = (x, y) => { const a = x[0], b = y[0]; let d = sortKey === 'word' ? a.word.localeCompare(b.word, 'ja') : sortKey === 'last' ? (a.last || 0) - (b.last || 0) : a.count - b.count; if (!d) d = sortKey === 'count' ? (b.last || 0) - (a.last || 0) : a.word.localeCompare(b.word, 'ja'); return d * sortDir; };
     const shown = rows.map((r, i) => [r, i]).filter(x => pass(x[0])).sort(cmp);
     document.querySelectorAll('th.s').forEach(h => { h.querySelector('i').textContent = h.dataset.s === sortKey ? (sortDir > 0 ? '▲' : '▼') : ''; });
-    document.getElementById('body').innerHTML = shown.map(([r, i]) => '<tr data-i="' + i + '"' + (r.blocked ? ' style="background:#fff0f0"' : '') + '><td class="c"><input type="checkbox" class="chk" data-i="' + i + '"></td><td>' + r.word.replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])) + (r.blocked ? ' <small style="color:#a33a3a">【使えないことば' + (r.hit ? '：「' + r.hit.replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])) + '」にひっかかった' : '') + '】</small>' : '') + (r.guess ? ' <small style="color:#2f6f9f">→ 「' + r.guess.replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])) + '？」と表示</small>' : '') + '</td><td class="n">' + r.count + '</td><td>' + fmt(r.last) + '</td></tr>').join('');
+    document.getElementById('body').innerHTML = shown.map(([r, i]) => '<tr data-i="' + i + '"' + (r.blocked ? ' style="background:#fff0f0"' : '') + '><td class="c"><input type="checkbox" class="chk" data-i="' + i + '"></td><td>' + r.word.replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])) + (r.blocked ? ' <small style="color:#a33a3a">【使えないことば' + (r.hit ? '：「' + r.hit.replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])) + '」にひっかかった' : '') + '】</small>' : '') + (r.reg ? ' <small style="color:#7a5a12">【' + (r.imgfail ? '絵の よみこみに しっぱい（つうしんが おそい など）' : (r.ver && CURV && r.ver < CURV) ? 'ふるい版のアプリで 入力' : r.ver ? 'いまの版で 入力（しらべてください）' : '登録まえ／ふるい版で 入力') + '】</small>' : '') + (r.guess ? ' <small style="color:#2f6f9f">→ 「' + r.guess.replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])) + '？」と表示</small>' : '') + '</td><td class="n">' + r.count + '</td><td>' + fmt(r.last) + '</td></tr>').join('');
     document.getElementById('all').checked = false; updSel();
     document.getElementById('restoreBtn').hidden = filt !== 'excl' && filt !== 'junk' && filt !== 'blocked'; document.getElementById('exclBtn').hidden = filt === 'excl';
     document.getElementById('del').hidden = filt === 'excl'; document.getElementById('csv').disabled = filt === 'excl' || filt === 'junk'; document.getElementById('exclAdd').hidden = filt !== 'excl';
