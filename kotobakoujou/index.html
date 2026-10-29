@@ -735,6 +735,14 @@
     .is-portrait .ovTitle { font-size: 32px; }
     .is-portrait .ovHead { flex-basis: 112px; align-items: flex-start; }
     .is-portrait .ovTitle { top: 42px; }
+    #orderView.picking .ovNote { display: none; }
+    #orderView.picking .ovTitle { font-size: 34px; }
+    .is-portrait #orderView.picking .ovTitle { font-size: 21px; }
+    #orderView.picking .ovHead { flex-basis: 112px; align-items: flex-start; }
+    #orderView.picking .ovTitle { top: 42px; }
+    #orderView.picking .ovSide { position: absolute; right: 0; bottom: 0; font-size: 18px; }
+    .is-portrait #orderView.picking .ovSide { font-size: 16px; }
+    #orderView.picking #ovBody { padding-top: 14px; }
     .is-portrait .ovSide { position: absolute; right: 0; bottom: 0; flex: 0 0 auto; font-size: 16px; }
     .is-portrait .ovNote { font-size: 21px; }
     .is-portrait #btnOrderBack { width: 150px; }
@@ -25963,7 +25971,7 @@
     var ORDER_KEY = 'kotobakoujou.order.v1', ORDER_N = 3;
     // かえる かいすう：1かい ＋ コレクション 100こ ごとに 1かい ふえる
     function orderRR() { return 1 + Math.floor(coll.length / 100); }
-    var orderView = document.getElementById('orderView'), ovBody = document.getElementById('ovBody'), ovNote = document.getElementById('ovNote'), ovSide = document.getElementById('ovSide');
+    var orderView = document.getElementById('orderView'), ovBody = document.getElementById('ovBody'), ovNote = document.getElementById('ovNote'), ovSide = document.getElementById('ovSide'), ovTitle = document.getElementById('ovTitle');
     var btnOrder = document.getElementById('btnOrder'), orderLbl = document.getElementById('orderLbl'), orderBadge = document.getElementById('orderBadge');
     function today() { var d = new Date(); return d.getFullYear() + '-' + (d.getMonth() + 1) + '-' + d.getDate(); }
     function orderLoad() { var o = null; try { o = JSON.parse(localStorage.getItem(ORDER_KEY) || 'null'); } catch (e) {} if (!o || o.d !== today()) o = { d: today(), g: null, items: [], rr: 0, cel: false }; return o; }
@@ -26010,11 +26018,14 @@
         ovSide.textContent = 'ちゅうもん うけつけ：のこり ' + Math.max(0, (o.items.length ? 0 : 1) + orderRR() - o.rr) + 'かい';
         if (!o.items.length || orderPicking) {
             var gs = orderGenres();
-            ovNote.textContent = orderPicking ? 'どの ジャンルの ちゅうもんを うける？' : (gs.length ? 'どの ジャンルの ちゅうもんを うける？（1日 3つ）' : 'まずは ことばを つくって コレクションの ジャンルを ふやそう！');
+            orderView.classList.toggle('picking', !!gs.length);
+            ovTitle.textContent = gs.length ? 'どの ジャンルの ちゅうもんを うける？' : 'きょうの ちゅうもん';
+            ovNote.textContent = gs.length ? '' : 'まずは ことばを つくって コレクションの ジャンルを ふやそう！';
             ovBody.innerHTML = '<div class="ovGenres">' + gs.map(function (x) { return '<button class="key ovGenre" data-g="' + x[0] + '"><span class="inner">' + x[0] + '</span></button>'; }).join('') + '</div>' +
-                (orderPicking ? '<div class="ovFoot"><button class="key ovCancel"><span class="inner">やめる</span></button></div>' : '');
+                '';
             return;
         }
+        orderView.classList.remove('picking'); ovTitle.textContent = 'きょうの ちゅうもん';
         var left = o.items.filter(function (x) { return !x.done; }).length;
         ovNote.textContent = left ? ('「' + o.g + '」の ちゅうもんが きたよ！ この えの ものを つくって みてね！ もどって ことばを つくろう。') : (o.rr < orderRR() ? 'ちゅうもんは ぜんぶ できたよ！ ちがう ちゅうもんも うけつけられるよ' : 'きょうの ちゅうもんは ぜんぶ できたよ！ また あした');
         ovBody.innerHTML = '<div class="ovCards">' + o.items.map(function (x, i) {
@@ -26065,7 +26076,11 @@
     var orderDonePending = false;
     function showOrderDone() { if (!orderDonePending) return; orderDonePending = false; var o = orderLoad(); var more = o.rr < orderRR(); document.getElementById('odMsg').textContent = more ? '' : 'また あした ちゅうもんを うけてね'; document.getElementById('btnOdMore').hidden = !more; document.getElementById('orderDone').hidden = false; }
     bindPress(btnOrder, function () { if (busy) return; orderPicking = false; renderOrder(); orderView.hidden = false; });
-    bindPress(document.getElementById('btnOrderBack'), function () { orderView.hidden = true; });
+    bindPress(document.getElementById('btnOrderBack'), function () {
+        // ジャンルを えらびなおして いる ときは、ひとつ まえ（ちゅうもんの カード）に もどる
+        if (orderPicking && orderLoad().items.length) { orderPicking = false; renderOrder(); return; }
+        orderView.hidden = true;
+    });
     bindPress(document.getElementById('btnOdClose'), function () { document.getElementById('orderDone').hidden = true; });
     bindPress(document.getElementById('btnOdMore'), function () { document.getElementById('orderDone').hidden = true; var o = orderLoad(); if (o.rr >= orderRR()) return; orderPicking = true; renderOrder(); orderView.hidden = false; });
     updateOrderBtn();
