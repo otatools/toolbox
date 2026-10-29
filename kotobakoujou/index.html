@@ -751,22 +751,11 @@
     .ovCard .pic { width: 200px; height: 200px; display: flex; align-items: center; justify-content: center; }
     .is-portrait .ovCard .pic { width: 150px; height: 150px; }
     .ovCard .pic img { max-width: 100%; max-height: 100%; object-fit: contain; }
-    .ovCard .boxes { margin-top: 12px; display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 5px; max-width: 270px; }
-    .ovCard .boxes i { display: flex; align-items: center; justify-content: center; width: 32px; height: 32px; border: 3px solid #f0a868; border-radius: 50%; background: #fffaf4; font-style: normal; font-size: 21px; font-weight: 700; color: #b5541a; line-height: 1; }
-    .ovCard .boxes.long i { width: 25px; height: 25px; font-size: 17px; border-width: 2.5px; }
-    .ovCard .boxes i.s { width: 20px; height: 20px; align-self: flex-end; margin-bottom: 2px; }
-    .ovCard .boxes.long i.s { width: 16px; height: 16px; }
-    .ovCard .boxes i.f { border: none; background: none; font-size: 34px; width: auto; height: auto; min-width: 34px; color: #b5541a; }
-    .ovCard .boxes.long i.f { font-size: 27px; min-width: 27px; }
+    .ovCard .boxes { margin-top: 12px; display: flex; flex-wrap: nowrap; justify-content: center; align-items: center; gap: 4px; --cs: 32px; }
+    .ovCard .boxes i { display: flex; flex: 0 0 auto; align-items: center; justify-content: center; box-sizing: border-box; width: var(--cs); height: var(--cs); border: 3px solid #f0a868; border-radius: 50%; background: #fffaf4; font-style: normal; font-weight: 700; color: #b5541a; line-height: 1; }
+    .ovCard .boxes i.s { width: calc(var(--cs) * .62); height: calc(var(--cs) * .62); align-self: flex-end; margin-bottom: 2px; border-width: 2.5px; }
+    .ovCard .boxes i.f { border: none; background: none; font-size: calc(var(--cs) * 1.06); width: auto; height: auto; min-width: var(--cs); color: #b5541a; }
     .ovCard .boxes.got { gap: 0; }
-    .is-portrait .ovCard .boxes { max-width: 224px; gap: 4px; }
-    .is-portrait .ovCard .boxes i { width: 28px; height: 28px; }
-    .is-portrait .ovCard .boxes.long i { width: 22px; height: 22px; }
-    .is-portrait .ovCard .boxes i.s { width: 18px; height: 18px; }
-    .is-portrait .ovCard .boxes.long i.s { width: 14px; height: 14px; }
-    .is-portrait .ovCard .boxes i.f { font-size: 30px; min-width: 30px; width: auto; height: auto; }
-    .is-portrait .ovCard .boxes.long i.f { font-size: 24px; min-width: 24px; }
-    .is-portrait .ovCard .boxes.got { gap: 0; }
     .ovCard .ans { margin-top: 10px; font-size: 26px; font-weight: 700; color: #b5541a; min-height: 30px; }
     .ovFoot { display: flex; justify-content: center; margin-top: 30px; }
     .ovChg { --bg: #ffd9b3; --sh: #e0904e; width: 440px; height: 76px; }
@@ -26013,6 +26002,11 @@
         if (!o.items.length) { orderLbl.textContent = 'ちゅうもんを うける'; orderBadge.hidden = true; }
         else { orderLbl.textContent = 'ちゅうもんを うける'; orderBadge.hidden = false; orderBadge.textContent = (ORDER_N - left) + '/' + o.items.length; }
     }
+    // ヒントの 〇 が 1ぎょうに おさまる おおきさ
+    function orderCs(n, got) {
+        var avail = app.classList.contains('is-portrait') ? 206 : 262, gap = got ? 0 : 4;
+        return Math.max(14, Math.min(37, Math.floor((avail - gap * (n - 1)) / (got ? n * 1.06 : n))));
+    }
     function renderOrder() {
         var o = orderLoad();
         ovSide.textContent = 'ちゅうもん うけつけ：のこり ' + Math.max(0, (o.items.length ? 0 : 1) + orderRR() - o.rr) + 'かい';
@@ -26030,7 +26024,7 @@
         ovNote.textContent = left ? ('「' + o.g + '」の ちゅうもんが きたよ！ この えの ものを つくって みてね！ もどって ことばを つくろう。') : (o.rr < orderRR() ? 'ちゅうもんは ぜんぶ できたよ！ ちがう ちゅうもんも うけつけられるよ' : 'きょうの ちゅうもんは ぜんぶ できたよ！ また あした');
         ovBody.innerHTML = '<div class="ovCards">' + o.items.map(function (x, i) {
             return '<div class="ovCard' + (x.done ? ' done' : '') + '"><div class="pic" data-n="' + x.n + '"></div>' +
-                '<div class="boxes' + ((x.done ? (x.w || x.n) : x.n).length > 7 ? ' long' : '') + (x.done ? ' got' : '') + '">' + (x.done ? Array.from(x.w || x.n).map(function (c) { return '<i class="f">' + c + '</i>'; }).join('') : Array.from(x.n).map(function (c, k) { return k === 0 ? '<i class="f">' + c + '</i>' : ('ぁぃぅぇぉっゃゅょゎゕゖ'.indexOf(c) >= 0 ? '<i class="s"></i>' : '<i></i>'); }).join('')) + '</div>' +
+                '<div class="boxes' + (x.done ? ' got' : '') + '" style="--cs:' + orderCs(Array.from(x.done ? (x.w || x.n) : x.n).length, x.done) + 'px">' + (x.done ? Array.from(x.w || x.n).map(function (c) { return '<i class="f">' + c + '</i>'; }).join('') : Array.from(x.n).map(function (c, k) { return k === 0 ? '<i class="f">' + c + '</i>' : ('ぁぃぅぇぉっゃゅょゎゕゖ'.indexOf(c) >= 0 ? '<i class="s"></i>' : '<i></i>'); }).join('')) + '</div>' +
                 (x.done ? '<div class="stamp">できた</div>' : '') + '</div>';
         }).join('') + '</div>' +
             (o.rr < orderRR() ? '<div class="ovFoot"><button class="key ovChg"><span class="inner">' + 'ちがう ちゅうもんを うけつける' + '</span></button></div>' : '');
