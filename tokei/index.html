@@ -570,6 +570,15 @@
         }
         .chip.soft[data-badge]::after { background: var(--mint); }
         .chip.done[data-badge]::after { background: #FFD93B; color: var(--ink); }
+        /* ステージの カード：いまの レベルで よく できるように なった（ほしが へる）ところに「クリア」 */
+        /* カードの 上の ふちに のせる（レベルの「★ クリア」と おなじ みため）。はみだせるよう、そのカードだけ overflow を あける */
+        .tile { position: relative; }
+        .tile.fam-clear { overflow: visible; }
+        .tile.fam-clear > .band { border-top-left-radius: inherit; border-top-right-radius: inherit; }
+        .tile.fam-clear::after {
+            content: '★ クリア'; position: absolute; top: -11px; right: -2px; z-index: 2; background: #FFD93B; color: var(--ink);
+            border: 3px solid var(--ink); border-radius: 99px; padding: 0 .6em; font-size: clamp(10px, calc(1.9 * var(--uvh, 1vh)), 15px); line-height: 1.45; white-space: nowrap; box-shadow: 2px 2px 0 var(--ink); pointer-events: none;
+        }
         .chip.rec { animation: chip-glow 1.3s infinite ease-in-out; }
         @keyframes chip-glow { 0%, 100% { box-shadow: 3px 4px 0 var(--ink), 0 0 0 0 rgba(255,102,180,0); } 50% { box-shadow: 3px 4px 0 var(--ink), 0 0 0 8px rgba(255,102,180,.5); } }
         .stamp.now.chal { background: var(--orange); }
@@ -1217,6 +1226,7 @@
         #rv-break { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; font-size: min(4.2cqw, 5.2cqh); font-weight: 800; }
         #rv-break span { border: 2px solid var(--ink); border-radius: 99px; padding: .05em .6em; background: #FFF7C2; white-space: nowrap; }
         #rv-break .chip-fast { background: #DDF7EA; }
+        #rv-break .chip-fam, .ok-chips .chip-fam { background: #E3EEFF; white-space: normal; }
         #reveal-sheet.show-break #rv-hint { display: none; }
         /* ステージ4：キャラの下の「もとの じかん」ミニとけい */
         #orig-clock { display: flex; flex-direction: column; align-items: center; gap: 2px; flex: none; margin-top: clamp(2px, calc(.8 * var(--uvh, 1vh)), 8px); }
@@ -2435,6 +2445,8 @@
             sessionBonus: null, // セットの終わりに もらった「はじめてのレベル」ボーナス
             days: {},           // ひにちごとの きろく { 'YYYY-MM-DD': { q: といた もんだい, s: おわった セット } }（スタンプカレンダー・せんせい用）
             stats: {},          // ステージ×レベルごとの せいせき { '1-2': { n: といた かず, c: せいかい } }（せんせい用）
+            famBadge: [],       // いちど「クリア」の バッジが ついた ステージ×レベル（きえない） [ '1-1', ... ]
+            fam: {},            // ステージ×レベルごとの「なれ」 { '1-1': { d: 'YYYY-MM-DD', c: なれの かず } }（できるように なった ところは ほしを へらす）
             stampNews: null,    // きょう はじめて セットを おえたときの おしらせ { streak, bonus }
             skill: {},          // にがて分析：特徴ごとの {n:出題の重み付き回数, w:まちがいの重み付き回数}
             sessionKeys: new Set(), // 今のセッション（5問）で出した問題（同じ問題を重ねて出さない）
@@ -3028,6 +3040,11 @@
                 c.removeAttribute('data-badge');
                 if (l >= 2 && state.lvCleared[l]) { c.classList.add('done'); c.setAttribute('data-badge', '★ クリア'); }
             }
+            // ステージの カード：いまの レベルで よく できるように なった ところに「クリア」（レベル③も おなじ じょうけん）
+            for (let s = 1; s <= 5; s++) {
+                const t = document.getElementById(`select-stage-${s}-btn`);
+                if (t) t.classList.toggle('fam-clear', famBadgeOn(`${s}-${state.level}`));
+            }
             const adv = levelAdvice(state.level);
             const bubble = document.getElementById('home-bubble');
             if (adv && chips[adv.to]) {
@@ -3241,6 +3258,49 @@
             const k = `${state.stage}-${Math.min(3, curEffLevel())}`;
             const st = state.stats[k] || (state.stats[k] = { n: 0, c: 0 });
             st.n += 1; if (isCorrect) st.c += 1;
+            if (isCorrect || !state.isChallenge) famRecord(isCorrect, k);
+        }
+
+        // ==========================================================
+        // なれ（しゅうじゅく）：おなじ ステージ×レベルばかり つづけても いみが ないので、
+        // よく できるように なった ところは もらえる ほしを すこしずつ へらす
+        // ・せいかいで +1、まちがいで -2（まだ できていない ところは へらない）
+        // ・1にち たつごとに 3/4に もどる（すこしだけ もどる）
+        // ・0には しない（さいてい 2わり）。ミッション・スタンプの ボーナスは へらさない
+        // ・いちばん むずかしい レベル③（ちょうせん問題で レベル③に なるときも）は へらさない
+        // ==========================================================
+        const FAM_STEPS = [[15, 1], [25, 0.6], [40, 0.4]];
+        const FAM_MIN = 0.2;
+        const FAM_DECAY = 0.75; // 1にちごとに のこる わりあい
+        function famKey() { return `${state.stage}-${Math.min(3, curEffLevel())}`; }
+        function famGet(k) {
+            const f = state.fam[k];
+            if (!f) return 0;
+            const today = dayKey();
+            if (f.d !== today) {
+                const days = Math.max(1, Math.round((new Date(today) - new Date(f.d)) / 864e5) || 1);
+                f.c = Math.floor(f.c * Math.pow(FAM_DECAY, days));
+                f.d = today;
+            }
+            return f.c;
+        }
+        function famMultiplier(k = famKey()) {
+            if (k.endsWith('-3')) return 1; // レベル③は へらさない
+            const c = famGet(k);
+            for (const [lim, m] of FAM_STEPS) if (c < lim) return m;
+            return FAM_MIN;
+        }
+        // 「クリア」の バッジ：ほしが へりはじめる かずまで なれたら（レベル③は ほしは へらないが、バッジは おなじ じょうけんで つける）
+        function famCleared(k) { return famGet(k) >= FAM_STEPS[0][0]; }
+        function famRecord(ok, k = famKey()) {
+            const c = famGet(k);
+            state.fam[k] = { d: dayKey(), c: ok ? c + 1 : Math.max(0, c - 2) };
+            if (famCleared(k) && !state.famBadge.includes(k)) state.famBadge.push(k);
+        }
+        // バッジは いちど ついたら きえない
+        function famBadgeOn(k) {
+            if (!state.famBadge.includes(k) && famCleared(k)) state.famBadge.push(k);
+            return state.famBadge.includes(k);
         }
         // 1セット おわった
         function markSetDone() {
@@ -4008,6 +4068,7 @@
                 isCorrect = (h === targetH && m === targetM);
             }
 
+            const famMul = famMultiplier(); // こたえる まえの「なれ」で きめる
             recordStat(isCorrect);
             const missionCleared = missionProgress('answer', isCorrect);
             if (isCorrect) {
@@ -4036,6 +4097,7 @@
                 }
 
                 let gainedStars = 10 + levelBonus + stageBonus + comboBonus + speedBonus;
+                if (famMul < 1) gainedStars = Math.max(1, Math.round(gainedStars * famMul)); // よく できる ところは ほしを へらす
                 if (state.isChallenge) gainedStars *= 2; // ちょうせん問題は ポイント2ばい
                 if (!state.isReviewMode && !state.isChallenge) { state.sessionCorrect += 1; state.sessionTotal += 1; }
                 state.pendingStars += gainedStars; // バーにはトップ画面にもどってから足す
@@ -4090,6 +4152,7 @@
                 bonusBits.forEach(b => { detail += `<span>${b}</span>`; });
                 if (state.isChallenge) detail += `<span class="chip-fast">${iconHTML('star')} ちょうせん ×2</span>`;
                 if (speedBonus > 0) detail += `<span class="chip-fast">${iconHTML('sparkle')} ${speedLabel}こたえ！ +${speedBonus}</span>`;
+                if (famMul < 1) detail += `<span class="chip-fam">よく できるように なったので もらえる ほしが へってるよ</span>`;
                 let chips = `<span class="chip-star">${iconHTML('star')} +${gainedStars}</span><button type="button" class="why-btn" aria-label="てんの ないわけ">？</button>`;
                 let baseMsg = `<div class="ok-praise">${praise}</div><div class="ok-ans">こたえは <b>${ampmLabel}${targetH}じ ${targetM}ふん</b> だよ！</div><div class="ok-chips">${chips}</div><div class="ok-break hidden">${detail}</div>`;
 
@@ -4108,6 +4171,8 @@
                     okNote = 'すばらしい！ クリアおめでとう！';
                     btnText = `トップへ もどる ${iconHTML('house')}`;
                 }
+                // よく できるように なった ところは、もらえる ほしが へっていることと、むずかしい もんだいを すすめる
+                if (famMul < 1 && !isReviewComplete) okNote = 'ほしが へってきたよ。むずかしい もんだいにも チャレンジ！';
                 // ステージ3の 12じ台（おひる・よなか）は「0じ」とも いう。こたえた かたちを みせて、もう1つの いいかたも そえる
                 let okAnsH = targetH;
                 if (state.stage === 3 && targetH === 12) {
@@ -4341,6 +4406,8 @@
                     soundOn: state.soundOn,
                     days: state.days,
                     stats: state.stats,
+                    fam: state.fam,
+                    famBadge: state.famBadge,
                     soundVol: state.soundVol,
                     soundLock: state.soundLock,
                     lastBackup: state.lastBackup,
@@ -4409,6 +4476,14 @@
                         const v = data.days[k] || {};
                         state.days[k] = { q: Math.max(0, Number(v.q) || 0), s: Math.max(0, Number(v.s) || 0) };
                         if (v.g) state.days[k].g = 1;
+                    });
+                }
+                state.famBadge = Array.isArray(data.famBadge) ? [...new Set(data.famBadge.filter(k => typeof k === 'string' && /^[1-5]-[1-3]$/.test(k)))] : [];
+                state.fam = {};
+                if (data.fam && typeof data.fam === 'object') {
+                    Object.keys(data.fam).filter(k => /^[1-5]-[1-3]$/.test(k)).forEach(k => {
+                        const v = data.fam[k] || {};
+                        if (typeof v.d === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v.d)) state.fam[k] = { d: v.d, c: Math.max(0, Math.floor(Number(v.c) || 0)) };
                     });
                 }
                 state.stats = {};
