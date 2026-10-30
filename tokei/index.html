@@ -2993,12 +2993,23 @@
 
         // ==========================================================
         // レベルのアシスト：むりに あげさせず、「できそう」を そっと おしえる
-        // ・直近2セット（5問×2）が どちらも 8わり前後（5問中4問）以上 せいかい → 次のレベルを「おすすめ」
-        // ・直近2セットが どちらも 4わり以下 → 1つ下を「かためる？」とやさしく提案
+        // ・「おすすめ！」は いつも どれか 1つの レベルに ついていて、そのレベルを えらんでも きえない（recommendedLevel）
+        // ・そのレベルの 5つの ステージ ぜんぶに「★ クリア」が ついたら、つぎの レベルが「おすすめ！」に なる
+        // ・おすすめレベルで 直近2セットが どちらも 4わり以下 → 1つ下を「おすすめ」（ふきだしで「かためても いいよ」とやさしく）
         // ・できている子には、1問だけ 次のレベルの「ちょうせん問題」（せいかいで2ばい／まちがえても しっぱいに ならない）
         // ・はじめて レベル②・③ を クリアしたら ボーナス
         // ==========================================================
         const LV_MARK = ['', '①', '②', '③'];
+
+        // おすすめの レベル：そのレベルの 5つの ステージ ぜんぶに「★ クリア」が ついたら、つぎの レベル。
+        // ただし いまの おすすめレベルで 2セット つづけて むずかしかったら、1つ 下を おすすめ（かためる）
+        function recommendedLevel() {
+            let R = 1;
+            while (R < 3 && [1, 2, 3, 4, 5].every(s => famBadgeOn(`${s}-${R}`))) R++;
+            const adv = levelAdvice(R);
+            if (adv && adv.type === 'down') R = adv.to;
+            return R;
+        }
 
         function levelAdvice(L) {
             const last2 = (state.lvHist[L] || []).slice(-2);
@@ -3033,30 +3044,28 @@
 
         function updateLevelAdvice() {
             const chips = [null, elements.levelBtn1, elements.levelBtn2, elements.levelBtn3];
+            const R = recommendedLevel();
             for (let l = 1; l <= 3; l++) {
                 const c = chips[l];
                 if (!c) continue;
                 c.classList.remove('rec', 'soft', 'done');
                 c.removeAttribute('data-badge');
-                if (l >= 2 && state.lvCleared[l]) { c.classList.add('done'); c.setAttribute('data-badge', '★ クリア'); }
+            }
+            // 「おすすめ！」は いま やると よい レベルに いつも つける（そのレベルを おしても きえない）
+            if (chips[R]) {
+                chips[R].setAttribute('data-badge', 'おすすめ！');
+                if (R !== state.level) chips[R].classList.add('rec'); // えらんで いない ときだけ ひからせる
             }
             // ステージの カード：いまの レベルで よく できるように なった ところに「クリア」（レベル③も おなじ じょうけん）
             for (let s = 1; s <= 5; s++) {
                 const t = document.getElementById(`select-stage-${s}-btn`);
                 if (t) t.classList.toggle('fam-clear', famBadgeOn(`${s}-${state.level}`));
             }
-            const adv = levelAdvice(state.level);
             const bubble = document.getElementById('home-bubble');
-            if (adv && chips[adv.to]) {
-                const c = chips[adv.to];
-                c.classList.remove('done');
-                if (adv.type === 'up') { c.classList.add('rec'); c.setAttribute('data-badge', 'おすすめ！'); }
-                else { c.classList.add('soft'); c.setAttribute('data-badge', 'かためる？'); }
-            }
             if (bubble) {
-                bubble.textContent = !adv ? 'きょうも いっしょに やろう！'
-                    : adv.type === 'up' ? `レベル${LV_MARK[adv.to]}も できそうだよ！`
-                    : `レベル${LV_MARK[adv.to]}で かためても いいよ！`;
+                bubble.textContent = R === state.level ? 'きょうも いっしょに やろう！'
+                    : R > state.level ? `レベル${LV_MARK[R]}も できそうだよ！`
+                    : `レベル${LV_MARK[R]}で かためても いいよ！`;
             }
         }
 
@@ -4492,6 +4501,10 @@
                         const v = data.stats[k] || {};
                         state.stats[k] = { n: Math.max(0, Number(v.n) || 0), c: Math.max(0, Number(v.c) || 0) };
                     });
+                }
+                // 「クリア」の バッジが できる まえの きろく：そのステージ×レベルで 15もん いじょう せいかいしていたら バッジを つける
+                if (!Array.isArray(data.famBadge)) {
+                    Object.keys(state.stats).forEach(k => { if (state.stats[k].c >= FAM_STEPS[0][0] && !state.famBadge.includes(k)) state.famBadge.push(k); });
                 }
                 return true;
             } catch (e) {
