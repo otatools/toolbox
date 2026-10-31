@@ -812,6 +812,14 @@
     .ozBoxes i.f { border: none; background: none; font-size: calc(var(--cs) * 1.06); width: auto; height: auto; min-width: var(--cs); }
     #ozMake { margin-top: 18px; width: 340px; height: 80px; --bg: #ffb877; --sh: #d0742c; }
     #ozMake[hidden] { display: none; }
+    #ozReveal { margin-top: 14px; width: 460px; height: 70px; --bg: #fff3c4; --sh: #d9a93f; }
+    #ozReveal[hidden] { display: none; }
+    #ozReveal .inner { flex-direction: row; font-size: 24px; color: #7a5410; font-weight: 700; gap: 4px; }
+    #ozReveal.off { --bg: #f1ece2; --sh: #cfc4b4; }
+    #ozReveal.off .inner { color: #9a8c78; font-size: 21px; }
+    .coinImg { width: 1.4em; height: 1.4em; vertical-align: middle; flex: 0 0 auto; }
+    .ovCoin { display: inline-flex; align-items: center; gap: 4px; font-weight: 700; color: #a4501c; }
+    .ovCard .boxes i.r, .ozBoxes i.r { border: none; background: none; font-size: calc(var(--cs) * 1.06); width: auto; height: auto; min-width: var(--cs); color: #3f6fb0; }
     #ozMake .inner { font-size: 30px; color: #6e2f06; font-weight: 700; }
     .ovCard { cursor: pointer; }
     #confirm.pos #btnYes .inner { color: #8a3f10; font-weight: 700; }
@@ -967,6 +975,7 @@
                 <div class="ozPic" id="ozPic"></div>
                 <div class="ozBoxes" id="ozBoxes"></div>
                 <button id="ozMake" class="key"><span class="inner">ことばを つくる</span></button>
+                <button id="ozReveal" class="key"><span class="inner"><span>ことばを おしえてもらう</span><img class="coinImg" alt=""><span id="ozRevLbl">×10まい</span></span></button>
             </div>
         </div>
     </div>
@@ -2127,7 +2136,7 @@
                 : added === 'more' ? 'おなじ えに ことばが ふえたよ！'
                 : 'もう コレクションに あるよ';
             if (added !== 'have') msgEl.className = 'ok';
-            try { if (orderCheck(word, lastEntry)) { msgEl.textContent = 'ちゅうもんの しなが できた！'; msgEl.className = 'ok order'; } } catch (e) {}
+            try { if (orderCheck(word, lastEntry)) { msgEl.innerHTML = 'ちゅうもんの しなが できた！ <img class="coinImg" src="' + COIN_SRC + '" alt="">できたコイン ゲット！'; msgEl.className = 'ok order'; } } catch (e) {}
             btnFix.hidden = true;
             btnMaybe.hidden = true;
         } else {
@@ -2916,7 +2925,7 @@
     }
     function renderOrder() {
         var o = orderLoad();
-        ovSide.textContent = 'ちゅうもん うけつけ：のこり ' + Math.max(0, (o.items.length ? 0 : 1) + orderRR() - o.rr) + 'かい';
+        ovSide.innerHTML = 'ちゅうもん うけつけ：のこり ' + Math.max(0, (o.items.length ? 0 : 1) + orderRR() - o.rr) + 'かい<br><span class="ovCoin"><img class="coinImg" src="' + COIN_SRC + '" alt="">できたコイン ' + coinGet() + 'まい</span>';
         if (!o.items.length || orderPicking) {
             var gs = orderGenres();
             orderView.classList.toggle('picking', !!gs.length);
@@ -2931,7 +2940,7 @@
         ovNote.textContent = left ? ('「' + o.g + '」の ちゅうもんが きたよ！ この えの ものを つくって みてね！ もどって ことばを つくろう。') : (o.rr < orderRR() ? 'ちゅうもんは ぜんぶ できたよ！ ちがう ちゅうもんも うけつけられるよ' : 'きょうの ちゅうもんは ぜんぶ できたよ！ また あした');
         ovBody.innerHTML = '<div class="ovCards">' + o.items.map(function (x, i) {
             return '<div class="ovCard' + (x.done ? ' done' : '') + '" data-i="' + i + '"><div class="pic" data-n="' + x.n + '"></div>' +
-                '<div class="boxes' + (x.done ? ' got' : '') + '" style="--cs:' + orderCs(Array.from(x.done ? (x.w || x.n) : x.n).length, x.done) + 'px">' + (x.done ? Array.from(x.w || x.n).map(function (c) { return '<i class="f">' + c + '</i>'; }).join('') : Array.from(x.n).map(function (c, k) { return k === 0 ? '<i class="f">' + c + '</i>' : ('ぁぃぅぇぉっゃゅょゎゕゖ'.indexOf(c) >= 0 ? '<i class="s"></i>' : '<i></i>'); }).join('')) + '</div>' +
+                '<div class="boxes' + (x.done || x.rev ? ' got' : '') + '" style="--cs:' + orderCs(Array.from(x.done ? (x.w || x.n) : x.n).length, x.done || x.rev) + 'px">' + (x.done ? Array.from(x.w || x.n).map(function (c) { return '<i class="f">' + c + '</i>'; }).join('') : x.rev ? Array.from(x.n).map(function (c) { return '<i class="r">' + c + '</i>'; }).join('') : Array.from(x.n).map(function (c, k) { return k === 0 ? '<i class="f">' + c + '</i>' : ('ぁぃぅぇぉっゃゅょゎゕゖ'.indexOf(c) >= 0 ? '<i class="s"></i>' : '<i></i>'); }).join('')) + '</div>' +
                 (x.done ? '<div class="stamp">できた</div>' : '') + '</div>';
         }).join('') + '</div>' +
             (o.rr < orderRR() ? '<div class="ovFoot"><button class="key ovChg"><span class="inner">' + 'ちがう ちゅうもんを うけつける' + '</span></button></div>' : '');
@@ -2984,13 +2993,20 @@
     function orderCheck(word, entry) {
         var o = orderLoad(); if (!o.items.length) return false;
         var l = entry || lookup(word), hit = false;
-        o.items.forEach(function (x) { if (!x.done && l.custom === x.n) { x.done = true; x.w = word; hit = true; } });
+        var got = 0;
+        o.items.forEach(function (x) { if (!x.done && l.custom === x.n) { x.done = true; x.w = word; hit = true; got++; } });
         if (!hit) return false;
+        coinSet(coinGet() + got);
         orderSave(o); updateOrderBtn();
         if (o.items.every(function (x) { return x.done; }) && !o.cel) { o.cel = true; orderSave(o); orderDonePending = true; }
         return true;
     }
     var orderDonePending = false;
+    // できたコイン：ちゅうもんの しなが できたら 1まい。10まいで ちゅうもんの なまえが みられる
+    var COIN_KEY = 'kotobakoujou.coin.v1', COIN_SRC = 'data:image/webp;base64,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', REVEAL_COST = 10;
+    function coinGet() { try { return Math.max(0, parseInt(localStorage.getItem(COIN_KEY) || '0', 10) || 0); } catch (e) { return 0; } }
+    function coinSet(n) { try { localStorage.setItem(COIN_KEY, String(Math.max(0, n))); } catch (e) {} }
+    Array.prototype.forEach.call(document.querySelectorAll('.coinImg'), function (im) { im.src = COIN_SRC; });
     function showOrderDone() { if (!orderDonePending) return; orderDonePending = false; var o = orderLoad(); var more = o.rr < orderRR(); document.getElementById('odMsg').textContent = more ? '' : 'また あした ちゅうもんを うけてね'; document.getElementById('btnOdMore').hidden = !more; document.getElementById('orderDone').hidden = false; }
     bindPress(btnOrder, function () { if (busy) return; orderPicking = false; orderBig = null; ovZoom.hidden = true; renderOrder(); orderView.hidden = false; });
     bindPress(document.getElementById('btnOrderBack'), function () {
@@ -3017,13 +3033,27 @@
         var w = x.done ? (x.w || x.n) : x.n;
         document.getElementById('ozBoxes').innerHTML = Array.from(w).map(function (c, k) {
             if (x.done || k === 0) return '<i class="f">' + c + '</i>';
+            if (x.rev) return '<i class="r">' + c + '</i>';
             return 'ぁぃぅぇぉっゃゅょゎゕゖ'.indexOf(c) >= 0 ? '<i class="s"></i>' : '<i></i>';
         }).join('');
         document.getElementById('ozBoxes').style.setProperty('--cs', Math.max(18, Math.min(46, Math.floor(520 / Array.from(w).length))) + 'px');
         document.getElementById('ozMake').hidden = !!x.done;
+        var rv = document.getElementById('ozReveal'), cn = coinGet();
+        rv.hidden = !!(x.done || x.rev) || cn < REVEAL_COST; rv.dataset.i = i;   // コインが たりないときは ださない
+        rv.classList.toggle('off', cn < REVEAL_COST);
+        
         ovZoom.hidden = false;
     }
     bindPress(document.getElementById('ozClose'), function () { ovZoom.hidden = true; });
+    bindPress(document.getElementById('ozReveal'), function () {
+        var rv = document.getElementById('ozReveal'), i = +rv.dataset.i;
+        if (coinGet() < REVEAL_COST) return;
+        askConfirm('できたコインを 10まい つかって\nことばを おしえてもらいますか？', function () {
+            var o = orderLoad(), x = o.items[i]; if (!x || x.done || x.rev || coinGet() < REVEAL_COST) return;
+            coinSet(coinGet() - REVEAL_COST); x.rev = true; orderSave(o);
+            renderOrder(); openZoom(i);
+        }, 'はい', 'いいえ', true);
+    });
     bindPress(document.getElementById('ozMake'), function () { ovZoom.hidden = true; orderView.hidden = true; });
     ovZoom.addEventListener('click', function (e) { if (e.target === ovZoom) ovZoom.hidden = true; });
     // デバッグ用（URLの うしろに つける）：?orderreset → うけつけ かいすうを もどす ／ ?orderclear → きょうの ちゅうもんを ぜんぶ けす
