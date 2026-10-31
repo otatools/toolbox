@@ -1853,15 +1853,25 @@
     /* ---------- できた！ → もにゃもにゃ → へんしん ---------- */
     function rand(a, b) { return a + Math.random() * (b - a); }
 
+    // 絵文字の 絵（Iconify）の サーバーが とまっているときに つかう 予備の サーバー
+    var ICON_HOSTS = ['api.iconify.design', 'api.simplesvg.com', 'api.unisvg.com'];
+    function iconAlt(url) {
+        var m = /^https:\/\/([^\/]+)(\/.*)$/.exec(url || ''); if (!m) return null;
+        var i = ICON_HOSTS.indexOf(m[1]); if (i < 0 || i + 1 >= ICON_HOSTS.length) return null;
+        return 'https://' + ICON_HOSTS[i + 1] + m[2];
+    }
     function loadImage(url) {
-        // 画像を読み込んで、成功したら URL、失敗したら null を返す
+        // 画像を読み込んで、成功したら URL、失敗したら null を返す（絵文字の サーバーが だめなら 予備の サーバーで もう一度）
+        return loadImage1(url).then(function (r) { var a = r ? null : iconAlt(url); return a ? loadImage(a) : r; });
+    }
+    function loadImage1(url) {
         return new Promise(function (resolve) {
             var img = new Image();
             var done = false;
             function fin(ok) { if (done) return; done = true; resolve(ok ? url : null); }
             img.onload = function () { fin(true); };
             img.onerror = function () { fin(false); };
-            setTimeout(function () { fin(false); }, 12000);
+            setTimeout(function () { fin(false); }, iconAlt(url) ? 6000 : 12000);
             img.src = vsrc(url);
         });
     }
@@ -2590,6 +2600,8 @@
     }
     // 絵を pack フォルダへ うつしたあとでも、むかし保存した「custom/○○.jpg」が 見つかるように、ほかのフォルダも さがす
     function fixBrokenImg(img) {
+        var alt = iconAlt(img.getAttribute('src') || '');
+        if (alt) { img.src = alt; return; }   // 絵文字の 絵：予備の サーバーへ
         var src = (img.getAttribute('src') || '').split('?')[0];
         var m = /(?:custom|pack\d+)\/([^\/?#]+)\.(?:jpg|webp|png|svg)/i.exec(src);
         if (!m) return;
@@ -2603,7 +2615,7 @@
     }
     document.addEventListener('error', function (e) {
         var t = e.target;
-        if (t && t.tagName === 'IMG' && t.closest && t.closest('#collList')) fixBrokenImg(t);
+        if (t && t.tagName === 'IMG' && t.closest && (t.closest('#collList') || iconAlt(t.getAttribute('src') || ''))) fixBrokenImg(t);
     }, true);
     var ICON_X ='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>';
     var ICON_L = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>';
