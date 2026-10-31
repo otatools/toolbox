@@ -513,6 +513,8 @@
         height: 64px; padding: 0 6px; cursor: pointer; white-space: nowrap; box-shadow: 0 4px 0 #ddcbb0; touch-action: manipulation; -webkit-tap-highlight-color: transparent;
     }
     #collMenu button small { font-size: 17px; color: #a08c6c; margin-left: 4px; }
+    #collMenu button.sub { white-space: normal; line-height: 1.1; font-size: 20px; }
+    #collMenu button.mback { background: #f1ece2; color: #7a6a52; }
     #collMenu button.on { background: #ffe3a3; border-color: #e9b54a; box-shadow: 0 4px 0 #d9a93f; }
     .is-portrait #collMenu { top: 200px; grid-template-columns: repeat(3, 1fr); }
     .is-portrait #btnAll, .is-portrait #collSel { font-size: 24px; height: 70px; }
@@ -726,6 +728,9 @@
     .is-portrait .ovGenres { grid-template-columns: repeat(3, 1fr); }
     .ovGenre { --bg: #fff; --sh: #f0c08a; height: 96px; box-shadow: 0 6px 0 var(--sh), inset 0 0 0 3px #f8d9b8; }
     .ovGenre .inner { font-size: 28px; font-weight: 700; color: #a4501c; }
+    .ovGenre.all { --bg: #ffe9cf; }
+    .ovGenre.long .inner { font-size: 22px; white-space: nowrap; text-align: center; padding: 0 6px; }
+    .ovGenre .inner { line-height: 1.15; }
     .ovGenre small { font-size: 17px; color: #b8865a; font-weight: 400; margin-top: 4px; }
     .ovCards { display: flex; flex-wrap: wrap; justify-content: center; align-items: flex-start; gap: 16px; padding-top: 16px; }
     .is-portrait .ovCards { gap: 12px; padding-top: 12px; }
@@ -2589,31 +2594,57 @@
     var curTab = 'ぜんぶ';          // いま えらんでいる カテゴリー
     var collSel = document.getElementById('collSel'), btnAll = document.getElementById('btnAll'), collMenu = document.getElementById('collMenu');
     // こまかい ジャンル（いぬ・ねこ・めんるい…）は、その なかまの カードが 2まい いじょう そろったら べつの ジャンルに する。1まいの うちは おおきい ジャンル（どうぶつ・たべもの・くらし）に いれる
-    var CAT_PARENT = {};
-    ['いぬ', 'ねこ', 'とり', 'はむすたー', 'くじら・いるか', 'かめ', 'へび', 'とかげ', 'かえる', 'きょうりゅう'].forEach(function (c) { CAT_PARENT[c] = 'どうぶつ'; });
-    ['くだもの', 'やさい', 'にく', 'ぱん', 'めんるい', 'どんぶり', 'すし', 'かれー', 'すーぷ・しる', 'ていしょく', 'ちょうみりょう'].forEach(function (c) { CAT_PARENT[c] = 'たべもの'; });
-    ['ふく', 'あくせさりー', 'けしょう', 'とけい', 'でんき・きかい', 'おかね'].forEach(function (c) { CAT_PARENT[c] = 'くらし'; });
-    var subCnt = {};
-    function countSubs() { subCnt = {}; coll.forEach(function (it) { var c = catOf(it.ws[0]); if (CAT_PARENT[c]) subCnt[c] = (subCnt[c] || 0) + 1; }); }
-    function catOfCard(item) { var c = catOf(item.hk || item.ws[0]); return (CAT_PARENT[c] && (subCnt[c] || 0) < 2) ? CAT_PARENT[c] : c; }
-    function visible(item) { return curTab === 'ぜんぶ' || catOfCard(item) === curTab; }
+    // ---- ジャンル：大ジャンル → 小ジャンル（じしょの #cat が 小ジャンル） ----
+    var BIGS = [
+        ['たべもの', ['たべもの', 'くだもの', 'やさい', 'にく', 'ぱん', 'めんるい', 'どんぶり', 'すし', 'かれー', 'すーぷ・しる', 'ていしょく', 'ちょうみりょう', 'のみもの', 'おやつ']],
+        ['どうぶつ', ['どうぶつ', 'いぬ', 'ねこ', 'はむすたー', 'とり', 'かめ', 'へび', 'とかげ', 'かえる', 'きょうりゅう', 'さかな', 'くじら・いるか', 'むし']],
+        ['しぜん', ['しぜん', 'しょくぶつ', '宝石']],
+        ['からだ', ['からだ']],
+        ['ひと・おはなし', ['ひと', '人物', '物語', 'ようかい']],
+        ['くらし', ['くらし', 'ふく', 'あくせさりー', 'けしょう', 'とけい', 'でんき・きかい', 'おかね']],
+        ['のりもの', ['のりもの', 'でんしゃ']],
+        ['ばしょ', ['ばしょ', '都道府県', '日本の都市', '海外の都市', '国']],
+        ['がっこう', ['がっこう', 'ことわざ', '慣用句', '四字熟語', 'たんい', 'がっき']],
+        ['あそび・ぎょうじ', ['あそび', 'スポーツ', 'ぎょうじ', '干支']],
+        ['ことば', ['ことば', 'うごき', 'ようす', 'きもち', 'オノマトペ', 'あいさつ', 'こそあど言葉', 'じかん', 'いち', '色', 'いろ・かたち', 'すうじ']],
+        ['そのほか', ['そのほか']]
+    ];
+    var SUB_NAME = { 'たべもの': 'りょうり', 'どうぶつ': 'けもの', 'さかな': 'うみ・かわの いきもの', 'しぜん': 'てんき・うちゅう・ちけい', 'ひと': 'ひと・しごと',
+        'くらし': 'くらしの もの', 'のりもの': 'くるま・ふね・ひこうき', 'ばしょ': 'たてもの・おみせ', 'がっこう': 'がっこう・べんきょう', 'ことば': 'いろいろな ことば', '色': 'いろ' };
+    var LEAF_BIG = {}; BIGS.forEach(function (b) { b[1].forEach(function (l) { LEAF_BIG[l] = b[0]; }); });
+    function bigOf(leaf) { return LEAF_BIG[leaf] || 'そのほか'; }
+    function subsOf(big) { for (var i = 0; i < BIGS.length; i++) if (BIGS[i][0] === big) return BIGS[i][1]; return []; }
+    function subLabel(l) { return SUB_NAME[l] || l; }
+    // タブ：'ぜんぶ' / 'B:大ジャンル' / 'S:小ジャンル'
+    function tabLabel(t) { return t === 'ぜんぶ' ? 'ジャンル' : t.slice(0, 2) === 'B:' ? t.slice(2) : subLabel(t.slice(2)); }
+    function inTab(leaf, t) { return t === 'ぜんぶ' || (t.slice(0, 2) === 'B:' ? bigOf(leaf) === t.slice(2) : leaf === t.slice(2)); }
+    function countSubs() {}
+    function catOfCard(item) { return catOf(item.hk || item.ws[0]); }
+    function visible(item) { return inTab(catOfCard(item), curTab); }
+    var menuBig = null;   // ジャンルの メニューで ひらいている 大ジャンル
+    function renderMenu() {
+        var cntB = {}, cntL = {};
+        coll.forEach(function (it) { var l = catOfCard(it); cntL[l] = (cntL[l] || 0) + 1; var b = bigOf(l); cntB[b] = (cntB[b] || 0) + 1; });
+        var th = '', curBig = curTab === 'ぜんぶ' ? '' : (curTab.slice(0, 2) === 'B:' ? curTab.slice(2) : bigOf(curTab.slice(2)));
+        if (!menuBig) {
+            BIGS.forEach(function (b) { if (cntB[b[0]]) th += '<button data-big="' + b[0] + '" class="' + (curBig === b[0] ? 'on' : '') + '">' + b[0] + '<small>' + cntB[b[0]] + '</small></button>'; });
+        } else {
+            th += '<button data-back="1" class="mback">もどる</button>';
+            th += '<button data-tab="B:' + menuBig + '" class="sub' + (curTab === 'B:' + menuBig ? ' on' : '') + '">' + menuBig + ' ぜんぶ<small>' + (cntB[menuBig] || 0) + '</small></button>';
+            subsOf(menuBig).forEach(function (l) { if (cntL[l]) th += '<button data-tab="S:' + l + '" class="sub' + (curTab === 'S:' + l ? ' on' : '') + '">' + subLabel(l) + '<small>' + cntL[l] + '</small></button>'; });
+        }
+        collMenu.innerHTML = th;
+        return cntL;
+    }
 
     function renderColl(movedIndex) {
         collCount.textContent = '';
-        // カテゴリーの ボタン：カードが ある カテゴリーだけ ふやしていく
-        countSubs();
-        var cnt = {};
-        coll.forEach(function (it) { var c = catOfCard(it); cnt[c] = (cnt[c] || 0) + 1; });
-        if (curTab !== 'ぜんぶ' && !cnt[curTab]) curTab = 'ぜんぶ';
-        var used = CATS.filter(function (c) { return cnt[c] && c !== 'そのほか'; });
-        Object.keys(cnt).forEach(function (c) { if (used.indexOf(c) < 0 && c !== 'そのほか') used.push(c); });
-        if (cnt['そのほか']) used.push('そのほか');
-        var th = '';
-        used.forEach(function (c) { th += '<button data-tab="' + c + '" class="' + (curTab === c ? 'on' : '') + '">' + c + '<small>' + cnt[c] + '</small></button>'; });
-        collMenu.innerHTML = th;
+        if (curTab !== 'ぜんぶ' && curTab.slice(0, 2) !== 'B:' && curTab.slice(0, 2) !== 'S:') curTab = 'ぜんぶ';
+        if (curTab !== 'ぜんぶ' && !coll.some(visible)) curTab = 'ぜんぶ';
+        renderMenu();
         btnAll.classList.toggle('on', curTab === 'ぜんぶ');
         collSel.classList.toggle('on', curTab !== 'ぜんぶ');
-        collSel.textContent = curTab === 'ぜんぶ' ? 'ジャンル' : curTab;
+        collSel.textContent = tabLabel(curTab);
         if (!coll.length) {
             collList.innerHTML = '<div class="collEmpty">まだ なにも ないよ。<br>ことばを いれて つくってみよう！</div>';
             return;
@@ -2641,12 +2672,20 @@
         for (var j = i + dir; j >= 0 && j < coll.length; j += dir) if (visible(coll[j])) return j;
         return -1;
     }
-    function pickTab(t) { curTab = t; collMenu.hidden = true; renderColl(); collList.scrollTop = 0; }
+    function pickTab(t) { curTab = t; menuBig = null; collMenu.hidden = true; renderColl(); collList.scrollTop = 0; }
     btnAll.addEventListener('click', function () { pickTab('ぜんぶ'); });
-    collSel.addEventListener('click', function (e) { e.stopPropagation(); collMenu.hidden = !collMenu.hidden; });
+    collSel.addEventListener('click', function (e) { e.stopPropagation(); menuBig = null; renderMenu(); collMenu.hidden = !collMenu.hidden; });
     collMenu.addEventListener('click', function (e) {
         e.stopPropagation();
-        var b = e.target.closest ? e.target.closest('[data-tab]') : null;
+        if (!e.target.closest) return;
+        if (e.target.closest('[data-back]')) { menuBig = null; renderMenu(); return; }
+        var bg = e.target.closest('[data-big]');
+        if (bg) {
+            var big = bg.getAttribute('data-big'), cntL = renderMenu(), n = subsOf(big).filter(function (l) { return cntL[l]; }).length;
+            if (n < 2) { pickTab('B:' + big); return; }   // 小ジャンルが 1つだけなら そのまま
+            menuBig = big; renderMenu(); return;
+        }
+        var b = e.target.closest('[data-tab]');
         if (b) pickTab(b.getAttribute('data-tab'));
     });
     collEl.addEventListener('click', function () { collMenu.hidden = true; });
@@ -2834,7 +2873,7 @@
         });
         return ORDER_POOL;
     }
-    function genreOf(w) { countSubs(); return catOfCard({ ws: [w] }); }
+    function genreOf(w) { return catOf(w); }
     function ownedPics() {
         var s = {};
         coll.forEach(function (it) {
@@ -2844,16 +2883,22 @@
         });
         return s;
     }
+    var orderBig = null;   // ちゅうもんの ジャンルで ひらいている 大ジャンル
+    // えらべる ジャンル：[キー, なまえ, のこり]。大ジャンル（orderBig が ないとき）か、その中の 小ジャンル
     function orderGenres() {
-        countSubs();
-        var g = {}; coll.forEach(function (it) { var c = catOfCard(it); if (c && c !== 'そのほか') g[c] = 1; });
-        var own = ownedPics(), cnt = {};
-        orderPool().forEach(function (n) { if (own[n]) return; var c = genreOf(n); if (g[c]) cnt[c] = (cnt[c] || 0) + 1; });
-        return CATS.concat(Object.keys(cnt)).filter(function (c, i, a) { return a.indexOf(c) === i && (cnt[c] || 0) >= ORDER_N; }).map(function (c) { return [c, cnt[c]]; });
+        var have = {}; coll.forEach(function (it) { var l = catOfCard(it); if (l && l !== 'そのほか') have[l] = 1; });
+        var own = ownedPics(), cntL = {}, cntB = {};
+        orderPool().forEach(function (n) { if (own[n]) return; var l = genreOf(n); if (!l || l === 'そのほか') return; cntL[l] = (cntL[l] || 0) + 1; cntB[bigOf(l)] = (cntB[bigOf(l)] || 0) + 1; });
+        var haveB = {}; Object.keys(have).forEach(function (l) { haveB[bigOf(l)] = 1; });
+        if (!orderBig) return BIGS.filter(function (b) { return haveB[b[0]] && (cntB[b[0]] || 0) >= ORDER_N; }).map(function (b) { return ['B:' + b[0], b[0], cntB[b[0]]]; });
+        var r = [['B:' + orderBig, orderBig + ' ぜんぶ', cntB[orderBig] || 0]];
+        subsOf(orderBig).forEach(function (l) { if (have[l] && (cntL[l] || 0) >= ORDER_N) r.push(['S:' + l, subLabel(l), cntL[l]]); });
+        return r;
     }
     function pickOrders(g, n, exclude) {
         var own = ownedPics(), ex = {}; (exclude || []).forEach(function (x) { ex[x] = 1; });
-        var c = orderPool().filter(function (w) { return !own[w] && !ex[w] && genreOf(w) === g; });
+        if (g.slice(0, 2) !== 'B:' && g.slice(0, 2) !== 'S:') g = 'S:' + g;
+        var c = orderPool().filter(function (w) { return !own[w] && !ex[w] && inTab(genreOf(w), g); });
         var r = [];
         while (r.length < n && c.length) { var i = Math.floor(Math.random() * c.length); r.push(c.splice(i, 1)[0]); }
         return r;
@@ -2877,7 +2922,7 @@
             orderView.classList.toggle('picking', !!gs.length);
             ovTitle.textContent = gs.length ? 'どの ジャンルの ちゅうもんを うけますか？' : 'きょうの ちゅうもん';
             ovNote.textContent = gs.length ? '' : 'まずは ことばを つくって コレクションの ジャンルを ふやそう！';
-            ovBody.innerHTML = '<div class="ovGenres">' + gs.map(function (x) { return '<button class="key ovGenre" data-g="' + x[0] + '"><span class="inner">' + x[0] + '</span></button>'; }).join('') + '</div>' +
+            ovBody.innerHTML = '<div class="ovGenres">' + gs.map(function (x, k) { return '<button class="key ovGenre' + (orderBig && k === 0 ? ' all' : '') + (Array.from(x[1]).length > 6 ? ' long' : '') + '" data-g="' + x[0] + '" data-l="' + x[1] + '"><span class="inner">' + (Array.from(x[1]).length > 6 ? (x[1].indexOf(' ') > 0 ? x[1].replace(' ', '<br>') : x[1].replace('・', '・<br>')) : x[1]) + '</span></button>'; }).join('') + '</div>' +
                 '';
             return;
         }
@@ -2899,7 +2944,7 @@
         if (!o.items.length) {
             var ws = pickOrders(b.dataset.g, ORDER_N);
             if (ws.length < ORDER_N) return;
-            o.g = b.dataset.g; o.items = ws.map(function (w) { return { n: w, done: false }; });
+            o.g = b.dataset.l || b.dataset.g; o.items = ws.map(function (w) { return { n: w, done: false }; });
         } else {
             // ジャンルを かえる：できた ものは のこして、まだの ものだけ あたらしい ジャンルに
             if (!orderPicking || o.rr >= orderRR()) return;
@@ -2909,15 +2954,21 @@
             var nw = pickOrders(b.dataset.g, idx.length, o.items.map(function (x) { return x.n; }));
             if (nw.length < idx.length) return;
             idx.forEach(function (i, k) { o.items[i] = { n: nw[k], done: false }; });
-            o.g = b.dataset.g; o.rr++;
+            o.g = b.dataset.l || b.dataset.g; o.rr++;
         }
-        orderPicking = false; orderSave(o);
+        orderPicking = false; orderBig = null; orderSave(o);
         renderOrder(); updateOrderBtn();
     }
     ovBody.addEventListener('click', function (e) {
         var b0 = e.target.closest('.ovGenre');
         if (b0) {
-            askConfirm('「' + b0.dataset.g + '」の\nちゅうもんを うけますか？', function () { orderPick(b0); }, 'はい', 'いいえ', true);
+            // 大ジャンルを おしたら、その中の 小ジャンルを だす（小ジャンルが 1つだけなら そのまま）
+            if (!orderBig && b0.dataset.g.slice(0, 2) === 'B:') {
+                orderBig = b0.dataset.g.slice(2);
+                if (orderGenres().length > 2) { renderOrder(); return; }
+                orderBig = null;
+            }
+            askConfirm('「' + (b0.dataset.l || b0.dataset.g) + '」の\nちゅうもんを うけますか？', function () { orderPick(b0); }, 'はい', 'いいえ', true);
             return;
         }
         if (e.target.closest('.ovChg')) { askOtherOrder(function () { orderPicking = true; renderOrder(); }); return; }
@@ -2941,10 +2992,11 @@
     }
     var orderDonePending = false;
     function showOrderDone() { if (!orderDonePending) return; orderDonePending = false; var o = orderLoad(); var more = o.rr < orderRR(); document.getElementById('odMsg').textContent = more ? '' : 'また あした ちゅうもんを うけてね'; document.getElementById('btnOdMore').hidden = !more; document.getElementById('orderDone').hidden = false; }
-    bindPress(btnOrder, function () { if (busy) return; orderPicking = false; ovZoom.hidden = true; renderOrder(); orderView.hidden = false; });
+    bindPress(btnOrder, function () { if (busy) return; orderPicking = false; orderBig = null; ovZoom.hidden = true; renderOrder(); orderView.hidden = false; });
     bindPress(document.getElementById('btnOrderBack'), function () {
         // ジャンルを えらびなおして いる ときは、ひとつ まえ（ちゅうもんの カード）に もどる
         if (!ovZoom.hidden) { ovZoom.hidden = true; return; }
+        if (orderBig) { orderBig = null; renderOrder(); return; }   // 小ジャンル → 大ジャンルに もどる
         if (orderPicking && orderLoad().items.length) { orderPicking = false; renderOrder(); return; }
         orderView.hidden = true;
     });
