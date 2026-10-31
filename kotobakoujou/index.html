@@ -501,6 +501,15 @@
     #collSel { flex: 0 1 auto; }
     #collSel { padding: 0 50px 0 20px; min-width: 0; max-width: 100%; overflow: hidden; text-overflow: ellipsis; position: relative;
         background: #fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%237a5a12' stroke-width='3' stroke-linecap='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E") no-repeat right 14px center / 26px; }
+    #collSubs { flex: 0 0 62px; box-sizing: border-box; align-items: flex-start; display: flex; gap: 10px; overflow-x: auto; padding: 4px 2px 6px; margin-top: 4px; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+    #collSubs::-webkit-scrollbar { display: none; }
+    #collSubs.empty { visibility: hidden; }   /* こまかい ジャンルが ない ときも ばしょは あけておく（カードが ずれない） */
+    #collSubs button { flex: 0 0 auto; font: inherit; font-size: 22px; color: #5a4426; background: #fff7e3; border: 3px solid #eadcc6; border-radius: 30px; height: 54px; padding: 0 18px;
+        box-shadow: 0 4px 0 #ddcbb0; white-space: nowrap; cursor: pointer; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+    #collSubs button small { font-size: 16px; color: #a08c6c; margin-left: 4px; }
+    #collSubs button.on { background: #ffe3a3; border-color: #e9b54a; box-shadow: 0 4px 0 #d9a93f; }
+    .is-portrait #collSubs button { font-size: 20px; height: 50px; padding: 0 14px; }
+    .is-portrait #collSubs { flex-basis: 58px; }
     #btnAll.on, #collSel.on { background-color: #ffe3a3; border-color: #e9b54a; box-shadow: 0 5px 0 #d9a93f; }
     #collMenu {
         position: absolute; z-index: 5; left: 50%; transform: translateX(-50%); top: 112px; width: 760px; max-width: calc(100% - 36px);
@@ -603,10 +612,10 @@
     #collTabs button.on { background: #ffe3a3; border-color: #e9b54a; box-shadow: 0 4px 0 #d9a93f; }
     .is-portrait #collTabs button { font-size: 22px; padding: 5px 13px; }
     #collList {
-        flex: 1 1 0; min-height: 0; margin-top: 14px;
+        flex: 1 1 0; min-height: 0; margin-top: 0;
         overflow-y: auto; overflow-x: hidden; -webkit-overflow-scrolling: touch; touch-action: pan-y;
         display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); grid-gap: 22px 18px;
-        align-content: start; padding: 14px 10px 40px;
+        align-content: start; padding: 6px 10px 40px;
     }
     .is-portrait #collList { grid-template-columns: repeat(3, minmax(0, 1fr)); }
     .card {
@@ -924,6 +933,7 @@
             </div>
             <button id="btnEdit" class="key"><span class="inner" id="editLbl">ならべかえ・けす</span></button>
         </div>
+        <div id="collSubs" class="empty"></div>
         <div class="collTools" id="collTools" hidden>
             <button id="btnSortAiu" class="key"><span class="inner">あいうえお じゅん</span></button>
             <button id="btnSortNew" class="key"><span class="inner">つくった じゅん</span></button>
@@ -2630,7 +2640,9 @@
     function countSubs() {}
     function catOfCard(item) { return catOf(item.hk || item.ws[0]); }
     function visible(item) { return inTab(catOfCard(item), curTab); }
-    var menuBig = null;   // ジャンルの メニューで ひらいている 大ジャンル
+    var menuBig = null;   // こまかい ジャンルの メニューを だしている 大ジャンル（null なら 大ジャンルの メニュー）
+    var collSubs = document.getElementById('collSubs');
+    function curBigOf() { return curTab === 'ぜんぶ' ? '' : (curTab.slice(0, 2) === 'B:' ? curTab.slice(2) : bigOf(curTab.slice(2))); }
     function renderMenu() {
         var cntB = {}, cntL = {};
         coll.forEach(function (it) { var l = catOfCard(it); cntL[l] = (cntL[l] || 0) + 1; var b = bigOf(l); cntB[b] = (cntB[b] || 0) + 1; });
@@ -2638,7 +2650,6 @@
         if (!menuBig) {
             BIGS.forEach(function (b) { if (cntB[b[0]]) th += '<button data-big="' + b[0] + '" class="' + (curBig === b[0] ? 'on' : '') + '">' + b[0] + '<small>' + cntB[b[0]] + '</small></button>'; });
         } else {
-            th += '<button data-back="1" class="mback">もどる</button>';
             th += '<button data-tab="B:' + menuBig + '" class="sub' + (curTab === 'B:' + menuBig ? ' on' : '') + '">' + menuBig + ' ぜんぶ<small>' + (cntB[menuBig] || 0) + '</small></button>';
             subsOf(menuBig).forEach(function (l) { if (cntL[l]) th += '<button data-tab="S:' + l + '" class="sub' + (curTab === 'S:' + l ? ' on' : '') + '">' + subLabel(l) + '<small>' + cntL[l] + '</small></button>'; });
         }
@@ -2653,7 +2664,17 @@
         renderMenu();
         btnAll.classList.toggle('on', curTab === 'ぜんぶ');
         collSel.classList.toggle('on', curTab !== 'ぜんぶ');
-        collSel.textContent = tabLabel(curTab);
+        var cb = curBigOf(), cntL2 = {}, cntB2 = 0;
+        coll.forEach(function (it) { var l = catOfCard(it); cntL2[l] = (cntL2[l] || 0) + 1; if (bigOf(l) === cb) cntB2++; });
+        collSel.textContent = cb || 'ジャンル';
+        // 大ジャンルを えらんだら、その下に こまかい ジャンルの ボタンを ならべる（こまかい ジャンルが 2つ いじょう あるとき）
+        var subs = cb ? subsOf(cb).filter(function (l) { return cntL2[l]; }) : [];
+        collSubs.classList.toggle('empty', subs.length < 2);
+        if (subs.length < 2) collSubs.innerHTML = '';
+        else {
+            collSubs.innerHTML = '<button data-tab="B:' + cb + '" class="' + (curTab === 'B:' + cb ? 'on' : '') + '">' + cb + ' ぜんぶ<small>' + cntB2 + '</small></button>' +
+                subs.map(function (l) { return '<button data-tab="S:' + l + '" class="' + (curTab === 'S:' + l ? 'on' : '') + '">' + subLabel(l) + '<small>' + cntL2[l] + '</small></button>'; }).join('');
+        }
         if (!coll.length) {
             collList.innerHTML = '<div class="collEmpty">まだ なにも ないよ。<br>ことばを いれて つくってみよう！</div>';
             return;
@@ -2683,16 +2704,20 @@
     }
     function pickTab(t) { curTab = t; menuBig = null; collMenu.hidden = true; renderColl(); collList.scrollTop = 0; }
     btnAll.addEventListener('click', function () { pickTab('ぜんぶ'); });
-    collSel.addEventListener('click', function (e) { e.stopPropagation(); menuBig = null; renderMenu(); collMenu.hidden = !collMenu.hidden; });
+    var menuFor = '';
+    function toggleMenu(which, big) { var open = collMenu.hidden || menuFor !== which; menuFor = which; menuBig = big; renderMenu(); collMenu.hidden = !open; }
+    collSel.addEventListener('click', function (e) { e.stopPropagation(); toggleMenu('big', null); });
+    collSubs.addEventListener('click', function (e) {
+        var b = e.target.closest ? e.target.closest('[data-tab]') : null;
+        if (b) { var sl = collSubs.scrollLeft; pickTab(b.getAttribute('data-tab')); collSubs.scrollLeft = sl; }
+    });
     collMenu.addEventListener('click', function (e) {
         e.stopPropagation();
         if (!e.target.closest) return;
         if (e.target.closest('[data-back]')) { menuBig = null; renderMenu(); return; }
         var bg = e.target.closest('[data-big]');
         if (bg) {
-            var big = bg.getAttribute('data-big'), cntL = renderMenu(), n = subsOf(big).filter(function (l) { return cntL[l]; }).length;
-            if (n < 2) { pickTab('B:' + big); return; }   // 小ジャンルが 1つだけなら そのまま
-            menuBig = big; renderMenu(); return;
+            pickTab('B:' + bg.getAttribute('data-big')); return;   // 大ジャンルを えらぶ（こまかい ジャンルは よこの ボタンで）
         }
         var b = e.target.closest('[data-tab]');
         if (b) pickTab(b.getAttribute('data-tab'));
