@@ -89,6 +89,11 @@ body { word-break: keep-all; overflow-wrap: break-word; }
 /* 白い箱＋バージョン表示をまとめて縦に並べつつ、入りきる時は中央・入りきらない時は
    上からスクロールして見えるように、このラッパーに margin:auto 0 を持たせる
    （以前は .lobby-box 自身が持っていたが、フッターを箱の外に出したのでこちらに移した）。 */
+/* 部屋の情報がとどくまで（部屋番号が「----」のあいだ）は、中身が空っぽの小さな箱が
+   拡大されて見えてしまうので、箱は隠してクルクルだけを出しておく（下のscript参照）。 */
+.lobby-loading { display: none; flex-direction: column; align-items: center; gap: 14px; margin: auto 0; color: #8a8fb0; font-weight: 700; font-size: 15px; }
+.lobby-spinner { width: 46px; height: 46px; border-radius: 50%; border: 5px solid rgba(255,138,61,0.22); border-top-color: #ff8a3d; animation: lobbySpin 0.9s linear infinite; }
+@keyframes lobbySpin { to { transform: rotate(360deg); } }
 .lobby-box-wrap { display: flex; flex-direction: column; align-items: center; width: 90%; max-width: 420px; margin: auto 0; }
 .lobby-box {
     background: #ffffff;
@@ -496,6 +501,7 @@ canvas { touch-action: none; -webkit-user-select: none; user-select: none; }
 
 <!-- ロビー画面 -->
 <div id="lobbyScreen">
+    <div id="lobbyLoading" class="lobby-loading" aria-label="よみこみ中"><div class="lobby-spinner"></div><div class="lobby-loading-text">へやに入っています...</div></div>
     <div class="lobby-box-wrap">
     <div class="lobby-box">
         <h2 style="margin-top:0">部屋番号</h2>
@@ -590,7 +596,7 @@ canvas { touch-action: none; -webkit-user-select: none; user-select: none; }
         </div>
         <button type="button" class="btn btn-sub" style="margin-top:10px;" onclick="leaveRoomToMenu()">メインメニューへもどる</button>
     </div>
-    <div class="lobby-version-footer">お絵かきクイズ フレンズ | ver.3.5 | ota tools</div>
+    <div class="lobby-version-footer">お絵かきクイズ フレンズ | ver.3.6 | ota tools</div>
     </div>
 </div>
 
@@ -788,7 +794,7 @@ const db = firebase.database();
 // 通常index.html側のチェックを通ってからしか来ないはずだが、ブックマークや
 // タブを開いたままにしていた場合など、直接ここに来るケースの保険として
 // こちらにも同じチェックを入れておく。
-const APP_VERSION = "3.5";
+const APP_VERSION = "3.6";
 function isVersionOlder(a, b) {
     const pa = String(a).split('.').map(n => parseInt(n, 10) || 0);
     const pb = String(b).split('.').map(n => parseInt(n, 10) || 0);
@@ -1470,9 +1476,56 @@ function upload() { flushLiveSegments(); }
 // （live_draws/segs）へ、1つの小さなかたまりとして送る。.push()で送るので、ずっと
 // 見ている人には「増えた分だけ」が届き、新しく入ってきた人には今たまっている分が
 // まとめて届く（Firebaseの標準の動き）。何もたまっていなければ何もしない。
+// 【通信量の大事な注意】線の情報は、見ている全員（40人なら40倍）に届くので、1回ぶんの
+// 大きさがそのまま通信量になる。以前は、ペンが動くたびに「x1,y1,x2,y2,太さ,色,...」を
+// 16けたの小数のまま1本ずつ送っており、1本が約170バイトもあった（1筆で数百本）。
+// そこで、つながっている線（前の線の終点＝次の線の始点で、太さ・色・消しゴム・ひと手が
+// 同じもの）を1つの「折れ線」（t:'poly'）にまとめ、座標は1万倍した整数にして点の並び
+// （p:[x,y,x,y,...]）として送る。1点あたり約10バイトで、およそ15分の1になる。
+// 受け取る側は、expandSegsで元の線（t:'line'）に戻してから、今までと同じ処理をする。
+// （古いバージョンの画面は折れ線を読めないので、appConfig/minVersionを上げて更新させる。）
+function packSegs(list) {
+    const out = [];
+    let cur = null, lx = 0, ly = 0;
+    const q = v => Math.round(v * 10000);
+    const f5 = v => Math.round(v * 100000) / 100000;
+    for (const sg of list) {
+        if (!sg) continue;
+        if (sg.t === 'line') {
+            const sq = Math.round(sg.s * 100000);
+            if (cur && cur.s === sq && cur.c === sg.c && cur.e === sg.e && cur.g === sg.g && lx === q(sg.x1) && ly === q(sg.y1)) {
+                lx = q(sg.x2); ly = q(sg.y2);
+                cur.p.push(lx, ly);
+                continue;
+            }
+            lx = q(sg.x2); ly = q(sg.y2);
+            cur = { t: 'poly', s: sq, c: sg.c, e: !!sg.e, g: sg.g, p: [q(sg.x1), q(sg.y1), lx, ly] };
+            out.push(cur);
+            continue;
+        }
+        cur = null;
+        if (sg.t === 'dot') out.push({ t: 'dot', x: f5(sg.x), y: f5(sg.y), s: f5(sg.s), c: sg.c, e: !!sg.e, g: sg.g });
+        else if (sg.t === 'fill') out.push({ t: 'fill', x: f5(sg.x), y: f5(sg.y), c: sg.c, g: sg.g });
+        else out.push(sg);
+    }
+    return out;
+}
+function expandSegs(list) {
+    const out = [];
+    (list || []).forEach(sg => {
+        if (sg && sg.t === 'poly' && sg.p) {
+            const p = Array.isArray(sg.p) ? sg.p : Object.values(sg.p);
+            const sz = sg.s / 100000;
+            for (let i = 0; i + 3 < p.length; i += 2) {
+                out.push({ t: 'line', x1: p[i] / 10000, y1: p[i + 1] / 10000, x2: p[i + 2] / 10000, y2: p[i + 3] / 10000, s: sz, c: sg.c, e: !!sg.e, g: sg.g });
+            }
+        } else out.push(sg);
+    });
+    return out;
+}
 function flushLiveSegments() {
     if (!liveSegBuffer.length) return;
-    const list = liveSegBuffer;
+    const list = packSegs(liveSegBuffer);
     liveSegBuffer = [];
     db.ref(`live_draws/${myRoom}/segs`).push({
         uid: myUid,
@@ -2390,12 +2443,17 @@ authReady.then(async () => {
     const liveRootLoaded = {};
     let liveRootDirty = false;
     let pendingSegBatches = [];
+    // 通信量の実測用：この端末が受け取った線の情報の大きさ（バイト）の合計。
+    // ブラウザのコンソールで __traffic() と打つと見られる。
+    window.__trafficSegs = 0;
+    window.__traffic = () => ({ segsBytes: window.__trafficSegs });
     function processSegBatch(batch) {
+        try { window.__trafficSegs += JSON.stringify(batch).length; } catch (e) {}
         if (!batch || !latestLiveDraw) return;
         if (batch.seq !== latestLiveDraw.seq || batch.round !== latestLiveDraw.round) return;
         const box = document.getElementById('canvasBox');
         const w = box ? box.clientWidth : 0, h = box ? box.clientHeight : 0;
-        (batch.list || []).forEach(seg => {
+        expandSegs(batch.list).forEach(seg => {
             if (!seg) return;
             if (seg.t === 'undo') {
                 // 「戻る」は見た目を直接持たない指示。同じひと手（g）のぶんを
@@ -3841,6 +3899,7 @@ function floodFillOn(targetCtx, w, h, rawX, rawY, fillColorHex) {
 (function () {
     const screenEl = document.getElementById('lobbyScreen');
     const wrap = screenEl && screenEl.querySelector('.lobby-box-wrap');
+    const loadingEl = document.getElementById('lobbyLoading');
     if (!wrap) return;
     const MARGIN = 0.96, MIN_ZOOM = 0.5, MAX_ZOOM = 2.5;
     let rafId = 0, applying = false;
@@ -3849,8 +3908,16 @@ function floodFillOn(targetCtx, w, h, rawX, rawY, fillColorHex) {
     }
     function fit() {
         rafId = 0;
-        if (screenEl.style.display === 'none' || window.innerWidth < 640) { reset(); return; }
         applying = true;
+        const codeEl = document.getElementById('lobbyRoomCode');
+        const ready = !!codeEl && codeEl.textContent.trim() !== '' && codeEl.textContent.trim() !== '----';
+        wrap.style.visibility = ready ? '' : 'hidden';
+        if (loadingEl) loadingEl.style.display = ready ? 'none' : 'flex';
+        if (!ready || screenEl.style.display === 'none' || window.innerWidth < 640) {
+            reset();
+            setTimeout(() => { applying = false; }, 0);
+            return;
+        }
         reset();
         const w1 = wrap.offsetWidth, h1 = wrap.offsetHeight;
         if (w1 > 0 && h1 > 0) {
