@@ -2635,14 +2635,22 @@
     function subsOf(big) { for (var i = 0; i < BIGS.length; i++) if (BIGS[i][0] === big) return BIGS[i][1]; return []; }
     function subLabel(l) { return SUB_NAME[l] || l; }
     // タブ：'ぜんぶ' / 'B:大ジャンル' / 'S:小ジャンル'
-    function tabLabel(t) { return t === 'ぜんぶ' ? 'ジャンル' : t.slice(0, 2) === 'B:' ? t.slice(2) : subLabel(t.slice(2)); }
-    function inTab(leaf, t) { return t === 'ぜんぶ' || (t.slice(0, 2) === 'B:' ? bigOf(leaf) === t.slice(2) : leaf === t.slice(2)); }
+    // 'O:大ジャンル' = その大ジャンルの、カードが すくない（SUB_MIN まい みまん）小ジャンルを まとめたもの
+    var SUB_MIN = 2, leafCnt = {};
+    function tabLabel(t) { return t === 'ぜんぶ' ? 'ジャンル' : t.slice(0, 2) === 'B:' ? t.slice(2) : t.slice(0, 2) === 'O:' ? 'そのほか' : subLabel(t.slice(2)); }
+    function inTab(leaf, t) {
+        if (t === 'ぜんぶ') return true;
+        var k = t.slice(0, 2), v = t.slice(2);
+        if (k === 'B:') return bigOf(leaf) === v;
+        if (k === 'O:') return bigOf(leaf) === v && (leafCnt[leaf] || 0) < SUB_MIN;
+        return leaf === v;
+    }
     function countSubs() {}
     function catOfCard(item) { return catOf(item.hk || item.ws[0]); }
     function visible(item) { return inTab(catOfCard(item), curTab); }
     var menuBig = null;   // こまかい ジャンルの メニューを だしている 大ジャンル（null なら 大ジャンルの メニュー）
     var collSubs = document.getElementById('collSubs');
-    function curBigOf() { return curTab === 'ぜんぶ' ? '' : (curTab.slice(0, 2) === 'B:' ? curTab.slice(2) : bigOf(curTab.slice(2))); }
+    function curBigOf() { var k = curTab.slice(0, 2); return curTab === 'ぜんぶ' ? '' : (k === 'B:' || k === 'O:') ? curTab.slice(2) : bigOf(curTab.slice(2)); }
     function renderMenu() {
         var cntB = {}, cntL = {};
         coll.forEach(function (it) { var l = catOfCard(it); cntL[l] = (cntL[l] || 0) + 1; var b = bigOf(l); cntB[b] = (cntB[b] || 0) + 1; });
@@ -2659,7 +2667,8 @@
 
     function renderColl(movedIndex) {
         collCount.textContent = '';
-        if (curTab !== 'ぜんぶ' && curTab.slice(0, 2) !== 'B:' && curTab.slice(0, 2) !== 'S:') curTab = 'ぜんぶ';
+        leafCnt = {}; coll.forEach(function (it) { var l = catOfCard(it); leafCnt[l] = (leafCnt[l] || 0) + 1; });
+        if (curTab !== 'ぜんぶ' && ['B:', 'S:', 'O:'].indexOf(curTab.slice(0, 2)) < 0) curTab = 'ぜんぶ';
         if (curTab !== 'ぜんぶ' && !coll.some(visible)) curTab = 'ぜんぶ';
         renderMenu();
         btnAll.classList.toggle('on', curTab === 'ぜんぶ');
@@ -2668,13 +2677,20 @@
         coll.forEach(function (it) { var l = catOfCard(it); cntL2[l] = (cntL2[l] || 0) + 1; if (bigOf(l) === cb) cntB2++; });
         collSel.textContent = cb || 'ジャンル';
         // 大ジャンルを えらんだら、その下に こまかい ジャンルの ボタンを ならべる（こまかい ジャンルが 2つ いじょう あるとき）
-        var subs = cb ? subsOf(cb).filter(function (l) { return cntL2[l]; }) : [];
-        collSubs.classList.toggle('empty', subs.length < 2);
-        if (subs.length < 2) collSubs.innerHTML = '';
+        // カードが SUB_MIN まい いじょうの 小ジャンルだけ ボタンに。すくない ものは「そのほかの 〇〇」に まとめる
+        var subs = cb ? subsOf(cb).filter(function (l) { return (cntL2[l] || 0) >= SUB_MIN; }) : [];
+        var other = 0; if (cb) subsOf(cb).forEach(function (l) { if (cntL2[l] && cntL2[l] < SUB_MIN) other += cntL2[l]; });
+        var nBtn = subs.length + (other ? 1 : 0);
+        collSubs.classList.toggle('empty', nBtn < 2);
+        if (nBtn < 2) collSubs.innerHTML = '';
         else {
             collSubs.innerHTML = '<button data-tab="B:' + cb + '" class="' + (curTab === 'B:' + cb ? 'on' : '') + '">' + cb + ' ぜんぶ<small>' + cntB2 + '</small></button>' +
-                subs.map(function (l) { return '<button data-tab="S:' + l + '" class="' + (curTab === 'S:' + l ? 'on' : '') + '">' + subLabel(l) + '<small>' + cntL2[l] + '</small></button>'; }).join('');
+                subs.map(function (l) { return '<button data-tab="S:' + l + '" class="' + (curTab === 'S:' + l ? 'on' : '') + '">' + subLabel(l) + '<small>' + cntL2[l] + '</small></button>'; }).join('') +
+                (other ? '<button data-tab="O:' + cb + '" class="' + (curTab === 'O:' + cb ? 'on' : '') + '">そのほか<small>' + other + '</small></button>' : '');
         }
+        // ボタンが なくなった 小ジャンルを えらんでいたら、大ジャンルに もどす
+        if (curTab.slice(0, 2) === 'S:' && (cntL2[curTab.slice(2)] || 0) < SUB_MIN) { curTab = 'B:' + cb; return renderColl(movedIndex); }
+        if (curTab.slice(0, 2) === 'O:' && !other) { curTab = 'B:' + cb; return renderColl(movedIndex); }
         if (!coll.length) {
             collList.innerHTML = '<div class="collEmpty">まだ なにも ないよ。<br>ことばを いれて つくってみよう！</div>';
             return;
