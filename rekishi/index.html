@@ -1377,18 +1377,22 @@ var DEBUG_CARDS = !!DEBUG_LIST;
 document.addEventListener('wheel', function(e){ if(e.ctrlKey) e.preventDefault(); }, { passive:false });
 
 /* ============================================================
-   更新の確認：トップに戻ったとき、トップのボタンを押したとき、
-   そして前回の確認から10分たったあとに何かボタンを押したときに、サーバーにある
+   更新の確認：1日1回だけ（その端末で、その日まだ確認していなければ）、
+   トップに戻ったとき・ボタンを押したときなどに、サーバーにある
    いちばん新しい index.html を調べて、このページより新しければ自動で読みこみ直す。
+   ・確認できた日は端末に覚えておき、同じ日はもう確認しない（つながらなかったときは30分後にもう一度）
    ・BUILD_ID は公開のたびに書きかえる（これが違えば「新しい版がある」と判断）
    ・つながらないとき（オフライン／ファイルを直接開いているとき）は何もしない
    ・同じ版へ何度も読みこみ直して止まらなくならないよう、1つの版につき1回だけ
    ============================================================ */
-var BUILD_ID = '20261027-0910';
+var BUILD_ID = '20261031-2210';
 var updateCheckBusy = false;
 var updateCheckLast = 0;
-var UPDATE_EVERY_MS = 10 * 60 * 1000;   // 前回の確認から10分たっていたら、次にボタンを押したときに確認する
-var updateLastOk = Date.now();          // 開いた直後は最新とみなす
+var UPDATE_RETRY_MS = 30 * 60 * 1000;  // 確認に失敗したときは、30分たつまで試さない
+var updateLastTry = 0;
+function updToday(){ var d = new Date(); return d.getFullYear() + '-' + (d.getMonth() + 1) + '-' + d.getDate(); }   // 日本時間の日付
+function updCheckedToday(){ try{ return localStorage.getItem('rekishi.updChecked') === updToday(); }catch(e){ return false; } }
+function updMarkChecked(){ try{ localStorage.setItem('rekishi.updChecked', updToday()); }catch(e){} }
 var updatePending = null;               // 新しい版が見つかったが、遊んでいる最中なので後で読みこみ直す
 /* いま読みこみ直しても困らない画面か（遊んでいる最中・結果を見ている最中・対戦の部屋の中はだめ） */
 function isSafeToReload(){
@@ -1406,21 +1410,57 @@ function reloadToLatest(latest){
   try{ var u = new URL(location.href); u.searchParams.set('v', latest); location.replace(u.toString()); }
   catch(e){ location.reload(); }
 }
+/* サーバーの index.html は約2.7MBあるので、全部はダウンロードしない。
+   先頭から少しずつ読み、BUILD_ID（ファイルの前のほう、約160KBの位置）が見つかった時点で読むのをやめる。
+   （前は確認のたびに2.7MBまるごと読んでいて、通信量が多く、学校のWi-Fiでは1.5秒以内に終わらないこともあった） */
+var BUILD_ID_RE = /var BUILD_ID = '([^']+)'/;
+function fetchBuildId(url){
+  // まず先頭の256KBだけを頼む（対応しているサーバーならそこだけ送られてくる）。
+  // 万一その中に BUILD_ID がなければ、全体を読みなおす
+  return fetchBuildIdPart(url, true).then(function(res){
+    if(res.partial && !BUILD_ID_RE.test(res.txt)) return fetchBuildIdPart(url, false).then(function(r2){ return r2.txt; });
+    return res.txt;
+  });
+}
+function fetchBuildIdPart(url, useRange){
+  var opt = { cache:'no-store' };
+  if(useRange) opt.headers = { 'Range': 'bytes=0-262143' };
+  return fetch(url, opt).then(function(r){
+    if(!r.ok) return { txt: '', partial: false };
+    var partial = (r.status === 206);
+    return readBuildIdText(r).then(function(txt){ return { txt: txt, partial: partial }; });
+  });
+}
+function readBuildIdText(r){
+  return Promise.resolve().then(function(){
+    if(!r.body || !r.body.getReader || typeof TextDecoder === 'undefined') return r.text();
+    var reader = r.body.getReader(), dec = new TextDecoder(), txt = '';
+    function pump(){
+      return reader.read().then(function(res){
+        if(res.value) txt += dec.decode(res.value, { stream: true });
+        if(res.done) return txt;
+        if(BUILD_ID_RE.test(txt) || txt.length > 1200000){ try{ reader.cancel(); }catch(e){} return txt; }
+        return pump();
+      });
+    }
+    return pump();
+  });
+}
 function checkForUpdate(waitMs){
   return new Promise(function(resolve){
     if(updateCheckBusy || !/^https?:$/.test(location.protocol)){ resolve(false); return; }
     var now = Date.now();
     if(now - updateCheckLast < 3000){ resolve(false); return; }   // 連打しても通信しすぎない
-    updateCheckLast = now; updateCheckBusy = true;
+    updateCheckLast = now; updateCheckBusy = true; updateLastTry = now;
     var done = false;
     function finish(reloading){ if(done) return; done = true; updateCheckBusy = false; resolve(!!reloading); }
     var timer = setTimeout(function(){ finish(false); }, waitMs || 1500);
     var url = location.pathname + '?_chk=' + now;      // 途中のキャッシュにあたらないよう毎回ちがうURLで取る
-    fetch(url, { cache:'no-store' }).then(function(r){ return r.ok ? r.text() : ''; }).then(function(txt){
+    fetchBuildId(url).then(function(txt){
       clearTimeout(timer);
-      var m = /var BUILD_ID = '([^']+)'/.exec(txt || '');
+      var m = BUILD_ID_RE.exec(txt || '');
       var latest = m && m[1];
-      if(latest) updateLastOk = Date.now();
+      if(latest){ updMarkChecked(); updateLastTry = 0; }     // 今日はもう確認ずみ（30分待つのは、つながらなかったときだけ）
       var already = null;
       try{ already = sessionStorage.getItem('rekishi.reloadedFor'); }catch(e){}
       if(latest && latest !== BUILD_ID && already !== latest){
@@ -1430,9 +1470,8 @@ function checkForUpdate(waitMs){
     }).catch(function(){ clearTimeout(timer); finish(false); });
   });
 }
-function updateIsDue(){ return Date.now() - updateLastOk >= UPDATE_EVERY_MS; }
-/* 遊び始めるボタン：先に新しい版がないか確認する。
-   トップの2つは毎回、ほかは前回の確認から10分たっているときだけ。
+function updateIsDue(){ return !updCheckedToday() && Date.now() - updateLastTry >= UPDATE_RETRY_MS; }
+/* 遊び始めるボタン：その日まだ確認していなければ、先に新しい版がないか確認する。
    新しい版があれば読みこみ直し、なければ（待たせすぎないよう最大1.5秒で）そのまま進む。 */
 [['play-solo-btn', true], ['play-multi-btn', true], ['start-solo-btn', false], ['retry-btn', false]].forEach(function(it){
   var b = document.getElementById(it[0]);
@@ -1441,7 +1480,7 @@ function updateIsDue(){ return Date.now() - updateLastOk >= UPDATE_EVERY_MS; }
   var pass = false;
   b.addEventListener('click', function(e){
     if(pass){ pass = false; return; }
-    if(!always && !updateIsDue()) return;
+    if(!updateIsDue()) return;
     if(it[0] === 'retry-btn'){ try{ if(online && online.code) return; }catch(_){} }   // 対戦の「もう一度」はそのまま
     e.stopImmediatePropagation(); e.preventDefault();
     var go = function(){ pass = true; b.click(); };
@@ -1457,14 +1496,14 @@ function updateIsDue(){ return Date.now() - updateLastOk >= UPDATE_EVERY_MS; }
     checkForUpdate(1500).then(function(reloading){ if(!reloading) go(); });
   }, true);
 });
-/* そのほかのボタン：前回の確認から10分たっていたら、押したついでに確認する（待たせない） */
+/* そのほかのボタン：その日まだ確認していなければ、押したついでに確認する（待たせない） */
 document.addEventListener('click', function(e){
   var btn = e.target && e.target.closest ? e.target.closest('button') : null;
   if(!btn) return;
   if(['play-solo-btn', 'play-multi-btn', 'start-solo-btn', 'retry-btn'].indexOf(btn.id) >= 0) return;   // これらは上で、待ってから確認する
   if(updateIsDue()) checkForUpdate(1500);
 }, true);
-/* しばらく別のアプリにいて戻ってきたときも、10分たっていれば確認する */
+/* しばらく別のアプリにいて戻ってきたときも、その日まだ確認していなければ確認する（日をまたいで開きっぱなしの端末用） */
 document.addEventListener('visibilitychange', function(){
   if(!document.hidden && updateIsDue() && isSafeToReload()) checkForUpdate(1500);
 });
@@ -1855,7 +1894,7 @@ function escapeHtml(str){
 var currentDragCancel = null;
 function showScreen(id){
   try{ applyRankBan(); }catch(e){}
-  try{ var prevScr = document.querySelector('.screen.active'); if(id === 'menu-screen' && prevScr && prevScr.id !== 'menu-screen') checkForUpdate(0); }catch(e){}   // トップに戻ったら新しい版がないか確認
+  try{ var prevScr = document.querySelector('.screen.active'); if(id === 'menu-screen' && prevScr && prevScr.id !== 'menu-screen' && updateIsDue()) checkForUpdate(0); }catch(e){}   // トップに戻ったら新しい版がないか確認
   if(updatePending && ['menu-screen', 'setup-solo-screen'].indexOf(id) >= 0){   // 遊んでいる間に見つかった新しい版を、トップなどに戻ったときに読みこむ
     var pendV = updatePending; updatePending = null;
     setTimeout(function(){ if(isSafeToReload()) reloadToLatest(pendV); else updatePending = pendV; }, 0);
@@ -2657,7 +2696,7 @@ function joinRoom(){
   if(code.length !== 4){ showToast('部屋番号は4けたの数字だよ', 'ng'); input.focus(); return; }
   setOnlineButtonsDisabled(true);
   ensureDb().then(function(db){
-    cleanupStaleRooms(db);             // 古い部屋を片づける（待たずに進む）
+    // 古い部屋の片づけは「部屋を作る」ときだけ行う（入るたびに検索すると、教室の人数ぶん読み込みが増えるため）
     online.myKey = newKey();
     var ref = db.collection(ROOMS).doc(code);
     return db.runTransaction(function(tx){
@@ -3212,7 +3251,10 @@ function mayRankIn(id, key, score){
   return !rec.full || score > rec.min;           // 満員で最下位以下なら、通信しなくても圏外
 }
 
+var RANK_FRESH_MS = 60 * 1000;   // 1分以内に読んだランキングは、読みなおさずにそれを使う（読み込み回数をへらす）
 function fetchBoard(key, id){
+  var mem = rankMem[key];
+  if(mem && Date.now() - mem.at < RANK_FRESH_MS) return Promise.resolve(mem.entries);
   return ensureDb().then(function(db){
     return db.collection(RANK_COLL).doc(key).get();
   }).then(function(snap){
@@ -3418,6 +3460,18 @@ function rankIsBad(name){
   return false;
 }
 
+/* この端末の記録が入っているランキングの一覧と、前回登録した名前・地域・世代を端末に覚えておく */
+function loadRankMyKeys(){
+  try{ var v = JSON.parse(localStorage.getItem('rekishi.rankMyKeys') || 'null'); return Array.isArray(v) ? v : null; }catch(e){ return null; }
+}
+function saveRankMyKeys(list){ try{ localStorage.setItem('rekishi.rankMyKeys', JSON.stringify(list)); }catch(e){} }
+function rankRegProfChanged(entry){
+  var v = null;
+  try{ v = JSON.parse(localStorage.getItem('rekishi.rankRegProf') || 'null'); }catch(e){}
+  return !(v && v.n === entry.n && v.p === entry.p && v.g === entry.g);
+}
+function saveRankRegProf(entry){ try{ localStorage.setItem('rekishi.rankRegProf', JSON.stringify({ n: entry.n, p: entry.p, g: entry.g })); }catch(e){} }
+
 function submitRankEntry(){
   if(!rankPending) return;
   var name = rankSanitize(document.getElementById('rank-name').value);
@@ -3446,11 +3500,19 @@ function submitRankEntry(){
   var entry = { n: name, p: pref, g: age, s: info.score, t: Date.now(), d: rankDevId() };
   var keys = rankKeys();
   var hitIds = info.hits.map(function(h){ return h.id; });
-  var rankAllBoards = [];
-  RANK_BOARDS.forEach(function(b){ for(var o = 0; o <= (RANK_BACK_MAX[b.id] || 0); o++) rankAllBoards.push({ id: b.id, off: o, key: rankKeyAt(b.id, o) }); });
+  // 読むのは「いま登録するランキング」だけ。名前・地域・世代を前回の登録から変えたときだけ、
+  // この端末の記録が入っているランキング（昨日・先週・先月などもふくむ）も読んで、名前をそろえる。
+  // （前は毎回12個ぜんぶ読んでいて、読み込み回数がふくらんでいた）
+  var everyBoard = [];
+  RANK_BOARDS.forEach(function(b){ for(var o = 0; o <= (RANK_BACK_MAX[b.id] || 0); o++) everyBoard.push({ id: b.id, off: o, key: rankKeyAt(b.id, o) }); });
+  var profChanged = rankRegProfChanged(entry);
+  var myKeys = loadRankMyKeys();      // null ＝ まだ分からない（この版で初めての登録）
+  var rankAllBoards = everyBoard.filter(function(b){
+    if(b.off === 0 && hitIds.indexOf(b.id) >= 0) return true;
+    if(!profChanged) return false;
+    return !myKeys || myKeys.indexOf(b.key) >= 0;
+  });
   ensureDb().then(function(db){
-    // 登録するランキングだけでなく、「本日・今週・今月・通算」と、さかのぼって見られる昨日・先週・先月なども読んで、
-    // この端末の過去の記録の名前・地域も、いま入れた名前にそろえる
     var refs = rankAllBoards.map(function(b){ return db.collection(RANK_COLL).doc(b.key); });
     return db.runTransaction(function(tx){
       return Promise.all(refs.map(function(r){ return tx.get(r); })).then(function(snaps){
@@ -3475,10 +3537,15 @@ function submitRankEntry(){
       });
     });
   }).then(function(out){
+    var dev = rankDevId(), keep = {};
+    if(myKeys) myKeys.forEach(function(k){ keep[k] = 1; });
     rankAllBoards.forEach(function(b, i){
       rankMem[b.key] = { entries: out[i], at: Date.now() };
       if(b.off === 0) updateThr(b.id, b.key, out[i]);
+      if(out[i].some(function(e){ return e.d === dev; })) keep[b.key] = 1; else delete keep[b.key];
     });
+    saveRankMyKeys(everyBoard.map(function(b){ return b.key; }).filter(function(k){ return keep[k]; }));   // 見られる期間を過ぎたものは忘れる
+    saveRankRegProf(entry);
     rankMine = { t: entry.t, s: entry.s, n: entry.n };
     // 本日のランキングに登録したときだけ、本日の「点数ごとの人数」に数える（登録しなかった記録は数えない）
     if(info.hits.some(function(h){ return h.id === 'd'; })) rankRecordDay(entry.s);
@@ -3498,9 +3565,10 @@ function openRankScreen(from, tab){
   showScreen('ranking-screen');
   selectRankTab(tab || rankTab);
 }
-/* ランキング画面を開いている間だけ、見ているタブ1つ(約1KB)を onSnapshot で購読する。
-   誰かがランクインして中身が変わったときだけ、そのぶんが届く。
-   通信を残さないよう、タブを切りかえる・画面を出る・ブラウザが裏に回る・10分たつ、のどれでも解除する。 */
+/* ランキング画面は、見ているタブ1つ(約1KB)を1回だけ読む（自動では更新しない）。
+   前は onSnapshot で見はっていたが、教室でみんなが同時に開いていると、だれかが登録するたびに
+   開いている全員ぶんの読み込みが発生して、読み込み回数が大きくふくらんでいた。
+   1分以内に読んだもの・自分が登録した直後のものは読みなおさない。タブを押しなおすと最新になる。 */
 var rankUnsub = null;
 var rankLiveTimer = null;
 var RANK_LIVE_MAX_MS = 10 * 60 * 1000;
@@ -3536,42 +3604,19 @@ var rankReqSeq = 0;
 function rankStartLive(id){
   rankStopLive();
   var key = rankKeyAt(id, rankOff);
-  var past = rankOff > 0;     // 過去のランキングは、もう変わらないので1回だけ読む
+  var past = rankOff > 0;     // 過去のランキングは、もう変わらないので10分は読みなおさない
   var msg = document.getElementById('rank-msg');
   var mem = rankMem[key];
   if(mem){ msg.textContent = ''; paintRankList(mem.entries); }   // 前に見た内容をとりあえず出しておく（すぐ最新に置きかわる）
   else { document.getElementById('rank-list').innerHTML = ''; msg.textContent = '読みこみ中…'; }
   var seq = ++rankReqSeq;
-  if(past && mem && Date.now() - mem.at < 10 * 60 * 1000) return;   // 少し前に読んだものがあれば、読みなおさない
-  if(past){
-    ensureDb().then(function(db){ return db.collection(RANK_COLL).doc(key).get(); }).then(function(snap){
-      if(seq !== rankReqSeq) return;
-      var entries = cleanEntries(snap.exists ? snap.data().entries : [], id);
-      rankMem[key] = { entries: entries, at: Date.now() };
-      paintRankList(entries);
-    }).catch(function(){
-      if(seq !== rankReqSeq) return;
-      if(!rankMem[key]) msg.textContent = 'ランキングを読みこめませんでした';
-    });
-    return;
-  }
-  ensureDb().then(function(db){
+  if(mem && Date.now() - mem.at < (past ? 10 * 60 * 1000 : RANK_FRESH_MS)) return;   // 少し前に読んだものがあれば、読みなおさない
+  ensureDb().then(function(db){ return db.collection(RANK_COLL).doc(key).get(); }).then(function(snap){
     if(seq !== rankReqSeq) return;
-    rankUnsub = db.collection(RANK_COLL).doc(key).onSnapshot(function(snap){
-      if(seq !== rankReqSeq) return;
-      var entries = cleanEntries(snap.exists ? snap.data().entries : [], id);
-      rankMem[key] = { entries: entries, at: Date.now() };
-      updateThr(id, key, entries);
-      paintRankList(entries);
-    }, function(err){
-      try{ console.warn('[ranking] 購読失敗:', err && (err.code || err.message || err)); }catch(_){}
-      if(seq !== rankReqSeq) return;
-      if(!rankMem[key]) msg.textContent = 'ランキングを読みこめませんでした';
-    });
-    rankLiveTimer = setTimeout(function(){
-      rankStopLive();
-      document.getElementById('rank-msg').textContent = 'しばらく経ったので、自動こうしんを止めました（タブを押すともう一度）';
-    }, RANK_LIVE_MAX_MS);
+    var entries = cleanEntries(snap.exists ? snap.data().entries : [], id);
+    rankMem[key] = { entries: entries, at: Date.now() };
+    if(!past) updateThr(id, key, entries);
+    paintRankList(entries);
   }).catch(function(){
     if(seq !== rankReqSeq) return;
     if(!rankMem[key]) msg.textContent = 'ランキングを読みこめませんでした';
@@ -3585,7 +3630,7 @@ document.addEventListener('visibilitychange', function(){
   var active = document.getElementById('ranking-screen').classList.contains('active');
   if(!active) return;
   if(document.hidden) rankStopLive();                 // ブラウザが裏に回ったら止める
-  else rankStartLive(rankTab);                         // 戻ってきたら見ているタブだけ再開
+  else rankStartLive(rankTab);                         // 戻ってきたら見ているタブを出しなおす（1分以内なら読みなおさない）
 });
 function isMineEntry(e){
   if(rankMine && e.t === rankMine.t && e.s === rankMine.s && e.n === rankMine.n) return true;
