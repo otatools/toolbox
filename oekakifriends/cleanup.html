@@ -102,7 +102,11 @@ function isRoomActuallyInUse(room, presenceForRoom) {
         const u = users[uid];
         if (!u || u.connected !== true) return false;
         const lastSeen = presenceForRoom ? presenceForRoom[uid] : null;
-        if (lastSeen == null) return true; // 判定できないので信じる
+        // presenceは、きれいに切れたときにroom.html側が自動で消す（onDisconnect().remove()）。
+        // つまり「connectedがtrueなのにpresenceが無い」のは、すでにいなくなった人の
+        // connected:true の残りかす。以前はここを「信じる」にしていたため、いなくなった部屋が
+        // 大量に「使用中」と数えられていた。
+        if (lastSeen == null) return false;
         return (now - lastSeen) < STALE_HEARTBEAT_MS;
     });
 }
