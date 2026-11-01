@@ -388,6 +388,14 @@ h1{ font-size:1.5rem; text-align:center; letter-spacing:.05em; }
 }
 .hand-card .name{ white-space:nowrap; font-weight:700; font-size:1.32em; line-height:1.25; padding:0 calc(var(--handw, 132px) * .033); }
 .hand-card.name-tight .name{ font-size:1.02em; }
+/* スマホ縦向きの手札：1列に並べて横スクロール（指を横に動かすとスクロール、上に動かすとカードを持てる） */
+.hand-row.scroll-x{ flex-wrap:nowrap; justify-content:flex-start; overflow-x:auto; overflow-y:hidden; align-items:stretch;
+  -webkit-overflow-scrolling:touch; scroll-snap-type:x proximity; scrollbar-width:none; padding-left:10px; padding-right:10px; }
+.hand-row.scroll-x::-webkit-scrollbar{ display:none; }
+.hand-row.scroll-x > :first-child{ margin-left:auto; }   /* 全部入るときは真ん中に */
+.hand-row.scroll-x > :last-child{ margin-right:auto; }
+.hand-row.scroll-x .hand-card{ touch-action:pan-x; scroll-snap-align:center; }
+.hand-row.scroll-x .hand-card .name{ overflow:hidden; text-overflow:clip; max-width:100%; }
 .hand-card .event{
   font-size:.945em; color:#6b5c42; line-height:1.25; margin-top:.5em;
   padding:0 calc(var(--handw, 132px) * .033);
@@ -1464,7 +1472,7 @@ document.addEventListener('wheel', function(e){ if(e.ctrlKey) e.preventDefault()
    ・つながらないとき（オフライン／ファイルを直接開いているとき）は何もしない
    ・同じ版へ何度も読みこみ直して止まらなくならないよう、1つの版につき1回だけ
    ============================================================ */
-var BUILD_ID = '20261101-2205';
+var BUILD_ID = '20261101-2225b';
 var updateCheckBusy = false;
 var updateCheckLast = 0;
 var UPDATE_RETRY_MS = 30 * 60 * 1000;  // 確認に失敗したときは、30分たつまで試さない
@@ -4867,6 +4875,28 @@ function fitHandCards(){
     return;
   }
   var avail = row.clientWidth - 8;                    // 左右のパディングぶん
+  /* スマホ縦向き：手札は1列に並べて横にスクロールする。
+     （折り返して詰めると、iPhoneでは1枚がとても細くなり、文が縦に1〜2文字ずつ並んでしまっていた）
+     カードは読める大きさに固定し、2枚半ほど見えるようにして「横にまだある」ことが分かるようにする。
+     縦に余裕がないときだけ、少し小さくする（それでも小さくしすぎない）。 */
+  var scrollMode = gameStageIsPortrait && n >= 3;
+  row.classList.toggle('scroll-x', scrollMode);
+  if(scrollMode){
+    var sgap = 8;
+    var sw = Math.max(100, Math.min(150, Math.floor((avail - sgap * 2) / (n <= 3 ? 3 : 2.45))));
+    row.style.setProperty('--handgap', sgap + 'px');
+    row.style.setProperty('--handw', sw + 'px');
+    row.style.setProperty('--handrowgap', '0px');
+    var availH2 = availHandHeight(), g2 = 0;
+    if(availH2){ while(sw > 92 && row.scrollHeight > availH2 && g2 < 20){ sw -= 4; row.style.setProperty('--handw', sw + 'px'); g2++; } }
+    row.classList.remove('hand-compact');
+    cards.forEach(function(el){
+      var nameEl = el.querySelector('.name'); if(!nameEl) return;
+      el.classList.remove('name-tight');
+      if(nameEl.scrollHeight > parseFloat(getComputedStyle(nameEl).lineHeight) * 1.5 || nameEl.scrollWidth > nameEl.clientWidth + 1) el.classList.add('name-tight');
+    });
+    return;
+  }
   // #game-stageが縦長テンプレート(is-portrait)のときは、カード間の余白を
   // 切りつめて、そのぶんカード自体を大きくする
   var isNarrow = gameStageIsPortrait;
