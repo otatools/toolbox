@@ -160,6 +160,9 @@ h1{ font-size:1.5rem; text-align:center; letter-spacing:.05em; }
   display:flex; flex-direction:column; justify-content:center;
 }
 #game-stage.is-portrait{ width:420px; height:760px; }
+/* 縦長のときは、上（残り時間）・まん中（場札）・下（手札）に余白を分けて、画面全体を使う */
+#game-stage.is-portrait .hud{ margin-bottom:auto; }
+#game-stage.is-portrait #hand-wrap{ margin-top:auto; margin-bottom:auto; }
 .hud{
   /* 3列グリッド(左1fr・中auto・右1fr)にして、中央列(solo-stats)を常に
      画面の真ん中に置く。以前はflexのjustify-content:space-betweenで、
@@ -396,6 +399,11 @@ h1{ font-size:1.5rem; text-align:center; letter-spacing:.05em; }
 .hand-row.scroll-x > :last-child{ margin-right:auto; }
 .hand-row.scroll-x .hand-card{ touch-action:pan-x; scroll-snap-align:center; }
 .hand-row.scroll-x .hand-card .name{ overflow:hidden; text-overflow:clip; max-width:100%; }
+/* 説明の文は、カードの幅いっぱいを使ってふつうに折り返す（iPhoneでは text-wrap:pretty で行が短く切られて読みにくかった） */
+.hand-row.scroll-x .hand-card .event{ text-wrap:wrap; word-break:normal; line-break:strict; }
+/* 自分の番でないときも、手札を横にスクロールして見られるようにする（カードを持つことだけできない） */
+.hand-row.scroll-x.is-waiting, .hand-row.scroll-x.is-locked{ pointer-events:auto; }
+.hand-row.scroll-x.is-waiting .hand-card, .hand-row.scroll-x.is-locked .hand-card{ pointer-events:none; }
 .hand-card .event{
   font-size:.945em; color:#6b5c42; line-height:1.25; margin-top:.5em;
   padding:0 calc(var(--handw, 132px) * .033);
@@ -661,7 +669,8 @@ h1{ font-size:1.5rem; text-align:center; letter-spacing:.05em; }
   position:relative; z-index:2; width:100%; max-width:min(94%, 760px);
   min-height:0; max-height:100%; overflow-y:auto; overflow-x:hidden;
   padding:6px 14px 18px;
-  padding-top:clamp(50px, 9vh, 110px);   /* どの画面でもタイトルの高さを揃える */
+  /* どの画面でもタイトルの高さを揃える。縦長のスマホでは上に詰まって見えないよう、背が高いほど少し下げて始める */
+  padding-top:clamp(50px, calc(var(--app-h, 100vh) * .16 - 40px), 120px);
 }
 .wa-title{
   font-family:var(--mincho); font-weight:700;
@@ -1132,6 +1141,8 @@ h1{ font-size:1.5rem; text-align:center; letter-spacing:.05em; }
 .debug-hand-cell{ --handw:132px; width:var(--handw); flex:0 0 auto; display:flex; }
 .debug-hand-cell .hand-card{ cursor:default; }
 
+/* 結果画面の「親を待っています」などのお知らせは、ボタンと重ならないよう少し下げる */
+#result-wait{ margin-top:clamp(10px, 2vh, 18px); }
 </style>
 </head>
 <body>
@@ -1472,7 +1483,7 @@ document.addEventListener('wheel', function(e){ if(e.ctrlKey) e.preventDefault()
    ・つながらないとき（オフライン／ファイルを直接開いているとき）は何もしない
    ・同じ版へ何度も読みこみ直して止まらなくならないよう、1つの版につき1回だけ
    ============================================================ */
-var BUILD_ID = '20261101-2225b';
+var BUILD_ID = '20261101-2255';
 var updateCheckBusy = false;
 var updateCheckLast = 0;
 var UPDATE_RETRY_MS = 30 * 60 * 1000;  // 確認に失敗したときは、30分たつまで試さない
@@ -1639,8 +1650,14 @@ function fitGameStage(){
       sc = scH;
     }
   }
+  var stageH = base.h;
+  if(gameStageIsPortrait && availH / sc > base.h){
+    // 縦長のスマホでは、幅に合わせて縮めると下に大きなすき間が余ってしまう（上に詰まって見える）。
+    // そのぶんゲーム画面を縦に伸ばして、場札と手札を画面の真ん中〜下のほうまで使って並べる。
+    stageH = Math.min(Math.round(availH / sc), Math.round(base.h * 1.4));
+  }
   stage.style.width = stageW + 'px';
-  stage.style.height = base.h + 'px';
+  stage.style.height = stageH + 'px';
   gameStageScale = Math.max(0.05, sc);
   stage.style.transform = 'translate(-50%, -50%) scale(' + gameStageScale + ')';
   fitHandCards();   // 幅が変わったので、手札の折返し判定をやりなおす
@@ -3279,6 +3296,20 @@ function startOnlineGame(){
     showToast(errorText(err), 'ng');
   }).then(function(){ btn.disabled = false; });
 }
+/* 子：「もう一度遊ぶ」を押した → 部屋に印をつけて、親が「もう一度」を押すのを待つ */
+function requestRematch(){
+  if(!online.code || online.isHost) return;
+  var ref = roomRef(online.code), key = online.myKey;
+  var btn = document.getElementById('retry-btn');
+  btn.disabled = true; btn.textContent = '親を待っています…';
+  online.db.runTransaction(function(tx){
+    return tx.get(ref).then(function(snap){
+      if(!snap.exists) throw userError('部屋が無くなりました');
+      var r = snap.data() || {};
+      tx.update(ref, { players: (r.players || []).map(function(p){ return p.key === key ? Object.assign({}, p, { again: true }) : p; }), updatedAt: Date.now(), expireAt: roomExpire() });
+    });
+  }).catch(function(err){ btn.disabled = false; btn.textContent = 'もう一度遊ぶ'; showToast(errorText(err), 'ng'); });
+}
 function rematchOnline(){
   if(!online.isHost || !online.code) return;
   var ref = roomRef(online.code);
@@ -3410,15 +3441,29 @@ function showOnlineResult(room){
   document.getElementById('result-settings-btn').hidden = true;
   document.getElementById('result-rank-btn').hidden = true;
   var retry = document.getElementById('retry-btn');
-  retry.hidden = !online.isHost;
-  retry.textContent = 'もう一度（この部屋で）';
+  var meP = (room.players || [])[findPlayerIndex(room, online.myKey)] || {};
+  retry.hidden = false;
+  retry.disabled = !online.isHost && !!meP.again;
+  retry.textContent = online.isHost ? 'もう一度（この部屋で）' : (meP.again ? '親を待っています…' : 'もう一度遊ぶ');
   document.getElementById('menu-back-btn').textContent = online.isHost ? '部屋を閉じる' : '部屋を出る';
-  document.getElementById('result-wait').hidden = online.isHost;
+  var wait = document.getElementById('result-wait');
+  if(online.isHost){
+    // 親には、子が「もう一度遊ぶ」を押したかどうかを見せる
+    var others = (room.players || []).filter(function(p){ return p.key !== online.myKey; });
+    var ready = others.filter(function(p){ return p.again; }).map(function(p){ return p.name + 'さん'; });
+    wait.hidden = !others.length;
+    wait.textContent = ready.length ? ('もう一度OK：' + ready.join('・')) : 'みんなが「もう一度遊ぶ」を押すのを待っています';
+  } else {
+    wait.hidden = false;
+    wait.textContent = meP.again ? '親が「もう一度」を押したら始まるよ'
+                                 : '「もう一度遊ぶ」を押して、親を待とう';
+  }
   showScreen('result-screen');
 }
 function setSoloResultButtons(){
   var retry = document.getElementById('retry-btn');
   retry.hidden = false;
+  retry.disabled = false;
   retry.textContent = 'もう一度遊ぶ';
   document.getElementById('menu-back-btn').textContent = 'トップにもどる';
   document.getElementById('result-wait').hidden = true;
@@ -4580,7 +4625,7 @@ function endSoloGame(complete){
 document.getElementById('start-solo-btn').addEventListener('click', initSoloGame);
 
 document.getElementById('retry-btn').addEventListener('click', function(){
-  if(online.code){ rematchOnline(); return; }    // みんなで対戦：同じ部屋でもう一度（親だけ）
+  if(online.code){ if(online.isHost) rematchOnline(); else requestRematch(); return; }    // みんなで対戦：親は同じ部屋でもう一度、子は「もう一度したい」を親に知らせる
   initSoloGame();
 });
 
@@ -4879,11 +4924,11 @@ function fitHandCards(){
      （折り返して詰めると、iPhoneでは1枚がとても細くなり、文が縦に1〜2文字ずつ並んでしまっていた）
      カードは読める大きさに固定し、2枚半ほど見えるようにして「横にまだある」ことが分かるようにする。
      縦に余裕がないときだけ、少し小さくする（それでも小さくしすぎない）。 */
-  var scrollMode = gameStageIsPortrait && n >= 3;
+  var scrollMode = gameStageIsPortrait;   // 枚数にかかわらず同じ大きさ（枚数でカードの大きさが変わるとやりにくいため）
   row.classList.toggle('scroll-x', scrollMode);
   if(scrollMode){
     var sgap = 8;
-    var sw = Math.max(100, Math.min(150, Math.floor((avail - sgap * 2) / (n <= 3 ? 3 : 2.45))));
+    var sw = Math.max(100, Math.min(150, Math.floor((avail - sgap * 2) / 2.45)));
     row.style.setProperty('--handgap', sgap + 'px');
     row.style.setProperty('--handw', sw + 'px');
     row.style.setProperty('--handrowgap', '0px');
