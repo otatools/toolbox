@@ -171,6 +171,49 @@
             transform: scale(0.95) translateY(2px);
             box-shadow: 0 4px 16px 0 rgba(0, 0, 0, 0.3);
         }
+        /* 転がっている最中は「振る」ボタンを押せないようにし、薄く表示する */
+        .btn-roll:disabled,
+        .btn-roll:disabled:hover,
+        .btn-roll:disabled:active {
+            opacity: 0.45;
+            cursor: default;
+            transform: none;
+            background: rgba(255, 255, 255, 0.1);
+            border-color: rgba(255, 255, 255, 0.3);
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.4);
+        }
+        .btn-roll:disabled::before { left: -150%; transition: none; }
+        /* スマホ・タブレット：3D画面の上のすりガラス（ぼかし）は毎フレーム計算し直しになり重いので切る */
+        @media (hover: none) and (pointer: coarse) {
+            .btn-roll, #settings-btn {
+                backdrop-filter: none !important;
+                -webkit-backdrop-filter: none !important;
+                background: rgba(45, 55, 72, 0.72) !important;
+            }
+        }
+        /* 「振る」ボタンのすぐ下の小さなスペースキー表示（キーの形）。ボタンの大きさは変えず、下のすき間に置く */
+        .roll-wrap { position: relative; pointer-events: none; }
+        .roll-key-hint {
+            position: absolute;
+            top: calc(100% + 3px);
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 0 7px;
+            border: 1px solid rgba(255, 255, 255, 0.4);
+            border-bottom-width: 2px;
+            border-radius: 5px;
+            background: rgba(0, 0, 0, 0.25);
+            color: rgba(255, 255, 255, 0.85);
+            font-size: 10px;
+            line-height: 14px;
+            font-weight: 600;
+            letter-spacing: 0.08em;
+            white-space: nowrap;
+        }
+        /* スマホ・タブレットにはスペースキーがないので出さない */
+        @media (hover: none) and (pointer: coarse) {
+            .roll-key-hint { display: none; }
+        }
         /* 設定パネル：高さの低い画面（スマホ横など）でもはみ出さずスクロールできるように */
         #settings-modal > div { max-height: calc(100vh - 24px); max-height: calc(100dvh - 24px); overflow-y: auto; }
         /* 大きいPC画面では、ボタンを少し大きく */
@@ -240,15 +283,15 @@
                 <div class="flex gap-2" id="setting-count-group">
                     <button type="button" class="flex-1 py-2 sm:py-3 rounded-lg border border-gray-600 bg-gray-900 text-gray-300 font-bold hover:bg-gray-700 transition-all dice-count-btn" data-value="1">1個</button>
                     <button type="button" class="flex-1 py-2 sm:py-3 rounded-lg border border-blue-500 bg-blue-600/20 text-blue-400 font-bold hover:bg-blue-600/30 transition-all dice-count-btn" data-value="2">2個</button>
-                    <button type="button" class="flex-1 py-3 rounded-lg border border-gray-600 bg-gray-900 text-gray-300 font-bold hover:bg-gray-700 transition-all dice-count-btn" data-value="3">3個</button>
+                    <button type="button" class="flex-1 py-2 sm:py-3 rounded-lg border border-gray-600 bg-gray-900 text-gray-300 font-bold hover:bg-gray-700 transition-all dice-count-btn" data-value="3">3個</button>
                 </div>
             </div>
     
             <div class="mb-8">
                 <label class="block text-sm text-gray-400 mb-2 font-bold">サイコロの種類</label>
                 <div class="flex gap-2" id="setting-type-group">
-                    <button type="button" class="flex-1 py-3 rounded-lg border border-blue-500 bg-blue-600/20 text-blue-400 font-bold hover:bg-blue-600/30 transition-all dice-type-btn" data-value="d6">6面体</button>
-                    <button type="button" class="flex-1 py-3 rounded-lg border border-gray-600 bg-gray-900 text-gray-300 font-bold hover:bg-gray-700 transition-all dice-type-btn" data-value="d10">10面体</button>
+                    <button type="button" class="flex-1 py-2 sm:py-3 rounded-lg border border-blue-500 bg-blue-600/20 text-blue-400 font-bold hover:bg-blue-600/30 transition-all dice-type-btn" data-value="d6">6面体</button>
+                    <button type="button" class="flex-1 py-2 sm:py-3 rounded-lg border border-gray-600 bg-gray-900 text-gray-300 font-bold hover:bg-gray-700 transition-all dice-type-btn" data-value="d10">10面体</button>
                 </div>
             </div>
 
@@ -260,10 +303,14 @@
 
     <div id="ui-container">
         <!-- スマホではボタンを少し小さめに、PCでは大きく表示 -->
-        <button id="roll-btn" class="btn-roll font-bold py-3 px-8 sm:py-4 sm:px-10 rounded-full text-lg sm:text-xl flex items-center gap-2 sm:gap-3">
-            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="filter: drop-shadow(0px 2px 2px rgba(0,0,0,0.5));" class="w-5 h-5 sm:w-6 sm:h-6"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><path d="M9 9h.01"/><path d="M15 9h.01"/><path d="M9 15h.01"/><path d="M15 15h.01"/><path d="M12 12h.01"/></svg>
-            サイコロを振る
-        </button>
+        <div class="roll-wrap">
+            <button id="roll-btn" class="btn-roll font-bold py-3 px-8 sm:py-4 sm:px-10 rounded-full text-lg sm:text-xl flex items-center gap-2 sm:gap-3">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="filter: drop-shadow(0px 2px 2px rgba(0,0,0,0.5));" class="w-5 h-5 sm:w-6 sm:h-6"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><path d="M9 9h.01"/><path d="M15 9h.01"/><path d="M9 15h.01"/><path d="M15 15h.01"/><path d="M12 12h.01"/></svg>
+                サイコロを振る
+            </button>
+            <!-- キーボードのある端末だけ：スペースキーでも振れることを、ボタンのすぐ下に小さく知らせる -->
+            <span class="roll-key-hint" aria-hidden="true">スペースキー</span>
+        </div>
     </div>
 
     <script type="module">
@@ -303,6 +350,8 @@
 
         updateCamera();
 
+        // スマホ・タブレットかどうか（重い処理を軽くするのに使う）
+        const IS_TOUCH = window.matchMedia('(hover: none) and (pointer: coarse)').matches;
         const renderer = new THREE.WebGLRenderer({ antialias: true });
         renderer.setSize(window.innerWidth, window.innerHeight);
         renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -316,8 +365,9 @@
         const dirLight = new THREE.DirectionalLight(0xffffff, 0.75);
         dirLight.position.set(10, 22, 10);
         dirLight.castShadow = true;
-        dirLight.shadow.mapSize.width = 2048;
-        dirLight.shadow.mapSize.height = 2048;
+        const SHADOW_SIZE = IS_TOUCH ? 1024 : 2048;
+        dirLight.shadow.mapSize.width = SHADOW_SIZE;
+        dirLight.shadow.mapSize.height = SHADOW_SIZE;
         dirLight.shadow.camera.near = 0.5;
         dirLight.shadow.camera.far = 50;
         const d = 12;
@@ -860,7 +910,8 @@
         const dices = [];
         const diceSize = 3.0;
         
-        let invisibleWallActive = false; 
+        let rollStartTime = 0; // 振り始めた時刻（いつまでも止まらないときの保険に使う）
+        let renderFrames = 2;  // あと何フレーム描き直すか（止まっている間は描画を休む）
         let rollState = 'settled'; // ★ 追加: サイコロ全体の状態を管理 ('idle', 'rolling', 'settled')
         
         let currentDiceCount = 2; 
@@ -876,6 +927,14 @@
             console.warn('設定の読み込みに失敗しました。', e);
         }
 
+        // 瞬間移動させたときは、補間用の「ひとつ前の位置」も同じ値にそろえる
+        // （そろえないと、元の場所から新しい場所まで1フレームだけ飛んで見える）
+        function syncInterpolation(body) {
+            body.previousPosition.copy(body.position);
+            body.interpolatedPosition.copy(body.position);
+            body.previousQuaternion.copy(body.quaternion);
+            body.interpolatedQuaternion.copy(body.quaternion);
+        }
         function clearDices() {
             dices.forEach(d => {
                 scene.remove(d.mesh);
@@ -908,29 +967,24 @@
                 mass: 40.0,            
                 material: diceMaterial,
                 shape: shape,
-                linearDamping: 0.05 + Math.random() * 0.15,    
-                angularDamping: 0.01 + Math.random() * 0.04,   
+                linearDamping: 0.05 + Math.random() * 0.15,
+                angularDamping: 0.01 + Math.random() * 0.04,
                 allowSleep: true,
-                sleepSpeedLimit: 0.01, 
-                sleepTimeLimit: 1.5,
+                sleepSpeedLimit: 0.15, // 小刻みな震えが続かないよう、止まった判定を少しゆるく
+                sleepTimeLimit: 0.5,
                 collisionFilterGroup: GROUP_DEFAULT,
                 collisionFilterMask: GROUP_DEFAULT 
             });
 
-            body.isDice = true; 
-            body.hasBoosted = false; 
-
+            body.isDice = true;
+            body.hasBoosted = false;
+            body.touchedFloor = false;
+            // 床に着いたかを記録する（透明の壁をサイコロごとに有効にするのに使う）
             body.addEventListener("collide", (e) => {
-                if (!e.body.isDice && !invisibleWallActive) {
-                    invisibleWallActive = true;
-                    dices.forEach(d => {
-                        d.body.collisionFilterMask = GROUP_DEFAULT | GROUP_INVISIBLE;
-                    });
-                }
+                if (e.body === floorBody) body.touchedFloor = true;
             });
-
             world.addBody(body);
-            dices.push({ mesh, body, diceType: currentDiceType, stillTime: 0, currentRedIndex: -1 });
+            dices.push({ mesh, body, diceType: currentDiceType, stillTime: 0, restTime: 0, spinTime: 0, currentRedIndex: -1, walled: false });
         }
 
         function initDices() {
@@ -939,6 +993,7 @@
                 createDice();
             }
             setInitialPosition();
+            requestRender();
         }
 
         function setInitialPosition() {
@@ -964,7 +1019,11 @@
                 
                 dice.body.velocity.set(0, 0, 0);
                 dice.body.angularVelocity.set(0, 0, 0);
-                dice.body.sleep(); 
+                dice.body.collisionFilterMask = GROUP_DEFAULT;
+                dice.body.touchedFloor = false;
+                dice.walled = false;
+                syncInterpolation(dice.body);
+                dice.body.sleep();
                 
                 dice.mesh.position.copy(dice.body.position);
                 dice.mesh.quaternion.copy(dice.body.quaternion);
@@ -1096,11 +1155,58 @@
             scene.add(sphere);
         }
 
+        // ★ 盤面の手前左の斜めのふちに沿って、緑のフェルトに「ota tools」を型押しする
+        //   溝の影（濃い緑）と、溝のふちに当たる光（明るい緑）を少しずらして重ね、押し込んだように見せる
+        function createEngravingTexture() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 1024;
+            canvas.height = 192;
+            const ctx = canvas.getContext('2d');
+            ctx.font = '700 112px "Helvetica Neue", Arial, sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            if ('letterSpacing' in ctx) ctx.letterSpacing = '10px';
+            ctx.fillStyle = 'rgba(170, 235, 185, 0.22)'; // 溝のふちに当たる光
+            ctx.fillText('ota tools', 512, 101);
+            ctx.fillStyle = 'rgba(4, 30, 12, 0.62)';     // 溝の影
+            ctx.fillText('ota tools', 512, 96);
+            const tex = new THREE.CanvasTexture(canvas);
+            tex.anisotropy = renderer.capabilities.getMaxAnisotropy();
+            return tex;
+        }
+        const engraving = new THREE.Mesh(
+            new THREE.PlaneGeometry(4.2, 0.79),
+            new THREE.MeshStandardMaterial({
+                map: createEngravingTexture(),
+                transparent: true,
+                depthWrite: false,
+                roughness: 1.0,
+                polygonOffset: true,
+                polygonOffsetFactor: -2
+            })
+        );
+        const engravingAngle = -Math.PI / 4;   // 手前左の斜めの壁の向き
+        const engravingR = trayRadius - 2.2;   // 壁から少し内側（スマホ縦画面でも手前の壁の陰に隠れない位置）
+        engraving.rotation.order = 'YXZ';
+        engraving.rotation.set(-Math.PI / 2, engravingAngle, 0); // フェルトの上に寝かせ、ふちに沿わせる
+        // 斜めのふちの真ん中あたりに置く（手前に寄せすぎると、手前の壁のかげに隠れる）
+        const engravingShift = 0.3;
+        engraving.position.set(
+            engravingR * Math.sin(engravingAngle) + Math.cos(engravingAngle) * engravingShift,
+            0.003,
+            engravingR * Math.cos(engravingAngle) - Math.sin(engravingAngle) * engravingShift
+        );
+        engraving.receiveShadow = true;
+        scene.add(engraving);
         // --- 4. アクションとアニメーション ---
 
         function rollDices() {
-            invisibleWallActive = false; 
-            rollState = 'rolling'; 
+            // 転がっている最中・設定画面を開いている間は振れない（連打で空中に瞬間移動するのを防ぐ）
+            if (rollState === 'rolling') return;
+            if (!document.getElementById('settings-modal').classList.contains('hidden')) return;
+            rollState = 'rolling';
+            rollStartTime = performance.now();
+            setRollButtonEnabled(false);
 
             const sharedTime = 0.75 + Math.random() * 0.15; 
             const sharedTargetX = (Math.random() - 0.5) * 0.4; 
@@ -1115,8 +1221,12 @@
                 dice.stillTime = 0;     
                 dice.currentRedIndex = -1; 
                 
-                dice.body.collisionFilterMask = GROUP_DEFAULT; 
-
+                dice.body.collisionFilterMask = GROUP_DEFAULT;
+                dice.body.touchedFloor = false;
+                dice.walled = false;
+                dice.correcting = false;
+                dice.restTime = 0;
+                dice.spinTime = 0;
                 if (dice.diceType === 'd10') {
                     // ★ 修正: 毎回配列を作り直すのではなく、キャッシュした配列を適用する
                     dice.mesh.material = D10_MAT_BLACK; 
@@ -1133,27 +1243,35 @@
                     if (index === 2) { startX = 8.5;  startZ = trayRadius + 2.0; } 
                 }
                 
+                // ★ サイコロごとに投げ方を少しずつ変える。
+                //   全部が同じ高さ・同じ時間・同じ場所めがけて飛ぶと、同じ瞬間に着地して同じ瞬間に止まり、不自然に見える
+                const myTime = sharedTime * (0.88 + Math.random() * 0.24);
+                const myStartY = sharedStartY + Math.random() * 3.0; // 低くするとトレーの壁に届かないので、高くする方向にだけばらつかせる
+                const myTargetX = sharedTargetX + (Math.random() - 0.5) * 2.4;
+                const myTargetZ = sharedTargetZ + (Math.random() - 0.5) * 2.0;
                 dice.body.position.set(
-                    startX + (Math.random() - 0.5) * 0.2, 
-                    sharedStartY, 
-                    startZ 
+                    startX + (Math.random() - 0.5) * 0.6,
+                    myStartY,
+                    startZ + (Math.random() - 0.5) * 1.0
                 );
                 dice.body.quaternion.setFromEuler(Math.random() * Math.PI * 2, Math.random() * Math.PI * 2, Math.random() * Math.PI * 2);
-                
-                const velX = (sharedTargetX - dice.body.position.x) / sharedTime;
-                const velZ = (sharedTargetZ - dice.body.position.z) / sharedTime;
-                
+                const velX = (myTargetX - dice.body.position.x) / myTime;
+                const velZ = (myTargetZ - dice.body.position.z) / myTime;
                 const randVelX = velX + (Math.random() - 0.5) * 1.5;
-                const randVelY = sharedVelY + (Math.random() - 0.5) * 1.0;
+                const randVelY = sharedVelY + Math.random() * 2.5;
                 const randVelZ = velZ + (Math.random() - 0.5) * 1.5;
+                // 転がり方（止まりやすさ）も毎回ふり直す。作ったときに1回決めるだけだと、毎回同じ癖で止まる
+                dice.body.linearDamping = 0.05 + Math.random() * 0.15;
+                dice.body.angularDamping = 0.01 + Math.random() * 0.04;
 
                 dice.body.velocity.set(randVelX, randVelY, randVelZ);
                 
                 const getRandomSpin = () => {
                     const sign = Math.random() > 0.5 ? 1 : -1;
-                    return sign * (20 + Math.random() * 30); 
+                    return sign * (20 + Math.random() * 30);
                 };
                 dice.body.angularVelocity.set(getRandomSpin(), getRandomSpin(), getRandomSpin());
+                syncInterpolation(dice.body);
             });
         }
 
@@ -1161,7 +1279,8 @@
             camera.aspect = window.innerWidth / window.innerHeight;
             camera.updateProjectionMatrix();
             renderer.setSize(window.innerWidth, window.innerHeight);
-            updateCamera(); 
+            updateCamera();
+            requestRender();
         });
 
         const countBtns = document.querySelectorAll('.dice-count-btn');
@@ -1231,11 +1350,18 @@
                 console.warn('設定の保存に失敗しました。', e);
             }
 
-            rollState = 'settled'; 
-            initDices(); 
+            rollState = 'settled';
+            initDices();
+            setRollButtonEnabled(true);
             document.getElementById('settings-modal').classList.add('hidden');
         });
 
+        // 「振る」ボタンの押せる／押せないを切りかえる
+        function setRollButtonEnabled(enabled) {
+            const btn = document.getElementById('roll-btn');
+            btn.disabled = !enabled;
+            btn.setAttribute('aria-disabled', String(!enabled));
+        }
         document.getElementById('roll-btn').addEventListener('click', rollDices);
 
         // ★ 追加: スペースキーを押したときにもサイコロを振る
@@ -1272,98 +1398,171 @@
         ];
         const tempWorldNormal = new CANNON.Vec3();
         const tempCrossNormal = new CANNON.Vec3();
-
+        const FIXED_DT = 1 / 60;
+        // いちばん上を向いている面を調べる（結果は topFace に入れて使い回し、毎回オブジェクトを作らない）
+        const topFace = { dot: -1, index: -1, x: 0, y: 0, z: 0 };
+        function findTopFace(dice) {
+            topFace.dot = -1;
+            topFace.index = -1;
+            const normals = dice.diceType === 'd6' ? D6_NORMALS : dice.body.shapes[0].faceNormals;
+            for (let i = 0; i < normals.length; i++) {
+                dice.body.quaternion.vmult(normals[i], tempWorldNormal);
+                if (tempWorldNormal.y > topFace.dot) {
+                    topFace.dot = tempWorldNormal.y;
+                    topFace.x = tempWorldNormal.x;
+                    topFace.y = tempWorldNormal.y;
+                    topFace.z = tempWorldNormal.z;
+                    topFace.index = i;
+                }
+            }
+        }
+        // ★ 物理計算1回（1/60秒）ごとに呼ばれる処理。
+        //   以前は描画1回ごとに力を足していたため、画面のリフレッシュレートで強さが変わっていた。
+        world.addEventListener('postStep', () => {
+            for (let n = 0; n < dices.length; n++) {
+                const dice = dices[n];
+                const body = dice.body;
+                // 透明の壁は、そのサイコロ自身がトレーの内側に入ってから有効にする
+                // （1個目が床に着いた瞬間に全部へ壁を出すと、外にいるサイコロが壁にめり込んではじかれる）
+                if (!dice.walled) {
+                    const dist = Math.hypot(body.position.x, body.position.z);
+                    if (dist < trayRadius - 2.8 || (body.touchedFloor && dist < trayRadius) || (dist < trayRadius - 0.3 && body.position.y > wallHeight)) {
+                        dice.walled = true;
+                        body.collisionFilterMask = GROUP_DEFAULT | GROUP_INVISIBLE;
+                    }
+                }
+                // 保険：万一トレーの外へ出たり机の下へ落ちたりしたら、トレーの真ん中へそっと落とし直す
+                const distNow = Math.hypot(body.position.x, body.position.z);
+                const outside = dice.walled ? distNow > trayRadius + 0.5 : (body.touchedFloor && distNow > trayRadius + 0.5);
+                if (body.position.y < -3 || outside) {
+                    body.position.set((Math.random() - 0.5) * 3, 7 + Math.random() * 2, (Math.random() - 0.5) * 3);
+                    body.velocity.set(0, -2, 0);
+                    body.angularVelocity.set((Math.random() - 0.5) * 20, (Math.random() - 0.5) * 20, (Math.random() - 0.5) * 20);
+                    body.collisionFilterMask = GROUP_DEFAULT | GROUP_INVISIBLE;
+                    dice.walled = true;
+                    dice.stillTime = 0;
+                    syncInterpolation(body);
+                }
+                const v2 = body.velocity.lengthSquared();
+                const w2 = body.angularVelocity.lengthSquared();
+                // 「ほぼ止まった（ぐぐぐっと動いている）」時間。傾きの補正と、いつまでも止まらないときの確定に使う
+                const isAlmostStill = v2 < 1.5 && w2 < 1.5;
+                if (body.sleepState === CANNON.Body.SLEEPING || isAlmostStill) {
+                    dice.stillTime += FIXED_DT;
+                } else {
+                    dice.stillTime = 0;
+                }
+                // 「本当に止まった」時間。結果（10面体の赤い数字）はこちらで決める
+                const isResting = body.sleepState === CANNON.Body.SLEEPING || (v2 < 0.04 && w2 < 0.04);
+                if (isResting) {
+                    dice.restTime += FIXED_DT;
+                } else {
+                    dice.restTime = 0;
+                }
+                // コマのようにその場で回り続けるのは面白いので残すが、1.5秒をすぎたら少しずつ回転をゆるめる
+                const floorY = dice.diceType === 'd6' ? 1.5 : 1.45;
+                const vh = Math.hypot(body.velocity.x, body.velocity.z);
+                if (body.position.y < floorY + 0.8 && vh < 0.6 && Math.abs(body.angularVelocity.y) > 1.0) {
+                    dice.spinTime += FIXED_DT;
+                    if (dice.spinTime > 1.5) {
+                        body.angularVelocity.y *= dice.spinTime > 2.5 ? 0.95 : 0.985;
+                    }
+                } else {
+                    dice.spinTime = 0;
+                }
+                // 傾いたまま止まりかけたとき（壁や別のサイコロに寄りかかったときなど）だけ、平らに戻す。
+                // まだ転がっているサイコロは押さない（本当に遅くなってから補正を始める）。
+                // 一度始めたら平らになるまで続け、押す力は少しずつ強める。回転の速さには上限をつけて暴れないようにする。
+                if (dice.stillTime > 0.15 && dice.stillTime <= 4.0) {
+                    findTopFace(dice);
+                    if (topFace.dot < 0.985 && topFace.dot > 0) {
+                        if (!dice.correcting && v2 < 0.3 && w2 < 0.6) dice.correcting = true;
+                        if (dice.correcting) {
+                            body.wakeUp();
+                            tempWorldNormal.set(topFace.x, topFace.y, topFace.z);
+                            tempWorldNormal.cross(UP_VECTOR, tempCrossNormal);
+                            const k = 0.2 + 0.6 * Math.min(1, (dice.stillTime - 0.15) / 1.2);
+                            body.angularVelocity.x += tempCrossNormal.x * k;
+                            body.angularVelocity.y += tempCrossNormal.y * k;
+                            body.angularVelocity.z += tempCrossNormal.z * k;
+                            const w2n = body.angularVelocity.lengthSquared();
+                            if (w2n > 16) body.angularVelocity.scale(4 / Math.sqrt(w2n), body.angularVelocity);
+                            // 寄りかかりを外すため、少しずつ横に滑らせる。
+                            // 壁ぎわなら中央へ。それ以外は、上の面が傾いている向き（＝寄りかかっている相手）の反対へ
+                            const r = Math.hypot(body.position.x, body.position.z);
+                            let dx = 0, dz = 0;
+                            if (r > trayRadius - 3.2) {
+                                dx = -body.position.x / r; dz = -body.position.z / r;
+                            } else {
+                                const hl = Math.hypot(topFace.x, topFace.z);
+                                if (hl > 0.05) { dx = -topFace.x / hl; dz = -topFace.z / hl; }
+                            }
+                            body.velocity.x += dx * 0.06;
+                            body.velocity.z += dz * 0.06;
+                            const hv = Math.hypot(body.velocity.x, body.velocity.z);
+                            if (hv > 1.2) { body.velocity.x *= 1.2 / hv; body.velocity.z *= 1.2 / hv; }
+                        }
+                    } else {
+                        dice.correcting = false;
+                    }
+                }
+            }
+        });
+        // 止まっている間は描き直さない（発熱・電池の節約）。必要なときだけ requestRender() で描く
+        function requestRender() { renderFrames = Math.max(renderFrames, 2); }
         const clock = new THREE.Clock();
         function animate() {
             requestAnimationFrame(animate);
             const deltaTime = Math.min(clock.getDelta(), 0.1);
-            world.step(1 / 60, deltaTime, 3);
-
-            dices.forEach(dice => {
-                dice.mesh.position.copy(dice.body.position);
-                dice.mesh.quaternion.copy(dice.body.quaternion);
-
-                // ★ 修正: 「ぐぐぐっと動いている状態」も静止とみなすため、判定の閾値を少し緩くする
-                const isAlmostStill = dice.body.velocity.lengthSquared() < 1.5 && dice.body.angularVelocity.lengthSquared() < 1.5;
-                if (dice.body.sleepState === CANNON.Body.SLEEPING || isAlmostStill) {
-                    dice.stillTime += deltaTime; 
-                } else {
-                    dice.stillTime = 0; 
-                }
-            });
-
-            // ★ 修正: 転がっている最中のみ、すべてが確定したかを判定する
+            if (deltaTime > 0) world.step(FIXED_DT, deltaTime, 5);
+            let anyAwake = false;
+            for (let n = 0; n < dices.length; n++) {
+                const dice = dices[n];
+                // ★ 補間した位置を使う。物理計算(1/60秒刻み)と描画のタイミングのずれで
+                //   同じ位置が2回描かれたり2歩ぶん飛んだりする「カクつき」を防ぐ
+                dice.mesh.position.copy(dice.body.interpolatedPosition);
+                dice.mesh.quaternion.copy(dice.body.interpolatedQuaternion);
+                if (dice.body.sleepState !== CANNON.Body.SLEEPING) anyAwake = true;
+            }
+            // 転がっている最中のみ、すべてが確定したかを判定する
+            // ・全部が本当に止まったら確定
+            // ・ほとんど動かない状態が2.5秒続いたら、それ以上待たずに確定（次に進めるように）
             if (rollState === 'rolling') {
-                let canSettle = true;
-                for (let dice of dices) {
-                    if (dice.stillTime < 0.4) { // 全てが0.4秒以上ゆっくり(ぐぐぐ状態)なら確定
-                        canSettle = false;
-                        break;
-                    }
-                    // ※以前ここにあった「斜めの時は確定を2.5秒遅らせる」処理を削除しました。
-                    // これにより、斜めで滑っている最中でも待たずに即座に赤く点灯します。
+                let allResting = true, allAlmostStill = true;
+                for (let n = 0; n < dices.length; n++) {
+                    if (dices[n].restTime < 0.3) allResting = false;
+                    if (dices[n].stillTime < 2.5) allAlmostStill = false;
                 }
-
+                let canSettle = allResting || allAlmostStill;
+                // 万一いつまでも止まらないときでも、ボタンが押せないままにならないようにする保険
+                if (performance.now() - rollStartTime > 10000) canSettle = true;
                 if (canSettle) {
-                    rollState = 'settled'; 
+                    rollState = 'settled';
+                    setRollButtonEnabled(true);
                 }
             }
-
-            dices.forEach(dice => {
-                let maxDot = -1;
-                // ★ 修正: 重いベクトルオブジェクトのコピーを避け、数値だけを記録する
-                let bestNormalX = 0, bestNormalY = 0, bestNormalZ = 0;
-                let bestIndex = -1; 
-                
-                // ★ 修正: D6_NORMALS をキャッシュから読み込む
-                const normals = dice.diceType === 'd6' ? D6_NORMALS : dice.body.shapes[0].faceNormals;
-                
-                for (let i = 0; i < normals.length; i++) {
-                    // ★ 修正: 新しいベクトルを作らず、用意しておいた tempWorldNormal に計算結果を上書きして使い回す
-                    dice.body.quaternion.vmult(normals[i], tempWorldNormal);
-                    if (tempWorldNormal.y > maxDot) {
-                        maxDot = tempWorldNormal.y;
-                        bestNormalX = tempWorldNormal.x;
-                        bestNormalY = tempWorldNormal.y;
-                        bestNormalZ = tempWorldNormal.z;
-                        bestIndex = i;
+            // 10面体：止まったら上の面の数字を赤くする
+            for (let n = 0; n < dices.length; n++) {
+                const dice = dices[n];
+                if (dice.diceType !== 'd10') continue;
+                if (rollState === 'settled') {
+                    // 確定したあとに少し転がって上の面が変わったら、赤い数字も実際に上を向いている面へ移す
+                    findTopFace(dice);
+                    if (dice.currentRedIndex !== topFace.index && (dice.currentRedIndex === -1 || topFace.dot > 0.85)) {
+                        dice.mesh.material = D10_MAT_RED_SETS[topFace.index];
+                        dice.currentRedIndex = topFace.index;
+                        requestRender();
                     }
+                } else if (dice.currentRedIndex !== -1) {
+                    dice.mesh.material = D10_MAT_BLACK;
+                    dice.currentRedIndex = -1;
                 }
-
-                if (dice.diceType === 'd10') {
-                    if (rollState === 'settled') {
-                        if (dice.currentRedIndex === -1) {
-                            // ★ 修正: ここでも配列を新しく作らず、キャッシュから一瞬で読み込む
-                            dice.mesh.material = D10_MAT_RED_SETS[bestIndex];
-                            dice.currentRedIndex = bestIndex; 
-                        }
-                    } else {
-                        if (dice.currentRedIndex !== -1) {
-                            dice.mesh.material = D10_MAT_BLACK;
-                            dice.currentRedIndex = -1;
-                        }
-                    }
-                }
-
-                if (dice.stillTime > 0.1 && dice.stillTime <= 3.0) {
-                    if (maxDot < 0.985 && maxDot > 0) {
-                        dice.body.wakeUp(); 
-                        
-                        // ★ 修正: 用意した使い回し用の変数(tempWorldNormal, tempCrossNormal)で計算を行う
-                        tempWorldNormal.set(bestNormalX, bestNormalY, bestNormalZ);
-                        tempWorldNormal.cross(UP_VECTOR, tempCrossNormal); 
-                        
-                        const correctionStrength = 1.0; 
-                        dice.body.angularVelocity.x += tempCrossNormal.x * correctionStrength;
-                        dice.body.angularVelocity.y += tempCrossNormal.y * correctionStrength;
-                        dice.body.angularVelocity.z += tempCrossNormal.z * correctionStrength;
-                    }
-                }
-            });
-
-            renderer.render(scene, camera);
+            }
+            if (anyAwake || rollState === 'rolling' || renderFrames > 0) {
+                renderer.render(scene, camera);
+                if (renderFrames > 0) renderFrames--;
+            }
         }
-
         animate();
 
     </script>
