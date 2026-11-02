@@ -22,7 +22,7 @@ button:active{transform:translateY(3px);box-shadow:0 1px 0 #c99a5b}
 .info{flex:1;min-width:0;font-size:14px;line-height:1.55}
 .w{font-size:19px;font-weight:700}
 .badge{display:inline-block;border-radius:8px;padding:2px 8px;font-size:13px;font-weight:700;margin-left:6px;vertical-align:2px}
-.ok{background:#d7f3d4;color:#256b2a}.img{background:#d6e8ff;color:#1d4d8f}.warn{background:#ffe9b8;color:#8a5a00}.ng{background:#ffd6d6;color:#a33a3a}.emo{background:#eadcff;color:#5a3a99}
+.q{background:#d9f0ff;color:#1f5f8f}.xx{background:#ece3f7;color:#5a3a99}.ok{background:#d7f3d4;color:#256b2a}.img{background:#d6e8ff;color:#1d4d8f}.warn{background:#ffe9b8;color:#8a5a00}.ng{background:#ffd6d6;color:#a33a3a}.emo{background:#eadcff;color:#5a3a99}
 .k{color:#8a6a3a;font-size:12px}
 .chips{display:flex;flex-wrap:wrap;gap:5px;margin-top:4px}
 .chip{background:#f6ecd5;border-radius:8px;padding:2px 8px;font-size:13px;cursor:pointer;border:1px solid #e5d3a8}
@@ -31,17 +31,17 @@ button:active{transform:translateY(3px);box-shadow:0 1px 0 #c99a5b}
 </style></head><body>
 <div class="wrap">
 <h1>絵の とうろく かくにん（デバッグ用）</h1>
-<p class="sub">ことばを うつ・コピペ すると、①絵が でるか ②辞書に あるか／画像だけ あるか ③その絵が ほかに どんな ことばで でるか を しらべます。ふくすうは 改行・スペース・「、」「,」で くぎってください（カタカナは ひらがなに なおします）。</p>
+<p class="sub">ことばを うつ・コピペ すると、①絵が でるか ②辞書に あるか／画像だけ あるか／「〇〇？」や ×に なるか ③その絵が ほかに どんな ことばで でるか を しらべます。ふくすうは 改行・スペース・「、」「,」で くぎってください（カタカナは ひらがなに なおします）。</p>
 <textarea id="inp" placeholder="例：しんかんせん&#10;ぜろけい&#10;でごいち" autocomplete="off" autocapitalize="off"></textarea>
 <div class="bar"><button id="go">しらべる</button><button id="clr">ぜんぶ けす</button></div>
-<div class="flt" id="flt"><button data-f="all" class="on">ぜんぶ</button><button data-f="ok">絵あり</button><button data-f="img">画像だけ</button><button data-f="warn">画像がよめない</button><button data-f="ng">なにもなし</button></div>
+<div class="flt" id="flt"><button data-f="all" class="on">ぜんぶ</button><button data-f="ok">絵あり</button><button data-f="img">画像だけ</button><button data-f="warn">画像がよめない</button><button data-f="guess">「〇〇？」</button><button data-f="x">×</button><button data-f="ng">なにもなし</button></div>
 <div id="state">辞書を よみこみ中…</div>
 <div id="out"></div>
 </div>
 <iframe id="app" src="index.html" style="position:absolute;left:-9999px;top:0;width:360px;height:640px;border:0" tabindex="-1" aria-hidden="true"></iframe>
 <script>
 (function () {
-  var dbg = null, isBad = null, catOf = null, filt = 'all', rev = null;
+  var dbg = null, isBad = null, catOf = null, judge = null, filt = 'all', rev = null;
   var $ = function (id) { return document.getElementById(id); };
   var kata = function (s) { return s.replace(/[ァ-ヶ]/g, function (c) { return String.fromCharCode(c.charCodeAt(0) - 0x60); }); };
   var esc = function (s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); };
@@ -50,7 +50,7 @@ button:active{transform:translateY(3px);box-shadow:0 1px 0 #c99a5b}
   var n = 0, tm = setInterval(function () {
     try {
       var w = $('app').contentWindow;
-      if (w && w.__dbg) { dbg = w.__dbg; isBad = w.__isBad; catOf = w.__catOf; clearInterval(tm); buildRev(); $('state').textContent = '準備できました（辞書：' + Object.keys(dbg.PREFER).length + ' + ' + Object.keys(dbg.DICT).length + ' + ' + Object.keys(dbg.CUSTOM).length + ' ことば）'; if ($('inp').value.trim()) run(); }
+      if (w && w.__dbg) { dbg = w.__dbg; isBad = w.__isBad; catOf = w.__catOf; judge = w.__judge || null; clearInterval(tm); buildRev(); $('state').textContent = '準備できました（辞書：' + Object.keys(dbg.PREFER).length + ' + ' + Object.keys(dbg.DICT).length + ' + ' + Object.keys(dbg.CUSTOM).length + ' ことば）'; if ($('inp').value.trim()) run(); }
     } catch (e) {}
     if (++n > 200) { clearInterval(tm); $('state').textContent = 'index.html を よみこめませんでした（おなじフォルダに おいてください）'; }
   }, 100);
@@ -80,11 +80,14 @@ button:active{transform:translateY(3px);box-shadow:0 1px 0 #c99a5b}
     if (emoji && rev.e[emoji]) same = same.concat(rev.e[emoji]);
     if (name && !hit && same.indexOf(name) < 0) same.unshift(name);
     same = same.filter(function (x, i, a) { return a.indexOf(x) === i; });
-    return { word: w, hit: hit, kind: kind, name: name, emoji: emoji, urls: urls, cat: cat, same: same, bad: !!(isBad && isBad(w)) };
+    var j = null; try { j = judge ? judge(w) : null; } catch (e) {}
+    return { word: w, hit: hit, kind: kind, name: name, emoji: emoji, urls: urls, cat: cat, same: same, bad: j && j.t ? j.t === 'bad' : !!(isBad && isBad(w)), j: j };
   }
   function status(r, loaded) {
     // loaded: 画像が よめたか（null=まだ）
     if (r.bad) return ['ng', '使えないことば'];
+    if (r.j && r.j.t === 'x') return ['xx', '× ' + r.j.msg];
+    if (loaded === false && !r.hit && r.j && r.j.t === 'guess') return ['q', '「' + r.j.g + '？」と でる' + (r.j.conj ? '（活用形）' : '')];
     if (r.kind === 'emoji' && !(r.kind === 'prefer')) return ['emo', '絵文字で でる'];
     if (loaded === true) return r.hit ? ['ok', '絵あり（辞書に あり）'] : ['img', '画像だけ あり（辞書に なし）'];
     if (loaded === false) return r.hit ? ['warn', '辞書に あるが 画像が よめない'] : ['ng', 'なにもなし（？に なる）'];
@@ -102,11 +105,12 @@ button:active{transform:translateY(3px);box-shadow:0 1px 0 #c99a5b}
         var st = status(r, loaded);
         // 絵文字だけ の ことば（画像なしでも 絵文字が でる）
         if (loaded !== true && r.kind === 'emoji') st = ['emo', '絵文字で でる'];
-        card.dataset.s = st[0] === 'emo' ? 'ok' : st[0];
+        card.dataset.s = st[0] === 'emo' ? 'ok' : st[0] === 'q' ? 'guess' : st[0] === 'xx' ? 'x' : st[0];
         var h = '<div><span class="w">' + esc(w) + '</span><span class="badge ' + st[0] + '">' + st[1] + '</span></div>';
         h += '<div class="k">辞書：' + (r.hit ? (r.hit !== w ? '「' + esc(r.hit) + '」として ' : '') + ({ prefer: '自作の絵（!）', custom: '自作の絵（@）', emoji: '絵文字のみ' }[r.kind]) : 'なし') + (r.cat ? '　／　カテゴリー：' + esc(r.cat) : '') + '</div>';
         if (r.name) h += '<div class="k">絵の ファイル：<span class="mono">' + esc(r.name) + '</span>' + (url ? '　<span class="mono">' + esc(url) + '</span>' : '') + '</div>';
         if (r.emoji) h += '<div class="k">絵文字：' + esc(r.emoji) + '</div>';
+        if (st[0] === 'q') h += '<div class="k">もとの ことば：<span class="chip" data-w="' + esc(r.j.g) + '">' + esc(r.j.g) + '</span>（おすと その ことばを しらべます）</div>';
         if (loaded === false && !r.hit && !r.emoji) r.same = [];
         h += '<div class="k" style="margin-top:4px">この絵が でる ことば（' + r.same.length + '）：</div><div class="chips">' + (r.same.length ? r.same.map(function (x) { return '<span class="chip' + (x === w ? ' me' : '') + '" data-w="' + esc(x) + '">' + esc(x) + '</span>'; }).join('') : '<span class="k">なし</span>') + '</div>';
         info.innerHTML = h; applyFilter();
