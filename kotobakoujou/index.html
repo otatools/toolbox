@@ -1988,13 +1988,14 @@
     function hideBlocked() { blockMsg.hidden = true; clearTimeout(blockTimer); }
 
     /* 使えない ことばを つづけて 3回 いれたら 3分 つかえなくする（こうしん・さいきどうでも もどらない：じこくを localStorage と cookie に のこす） */
-    var LOCK_KEY = 'kk.lockUntil', STRIKE_KEY = 'kk.strikes', LOCK_MS = 3 * 60 * 1000, strikes = 0, lockTimer = 0;
+    var LOCK_KEY = 'kk.lockUntil', STRIKE_KEY = 'kk.strikes', LOCKN_KEY = 'kk.lockCount', LOCK_MS = 3 * 60 * 1000, LOCK_MS2 = 5 * 60 * 1000,   // はじめての ペナルティは 3ぷん、2かいめ からは 5ふん
+        strikes = 0, lockTimer = 0;
     function lsGet(k) { var v = null; try { v = localStorage.getItem(k); } catch (e) {} if (v == null) { try { var m = document.cookie.match(new RegExp('(?:^|; )' + k.replace('.', '\\.') + '=([^;]*)')); if (m) v = m[1]; } catch (e) {} } return v; }
     function lsSet(k, v) { try { localStorage.setItem(k, v); } catch (e) {} try { document.cookie = k + '=' + v + '; max-age=86400; path=/; SameSite=Lax'; } catch (e) {} }
     function lockLeft() { var u = parseInt(lsGet(LOCK_KEY), 10); return u > 0 ? u - Date.now() : 0; }
     var lockOv = document.createElement('div');
     lockOv.id = 'lockOv'; lockOv.hidden = true; lockOv.setAttribute('role', 'alertdialog');
-    lockOv.innerHTML = '<div class="lk1">⚠ しばらく つかえません ⚠</div><div class="lk2">【使用停止中】<br>つかえない ことばを いれているので、<br>3ぷん かん おやすみです<br>つかえない ことばは いれないでね</div><div class="lk3" id="lockTime">3:00</div>';
+    lockOv.innerHTML = '<div class="lk1">⚠ しばらく つかえません ⚠</div><div class="lk2">【使用停止中】<br>つかえない ことばを いれているので、<br><span id="lockMin">3ぷん</span> かん おやすみです<br>つかえない ことばは いれないでね</div><div class="lk3" id="lockTime">3:00</div>';
     document.body.appendChild(lockOv);
     function lockTick() {
         var left = lockLeft();
@@ -2003,12 +2004,12 @@
         document.getElementById('lockTime').textContent = Math.floor(s / 60) + ':' + ('0' + (s % 60)).slice(-2);
     }
     function showLock() {
-        lockOv.hidden = false; lockTick();
+        lockOv.hidden = false; var lm = Math.ceil(lockLeft() / 60000); document.getElementById('lockMin').textContent = lm > 3 ? '5ふん' : '3ぷん'; lockTick();
         if (!lockTimer) lockTimer = setInterval(lockTick, 500);
     }
     function addStrike() {
         strikes++; lsSet(STRIKE_KEY, String(strikes));
-        if (strikes >= 3) { lsSet(LOCK_KEY, String(Date.now() + LOCK_MS)); strikes = 0; lsSet(STRIKE_KEY, '0'); showLock(); return true; }
+        if (strikes >= 3) { var ln = parseInt(lsGet(LOCKN_KEY), 10) || 0; lsSet(LOCKN_KEY, String(ln + 1)); lsSet(LOCK_KEY, String(Date.now() + (ln >= 1 ? LOCK_MS2 : LOCK_MS))); strikes = 0; lsSet(STRIKE_KEY, '0'); showLock(); return true; }
         return false;
     }
     function clearStrikes() { if (strikes) { strikes = 0; lsSet(STRIKE_KEY, '0'); } }
