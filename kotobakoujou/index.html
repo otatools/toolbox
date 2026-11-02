@@ -2188,6 +2188,8 @@
         } else {
             if (res.isChar) {
                 try { if (res.numOver && window.__logUnknown) window.__logUnknown(word, false, null, '', true); } catch (e) {}
+                // ×に なった ことばも 集計に のこす（どんな ×か も いっしょに）
+                try { if (!res.numOver && window.__logUnknown) { var xk = res.fiction ? (res.fiction.indexOf('ゲームの なまえ') >= 0 ? 'game' : res.fiction.indexOf('ゲームの なか') >= 0 ? 'gameword' : res.fiction.indexOf('まんが') >= 0 ? 'anime' : 'fiction') : res.person ? 'person' : res.notWord ? 'notword' : 'char'; window.__logUnknown(word, false, null, '', false, false, xk); } } catch (e) {}
                 msgEl.textContent = res.fiction ? res.fiction : res.person ? 'じんぶつ・グループめいは でないよ' : res.numOver ? 'すうじは 0〜10 までしか でないよ' : res.notWord ? 'ことばじゃないよ' : 'ひとの なまえや キャラクターは つくれないよ';
                 btnFix.hidden = true;
                 btnMaybe.hidden = true;
@@ -3281,14 +3283,14 @@
     var LOG_SEEN = {}, LOG_MAX = 30, logCount = 0;
     try { LOG_SEEN = JSON.parse(sessionStorage.getItem('kotobakoujou.logged') || '{}') || {}; } catch (e) { LOG_SEEN = {}; }
     for (var k in LOG_SEEN) logCount++;
-    window.__logUnknown = function (word, blocked, guess, hit, qty, imgfail) {
+    window.__logUnknown = function (word, blocked, guess, hit, qty, imgfail, xkind) {
         word = String(word || '').replace(/[.$#\[\]\/\s]/g, '');
         if (!word || word.length > 20) return;
         if (LOG_SEEN[word] || logCount >= LOG_MAX) return;
         LOG_SEEN[word] = 1; logCount++;
         try { sessionStorage.setItem('kotobakoujou.logged', JSON.stringify(LOG_SEEN)); } catch (e) {}
         ready().then(function (db) {
-            return update(ref(db, 'kotoba_unknown/' + word), (blocked ? { word: word, count: increment(1), last: serverTimestamp(), blocked: true, hit: String(hit || '').slice(0, 20) } : { word: word, count: increment(1), last: serverTimestamp(), guess: guess ? String(guess).slice(0, 20) : null, qty: qty ? true : null, imgfail: imgfail ? true : null, v: String(window.__IMGV || '') }));
+            return update(ref(db, 'kotoba_unknown/' + word), xkind ? { word: word, count: increment(1), last: serverTimestamp(), x: String(xkind), v: String(window.__IMGV || '') } : (blocked ? { word: word, count: increment(1), last: serverTimestamp(), blocked: true, hit: String(hit || '').slice(0, 20) } : { word: word, count: increment(1), last: serverTimestamp(), guess: guess ? String(guess).slice(0, 20) : null, qty: qty ? true : null, imgfail: imgfail ? true : null, v: String(window.__IMGV || '') }));
         }).then(sleepLater, function (e) { console.error('unknown-log failed', e); sleepLater(); });
     };
 </script>
