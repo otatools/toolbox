@@ -111,6 +111,27 @@ const known = new Promise(res => {
 });
 const pass = r => filt === 'excl' ? r.excl : filt === 'x' ? (!!r.x && !r.excl) : r.x ? false : filt === 'junk' ? (r.junk && !r.excl) : filt === 'reg' ? (r.reg && !r.excl) : filt === 'qty' ? (r.qty && !r.excl) : !r.excl && !r.reg && !r.junk && !r.qty && (filt === 'all' || (filt === 'guess' ? !!r.guess && !r.blocked : filt === 'none' ? !r.guess && !r.blocked : r.blocked));
 const fmt = d => d ? d.getFullYear() + '/' + (d.getMonth()+1) + '/' + d.getDate() + ' ' + String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0') : '';
+// いまの アプリで うったら どう でるかで「〇〇？」を さいしんに する（おもいので すこしずつ うしろで しらべる）
+let GTOKEN = 0;
+function refreshGuess() {
+  if (!JUDGE) return;
+  const tok = ++GTOKEN, list = rows.filter(r => !r.blocked && !r.excl && !r.junk && !r.reg);
+  let i = 0; const msg = document.getElementById('msg');
+  const step = () => {
+    if (tok !== GTOKEN) return;
+    const end = Math.min(list.length, i + 15);
+    for (; i < end; i++) {
+      const r = list[i]; let j = null; try { j = JUDGE(r.word); } catch (e) {}
+      if (!j || !j.t) continue;
+      if (j.t === 'guess') r.guess = j.g;
+      else if (j.t === 'q') r.guess = '';
+      else if (j.t === 'x' && !r.x) r.x = /ゲームの なまえ/.test(j.msg) ? 'game' : /ゲームの なか/.test(j.msg) ? 'gameword' : /まんが/.test(j.msg) ? 'anime' : /じんぶつ/.test(j.msg) ? 'person' : /ことばじゃない|すうじ/.test(j.msg) ? 'notword' : 'char';
+    }
+    if (i < list.length) { msg.style.color = '#7a6a55'; msg.textContent = '「〇〇？」を さいしんに しています… ' + i + ' / ' + list.length; setTimeout(step, 0); }
+    else { msg.textContent = ''; msg.style.color = ''; render(); }
+  };
+  setTimeout(step, 0);
+}
 async function load() {
   const msg = document.getElementById('msg'); msg.textContent = '';
   try {
@@ -119,15 +140,6 @@ async function load() {
     const v = snap.val() || {};
     rows = Object.keys(v).map(k => ({ key: k, word: v[k].word || k, count: v[k].count || 0, last: v[k].last ? new Date(v[k].last) : null, blocked: !!v[k].blocked && !(v[k].unblk !== undefined ? v[k].unblk : LOCALB[k]), wasBlocked: !!v[k].blocked, guess: v[k].guess || '', hit: v[k].hit || '', exclv: v[k].excl, junkv: v[k].junk, qtyv: v[k].qty, imgfail: !!v[k].imgfail, ver: v[k].v || '', x: v[k].x || '' }));
     const kf = await known;
-    // いまの アプリで うったら どう でるかで「〇〇？」を さいしんに する
-    if (JUDGE) rows.forEach(r => {
-      if (r.blocked) return;
-      let j = null; try { j = JUDGE(r.word); } catch (e) {}
-      if (!j || !j.t) return;
-      if (j.t === 'guess') { r.guess = j.g; r.oldGuess = ''; }
-      else if (j.t === 'q') r.guess = '';
-      else if (j.t === 'x' && !r.x) r.x = /ゲームの なまえ/.test(j.msg) ? 'game' : /ゲームの なか/.test(j.msg) ? 'gameword' : /まんが/.test(j.msg) ? 'anime' : /じんぶつ/.test(j.msg) ? 'person' : /ことばじゃない/.test(j.msg) ? 'notword' : /すうじ/.test(j.msg) ? 'notword' : 'char';
-    });
     rows.forEach(r => {
       r.qty = !r.blocked && !r.x && (r.qtyv === true || (!!QTYF && !!QTYF(r.word)));
       r.reg = !!kf && !r.blocked && !r.x && !r.qty && !!kf(r.word);
@@ -138,6 +150,7 @@ async function load() {
     });
     rows.sort((a, b) => b.count - a.count || (b.last||0) - (a.last||0));
     render();
+    refreshGuess();
   } catch (e) { msg.textContent = 'よみこめませんでした：' + e.message; }
 }
 function render() {
