@@ -2055,7 +2055,7 @@
         });
     }
     // 絵を かきなおしたら IMG_V を かえる → ブラウザに のこった ふるい絵ではなく あたらしい絵を よみなおす
-    var IMG_V = '20261103x'; window.__IMGV = IMG_V;
+    var IMG_V = '20261104a'; window.__IMGV = IMG_V;
     function vsrc(u) { var nl = notoLocal(u); if (nl) u = nl; return (u && /^(custom|pack\d+|noto\d)\//.test(u) && u.indexOf('?') < 0) ? u + '?v=' + IMG_V : u; }
     function loadFirst(urls) {
         if (!urls.length) return Promise.resolve(null);
@@ -2255,22 +2255,23 @@
 
     // jpgの しろい はいけいだけを とうめいにする（ふちから つながる しろだけ）。
     // ベルトと かさなっても、絵の うすい いろ（しろ・クリームなど）が すけない ように。
-    var CUT = {};
-    function cutoutPic(src) {
-        if (!/^(?:custom|pack\d+)\/.+\.(?:jpg|webp)$/i.test(src)) return;
-        function apply(url) {
-            if (pic.getAttribute('data-src') !== src) return;
-            pic.src = url; stage.style.mixBlendMode = 'normal';
-        }
-        pic.setAttribute('data-src', src);
-        if (CUT[src]) { apply(CUT[src]); return; }
+    var CUT = {}, CUT_WAIT = {};
+    // jpg/webp の しろい はいけいを とうめいに した 絵（dataURL）を つくる。size を わたすと ちいさく してから つくる
+    function cutUrl(src, size, cb) {
+        if (!/^(?:custom|pack\d+)\/.+\.(?:jpg|webp)$/i.test(src)) return cb(null);
+        var key = src + '|' + (size || 0);
+        if (CUT[key] !== undefined) return cb(CUT[key]);
+        if (CUT_WAIT[key]) { CUT_WAIT[key].push(cb); return; }
+        CUT_WAIT[key] = [cb];
+        function done(url) { CUT[key] = url; var l = CUT_WAIT[key] || []; delete CUT_WAIT[key]; l.forEach(function (f) { try { f(url); } catch (e) {} }); }
         var im = new Image();
         im.onload = function () {
             try {
-                var w = im.naturalWidth, h = im.naturalHeight;
-                if (!w || !h || w * h > 1200000) return;
+                var w0 = im.naturalWidth, h0 = im.naturalHeight; if (!w0 || !h0) return done(null);
+                var sc = size ? Math.min(1, size / Math.max(w0, h0)) : 1, w = Math.round(w0 * sc), h = Math.round(h0 * sc);
+                if (w * h > 1200000) return done(null);
                 var cv = document.createElement('canvas'); cv.width = w; cv.height = h;
-                var cx = cv.getContext('2d'); cx.drawImage(im, 0, 0);
+                var cx = cv.getContext('2d'); cx.drawImage(im, 0, 0, w, h);
                 var id = cx.getImageData(0, 0, w, h), d = id.data, n = w * h;
                 // 白い お皿・どんぶりが すけない ように、ほそい すきまからは はいりこまない（しゅうしゅく→ひろげる）
                 function mn(i) { var o = i * 4; return Math.min(d[o], d[o + 1], d[o + 2]); }
@@ -2310,13 +2311,44 @@
                 }
                 cx.putImageData(id, 0, 0);
                 var url = cv.toDataURL('image/png');
-                CUT[src] = url;
-                apply(url);
-            } catch (e) { /* だめなら いままで どおり（multiply） */ }
+                done(url);
+            } catch (e) { done(null); }
         };
+        im.onerror = function () { done(null); };
         im.src = vsrc(src);
     }
-
+    function cutoutPic(src) {
+        pic.setAttribute('data-src', src);
+        cutUrl(src, 0, function (url) {
+            if (!url || pic.getAttribute('data-src') !== src) return;
+            pic.src = url; stage.style.mixBlendMode = 'normal';
+        });
+    }
+    // コレクションの 絵も、しろい はいけいを ほんとうに とうめいに する（iPhoneで 白い 四角が ひかって みえるため）
+    var cutQ = [], cutBusy = false;
+    function cutNext() {
+        if (cutBusy) return;
+        var img = cutQ.shift(); if (!img) return;
+        cutBusy = true;
+        var src = img.getAttribute('data-c'), size = +img.getAttribute('data-cs') || 0;
+        cutUrl(src, size, function (url) {
+            if (url && img.getAttribute('data-c') === src) { img.src = url; img.style.mixBlendMode = 'normal'; img.removeAttribute('data-c'); }
+            cutBusy = false;
+            (window.requestIdleCallback || function (f) { setTimeout(f, 16); })(cutNext);
+        });
+    }
+    var cutIO = window.IntersectionObserver ? new IntersectionObserver(function (es) {
+        es.forEach(function (en) { if (en.isIntersecting) { cutIO.unobserve(en.target); cutQ.unshift(en.target); } });
+        cutNext();
+    }, { rootMargin: '300px' }) : null;
+    function cutImgs(root) {
+        Array.prototype.forEach.call(root.querySelectorAll('img[data-c]'), function (img) {
+            var k = img.getAttribute('data-c') + '|' + (+img.getAttribute('data-cs') || 0);
+            if (CUT[k]) { img.src = CUT[k]; img.style.mixBlendMode = 'normal'; img.removeAttribute('data-c'); return; }
+            if (cutIO) cutIO.observe(img); else cutQ.push(img);
+        });
+        if (!cutIO) cutNext();
+    }
     function showResult(word, res, guess) {
         var src = res.src;
         display.classList.remove('working');
@@ -2813,7 +2845,8 @@
     var SRC_FIX = { 'pack01/%E3%81%86%E3%83%BC%E3%81%B1%E3%83%BC%E3%82%8B%E3%83%BC%E3%81%B1%E3%83%BC.jpg': 'custom/%E3%81%86%E3%83%BC%E3%81%B1%E3%83%BC%E3%82%8B%E3%83%BC%E3%81%B1%E3%83%BC.webp', 'pack01/うーぱーるーぱー.jpg': 'custom/%E3%81%86%E3%83%BC%E3%81%B1%E3%83%BC%E3%82%8B%E3%83%BC%E3%81%B1%E3%83%BC.webp' };
     function picHtml(item) {
         if (item.src && SRC_FIX[item.src]) { item.src = SRC_FIX[item.src]; saveColl(); }
-        return item.src ? '<img src="' + esc(vsrc(item.src)) + '" alt="" draggable="false" loading="lazy" decoding="async">'
+        var cs = arguments[1] || 256;
+        return item.src ? '<img src="' + esc(vsrc(item.src)) + '" data-c="' + esc(item.src) + '" data-cs="' + cs + '" alt="" draggable="false" loading="lazy" decoding="async">'
                         : '<span class="em">' + esc(item.text || '？') + '</span>';
     }
     // 絵を pack フォルダへ うつしたあとでも、むかし保存した「custom/○○.jpg」が 見つかるように、ほかのフォルダも さがす
@@ -2945,6 +2978,7 @@
                 '</div>';
         });
         collList.innerHTML = html;
+        cutImgs(collList);
     }
     // いま みえている カードの なかで となりの カードの いち
     function neighbor(i, dir) {
@@ -3039,7 +3073,7 @@
             });
         } else if (!act && !editing) {
             if (Date.now() - cvClosedAt < 700) return;   // とじる を おした ゆびが したの カードに ぬけて ひらきなおすのを ふせぐ
-            cvPic.innerHTML = picHtml(coll[i]);
+            cvPic.innerHTML = picHtml(coll[i], 512); cutImgs(cvPic);
             var all = coll[i].ws.map(dispW).join('・');
             cvWord.innerHTML = coll[i].ws.map(function (w) { return needK(w) ? kataHtml(w, w) : esc(dispW(w)); }).join('・');
             var red = coll[i].ws.filter(needK);

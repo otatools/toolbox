@@ -28,6 +28,7 @@ button:active{transform:translateY(3px);box-shadow:0 1px 0 #c99a5b}
 .chip{background:#f6ecd5;border-radius:8px;padding:2px 8px;font-size:13px;cursor:pointer;border:1px solid #e5d3a8}
 .chip.me{background:#ffe3a3;border-color:#e9b54a}
 .mono{font-family:ui-monospace,Consolas,monospace;font-size:12px;word-break:break-all}
+  .badge.homo { background: #ffe8c7; color: #a35a00; margin-left: 6px; }
 </style></head><body>
 <div class="wrap">
 <h1>絵の とうろく かくにん（デバッグ用）</h1>
@@ -64,17 +65,24 @@ button:active{transform:translateY(3px);box-shadow:0 1px 0 #c99a5b}
   function tokens(s) {
     return kata(s).split(/[\s、,，]+/).map(function (x) { return x.trim(); }).filter(Boolean).filter(function (x, i, a) { return a.indexOf(x) === i; });
   }
-  function analyze(w) {
-    var D = dbg, c = D.variants(w), hit = null, kind = '';
+  // おなじ よみで 絵が いくつも ある ことば（打つたびに かわる）
+  function homoKeys(w) {
+    var D = dbg; if (!D.HOMO) return null;
+    var c = D.variants(w);
+    for (var i = 0; i < c.length; i++) if (D.HOMO[c[i]]) return D.HOMO[c[i]];
+    return null;
+  }
+  function analyze(w, key) {
+    var D = dbg, c = key ? [key] : D.variants(w), hit = null, kind = '';
     for (var i = 0; i < c.length; i++) {
       if (D.PREFER[c[i]]) { hit = c[i]; kind = 'prefer'; break; }
       if (D.DICT[c[i]]) { hit = c[i]; kind = 'emoji'; break; }
       if (D.CUSTOM[c[i]]) { hit = c[i]; kind = 'custom'; break; }
     }
-    var lk = D.lookup(w), name = lk.custom || null, emoji = lk.emoji || (hit && D.DICT[hit]) || null;
+    var lk = key ? { custom: (D.PREFER[key] || D.CUSTOM[key] || key), emoji: null } : D.lookup(w), name = lk.custom || null, emoji = lk.emoji || (hit && D.DICT[hit]) || null;
     var urls = name ? D.customUrls(name) : [];
     var cat = '';
-    try { cat = catOf(hit || w); } catch (e) {}
+    try { cat = catOf(hit || key || w); } catch (e) {}
     var same = [];
     if (name && rev.c[name]) same = same.concat(rev.c[name]);
     if (emoji && rev.e[emoji]) same = same.concat(rev.e[emoji]);
@@ -95,8 +103,15 @@ button:active{transform:translateY(3px);box-shadow:0 1px 0 #c99a5b}
   }
   function render(list) {
     var out = $('out'); out.innerHTML = '';
+    var items = [];
     list.forEach(function (w) {
-      var r = analyze(w), card = document.createElement('div'); card.className = 'card'; card.dataset.w = w;
+      var hk = homoKeys(w);
+      if (hk && hk.length > 1) hk.forEach(function (k, i) { items.push({ w: w, key: k, n: i + 1, of: hk.length }); });
+      else items.push({ w: w });
+    });
+    items.forEach(function (it) {
+      var w = it.w;
+      var r = analyze(w, it.key), card = document.createElement('div'); card.className = 'card'; card.dataset.w = w;
       var pic = document.createElement('div'); pic.className = 'pic';
       var info = document.createElement('div'); info.className = 'info';
       card.appendChild(pic); card.appendChild(info); out.appendChild(card);
@@ -106,7 +121,7 @@ button:active{transform:translateY(3px);box-shadow:0 1px 0 #c99a5b}
         // 絵文字だけ の ことば（画像なしでも 絵文字が でる）
         if (loaded !== true && r.kind === 'emoji') st = ['emo', '絵文字で でる'];
         card.dataset.s = st[0] === 'emo' ? 'ok' : st[0] === 'q' ? 'guess' : st[0] === 'xx' ? 'x' : st[0];
-        var h = '<div><span class="w">' + esc(w) + '</span><span class="badge ' + st[0] + '">' + st[1] + '</span></div>';
+        var h = '<div><span class="w">' + esc(w) + '</span><span class="badge ' + st[0] + '">' + st[1] + '</span>' + (it.key ? '<span class="badge homo">打つたびに かわる ' + it.n + '/' + it.of + '</span>' : '') + '</div>';
         h += '<div class="k">辞書：' + (r.hit ? (r.hit !== w ? '「' + esc(r.hit) + '」として ' : '') + ({ prefer: '自作の絵（!）', custom: '自作の絵（@）', emoji: '絵文字のみ' }[r.kind]) : 'なし') + (r.cat ? '　／　カテゴリー：' + esc(r.cat) : '') + '</div>';
         if (r.name) h += '<div class="k">絵の ファイル：<span class="mono">' + esc(r.name) + '</span>' + (url ? '　<span class="mono">' + esc(url) + '</span>' : '') + '</div>';
         if (r.emoji) h += '<div class="k">絵文字：' + esc(r.emoji) + '</div>';
