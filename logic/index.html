@@ -174,6 +174,8 @@ button:disabled { background: #444; color: #888; cursor: not-allowed; }
 #event-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: black; z-index: 2000; display: flex; align-items: center; justify-content: center; flex-direction: column; padding: 20px; box-sizing: border-box; }
 .typewriter-box { color: #4ecca3; font-family: monospace; font-size: 1.5em; text-align: left; width: 100%; max-width: 30em; min-height: 100px; margin-bottom: 30px; line-height: 1.6; white-space: pre-wrap; }
 .event-text { color: #e94560; font-size: 3em; font-weight: bold; transform: scale(0); text-shadow: 0 0 25px rgba(233,69,96,0.7); text-align: center; width: 100%; margin-top: 20px; word-break: break-all; }
+/* 名前や事件名は、できるだけ1行におさめる（名前の途中で折り返さない） */
+.event-text.one-line { white-space: nowrap; word-break: keep-all; }
 .stamp-anim { animation: stamp 0.5s forwards ease-in; }
 @keyframes stamp { 0% { transform: scale(5); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
 @keyframes revealCulprit { 0% { transform: scale(0.5); opacity: 0; } 70% { transform: scale(1.1); opacity: 1; } 100% { transform: scale(1); opacity: 1; } }
@@ -391,6 +393,18 @@ const runTypewriter = (el, text, speed, append = false) => {
         }, 30);
     });
 };
+
+// 大きく出す文字（事件名・犯人の名前）が画面からはみ出すときは、1行に入る大きさまで小さくする。
+// 名前はかなり小さくしてでも1行に。事件名は小さくしすぎず、入らなければふつうに折り返す
+function fitEventText(el, minRatio) {
+    el.style.fontSize = "";
+    el.classList.add('one-line');
+    if (el.clientWidth === 0) return;
+    let px = parseFloat(getComputedStyle(el).fontSize), guard = 0;
+    const minPx = Math.max(20, px * minRatio);
+    while (el.scrollWidth > el.clientWidth + 1 && px > minPx && guard++ < 40) { px *= 0.93; el.style.fontSize = px + "px"; }
+    if (el.scrollWidth > el.clientWidth + 1) el.classList.remove('one-line');
+}
 
 const robustWait = (ms) => {
     return new Promise(resolve => {
@@ -846,7 +860,14 @@ try {
     // 取り残された古い部屋や、親機がいなくなった部屋には入れない（番号の打ちまちがいで入ってしまわないように）
     if (rd.status === "closed" || !rd.createdAt || Date.now() - rd.createdAt > STALE_ROOM_MS) { isEntering = false; alert("その番号の事けんはありません"); return; }
     if (rd.status === "finished") { isEntering = false; alert("その事けんは、もうかい決しています"); return; }
-    if (snap.data().status !== "waiting") { isEntering = false; alert("その事けんは、もうちょうさが始まっています"); return; }
+    if (rd.status !== "waiting") {
+        // 調査中・時間切れのときは、開始時の名簿に同じ人（名前・番号・たん生日）がいれば入りなおせる
+        const me = (rd.finalPlayers || []).find(p => p.name === profile.name && p.idNum === profile.idNum && p.m === profile.m && p.d === profile.d);
+        if (!me) { isEntering = false; alert("その事けんは、もうちょうさが始まっています"); return; }
+        const mySnap = await getDoc(doc(db, "rooms", rId, "players", me.key));
+        await rejoinGame(rId, me, mySnap);
+        return;
+    }
     myProfile = profile; myRoomId = rId; await enterLobby(rId);
 } catch (e) {
     isEntering = false; console.error(e); alert("入れませんでした。もう一度ためしてね");
@@ -892,14 +913,21 @@ document.getElementById('player-count').innerText = lobbyPlayers.length;
 if(isHost && roomStatus === "started" && lobbyPlayers.length > 0 && answeredCount === lobbyPlayers.length) goTimeup("all");
 });
 
+watchRoom(roomId);
+}
+
+// 部屋の状態を見張る（ふつうに入ったときも、入りなおしたときも使う）
+function watchRoom(roomId) {
 onSnapshot(doc(db, "rooms", roomId), (d) => {
+// 結果発表のあとに親機が「タイトルへもどる」を押すと部屋が消える。
+// そのとき子機の結果画面は閉じずに、そのまま見られるようにしておく
 if (!d.exists()) {
-    if (!isHost) { alert("この部屋はとじられました"); location.reload(); }
+    if (!isHost && !resultsShown) { alert("この部屋はとじられました"); location.reload(); }
     return;
 }
 const data = d.data(); if(!data) return;
 if (data.status === "closed") {
-    if (!isHost) { alert("この部屋はとじられました"); location.reload(); }
+    if (!isHost && !resultsShown) { alert("この部屋はとじられました"); location.reload(); }
     return;
 }
 lastRoomData = data;
@@ -915,6 +943,29 @@ if (data.status === "started" && data.endTime) updateTimer(data.endTime);
 if (data.status === "timeup") showTimeup(data);
 if (data.status === "finished") showResults(data);
 });
+}
+
+// 入りなおし：自分のヒント・答えたかどうか・そうさ名ぼの印・メモを元にもどす
+let isRejoin = false;
+async function rejoinGame(roomId, me, mySnap) {
+    isRejoin = true;
+    myProfile = { ...me };
+    myRoomId = roomId;
+    if (mySnap.exists()) {
+        if (mySnap.data().answer) hasAnswered = true;
+    } else {
+        await setDoc(doc(db, "rooms", roomId, "players", me.key), { ...me, isHost: false, answer: null, answerTime: null, joinedAt: Date.now(), expireAt: expireAt() });
+    }
+    const saved = loadGameLocal();
+    if (saved) {
+        if (saved.marks) investigationStatus = saved.marks;
+        if (saved.memo) pendingMemo = saved.memo;
+    }
+    document.getElementById('display-room-id').innerText = roomId;
+    document.getElementById('top-room-id').innerText = roomId;
+    document.getElementById('setup-screen').classList.add('hidden');
+    document.getElementById('join-screen').classList.add('hidden');
+    watchRoom(roomId);
 }
 
 document.getElementById('btn-close-room').onclick = async () => {
@@ -1288,12 +1339,14 @@ async function startGame(data) {
     if (myIndex < 0) myIndex = hintOrder.findIndex(p => p.name === myProfile.name && p.idNum === myProfile.idNum);
     document.getElementById('my-hint').innerText = (myIndex >= 0 && data.hints[myIndex]) ? data.hints[myIndex] : (myIndex < 0 ? t("lateJoin") : t("noHint"));
     renderInvestigationList();
+    applyMarks();
 
-    if (data.status === "started") {
+    if (data.status === "started" && !isRejoin) {
         overlay.classList.remove('hidden');
         await runTypewriter(typeBox, t("opening") + "\n\n" + data.detail, 80);
         await robustWait(2000);
         titleDisp.innerText = "【" + data.incident + "】";
+        fitEventText(titleDisp, 0.7);
         titleDisp.classList.add('stamp-anim');
         await robustWait(2000);
         overlay.classList.add('hidden');
@@ -1302,6 +1355,11 @@ async function startGame(data) {
     document.getElementById('lobby-screen').classList.add('hidden');
     document.getElementById('game-screen').classList.remove('hidden');
     switchTab('tab-hint');
+    if (hasAnswered) {
+        const solveTabBtn = document.getElementById('tab-btn-solve');
+        if (solveTabBtn) { solveTabBtn.disabled = true; solveTabBtn.style.opacity = '0.5'; }
+        document.getElementById('answered-status').classList.remove('hidden');
+    }
     // 演出のあいだに時間切れ・結果発表になっていたら、そちらを出す
     if (roomStatus === "timeup" && lastRoomData) showTimeup(lastRoomData);
     if (roomStatus === "finished" && lastRoomData) showResults(lastRoomData);
@@ -1314,6 +1372,24 @@ const memoCtx = memoCanvas.getContext('2d');
 const MEMO_BG = "#0b1a11";
 let memoW = 0, memoH = 0, memoDpr = 1, memoDrawing = false, memoLast = null, memoPointerId = null;
 let memoTool = { color: "#ffffff", width: 3 };
+let pendingMemo = null;   // 入りなおしたときに描き戻すメモ
+// この端末の中だけに、いまの事件の「印」と「メモ」をとっておく（通信はしない）
+const GAME_SAVE_KEY = 'detective_game_save';
+function loadGameLocal() {
+    try {
+        const v = JSON.parse(lsGet(GAME_SAVE_KEY) || 'null');
+        if (v && myProfile && v.roomId === myRoomId && v.key === myProfile.key) return v;
+    } catch (e) {}
+    return null;
+}
+function saveGameLocal(part) {
+    if (!myProfile || !myRoomId) return;
+    const cur = loadGameLocal() || { roomId: myRoomId, key: myProfile.key };
+    lsSet(GAME_SAVE_KEY, JSON.stringify({ ...cur, ...part }));
+}
+function saveMemoLocal() {
+    try { saveGameLocal({ memo: { url: memoCanvas.toDataURL('image/png'), dpr: memoDpr } }); } catch (e) {}
+}
 function resizeMemo() {
     if (memoDrawing) return;
     const r = memoCanvas.getBoundingClientRect();
@@ -1334,6 +1410,12 @@ function resizeMemo() {
     memoCtx.setTransform(memoDpr, 0, 0, memoDpr, 0, 0);
     memoCtx.fillStyle = MEMO_BG; memoCtx.fillRect(0, 0, w, h);
     if (snap) memoCtx.drawImage(snap, 0, 0, snap.width / oldDpr, snap.height / oldDpr);
+    if (pendingMemo) {
+        const pm = pendingMemo; pendingMemo = null;
+        const img = new Image();
+        img.onload = () => memoCtx.drawImage(img, 0, 0, img.width / (pm.dpr || 1), img.height / (pm.dpr || 1));
+        img.src = pm.url;
+    }
 }
 const memoPos = (e) => { const r = memoCanvas.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; };
 function memoStroke(a, b) {
@@ -1356,7 +1438,7 @@ memoCanvas.addEventListener('pointermove', (e) => {
     const evs = e.getCoalescedEvents ? e.getCoalescedEvents() : [e];
     (evs.length ? evs : [e]).forEach(ev => { const p = memoPos(ev); memoStroke(memoLast, p); memoLast = p; });
 });
-const memoEnd = (e) => { if (e.pointerId !== memoPointerId) return; memoDrawing = false; memoPointerId = null; memoLast = null; };
+const memoEnd = (e) => { if (e.pointerId !== memoPointerId) return; memoDrawing = false; memoPointerId = null; memoLast = null; saveMemoLocal(); };
 memoCanvas.addEventListener('pointerup', memoEnd);
 memoCanvas.addEventListener('pointercancel', memoEnd);
 // iPadで長押しのルーペや画面のスクロールが出ないように
@@ -1377,6 +1459,7 @@ document.getElementById('memo-clear-no').addEventListener('click', () => documen
 document.getElementById('memo-clear-yes').addEventListener('click', () => {
     memoCtx.fillStyle = MEMO_BG; memoCtx.fillRect(0, 0, memoW, memoH);
     document.getElementById('memo-confirm').classList.add('hidden');
+    saveMemoLocal();
 });
 window.addEventListener('resize', () => { if (!document.getElementById('tab-memo').classList.contains('hidden')) resizeMemo(); });
 
@@ -1408,12 +1491,22 @@ window.toggleStatus = (idx, status) => {
     investigationStatus[idx] = status;
     if(status === 'suspect') row.classList.add('status-suspect');
     else if(status === 'safe') row.classList.add('status-safe');
+    saveGameLocal({ marks: investigationStatus });
 };
 window.resetStatus = (idx) => {
     const row = document.getElementById(`investigate-p-${idx}`);
     row.classList.remove('status-suspect', 'status-safe');
     delete investigationStatus[idx];
+    saveGameLocal({ marks: investigationStatus });
 };
+function applyMarks() {
+    Object.keys(investigationStatus).forEach(idx => {
+        const row = document.getElementById(`investigate-p-${idx}`);
+        if (!row) return;
+        row.classList.remove('status-suspect', 'status-safe');
+        row.classList.add(investigationStatus[idx] === 'suspect' ? 'status-suspect' : 'status-safe');
+    });
+}
 window.renderSuspectButtons = () => {
     const container = document.getElementById('suspect-list');
     container.innerHTML = "";
@@ -1511,6 +1604,7 @@ async function showResults(data) {
     await runTypewriter(typeBox, msg, 80);
     await robustWait(2000);
     titleDisp.innerText = `${data.culpritName} さん`;
+    fitEventText(titleDisp, 0.4);
     titleDisp.classList.add('stamp-anim');
     await robustWait(2000);
     overlay.classList.add('hidden');
