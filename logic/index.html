@@ -180,6 +180,26 @@ button:disabled { background: #444; color: #888; cursor: not-allowed; }
 .reveal-animation { animation: revealCulprit 1.5s ease-out forwards; }
 .winner-tag { display: inline-block; background: #4ecca3; color: #1a2e22; padding: 2px 8px; border-radius: 4px; margin: 2px; font-size: 0.95em; }
 footer { margin-top: 20px; font-size: 0.7em; color: #4e7c5a; opacity: 0.8; }
+/* 犯人をえらぶ画面：そうさ名ぼで「犯人かも」にした人を目立たせる */
+.suspect-pick { box-shadow: inset 6px 0 0 #e94560; outline: 2px solid #e94560; outline-offset: -2px; }
+.pick-tag { display: inline-block; margin-left: 0.4em; padding: 0.05em 0.5em; border-radius: 4px; background: #e94560; color: #fff; font-size: 0.85em; }
+/* タブが4つになったので、せまい画面でも「犯人がわかった」が切れないように少し小さく */
+#game-tabs { gap: 4px; }
+#game-tabs .tab-btn { font-size: clamp(0.5em, 2.6vw, 0.95em); padding-left: 0; padding-right: 0; }
+#game-tabs .tab-btn, .memo-tool { transition: background-color 0.2s, color 0.2s; }   /* 文字の大きさは動かさない（はみ出しの計算がずれるため） */
+/* 手書きメモ */
+.memo-tools { display: flex; gap: 6px; margin-bottom: 6px; }
+.memo-tool { flex: 1; min-width: 0; margin: 0; padding: 0.45em 0; background: #0b1a11; color: #a6894a; border: 1px solid #a6894a; white-space: nowrap; overflow: hidden; font-size: clamp(0.55em, 2.6vw, 0.95em); }
+.memo-tool.is-on { background: #a6894a; color: #1a2e22; }
+.memo-tool.memo-clear { flex: 0.8; border-color: #8e9e94; color: #8e9e94; }
+.memo-dot { display: inline-block; width: 0.8em; height: 0.8em; border-radius: 50%; border: 1px solid #888; margin-right: 0.3em; vertical-align: -0.05em; }
+.memo-wrap { position: relative; width: 100%; height: 58vh; border: 1px inset #a6894a; border-radius: 4px; overflow: hidden; background: #0b1a11; }
+@supports (height: 58dvh) { .memo-wrap { height: 58dvh; } }
+#memo-canvas { display: block; width: 100%; height: 100%; touch-action: none; cursor: crosshair; }
+.memo-confirm { position: absolute; inset: 0; background: rgba(0,0,0,0.65); display: flex; align-items: center; justify-content: center; }
+.memo-confirm-box { background: #1a2e22; border: 2px solid #a6894a; border-radius: 8px; padding: 1em 1.2em; width: min(20em, 85%); }
+.memo-confirm-box p { margin: 0 0 0.8em; font-weight: bold; }
+.memo-confirm-box .flex-row button { margin: 0; }
 /* 横向きのスマホなど、縦が低い画面では余白を詰める */
 @media (max-height: 500px) {
   h1 { margin: 4px 0 6px; }
@@ -257,6 +277,7 @@ footer { margin-top: 20px; font-size: 0.7em; color: #4e7c5a; opacity: 0.8; }
 <div class="tab-menu" id="game-tabs">
 <button class="tab-btn active" id="tab-btn-hint" onclick="switchTab('tab-hint')" data-t="tabHint">ヒント</button>
 <button class="tab-btn" id="tab-btn-list" onclick="switchTab('tab-list')" data-t="tabList">そうさ名ぼ</button>
+<button class="tab-btn" id="tab-btn-memo" onclick="switchTab('tab-memo')" data-t="tabMemo">メモ</button>
 <button class="tab-btn" id="tab-btn-solve" onclick="switchTab('solve-screen')" data-t="tabSolve">はん人がわかった</button>
 </div>
 <div id="tab-hint">
@@ -276,6 +297,26 @@ footer { margin-top: 20px; font-size: 0.7em; color: #4e7c5a; opacity: 0.8; }
 </div>
 <div id="tab-list" class="hidden" style="max-height: 70vh; overflow-y: auto;">
 <div class="info-card" id="investigation-list"></div>
+</div>
+<div id="tab-memo" class="hidden">
+<div class="memo-tools">
+<button type="button" class="memo-tool is-on" id="memo-pen-white"><span class="memo-dot" style="background:#ffffff;"></span><span data-t="memoWhite">白ペン</span></button>
+<button type="button" class="memo-tool" id="memo-pen-red"><span class="memo-dot" style="background:#ff4d4d;"></span><span data-t="memoRed">赤ペン</span></button>
+<button type="button" class="memo-tool" id="memo-eraser" data-t="memoEraser">消しゴム</button>
+<button type="button" class="memo-tool memo-clear" id="memo-clear" data-t="memoClear">ぜんぶ消す</button>
+</div>
+<div class="memo-wrap" id="memo-wrap">
+<canvas id="memo-canvas"></canvas>
+<div id="memo-confirm" class="memo-confirm hidden">
+<div class="memo-confirm-box">
+<p data-t="memoClearAsk">メモをぜんぶ消しますか？</p>
+<div class="flex-row">
+<button type="button" id="memo-clear-yes" class="btn-accent" style="margin:0;" data-t="memoYes">はい</button>
+<button type="button" id="memo-clear-no" class="btn-secondary" data-t="memoNo">いいえ</button>
+</div>
+</div>
+</div>
+</div>
 </div>
 </div>
 
@@ -369,7 +410,9 @@ const TX = {
         h1Sub: "真実をかいめいせよ！",
         roomLabel: "事けん番号",
         timerLeft: "のこり",
-        tabHint: "ヒント", tabList: "そうさ名ぼ", tabSolve: "はん人がわかった",
+        tabHint: "ヒント", tabList: "そうさ名ぼ", tabSolve: "はん人がわかった", tabMemo: "メモ",
+        memoWhite: "白ペン", memoRed: "赤ペン", memoEraser: "消しゴム", memoClear: "ぜんぶ消す",
+        memoClearAsk: "メモをぜんぶ消しますか？", memoYes: "はい", memoNo: "いいえ", suspectTag: "はん人かも",
         incidentHead: "おきた事けん", myHintHead: "あなたの手がかり",
         answered: "すいりを送ったよ！\n自分のヒントを、ほかのたんていにも見せてあげよう！",
         solveHead: "はん人はだれだ？", rethink: "まだ考え直す",
@@ -392,7 +435,7 @@ const TX = {
         h1Sub: "真実を解明せよ！",
         roomLabel: "事件番号",
         timerLeft: "残り",
-        tabHint: "ヒント", tabList: "そうさ名ぼ", tabSolve: "犯人がわかった",
+        tabHint: "ヒント", tabList: "そうさ名ぼ", tabSolve: "犯人がわかった", tabMemo: "メモ", suspectTag: "犯人かも",
         incidentHead: "発生した事件", myHintHead: "あなたの手がかり",
         answered: "すいりを送りました！\n自分のヒントを、ほかのたんていにも見せてあげよう！",
         solveHead: "犯人を特定せよ", rethink: "まだ考え直す",
@@ -421,7 +464,18 @@ const t = (key, vars) => {
 function applyTexts(mode) {
     gameMode = (mode === "high") ? "high" : "mid";
     document.querySelectorAll('[data-t]').forEach(el => { el.textContent = t(el.dataset.t); });
+    fitTabLabels();
 }
+// タブやメモのボタンの文字がはみ出すときだけ、そのボタンの文字を少し小さくする
+function fitTabLabels() {
+    document.querySelectorAll('#game-tabs .tab-btn, .memo-tool').forEach(el => {
+        el.style.fontSize = "";
+        if (el.clientWidth === 0) return;   // かくれているときは測れない
+        let px = parseFloat(getComputedStyle(el).fontSize), guard = 0;
+        while (el.scrollWidth > el.clientWidth + 1 && px > 6.5 && guard++ < 25) { px *= 0.93; el.style.fontSize = px + "px"; }
+    });
+}
+window.addEventListener('resize', fitTabLabels);
 
 // ===== ひらがな入力 =====
 // 変換して確定した文字を消すと、子どもが何を打ったか分からなくなって困るので、消さない。
@@ -670,6 +724,8 @@ btn.classList.toggle('active', bId === tabId);
 }
 });
 if(tabId === 'solve-screen') window.renderSuspectButtons();
+if(tabId === 'tab-memo') resizeMemo();
+fitTabLabels();
 };
 
 const getBasicProfile = () => {
@@ -1251,6 +1307,79 @@ async function startGame(data) {
     if (roomStatus === "finished" && lastRoomData) showResults(lastRoomData);
 }
 
+// ===== 手書きメモ =====
+// 自分の端末の中だけで使う。通信はしない（Firebaseの読み書きは増えない）
+const memoCanvas = document.getElementById('memo-canvas');
+const memoCtx = memoCanvas.getContext('2d');
+const MEMO_BG = "#0b1a11";
+let memoW = 0, memoH = 0, memoDpr = 1, memoDrawing = false, memoLast = null, memoPointerId = null;
+let memoTool = { color: "#ffffff", width: 3 };
+function resizeMemo() {
+    if (memoDrawing) return;
+    const r = memoCanvas.getBoundingClientRect();
+    const w = Math.round(r.width), h = Math.round(r.height);
+    if (w <= 0 || h <= 0) return;   // かくれている間はさわらない
+    if (w === memoW && h === memoH) return;
+    // 大きさが変わっても、かいた内容は消さない（左上を合わせて描き戻す）
+    let snap = null;
+    if (memoCanvas.width > 0 && memoW > 0) {
+        snap = document.createElement('canvas');
+        snap.width = memoCanvas.width; snap.height = memoCanvas.height;
+        snap.getContext('2d').drawImage(memoCanvas, 0, 0);
+    }
+    const oldDpr = memoDpr;
+    memoDpr = Math.min(2, window.devicePixelRatio || 1);
+    memoCanvas.width = w * memoDpr; memoCanvas.height = h * memoDpr;
+    memoW = w; memoH = h;
+    memoCtx.setTransform(memoDpr, 0, 0, memoDpr, 0, 0);
+    memoCtx.fillStyle = MEMO_BG; memoCtx.fillRect(0, 0, w, h);
+    if (snap) memoCtx.drawImage(snap, 0, 0, snap.width / oldDpr, snap.height / oldDpr);
+}
+const memoPos = (e) => { const r = memoCanvas.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; };
+function memoStroke(a, b) {
+    memoCtx.strokeStyle = memoTool.color; memoCtx.lineWidth = memoTool.width;
+    memoCtx.lineCap = "round"; memoCtx.lineJoin = "round";
+    memoCtx.beginPath(); memoCtx.moveTo(a.x, a.y); memoCtx.lineTo(b.x, b.y); memoCtx.stroke();
+}
+memoCanvas.addEventListener('pointerdown', (e) => {
+    e.preventDefault();
+    if (memoDrawing) return;
+    resizeMemo();
+    memoDrawing = true; memoPointerId = e.pointerId;
+    try { memoCanvas.setPointerCapture(e.pointerId); } catch (_) {}
+    memoLast = memoPos(e);
+    memoStroke(memoLast, { x: memoLast.x + 0.01, y: memoLast.y });   // 点も打てるように
+});
+memoCanvas.addEventListener('pointermove', (e) => {
+    if (!memoDrawing || e.pointerId !== memoPointerId) return;
+    e.preventDefault();
+    const evs = e.getCoalescedEvents ? e.getCoalescedEvents() : [e];
+    (evs.length ? evs : [e]).forEach(ev => { const p = memoPos(ev); memoStroke(memoLast, p); memoLast = p; });
+});
+const memoEnd = (e) => { if (e.pointerId !== memoPointerId) return; memoDrawing = false; memoPointerId = null; memoLast = null; };
+memoCanvas.addEventListener('pointerup', memoEnd);
+memoCanvas.addEventListener('pointercancel', memoEnd);
+// iPadで長押しのルーペや画面のスクロールが出ないように
+memoCanvas.addEventListener('touchstart', (e) => e.preventDefault(), { passive: false });
+memoCanvas.addEventListener('touchmove', (e) => e.preventDefault(), { passive: false });
+const memoToolBtns = { white: document.getElementById('memo-pen-white'), red: document.getElementById('memo-pen-red'), eraser: document.getElementById('memo-eraser') };
+function pickMemoTool(name) {
+    Object.keys(memoToolBtns).forEach(k => memoToolBtns[k].classList.toggle('is-on', k === name));
+    if (name === 'white') memoTool = { color: "#ffffff", width: 3 };
+    else if (name === 'red') memoTool = { color: "#ff4d4d", width: 3 };
+    else memoTool = { color: MEMO_BG, width: 26 };   // 消しゴムは背景の色でぬる
+}
+memoToolBtns.white.addEventListener('click', () => pickMemoTool('white'));
+memoToolBtns.red.addEventListener('click', () => pickMemoTool('red'));
+memoToolBtns.eraser.addEventListener('click', () => pickMemoTool('eraser'));
+document.getElementById('memo-clear').addEventListener('click', () => document.getElementById('memo-confirm').classList.remove('hidden'));
+document.getElementById('memo-clear-no').addEventListener('click', () => document.getElementById('memo-confirm').classList.add('hidden'));
+document.getElementById('memo-clear-yes').addEventListener('click', () => {
+    memoCtx.fillStyle = MEMO_BG; memoCtx.fillRect(0, 0, memoW, memoH);
+    document.getElementById('memo-confirm').classList.add('hidden');
+});
+window.addEventListener('resize', () => { if (!document.getElementById('tab-memo').classList.contains('hidden')) resizeMemo(); });
+
 function renderInvestigationList() {
     const listContainer = document.getElementById('investigation-list');
     listContainer.innerHTML = players.map((p, idx) =>
@@ -1290,11 +1419,13 @@ window.renderSuspectButtons = () => {
     container.innerHTML = "";
     players.forEach((p, idx) => {
         const isSafe = investigationStatus[idx] === 'safe';
+        const isSuspect = investigationStatus[idx] === 'suspect';
         const btn = document.createElement('button');
         btn.style.opacity = isSafe ? "0.5" : "1";
-        btn.style.background = isSafe ? "#333" : "#a6894a";
+        btn.style.background = isSafe ? "#333" : (isSuspect ? "#f0d58a" : "#a6894a");
         btn.style.color = isSafe ? "#888" : "#1a2e22";
-        btn.innerHTML = `🕵️‍♂️ ${escapeHtml(p.name)}（${p.idNum}番） ${isSafe ? t("safeTag") : ''}`;
+        if (isSuspect) btn.classList.add('suspect-pick');
+        btn.innerHTML = `🕵️‍♂️ ${escapeHtml(p.name)}（${p.idNum}番） ${isSafe ? t("safeTag") : ''}${isSuspect ? `<span class="pick-tag">${t("suspectTag")}</span>` : ''}`;
         btn.onclick = () => submitAnswer(p.key, p.name, p.idNum);
         container.appendChild(btn);
     });
