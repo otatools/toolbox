@@ -2055,7 +2055,7 @@
         });
     }
     // 絵を かきなおしたら IMG_V を かえる → ブラウザに のこった ふるい絵ではなく あたらしい絵を よみなおす
-    var IMG_V = '20261104i'; window.__IMGV = IMG_V;
+    var IMG_V = '20261104k'; window.__IMGV = IMG_V;
     function vsrc(u) { var nl = notoLocal(u); if (nl) u = nl; return (u && /^(custom|pack\d+|noto\d)\//.test(u) && u.indexOf('?') < 0) ? u + '?v=' + IMG_V : u; }
     function loadFirst(urls) {
         if (!urls.length) return Promise.resolve(null);
@@ -2162,15 +2162,27 @@
         lockOv.hidden = false; var lm = Math.ceil(lockLeft() / 60000); document.getElementById('lockMin').textContent = lm > 3 ? '5ふん' : '3ぷん'; lockTick();
         if (!lockTimer) lockTimer = setInterval(lockTick, 500);
     }
+    // なんかい ロックされたかで、ロックまでの 回数を かえる（子どもに よまれない ように ランダム）
+    //  0〜1かい ロックされた子：3回 ／ 2〜3かい：2〜3回 ／ 4かい いじょう：1〜3回
+    var NEED_KEY = 'kk.strikeNeed', STRIKE_T_KEY = 'kk.strikeAt', STRIKE_KEEP = 10 * 60 * 1000;   // 10ぷん たてば かぞえなおし
+    function newNeed() {
+        var ln = parseInt(lsGet(LOCKN_KEY), 10) || 0;
+        var n = ln >= 4 ? 1 + Math.floor(Math.random() * 3) : ln >= 2 ? 2 + Math.floor(Math.random() * 2) : 3;
+        lsSet(NEED_KEY, String(n)); return n;
+    }
+    function strikeNeed() { var n = parseInt(lsGet(NEED_KEY), 10); return n > 0 ? n : newNeed(); }
     function addStrike() {
-        strikes++; lsSet(STRIKE_KEY, String(strikes));
-        if (strikes >= 3) { var ln = parseInt(lsGet(LOCKN_KEY), 10) || 0; lsSet(LOCKN_KEY, String(ln + 1)); lsSet(LOCK_KEY, String(Date.now() + (ln >= 1 ? LOCK_MS2 : LOCK_MS))); strikes = 0; lsSet(STRIKE_KEY, '0'); showLock(); return true; }
+        var last = parseInt(lsGet(STRIKE_T_KEY), 10) || 0;
+        if (last && Date.now() - last > STRIKE_KEEP) strikes = 0;
+        strikes++; lsSet(STRIKE_KEY, String(strikes)); lsSet(STRIKE_T_KEY, String(Date.now()));
+        if (strikes >= strikeNeed()) { var ln = parseInt(lsGet(LOCKN_KEY), 10) || 0; lsSet(LOCKN_KEY, String(ln + 1)); lsSet(LOCK_KEY, String(Date.now() + (ln >= 1 ? LOCK_MS2 : LOCK_MS))); strikes = 0; lsSet(STRIKE_KEY, '0'); newNeed(); showLock(); return true; }
         return false;
     }
-    function clearStrikes() { if (strikes) { strikes = 0; lsSet(STRIKE_KEY, '0'); } }
+    // ふつうの ことばを はさんでも かぞえなおさない（あいだに 1こ いれて 3回めを よける 子が いるため）。10ぷん あいたら かぞえなおす
+    function clearStrikes() { var last = parseInt(lsGet(STRIKE_T_KEY), 10) || 0; if (strikes && (!last || Date.now() - last > STRIKE_KEEP)) { strikes = 0; lsSet(STRIKE_KEY, '0'); } }
     strikes = parseInt(lsGet(STRIKE_KEY), 10) || 0;
     if (lockLeft() > 0) showLock();
-    window.__lock = { left: lockLeft, strikes: function () { return strikes; } };
+    window.__lock = { left: lockLeft, strikes: function () { return strikes; }, need: strikeNeed };
 
     var lastEntry = null, lastTyped = '';
     function make() {
