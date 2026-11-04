@@ -100,6 +100,7 @@ const JK = (() => {
   };
 })();
 // いまの辞書（index.html）に のっている ことばは ひょうじしない：index.html を かくして よみこみ、__known で しらべる
+let LOCALQ = {}; try { LOCALQ = JSON.parse(localStorage.getItem('kotoba.qty') || '{}') || {}; } catch (e) {}
 let QTYF = null, CURV = '', JUDGE = null;
 const known = new Promise(res => {
   try {
@@ -138,10 +139,11 @@ async function load() {
     if (!auth.currentUser) await signInAnonymously(auth);
     const snap = await get(ref(db, 'kotoba_unknown'));
     const v = snap.val() || {};
-    rows = Object.keys(v).map(k => ({ key: k, word: v[k].word || k, count: v[k].count || 0, last: v[k].last ? new Date(v[k].last) : null, blocked: !!v[k].blocked && !(v[k].unblk !== undefined ? v[k].unblk : LOCALB[k]), wasBlocked: !!v[k].blocked, guess: v[k].guess || '', hit: v[k].hit || '', exclv: v[k].excl, junkv: v[k].junk, qtyv: v[k].qty, imgfail: !!v[k].imgfail, ver: v[k].v || '', x: v[k].x || '' }));
+    rows = Object.keys(v).map(k => ({ key: k, word: v[k].word || k, count: v[k].count || 0, last: v[k].last ? new Date(v[k].last) : null, blocked: !!v[k].blocked && !(v[k].unblk !== undefined ? v[k].unblk : LOCALB[k]), wasBlocked: !!v[k].blocked, guess: v[k].guess || '', hit: v[k].hit || '', exclv: v[k].excl, junkv: v[k].junk, qtyv: v[k].qty, notqty: !!v[k].notqty, imgfail: !!v[k].imgfail, ver: v[k].v || '', x: v[k].x || '' }));
     const kf = await known;
     rows.forEach(r => {
-      r.qty = !r.blocked && !r.x && (r.qtyv === true || (!!QTYF && !!QTYF(r.word)));
+      const notq = r.notqty || LOCALQ[r.key] === false;
+      r.qty = !r.blocked && !r.x && !notq && (r.qtyv === true || (!!QTYF && !!QTYF(r.word)));
       r.reg = !!kf && !r.blocked && !r.x && !r.qty && !!kf(r.word);
       const ov = r.exclv !== undefined ? r.exclv : LOCAL[r.key];
       r.excl = ov !== undefined ? !!ov : false;
@@ -161,7 +163,7 @@ function render() {
     document.querySelectorAll('th.s').forEach(h => { h.querySelector('i').textContent = h.dataset.s === sortKey ? (sortDir > 0 ? '▲' : '▼') : ''; });
     document.getElementById('body').innerHTML = shown.map(([r, i]) => '<tr data-i="' + i + '"' + (r.blocked ? ' style="background:#fff0f0"' : '') + '><td class="c"><input type="checkbox" class="chk" data-i="' + i + '"></td><td>' + r.word.replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])) + (r.blocked ? ' <small style="color:#a33a3a">【使えないことば' + (r.hit ? '：「' + r.hit.replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])) + '」にひっかかった' : '') + '】</small>' : '') + (r.reg ? ' <small style="color:#7a5a12">【' + (r.imgfail ? '絵の よみこみに しっぱい（つうしんが おそい など）' : (r.ver && CURV && r.ver < CURV) ? 'ふるい版のアプリで 入力' : r.ver ? 'いまの版で 入力（しらべてください）' : '登録まえ／ふるい版で 入力') + '】</small>' : '') + (r.x ? ' <small style="color:#6a4fa3">【×：' + (XK[r.x] || r.x) + '】</small>' : '') + (r.guess ? ' <small style="color:#2f6f9f">→ 「' + r.guess.replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])) + '？」と表示</small>' : '') + '</td><td class="n">' + r.count + '</td><td>' + fmt(r.last) + '</td></tr>').join('');
     document.getElementById('all').checked = false; updSel();
-    document.getElementById('restoreBtn').hidden = filt !== 'excl' && filt !== 'junk' && filt !== 'blocked'; document.getElementById('exclBtn').hidden = filt === 'excl';
+    document.getElementById('restoreBtn').hidden = filt !== 'excl' && filt !== 'junk' && filt !== 'blocked' && filt !== 'qty'; document.getElementById('exclBtn').hidden = filt === 'excl';
     document.getElementById('del').hidden = filt === 'excl'; document.getElementById('csv').disabled = filt === 'excl' || filt === 'junk'; document.getElementById('exclAdd').hidden = filt !== 'excl';
     const hid = rows.filter(r => r.reg && !r.excl).length;
     const sr = shown.map(x => x[0]);
@@ -249,7 +251,25 @@ async function unBlock() {
   sel.forEach(r => { r.blocked = false; });
   render();
 }
-document.getElementById('restoreBtn').onclick = () => filt === 'blocked' ? unBlock() : filt === 'junk' ? setJunk(false) : setExcl(false);
+// 数量じゃないのに 数量に はいった ことばを「全部」に もどす
+async function unQty() {
+  const sel = chks().filter(c => c.checked).map(c => rows[+c.dataset.i]);
+  if (!sel.length) return;
+  const msg = document.getElementById('msg'); msg.textContent = '';
+  try {
+    if (!auth.currentUser) await signInAnonymously(auth);
+    const u = {}; sel.forEach(r => { u[r.key + '/notqty'] = true; });
+    await update(ref(db, 'kotoba_unknown'), u);
+    sel.forEach(r => { r.notqty = true; });
+  } catch (e) {
+    sel.forEach(r => { LOCALQ[r.key] = false; });
+    try { localStorage.setItem('kotoba.qty', JSON.stringify(LOCALQ)); } catch (e2) {}
+    msg.textContent = 'サーバーに かきこめなかったので、このブラウザだけに きおくしました：' + e.message;
+  }
+  sel.forEach(r => { r.qty = false; });
+  render();
+}
+document.getElementById('restoreBtn').onclick = () => filt === 'blocked' ? unBlock() : filt === 'junk' ? setJunk(false) : filt === 'qty' ? unQty() : setExcl(false);
 
 document.getElementById('exclAddBtn').onclick = async () => {
   const ws = Array.from(new Set(document.getElementById('exclTxt').value.split(/[\n\r,、，\t]+/).map(w => w.replace(/[.$#\[\]\/\s]/g, '')).filter(w => w && w.length <= 20)));
