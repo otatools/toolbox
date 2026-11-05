@@ -1245,8 +1245,45 @@ return {recog:recog};
         if (n > 0 && !rest.length) return true;
         // おなじ ぎょうの なかの 3もじいじょうの ならび（「あいう」「かきく」など）
         if (w.length >= 3) for (var r2 = 0; r2 < KANA_ROWS.length; r2++) if (KANA_ROWS[r2].indexOf(w) >= 0) return true;
-        return false;
+        return isGibberish(w);
     }
+    // でたらめに うった もじ（「せすせすせす…」「めほひほひにひ…」）を みつける
+    var GB = null;
+    function gbBuild() {
+        GB = { bi: {}, w3: {} };
+        [PREFER, DICT, CUSTOM].forEach(function (o) {
+            Object.keys(o).forEach(function (w) {
+                if (!/^[\u3041-\u3096ー]+$/.test(w)) return;
+                if (w.length >= 3) GB.w3[w] = 1;
+                for (var i = 0; i < w.length - 1; i++) { var k = w.substr(i, 2); GB.bi[k] = (GB.bi[k] || 0) + 1; }
+            });
+        });
+        'の は が を に で と も へ や か よ ね な です ます でした'.split(' ').forEach(function (p) { GB.w3[p] = 1; });
+    }
+    function isGibberish(w) {
+        if (!/^[\u3041-\u3096ー]+$/.test(w) || w.length < 7) return false;
+        if (SUGGEST_MAP[w]) return false;
+        try { if (lookup(w).inDict) return false; } catch (e) { return false; }
+        // おなじ 1〜3もじを 3かい いじょう くりかえす
+        for (var u = 1; u <= 3; u++) {
+            var unit = w.slice(0, u), rep = '';
+            while (rep.length < w.length) rep += unit;
+            if (rep.indexOf(w) === 0 && w.length / u >= 3) return true;
+        }
+        if (w.length < 8 || /[ーぁぃぅぇぉゃゅょっゎがぎぐげござじずぜぞだぢづでどばびぶべぼぱぴぷぺぽゔ]/.test(w)) return false;
+        if (!GB) gbBuild();
+        var rare = 0;
+        for (var i = 0; i < w.length - 1; i++) if ((GB.bi[w.substr(i, 2)] || 0) < 3) rare++;
+        if (rare < 2) return false;
+        // しっている ことば（3もじいじょう）で どれだけ うまるか
+        var n = w.length, best = [0];
+        for (var e = 1; e <= n; e++) {
+            best[e] = best[e - 1];
+            for (var s = Math.max(0, e - 14); s < e; s++) if (GB.w3[w.slice(s, e)]) best[e] = Math.max(best[e], best[s] + (e - s));
+        }
+        return best[n] / n < 0.4;
+    }
+    window.__gib = isGibberish;
 
     // 「じゅういち」「にじゅう」「ひゃく」など 11いじょうの かず（よみ）は つくれない → ×で おしえる（0〜10 までだけ）
     var NDIG = '(いち|いっ|に|さん|よん|よ|し|しち|なな|ろく|ろっ|はち|はっ|きゅう|く|ご)';
