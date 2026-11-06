@@ -58,7 +58,6 @@
     transition:opacity .5s ease, max-width .5s ease, padding .5s ease;
     max-width:400px;overflow:hidden;
   }
-  @media (max-width: 640px){ .status-pill{white-space:normal;max-width:100%;} }
   .status-pill.ok{background:#eefaf0;border-color:#bfe6c8;color:#1f6b34;}
   .status-pill.err{background:#fdeceb;border-color:#f2bdb9;color:#9c2c26;}
   .status-pill.hidden{opacity:0;max-width:0;padding:4px 0;border-width:0;margin:0;}
@@ -771,6 +770,88 @@
   }
 
   // ---------- この画像だけの明るさ・コントラスト・彩度を手動調整 ----------
+  // ---------- canvasのfilter（ぼかし・明るさ等）に対応しているかを確かめる ----------
+  // 古いiPad/iPhoneのSafariなどは ctx.filter を黙って無視するため、そのままだと「顔がぼけないまま」書き出されてしまう。
+  // 対応していない場合は、縮小→拡大による代わりのぼかし・画素ごとの計算による明るさ調整に切り替える。
+  const CANVAS_FILTER_OK = (function(){
+    try{
+      const src = document.createElement('canvas'); src.width = src.height = 9;
+      const s = src.getContext('2d'); s.fillStyle = '#000'; s.fillRect(4, 4, 1, 1);
+      const dst = document.createElement('canvas'); dst.width = dst.height = 9;
+      const d = dst.getContext('2d');
+      if(typeof d.filter !== 'string') return false;
+      d.filter = 'blur(2px)';
+      if(String(d.filter).indexOf('blur') < 0) return false;
+      d.drawImage(src, 0, 0);
+      return d.getImageData(2, 4, 1, 1).data[3] > 0 || d.getImageData(4, 2, 1, 1).data[3] > 0;
+    }catch(e){ return false; }
+  })();
+
+  // 指定した範囲を「ぼかしてから」描く（filter非対応ブラウザでも必ずぼける）
+  function drawBlurred(dctx, src, sx, sy, sw, sh, dx, dy, dw, dh, radius){
+    if(radius <= 0){ dctx.drawImage(src, sx, sy, sw, sh, dx, dy, dw, dh); return; }
+    if(CANVAS_FILTER_OK){
+      dctx.save();
+      dctx.filter = `blur(${radius}px)`;
+      dctx.drawImage(src, sx, sy, sw, sh, dx, dy, dw, dh);
+      dctx.restore();
+      return;
+    }
+    // 代わりの方法：段階的に縮小してから拡大し、少しずらして重ねてなめらかにする
+    const k = Math.max(1, radius * 0.9);
+    const tw = Math.max(1, Math.round(dw / k)), th = Math.max(1, Math.round(dh / k));
+    let cur = document.createElement('canvas');
+    cur.width = Math.max(1, Math.round(dw)); cur.height = Math.max(1, Math.round(dh));
+    cur.getContext('2d').drawImage(src, sx, sy, sw, sh, 0, 0, cur.width, cur.height);
+    while(cur.width / 2 >= tw && cur.height / 2 >= th){
+      const nx = document.createElement('canvas');
+      nx.width = Math.max(1, Math.round(cur.width / 2)); nx.height = Math.max(1, Math.round(cur.height / 2));
+      const nc = nx.getContext('2d'); nc.imageSmoothingEnabled = true; nc.imageSmoothingQuality = 'high';
+      nc.drawImage(cur, 0, 0, nx.width, nx.height);
+      cur = nx;
+    }
+    const small = document.createElement('canvas'); small.width = tw; small.height = th;
+    const smc = small.getContext('2d'); smc.imageSmoothingEnabled = true; smc.imageSmoothingQuality = 'high';
+    smc.drawImage(cur, 0, 0, tw, th);
+    const up = document.createElement('canvas'); up.width = Math.max(1, Math.round(dw)); up.height = Math.max(1, Math.round(dh));
+    const uc = up.getContext('2d'); uc.imageSmoothingEnabled = true; uc.imageSmoothingQuality = 'high';
+    uc.drawImage(small, 0, 0, up.width, up.height);
+    // つなぎ目が目立たないよう、少しずらしたものを半透明で重ねる
+    const sh2 = k / 2;
+    const smooth = document.createElement('canvas'); smooth.width = up.width; smooth.height = up.height;
+    const sc = smooth.getContext('2d');
+    sc.drawImage(up, 0, 0);
+    [[sh2,0],[-sh2,0],[0,sh2],[0,-sh2]].forEach(([ox,oy], i) => {
+      sc.globalAlpha = 1 / (i + 2);
+      sc.drawImage(up, ox, oy);
+    });
+    sc.globalAlpha = 1;
+    dctx.drawImage(smooth, dx, dy, dw, dh);
+  }
+
+  // filter非対応ブラウザ用：明るさ・コントラスト・彩度を画素ごとに計算して適用する（CSSのfilterと同じ式）
+  function applyManualAdjustPixels(canvas, m){
+    const cx = canvas.getContext('2d');
+    const im = cx.getImageData(0, 0, canvas.width, canvas.height);
+    const d = im.data;
+    const br = (m.brightness != null ? m.brightness : 100) / 100;
+    const ct = (m.contrast != null ? m.contrast : 100) / 100;
+    const s = (m.saturate != null ? m.saturate : 100) / 100;
+    const a00 = 0.213 + 0.787*s, a01 = 0.715 - 0.715*s, a02 = 0.072 - 0.072*s;
+    const a10 = 0.213 - 0.213*s, a11 = 0.715 + 0.285*s, a12 = 0.072 - 0.072*s;
+    const a20 = 0.213 - 0.213*s, a21 = 0.715 - 0.715*s, a22 = 0.072 + 0.928*s;
+    const clamp = v => v < 0 ? 0 : (v > 255 ? 255 : v);
+    for(let i = 0; i < d.length; i += 4){
+      let r = d[i] * br, g = d[i+1] * br, b = d[i+2] * br;
+      r = (r - 127.5) * ct + 127.5; g = (g - 127.5) * ct + 127.5; b = (b - 127.5) * ct + 127.5;
+      r = clamp(r); g = clamp(g); b = clamp(b);
+      d[i]   = clamp(a00*r + a01*g + a02*b);
+      d[i+1] = clamp(a10*r + a11*g + a12*b);
+      d[i+2] = clamp(a20*r + a21*g + a22*b);
+    }
+    cx.putImageData(im, 0, 0);
+  }
+
   function buildManualFilterString(m){
     if(!m) return '';
     const parts = [];
@@ -791,9 +872,14 @@
     const c = document.createElement('canvas');
     c.width = item.w; c.height = item.h;
     const cx = c.getContext('2d');
-    cx.filter = filterStr;
-    cx.drawImage(src, 0, 0, item.w, item.h);
-    cx.filter = 'none';
+    if(CANVAS_FILTER_OK){
+      cx.filter = filterStr;
+      cx.drawImage(src, 0, 0, item.w, item.h);
+      cx.filter = 'none';
+    } else {
+      cx.drawImage(src, 0, 0, item.w, item.h);
+      applyManualAdjustPixels(c, item.manualAdjust);
+    }
     item.manualCanvas = c;
   }
 
@@ -1882,17 +1968,47 @@
   }
 
   // 顔の輪郭に合わせた楕円形・縁を自然にぼかしたガウスぼかしを適用する
+  // ぼかしの強さ(1〜7)を、ぼかす範囲の大きさに合わせた実際のぼかし量(px)に換算する。
+  // 以前は画素数そのまま(1〜7px)だったため、スマホで撮った大きな写真では顔がほとんどぼけなかった。
+  // 範囲の大きさに比例させることで、写真の解像度に関係なく同じ見た目のぼけ具合になる。
+  function blurRadiusFor(box, strength){
+    return Math.max(1, strength * Math.max(box.w, box.h) / 40);
+  }
+
+  // ぼかす範囲＋周りの余白を切り出す。写真の端にかかる場合は、端の色を外側へ引き伸ばして埋める
+  // （外側が透明のままだと、ぼかしたときに端が半透明になり、元の顔が透けて見えてしまうため）
+  function extractPadded(img, x, y, w, h, bleed){
+    const iw = img.naturalWidth || img.width, ih = img.naturalHeight || img.height;
+    const W = w + bleed*2, H = h + bleed*2;
+    const c = document.createElement('canvas'); c.width = W; c.height = H;
+    const cx = c.getContext('2d');
+    const sx0 = Math.max(0, x - bleed), sy0 = Math.max(0, y - bleed);
+    const sx1 = Math.min(iw, x + w + bleed), sy1 = Math.min(ih, y + h + bleed);
+    if(sx1 <= sx0 || sy1 <= sy0) return c;
+    const dx0 = sx0 - (x - bleed), dy0 = sy0 - (y - bleed);
+    const cw = sx1 - sx0, ch = sy1 - sy0;
+    cx.drawImage(img, sx0, sy0, cw, ch, dx0, dy0, cw, ch);
+    const right = W - (dx0 + cw), bottom = H - (dy0 + ch);
+    // 上下左右の余白を、いちばん端の1列（1行）を引き伸ばして埋める
+    if(dx0 > 0) cx.drawImage(c, dx0, dy0, 1, ch, 0, dy0, dx0, ch);
+    if(right > 0) cx.drawImage(c, dx0 + cw - 1, dy0, 1, ch, dx0 + cw, dy0, right, ch);
+    if(dy0 > 0) cx.drawImage(c, 0, dy0, W, 1, 0, 0, W, dy0);
+    if(bottom > 0) cx.drawImage(c, 0, dy0 + ch - 1, W, 1, 0, dy0 + ch, W, bottom);
+    return c;
+  }
+
   function applyBlur(ctx, img, box, strength, feather){
     const {x,y,w,h} = box;
     if(w<=0||h<=0) return;
-    const bleed = Math.ceil(strength*2);
+    const radius = blurRadiusFor(box, strength);
+    const bleed = Math.ceil(radius*2);
 
     // 1) 余白付きで切り出して、その範囲全体にガウスぼかしをかける
     const big = document.createElement('canvas');
     big.width = w + bleed*2; big.height = h + bleed*2;
     const bctx = big.getContext('2d');
-    bctx.filter = `blur(${strength}px)`;
-    bctx.drawImage(img, x-bleed, y-bleed, w+bleed*2, h+bleed*2, 0, 0, w+bleed*2, h+bleed*2);
+    const padded = extractPadded(img, x, y, w, h, bleed);
+    drawBlurred(bctx, padded, 0, 0, padded.width, padded.height, 0, 0, w+bleed*2, h+bleed*2, radius);
 
     // 2) 中心のw×h部分だけを取り出す（縁のにじみを避けるため）
     const blurredCrop = document.createElement('canvas');
@@ -1925,13 +2041,14 @@
   function applyBlurShaped(ctx, img, box, strength, feather, shape){
     const {x,y,w,h} = box;
     if(w<=0||h<=0) return;
-    const bleed = Math.ceil(strength*2);
+    const radius = blurRadiusFor(box, strength);
+    const bleed = Math.ceil(radius*2);
 
     const big = document.createElement('canvas');
     big.width = w + bleed*2; big.height = h + bleed*2;
     const bctx = big.getContext('2d');
-    bctx.filter = `blur(${strength}px)`;
-    bctx.drawImage(img, x-bleed, y-bleed, w+bleed*2, h+bleed*2, 0, 0, w+bleed*2, h+bleed*2);
+    const padded = extractPadded(img, x, y, w, h, bleed);
+    drawBlurred(bctx, padded, 0, 0, padded.width, padded.height, 0, 0, w+bleed*2, h+bleed*2, radius);
 
     const blurredCrop = document.createElement('canvas');
     blurredCrop.width = w; blurredCrop.height = h;
@@ -1959,9 +2076,7 @@
       sharp.width = mask.width; sharp.height = mask.height;
       sharp.getContext('2d').drawImage(mask, 0, 0);
       mctx.clearRect(0, 0, mask.width, mask.height);
-      mctx.filter = `blur(${featherPx}px)`;
-      mctx.drawImage(sharp, 0, 0);
-      mctx.filter = 'none';
+      drawBlurred(mctx, sharp, 0, 0, sharp.width, sharp.height, 0, 0, sharp.width, sharp.height, featherPx);
     }
 
     const bcx = blurredCrop.getContext('2d');
@@ -2482,7 +2597,9 @@
 
   btnDownloadOne.addEventListener('click', () => {
     const item = getSelected(); if(!item) return;
-    downloadCanvas(editCanvas, (item.name.replace(/\.[^.]+$/,'') || 'image') + '_blurred.png');
+    // 編集画面のキャンバスには枠線（青・オレンジ）や描きかけの多角形が重なっているので、
+    // 書き出し用にそれらを含まない画像を作り直してからダウンロードする
+    downloadCanvas(renderProcessedCanvas(item), (item.name.replace(/\.[^.]+$/,'') || 'image') + '_blurred.png');
   });
 
   function downloadCanvas(canvas, filename){
