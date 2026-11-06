@@ -117,22 +117,44 @@ const pass = r => filt === 'excl' ? (r.excl && (sub === 'all' || ekind(r) === su
 const fmt = d => d ? d.getFullYear() + '/' + (d.getMonth()+1) + '/' + d.getDate() + ' ' + String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0') : '';
 // いまの アプリで うったら どう でるかで「〇〇？」を さいしんに する（おもいので すこしずつ うしろで しらべる）
 let GTOKEN = 0;
-function refreshGuess() {
+// しらべた こたえを おぼえておく（index.html の 中身が すこしでも かわったら ぜんぶ すてて しらべなおす）
+let JSIG = null;
+async function judgeSig() {
+  if (JSIG) return JSIG;
+  try {
+    const txt = await (await fetch('index.html', { cache: 'no-cache' })).text();
+    const h = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(txt));
+    JSIG = Array.from(new Uint8Array(h)).slice(0, 12).map(b => b.toString(16).padStart(2, '0')).join('');
+  } catch (e) { JSIG = ''; }
+  return JSIG;
+}
+function jload(sig) { try { const o = JSON.parse(localStorage.getItem('kotoba.judge') || 'null'); if (o && sig && o.sig === sig) return o.m || {}; } catch (e) {} return {}; }
+function jsave(sig, m) { if (!sig) return; try { localStorage.setItem('kotoba.judge', JSON.stringify({ sig: sig, m: m })); } catch (e) {} }
+function applyJ(r, j) {
+  if (!j || !j.t) return;
+  if (j.t === 'guess') r.guess = j.g;
+  else if (j.t === 'q') r.guess = '';
+  else if (j.t === 'x' && !r.x) r.x = /ゲームの なまえ/.test(j.msg) ? 'game' : /ゲームの なか/.test(j.msg) ? 'gameword' : /まんが/.test(j.msg) ? 'anime' : /じんぶつ/.test(j.msg) ? 'person' : /ことばじゃない|すうじ/.test(j.msg) ? 'notword' : 'char';
+}
+async function refreshGuess() {
   if (!JUDGE) return;
-  const tok = ++GTOKEN, list = rows.filter(r => !r.blocked && !r.junk && !r.reg);
+  const tok = ++GTOKEN, sig = await judgeSig(), memo = jload(sig);
+  if (tok !== GTOKEN) return;
+  const all = rows.filter(r => !r.blocked && !r.junk && !r.reg);
+  const list = [];
+  all.forEach(r => { const j = memo[r.word]; if (j) applyJ(r, { t: j[0], g: j[1], msg: j[2] }); else list.push(r); });
+  render();
   let i = 0; const msg = document.getElementById('msg');
   const step = () => {
     if (tok !== GTOKEN) return;
-    const end = Math.min(list.length, i + 15);
-    for (; i < end; i++) {
+    const t0 = performance.now();
+    for (; i < list.length && performance.now() - t0 < 40; i++) {
       const r = list[i]; let j = null; try { j = JUDGE(r.word); } catch (e) {}
-      if (!j || !j.t) continue;
-      if (j.t === 'guess') r.guess = j.g;
-      else if (j.t === 'q') r.guess = '';
-      else if (j.t === 'x' && !r.x) r.x = /ゲームの なまえ/.test(j.msg) ? 'game' : /ゲームの なか/.test(j.msg) ? 'gameword' : /まんが/.test(j.msg) ? 'anime' : /じんぶつ/.test(j.msg) ? 'person' : /ことばじゃない|すうじ/.test(j.msg) ? 'notword' : 'char';
+      if (j && j.t) memo[r.word] = [j.t, j.g || '', j.msg || ''];
+      applyJ(r, j);
     }
-    if (i < list.length) { msg.style.color = '#7a6a55'; msg.textContent = '「〇〇？」を さいしんに しています… ' + i + ' / ' + list.length; setTimeout(step, 0); }
-    else { msg.textContent = ''; msg.style.color = ''; render(); }
+    if (i < list.length) { msg.style.color = '#7a6a55'; msg.textContent = '「〇〇？」を さいしんに しています… ' + i + ' / ' + list.length + '（あたらしい ことばだけ）'; setTimeout(step, 0); }
+    else { msg.textContent = ''; msg.style.color = ''; jsave(sig, memo); render(); }
   };
   setTimeout(step, 0);
 }
