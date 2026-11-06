@@ -36,9 +36,9 @@
 <body>
 <main>
   <h1>？・×になったことば</h1>
-  <div class="bar"><button id="reload">最新にする</button><button id="csv">CSVでほぞん（Excel用）</button><button id="xlsx">Excelでほぞん（種類ごとのシート）</button><button id="exclBtn" disabled>除外に入れる</button><button id="nwBtn" disabled title="ことばじゃない もの（でたらめ・れんしゅう打ち など）を 除外の「ことばじゃない」に いれる">ことばじゃない（除外）に入れる</button><button id="restoreBtn" disabled hidden>選んだものを全部に入れる</button><button id="del" class="del" disabled>選んだものを消す</button></div>
+  <div class="bar"><button id="reload">最新にする</button><button id="csv">CSVでほぞん（Excel用）</button><button id="xlsx">Excelでほぞん（種類ごとのシート）</button><button id="exclBtn" disabled>除外に入れる</button><button id="nmBtn" disabled title="×にして「これは つくれないよ」と だす ものを 除外の「つくれない」に いれる">つくれない（除外）に入れる</button><button id="nwBtn" disabled title="ことばじゃない もの（でたらめ・れんしゅう打ち など）を 除外の「ことばじゃない」に いれる">ことばじゃない（除外）に入れる</button><button id="restoreBtn" disabled hidden>選んだものを全部に入れる</button><button id="del" class="del" disabled>選んだものを消す</button></div>
   <div class="flt" id="flt"><button data-f="all" class="on">全部<small id="fc_all"></small></button><button data-f="guess" title="「〇〇？」と表示した言葉">「〇〇？」<small id="fc_guess"></small></button><button data-f="none" title="？だけ表示した言葉">？だけ<small id="fc_none"></small></button><button data-f="blocked" title="使えないことば">使えない<small id="fc_blocked"></small></button><button data-f="x" title="×になった言葉（キャラクター・ゲーム・まんが・人名など）">×になった<small id="fc_x"></small></button><button data-f="junk" title="存在しない言葉（でたらめ入力）">ぐちゃぐちゃ<small id="fc_junk"></small></button><button data-f="excl" title="除外リスト（消えない・CSVに入らない）">除外<small id="fc_excl"></small></button><button data-f="qty" title="数量のことば（よにん・はちびき・いっこ・いちおくえん…）">数量<small id="fc_qty"></small></button><button data-f="reg" title="辞書にあるので隠していた言葉">辞書にある<small id="fc_reg"></small></button></div>
-  <div class="flt" id="sub" hidden><button data-s="all" class="on">除外の全部<small id="sc_all"></small></button><button data-s="guess">「〇〇？」<small id="sc_guess"></small></button><button data-s="none">？だけ<small id="sc_none"></small></button><button data-s="x">×<small id="sc_x"></small></button><button data-s="blocked">使えない<small id="sc_blocked"></small></button><button data-s="nw" title="ことばじゃない もの。「〇〇？」の さいしんかは しない">ことばじゃない<small id="sc_nw"></small></button></div>
+  <div class="flt" id="sub" hidden><button data-s="all" class="on">除外の全部<small id="sc_all"></small></button><button data-s="guess">「〇〇？」<small id="sc_guess"></small></button><button data-s="none">？だけ<small id="sc_none"></small></button><button data-s="x">×<small id="sc_x"></small></button><button data-s="blocked">使えない<small id="sc_blocked"></small></button><button data-s="nm" title="×にして「これは つくれないよ」と だす もの">×：つくれない<small id="sc_nm"></small></button><button data-s="nw" title="ことばじゃない もの。「〇〇？」の さいしんかは しない">ことばじゃない<small id="sc_nw"></small></button></div>
   <div id="exclAdd" hidden style="margin:8px 0;padding:10px;background:#f4f7ff;border-radius:8px"><div style="font-size:.9em;margin-bottom:4px">ここに ことばを いれると、まとめて 除外リストに くわえます（いくつでも：改行か「、」「,」でくぎる）。こどもが また いれても 除外リストに はいります。</div><textarea id="exclTxt" rows="3" style="width:100%;box-sizing:border-box;font-size:16px"></textarea><button id="exclAddBtn" style="margin-top:6px">除外リストに くわえる</button></div>
   <div id="msg"></div>
   <table><thead><tr><th class="c"><input type="checkbox" id="all" aria-label="ぜんぶ えらぶ"></th><th class="s" data-s="word">ことば<i></i></th><th class="s" data-s="count" style="text-align:right">回数<i></i></th><th class="s" data-s="last">さいご<i></i></th></tr></thead><tbody id="body"></tbody></table>
@@ -51,12 +51,13 @@ import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/1
 import { getDatabase, ref, get, remove, update } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-database.js";
 const cfg = { apiKey: "AIzaSyBjnWqAcunbf_TBPraMHZRmI1bPjTnFhQU", authDomain: "typing-48f95.firebaseapp.com", databaseURL: "https://typing-48f95-default-rtdb.asia-southeast1.firebasedatabase.app", projectId: "typing-48f95", storageBucket: "typing-48f95.firebasestorage.app", messagingSenderId: "1045024853093", appId: "1:1045024853093:web:3484649a3b1544bb51ca8c" };
 const app = initializeApp(cfg, 'stats'), auth = getAuth(app), db = getDatabase(app);
-const XK = { char: 'キャラクター', game: 'ゲームの名前', gameword: 'ゲームの中の言葉', anime: 'まんが・アニメ', fiction: '架空のもの', person: '人名・グループ名', notword: '言葉ではない' };
+const XK = { char: 'キャラクター', game: 'ゲームの名前', gameword: 'ゲームの中の言葉', anime: 'まんが・アニメ', fiction: '架空のもの', person: '人名・グループ名', notword: '言葉ではない', nomake: 'つくれない' };
 let rows = [], filt = 'all', sub = 'all', sortKey = 'count', sortDir = -1;
 // 除外の なかの しゅるい
-const ekind = r => r.nw ? 'nw' : r.blocked ? 'blocked' : r.x ? 'x' : r.guess ? 'guess' : 'none';
+const ekind = r => r.nm ? 'nm' : r.nw ? 'nw' : r.blocked ? 'blocked' : r.x ? 'x' : r.guess ? 'guess' : 'none';
 let LOCALB = {}; try { LOCALB = JSON.parse(localStorage.getItem('kotoba.unblk') || '{}') || {}; } catch (e) {}
 let LOCALJ = {}; try { LOCALJ = JSON.parse(localStorage.getItem('kotoba.junk') || '{}') || {}; } catch (e) {}
+let LOCALM = {}; try { LOCALM = JSON.parse(localStorage.getItem('kotoba.nm') || '{}') || {}; } catch (e) {}
 let LOCALN = {}; try { LOCALN = JSON.parse(localStorage.getItem('kotoba.nw') || '{}') || {}; } catch (e) {}
 let LOCAL = {}; try { LOCAL = JSON.parse(localStorage.getItem('kotoba.excl') || '{}') || {}; } catch (e) {}
 function looksRandom(w, kf) {
@@ -135,18 +136,21 @@ function jsave(sig, m) { if (!sig) return; try { localStorage.setItem('kotoba.ju
 // アプリで「ことばじゃないよ」に なった ものは、じどうで「ことばじゃない（除外）」に いれる（「全部に入れる」で もどした ものは そのまま）
 // いまの アプリで「ことばじゃないよ」（×）に なる か（しらべる まえは サーバーの きろくで みる）
 function isNwIdx(r) { return r.nwIdx !== undefined ? r.nwIdx : r.xdb === 'notword'; }
+function isNmIdx(r) { return r.nmIdx !== undefined ? r.nmIdx : r.xdb === 'nomake'; }
 function autoNw(r) {
-  if (r.nwv === false || r.nw) return;
+  if (r.nmv !== false && !r.nm && (r.xdb === 'nomake' || /これは つくれない/.test(r.xmsg || ''))) { r.nm = true; r.nw = false; r.excl = true; return; }
+  if (r.nwv === false || r.nw || r.nm) return;
   if (r.xdb === 'notword' || /ことばじゃない/.test(r.xmsg || '')) { r.nw = true; r.excl = true; }
 }
 function applyJ(r, j) {
   if (!j || !j.t) return;
   if (j.t === 'guess') r.guess = j.g;
   else if (j.t === 'q') r.guess = '';
-  r.nwIdx = j.t === 'x' && /ことばじゃない/.test(j.msg || '');   // いまの アプリで「ことばじゃないよ」に なるか
+  r.nwIdx = j.t === 'x' && /ことばじゃない/.test(j.msg || '');
+  r.nmIdx = j.t === 'x' && /これは つくれない/.test(j.msg || '');   // いまの アプリで「これは つくれないよ」に なるか   // いまの アプリで「ことばじゃないよ」に なるか
   if (j.t === 'x') r.xmsg = j.msg || '';
   if (j.t === 'x') autoNw(r);
-  if (j.t === 'x' && !r.x) r.x = /ゲームの なまえ/.test(j.msg) ? 'game' : /ゲームの なか/.test(j.msg) ? 'gameword' : /まんが/.test(j.msg) ? 'anime' : /じんぶつ/.test(j.msg) ? 'person' : /ことばじゃない|すうじ/.test(j.msg) ? 'notword' : 'char';
+  if (j.t === 'x' && !r.x) r.x = /ゲームの なまえ/.test(j.msg) ? 'game' : /ゲームの なか/.test(j.msg) ? 'gameword' : /まんが/.test(j.msg) ? 'anime' : /じんぶつ/.test(j.msg) ? 'person' : /これは つくれない/.test(j.msg) ? 'nomake' : /ことばじゃない|すうじ/.test(j.msg) ? 'notword' : 'char';
 }
 async function refreshGuess() {
   if (!JUDGE) return;
@@ -176,7 +180,7 @@ async function load() {
     if (!auth.currentUser) await signInAnonymously(auth);
     const snap = await get(ref(db, 'kotoba_unknown'));
     const v = snap.val() || {};
-    rows = Object.keys(v).map(k => ({ key: k, word: v[k].word || k, count: v[k].count || 0, last: v[k].last ? new Date(v[k].last) : null, blocked: !!v[k].blocked && !(v[k].unblk !== undefined ? v[k].unblk : LOCALB[k]), wasBlocked: !!v[k].blocked, guess: v[k].guess || '', hit: v[k].hit || '', exclv: v[k].excl, junkv: v[k].junk, qtyv: v[k].qty, notqty: !!v[k].notqty, imgfail: !!v[k].imgfail, ver: v[k].v || '', x: v[k].x || '', xdb: v[k].x || '', nwv: v[k].nw }));
+    rows = Object.keys(v).map(k => ({ key: k, word: v[k].word || k, count: v[k].count || 0, last: v[k].last ? new Date(v[k].last) : null, blocked: !!v[k].blocked && !(v[k].unblk !== undefined ? v[k].unblk : LOCALB[k]), wasBlocked: !!v[k].blocked, guess: v[k].guess || '', hit: v[k].hit || '', exclv: v[k].excl, junkv: v[k].junk, qtyv: v[k].qty, notqty: !!v[k].notqty, imgfail: !!v[k].imgfail, ver: v[k].v || '', x: v[k].x || '', xdb: v[k].x || '', nwv: v[k].nw, nmv: v[k].nm }));
     const kf = await known;
     rows.forEach(r => {
       // まえに ×（ぐちゃぐちゃ・ことばじゃない など）で きろくされても、いまは 辞書に あって ふつうに できる ことばは × を はずす
@@ -188,7 +192,10 @@ async function load() {
       r.excl = ov !== undefined ? !!ov : false;
       if ((r.nwv === undefined || r.nwv === null) && LOCALN[r.key] === false) r.nwv = false;
       r.nw = r.nwv !== undefined && r.nwv !== null ? !!r.nwv : !!LOCALN[r.key];
-      if (r.nw) r.excl = true;
+      if ((r.nmv === undefined || r.nmv === null) && LOCALM[r.key] === false) r.nmv = false;
+      r.nm = r.nmv !== undefined && r.nmv !== null ? !!r.nmv : !!LOCALM[r.key];
+      if (r.nm) r.nw = false;
+      if (r.nw || r.nm) r.excl = true;
       autoNw(r);
       const jv = r.junkv !== undefined ? r.junkv : LOCALJ[r.key];
       r.junk = jv !== undefined ? !!jv : (!r.excl && !r.blocked && !r.x && !r.reg && !r.qty && !r.guess && (looksRandom(r.word, kf) || JK(r.word, kf)));
@@ -202,14 +209,14 @@ function render() {
     ['all','guess','none','blocked','x','junk','excl','reg','qty'].forEach(f => { const o = filt; filt = f; document.getElementById('fc_' + f).textContent = rows.filter(pass).length; filt = o; });
     document.querySelectorAll('#flt button').forEach(b => b.classList.toggle('on', b.dataset.f === filt));
     document.getElementById('sub').hidden = filt !== 'excl';
-    ['all','guess','none','x','blocked','nw'].forEach(s => { document.getElementById('sc_' + s).textContent = rows.filter(r => r.excl && !r.reg && (s === 'all' || ekind(r) === s)).length; });
+    ['all','guess','none','x','blocked','nm','nw'].forEach(s => { document.getElementById('sc_' + s).textContent = rows.filter(r => r.excl && !r.reg && (s === 'all' || ekind(r) === s)).length; });
     document.querySelectorAll('#sub button').forEach(b => b.classList.toggle('on', b.dataset.s === sub));
     const cmp = (x, y) => { const a = x[0], b = y[0]; let d = sortKey === 'word' ? a.word.localeCompare(b.word, 'ja') : sortKey === 'last' ? (a.last || 0) - (b.last || 0) : a.count - b.count; if (!d) d = sortKey === 'count' ? (b.last || 0) - (a.last || 0) : a.word.localeCompare(b.word, 'ja'); return d * sortDir; };
     const shown = rows.map((r, i) => [r, i]).filter(x => pass(x[0])).sort(cmp);
     document.querySelectorAll('th.s').forEach(h => { h.querySelector('i').textContent = h.dataset.s === sortKey ? (sortDir > 0 ? '▲' : '▼') : ''; });
-    document.getElementById('body').innerHTML = shown.map(([r, i]) => '<tr data-i="' + i + '"' + (r.blocked ? ' style="background:#fff0f0"' : '') + '><td class="c"><input type="checkbox" class="chk" data-i="' + i + '"></td><td>' + r.word.replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])) + (r.blocked ? ' <small style="color:#a33a3a">【使えないことば' + (r.hit ? '：「' + r.hit.replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])) + '」にひっかかった' : '') + '】</small>' : '') + (r.reg ? ' <small style="color:#7a5a12">【' + (r.imgfail ? '絵の よみこみに しっぱい（つうしんが おそい など）' : (r.ver && CURV && r.ver < CURV) ? 'ふるい版のアプリで 入力' : r.ver ? 'いまの版で 入力（しらべてください）' : '登録まえ／ふるい版で 入力') + '】</small>' : '') + (r.x ? ' <small style="color:#6a4fa3">【×：' + (XK[r.x] || r.x) + '】' + (r.xmsg ? ' →「' + r.xmsg.replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])) + '」と表示' : '') + '</small>' : '') + (r.nw && isNwIdx(r) ? ' <small style="color:#8a6d3b">【ことばじゃない】</small>' : '') + (r.guess && !r.nw ? ' <small style="color:#2f6f9f">→ 「' + r.guess.replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])) + '？」と表示</small>' : '') + '</td><td class="n">' + r.count + '</td><td>' + fmt(r.last) + '</td></tr>').join('');
+    document.getElementById('body').innerHTML = shown.map(([r, i]) => '<tr data-i="' + i + '"' + (r.blocked ? ' style="background:#fff0f0"' : '') + '><td class="c"><input type="checkbox" class="chk" data-i="' + i + '"></td><td>' + r.word.replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])) + (r.blocked ? ' <small style="color:#a33a3a">【使えないことば' + (r.hit ? '：「' + r.hit.replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])) + '」にひっかかった' : '') + '】</small>' : '') + (r.reg ? ' <small style="color:#7a5a12">【' + (r.imgfail ? '絵の よみこみに しっぱい（つうしんが おそい など）' : (r.ver && CURV && r.ver < CURV) ? 'ふるい版のアプリで 入力' : r.ver ? 'いまの版で 入力（しらべてください）' : '登録まえ／ふるい版で 入力') + '】</small>' : '') + (r.x ? ' <small style="color:#6a4fa3">【×：' + (XK[r.x] || r.x) + '】' + (r.xmsg ? ' →「' + r.xmsg.replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])) + '」と表示' : '') + '</small>' : '') + (r.nm && isNmIdx(r) && !r.x ? ' <small style="color:#6a4fa3">【×：つくれない】</small>' : '') + (r.nw && isNwIdx(r) ? ' <small style="color:#8a6d3b">【ことばじゃない】</small>' : '') + (r.guess && !r.nw && !r.nm ? ' <small style="color:#2f6f9f">→ 「' + r.guess.replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])) + '？」と表示</small>' : '') + '</td><td class="n">' + r.count + '</td><td>' + fmt(r.last) + '</td></tr>').join('');
     document.getElementById('all').checked = false; updSel();
-    document.getElementById('restoreBtn').hidden = filt !== 'excl' && filt !== 'junk' && filt !== 'blocked' && filt !== 'qty'; document.getElementById('exclBtn').hidden = filt === 'excl'; document.getElementById('nwBtn').hidden = filt === 'excl' && sub === 'nw';
+    document.getElementById('restoreBtn').hidden = filt !== 'excl' && filt !== 'junk' && filt !== 'blocked' && filt !== 'qty'; document.getElementById('exclBtn').hidden = filt === 'excl'; document.getElementById('nwBtn').hidden = filt === 'excl' && sub === 'nw'; document.getElementById('nmBtn').hidden = filt === 'excl' && sub === 'nm';
     document.getElementById('del').hidden = filt === 'excl'; document.getElementById('csv').disabled = filt === 'excl' || filt === 'junk'; document.getElementById('exclAdd').hidden = filt !== 'excl';
     const hid = rows.filter(r => r.reg && !r.excl).length;
     const sr = shown.map(x => x[0]);
@@ -222,7 +229,7 @@ const chks = () => Array.from(document.querySelectorAll('.chk'));
 function updSel() {
   const n = chks().filter(c => c.checked).length;
   const b = document.getElementById('del'); b.disabled = n === 0; b.textContent = n ? '選んだ ' + n + '件を消す' : '選んだものを消す';
-  document.getElementById('exclBtn').disabled = n === 0; document.getElementById('nwBtn').disabled = n === 0; document.getElementById('restoreBtn').disabled = n === 0;
+  document.getElementById('exclBtn').disabled = n === 0; document.getElementById('nwBtn').disabled = n === 0; document.getElementById('nmBtn').disabled = n === 0; document.getElementById('restoreBtn').disabled = n === 0;
   chks().forEach(c => c.closest('tr').classList.toggle('sel', c.checked));
   const all = document.getElementById('all'); all.checked = n > 0 && n === chks().length;
 }
@@ -254,13 +261,13 @@ async function setExcl(val) {
   const msg = document.getElementById('msg'); msg.textContent = '';
   try {
     if (!auth.currentUser) await signInAnonymously(auth);
-    const u = {}; sel.forEach(r => { u[r.key + '/excl'] = val; if (!val) u[r.key + '/nw'] = false; });
+    const u = {}; sel.forEach(r => { u[r.key + '/excl'] = val; if (!val) { u[r.key + '/nw'] = false; u[r.key + '/nm'] = false; } });
     await update(ref(db, 'kotoba_unknown'), u);
-    sel.forEach(r => { r.excl = val; r.exclv = val; if (!val) { r.nw = false; r.nwv = false; delete LOCALN[r.key]; } });
-    if (!val) { try { localStorage.setItem('kotoba.nw', JSON.stringify(LOCALN)); } catch (e2) {} }
+    sel.forEach(r => { r.excl = val; r.exclv = val; if (!val) { r.nw = false; r.nwv = false; delete LOCALN[r.key]; r.nm = false; r.nmv = false; delete LOCALM[r.key]; } });
+    if (!val) { try { localStorage.setItem('kotoba.nw', JSON.stringify(LOCALN)); localStorage.setItem('kotoba.nm', JSON.stringify(LOCALM)); } catch (e2) {} }
   } catch (e) {
-    sel.forEach(r => { LOCAL[r.key] = val; r.excl = val; if (!val) { r.nw = false; r.nwv = false; LOCALN[r.key] = false; } });
-    try { localStorage.setItem('kotoba.excl', JSON.stringify(LOCAL)); localStorage.setItem('kotoba.nw', JSON.stringify(LOCALN)); } catch (e2) {}
+    sel.forEach(r => { LOCAL[r.key] = val; r.excl = val; if (!val) { r.nw = false; r.nwv = false; LOCALN[r.key] = false; r.nm = false; r.nmv = false; LOCALM[r.key] = false; } });
+    try { localStorage.setItem('kotoba.excl', JSON.stringify(LOCAL)); localStorage.setItem('kotoba.nw', JSON.stringify(LOCALN)); localStorage.setItem('kotoba.nm', JSON.stringify(LOCALM)); } catch (e2) {}
     msg.textContent = 'サーバーに かきこめなかったので、このブラウザだけに きおくしました：' + e.message;
     render(); return;
   }
@@ -284,24 +291,26 @@ async function setJunk(val) {
 }
 document.getElementById('exclBtn').onclick = () => setExcl(true);
 // ことばじゃない（除外）に いれる：どこからでも えらんで いれられる
-async function setNw() {
+async function setNw(kind) {
+  kind = kind === 'nm' ? 'nm' : 'nw'; const other = kind === 'nm' ? 'nw' : 'nm', L = kind === 'nm' ? LOCALM : LOCALN, LO = kind === 'nm' ? LOCALN : LOCALM;
   const sel = chks().filter(c => c.checked).map(c => rows[+c.dataset.i]);
   if (!sel.length) return;
   const msg = document.getElementById('msg'); msg.textContent = '';
   try {
     if (!auth.currentUser) await signInAnonymously(auth);
-    const u = {}; sel.forEach(r => { u[r.key + '/nw'] = true; u[r.key + '/excl'] = true; });
+    const u = {}; sel.forEach(r => { u[r.key + '/' + kind] = true; u[r.key + '/' + other] = false; u[r.key + '/excl'] = true; });
     await update(ref(db, 'kotoba_unknown'), u);
-    sel.forEach(r => { r.nw = true; r.nwv = true; r.excl = true; r.exclv = true; });
+    sel.forEach(r => { r[kind] = true; r[kind + 'v'] = true; r[other] = false; r[other + 'v'] = false; r.excl = true; r.exclv = true; });
   } catch (e) {
-    sel.forEach(r => { LOCALN[r.key] = true; LOCAL[r.key] = true; r.nw = true; r.excl = true; });
-    try { localStorage.setItem('kotoba.nw', JSON.stringify(LOCALN)); localStorage.setItem('kotoba.excl', JSON.stringify(LOCAL)); } catch (e2) {}
+    sel.forEach(r => { L[r.key] = true; LO[r.key] = false; LOCAL[r.key] = true; r[kind] = true; r[other] = false; r.excl = true; });
+    try { localStorage.setItem('kotoba.nw', JSON.stringify(LOCALN)); localStorage.setItem('kotoba.nm', JSON.stringify(LOCALM)); localStorage.setItem('kotoba.excl', JSON.stringify(LOCAL)); } catch (e2) {}
     msg.textContent = 'サーバーに かきこめなかったので、このブラウザだけに きおくしました：' + e.message;
   }
-  if (!msg.textContent) msg.textContent = sel.length + 'こ「ことばじゃない」に いれました';
+  if (!msg.textContent) msg.textContent = sel.length + 'こ「' + (kind === 'nm' ? 'つくれない' : 'ことばじゃない') + '」に いれました';
   render();
 }
-document.getElementById('nwBtn').onclick = setNw;
+document.getElementById('nwBtn').onclick = () => setNw('nw');
+document.getElementById('nmBtn').onclick = () => setNw('nm');
 async function unBlock() {
   const sel = chks().filter(c => c.checked).map(c => rows[+c.dataset.i]);
   if (!sel.length) return;
@@ -370,14 +379,14 @@ document.getElementById('xlsx').onclick = async () => {
     if (!window.XLSX) { msg.textContent = 'Excelの じゅんびが できませんでした（ネットを たしかめてください）'; return; }
     msg.textContent = '';
   }
-  const kind = r => r.nw ? (isNwIdx(r) ? 'ことばじゃない（アプリで×になる）' : 'ことばじゃない（まだ×にならない）') : r.blocked ? '使えないことば' + (r.hit ? '（' + r.hit + '）' : '') : r.x ? '×：' + (XK[r.x] || r.x) : r.guess ? '「' + r.guess + '？」' : '？だけ';
+  const kind = r => r.nm ? (isNmIdx(r) ? '×：つくれない（アプリで×になる）' : '×：つくれない（まだ×にならない）') : r.nw ? (isNwIdx(r) ? 'ことばじゃない（アプリで×になる）' : 'ことばじゃない（まだ×にならない）') : r.blocked ? '使えないことば' + (r.hit ? '（' + r.hit + '）' : '') : r.x ? '×：' + (XK[r.x] || r.x) : r.guess ? '「' + r.guess + '？」' : '？だけ';
   const sheet = list => [['ことば', '回数', '最後に入力された日時', '種類', '表示した「？」', '表示したメッセージ']].concat(list.slice().sort((a, b) => b.count - a.count || a.word.localeCompare(b.word, 'ja')).map(r => [r.word, r.count, fmt(r.last), kind(r), r.guess ? r.guess + '？' : '', r.xmsg || '']));
   const ne = r => !r.excl, by = f => { const o = filt; filt = f; const l = rows.filter(pass); filt = o; return l; };
   const S = [
     ['「〇〇？」', by('guess')], ['？だけ', by('none')], ['使えない', by('blocked')], ['×になった', by('x')],
     ['ぐちゃぐちゃ', by('junk')], ['数量', by('qty')],
     ['除外_「〇〇？」', rows.filter(r => r.excl && !r.reg && ekind(r) === 'guess')], ['除外_？だけ', rows.filter(r => r.excl && !r.reg && ekind(r) === 'none')],
-    ['除外_×', rows.filter(r => r.excl && !r.reg && ekind(r) === 'x')], ['除外_使えない', rows.filter(r => r.excl && !r.reg && ekind(r) === 'blocked')], ['ことばじゃない_×になる', rows.filter(r => r.excl && !r.reg && ekind(r) === 'nw' && isNwIdx(r))], ['ことばじゃない_まだ×にならない', rows.filter(r => r.excl && !r.reg && ekind(r) === 'nw' && !isNwIdx(r))]
+    ['除外_×', rows.filter(r => r.excl && !r.reg && ekind(r) === 'x')], ['除外_使えない', rows.filter(r => r.excl && !r.reg && ekind(r) === 'blocked')], ['つくれない_×になる', rows.filter(r => r.excl && !r.reg && ekind(r) === 'nm' && isNmIdx(r))], ['つくれない_まだ×にならない', rows.filter(r => r.excl && !r.reg && ekind(r) === 'nm' && !isNmIdx(r))], ['ことばじゃない_×になる', rows.filter(r => r.excl && !r.reg && ekind(r) === 'nw' && isNwIdx(r))], ['ことばじゃない_まだ×にならない', rows.filter(r => r.excl && !r.reg && ekind(r) === 'nw' && !isNwIdx(r))]
   ];
   const wb = XLSX.utils.book_new();
   S.forEach(([name, list]) => { const ws = XLSX.utils.aoa_to_sheet(sheet(list)); ws['!cols'] = [{ wch: 24 }, { wch: 6 }, { wch: 18 }, { wch: 26 }, { wch: 20 }, { wch: 36 }]; XLSX.utils.book_append_sheet(wb, ws, name); });
