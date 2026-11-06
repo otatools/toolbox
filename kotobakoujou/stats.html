@@ -169,6 +169,8 @@ async function load() {
     rows = Object.keys(v).map(k => ({ key: k, word: v[k].word || k, count: v[k].count || 0, last: v[k].last ? new Date(v[k].last) : null, blocked: !!v[k].blocked && !(v[k].unblk !== undefined ? v[k].unblk : LOCALB[k]), wasBlocked: !!v[k].blocked, guess: v[k].guess || '', hit: v[k].hit || '', exclv: v[k].excl, junkv: v[k].junk, qtyv: v[k].qty, notqty: !!v[k].notqty, imgfail: !!v[k].imgfail, ver: v[k].v || '', x: v[k].x || '' }));
     const kf = await known;
     rows.forEach(r => {
+      // まえに ×（ぐちゃぐちゃ・ことばじゃない など）で きろくされても、いまは 辞書に あって ふつうに できる ことばは × を はずす
+      if (r.x && kf && JUDGE && kf(r.word)) { try { const j = JUDGE(r.word); if (j && j.t === 'ok') r.x = ''; } catch (e) {} }
       const notq = r.notqty || LOCALQ[r.key] === false;
       r.qty = !r.blocked && !r.x && !notq && (r.qtyv === true || (!!QTYF && !!QTYF(r.word)));
       r.reg = !!kf && !r.blocked && !r.x && !r.qty && !!kf(r.word);
