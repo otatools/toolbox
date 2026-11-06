@@ -742,7 +742,6 @@
     pushUndo();
     blurEnabled = !blurEnabled;
     updateBlurToggleUI();
-    processedCache.clear();
     if(getSelected()) drawEditor();
     if(step2View.style.display !== 'none'){ renderThumbs2(); renderCollage(); }
     saveSettings();
@@ -760,13 +759,36 @@
   }
 
   // この画像の描画元（自動調整済みならそちら、なければ元画像）を返す
+  // 自動調整済みの画像（原寸のキャンバス）は、必要になったときに初めて作る（300枚分を常に持つとメモリが足りなくなるため）
   function baseSource(item){
-    return (item && item.adjustedCanvas) ? item.adjustedCanvas : item.img;
+    if(!item) return null;
+    if(item.autoAdjust && !item.adjustedCanvas){
+      try{ item.adjustedCanvas = buildAdjustedCanvas(item.img, item.w, item.h, item.autoAdjust); }catch(e){}
+    }
+    return item.adjustedCanvas || item.img;
   }
   // 実際に描画に使う画像（手動調整があればそれも重ねた結果、なければ自動調整／元画像）を返す
   function itemSource(item){
+    if(item && !item.manualCanvas && hasManualAdjust(item)){
+      try{ rebuildManualCanvas(item); }catch(e){}
+    }
     if(item && item.manualCanvas) return item.manualCanvas;
     return baseSource(item);
+  }
+  // 調整内容（どの画像か・向き・自動調整・手動調整）を表す文字列。同じなら作り直さずに使い回せる
+  function adjSig(it){
+    return (it.imgKey || it.id) + '|' + it.w + 'x' + it.h + '|' + JSON.stringify(it.autoAdjust || null) + '|' + JSON.stringify(it.manualAdjust || null);
+  }
+  // 選択中・結合で使用中以外の画像の原寸キャンバスを手放す（必要になれば自動で作り直される）
+  function trimHeavyCanvases(){
+    const keep = new Set(slots.filter(s => s.item).map(s => s.item.id));
+    if(selectedId != null) keep.add(selectedId);
+    items.forEach(it => {
+      if(keep.has(it.id)) return;
+      it.adjustedCanvas = null;
+      it.manualCanvas = null;
+    });
+    processedCache.forEach((v, id) => { if(!keep.has(id)) processedCache.delete(id); });
   }
 
   // ---------- この画像だけの明るさ・コントラスト・彩度を手動調整 ----------
@@ -1120,7 +1142,13 @@
       });
     }catch(e){ /* 保存できなくても処理は続行 */ }
   }
-  async function loadImageCacheMap(){
+  // 起動時に1回だけ読み込んで、画像の復元と履歴の復元で使い回す
+  let imageCacheMapPromise = null;
+  function loadImageCacheMap(){
+    if(!imageCacheMapPromise) imageCacheMapPromise = loadImageCacheMapFromDB();
+    return imageCacheMapPromise;
+  }
+  async function loadImageCacheMapFromDB(){
     const map = new Map();
     try{
       const db = await openImgDB();
@@ -1152,7 +1180,8 @@
             autoAdjust: it.autoAdjust || null,
             manualAdjust: it.manualAdjust ? {...it.manualAdjust} : null,
             adjustVersion: it.adjustVersion || 0,
-            imgSrc: it.img ? it.img.src : null,
+            // 画像そのもの（大きい）は imageCache に1回だけ保存してあるので、ここには鍵だけを書く。
+            // 以前は保存のたびに全画像のデータを書き直していたため、枚数が多いと操作のたびに重くなっていた
             imgKey: it.imgKey || null
           });
         });
@@ -1191,15 +1220,18 @@
       if(!itemRecords.length) return;
       showLoading('保存されていた画像を読み込み中…');
       await nextPaint();
+      const cacheMap = await loadImageCacheMap();
       for(const rec of itemRecords){
-        if(!rec.imgSrc) continue;
+        const legacySrc = rec.imgSrc || null; // 以前の形式（画像データを直接保存していた）にも対応
+        const src = legacySrc || cacheMap.get(rec.imgKey || rec.id);
+        if(!src) continue;
         let img;
         try{
           img = await new Promise((resolve, reject) => {
             const im = new Image();
             im.onload = () => resolve(im);
             im.onerror = reject;
-            im.src = rec.imgSrc;
+            im.src = src;
           });
         }catch(e){ continue; }
         const item = {
@@ -1213,15 +1245,9 @@
           manualCanvas: null,
           adjustVersion: rec.adjustVersion || 0
         };
-        if(item.autoAdjust){
-          try{ item.adjustedCanvas = buildAdjustedCanvas(item.img, item.w, item.h, item.autoAdjust); }catch(e){}
-        }
-        if(item.manualAdjust){
-          try{ rebuildManualCanvas(item); }catch(e){}
-        }
         nextId = Math.max(nextId, rec.id + 1);
         items.push(item);
-        cacheImageSource(item.imgKey || item.id, item.img.src);
+        if(legacySrc) cacheImageSource(item.imgKey || item.id, legacySrc);
       }
       if(workState) restoreWorkState(workState);
     }catch(e){
@@ -1282,6 +1308,9 @@
     };
   }
   let persistHistoryTimer = null;
+  // 起動時に保存済みの履歴を読み込み終わるまでは、履歴の保存（と画像データの整理）をしない
+  // （読み込み前の空の履歴で上書きしたり、履歴で使う画像データを消したりしないため）
+  let historyReady = false;
   function schedulePersistHistory(){
     if(!persistImages) return;
     if(persistHistoryTimer) clearTimeout(persistHistoryTimer);
@@ -1289,6 +1318,7 @@
   }
   async function saveHistoryToImgDB(){
     if(!persistImages) return;
+    if(!historyReady){ schedulePersistHistory(); return; }
     try{
       const db = await openImgDB();
       const data = {
@@ -1302,7 +1332,26 @@
         tx.oncomplete = resolve;
         tx.onerror = () => reject(tx.error);
       });
+      await pruneImageCache(db);
     }catch(e){ /* 保存できなくても処理は続行 */ }
+  }
+  // 今の画像にも「元に戻す／やり直す」の履歴にも出てこなくなった画像データを消して、保存領域を空ける
+  async function pruneImageCache(db){
+    const used = new Set();
+    const addKeys = arr => arr.forEach(it => used.add(it.imgKey || it.id));
+    addKeys(items);
+    undoStack.forEach(s => addKeys(s.items));
+    redoStack.forEach(s => addKeys(s.items));
+    await new Promise((resolve) => {
+      const tx = db.transaction(IMAGECACHE_STORE, 'readwrite');
+      const store = tx.objectStore(IMAGECACHE_STORE);
+      const req = store.getAllKeys();
+      req.onsuccess = () => {
+        (req.result || []).forEach(k => { if(!used.has(k)) store.delete(k); });
+      };
+      tx.oncomplete = resolve;
+      tx.onerror = () => resolve();
+    });
   }
   async function loadHistoryFromImgDB(){
     try{
@@ -1318,7 +1367,7 @@
       const imgObjCache = new Map(); // 同じ画像を何度も読み込み直さないためのキャッシュ
       async function getSharedImage(id){
         if(imgObjCache.has(id)) return imgObjCache.get(id);
-        // id には「画像データの鍵」（回転前の画像は商品のid、回転後は専用の鍵）が入る
+        // id には「画像データの鍵」（回転前の画像は画像のid、回転後は専用の鍵）が入る
         const cur = items.find(x => (x.imgKey || x.id) === id);
         if(cur && cur.img){ imgObjCache.set(id, cur.img); return cur.img; }
         const src = imageCacheMap.get(id);
@@ -1348,13 +1397,7 @@
             manualCanvas: null,
             adjustVersion: it.adjustVersion || 0
           };
-          if(full.autoAdjust){
-            try{ full.adjustedCanvas = buildAdjustedCanvas(full.img, full.w, full.h, full.autoAdjust); }catch(e){}
-          }
-          if(full.manualAdjust){
-            try{ rebuildManualCanvas(full); }catch(e){}
-          }
-          itemsArr.push(full);
+          itemsArr.push(full); // 原寸の調整済み画像は、必要になったときに作られる
         }
         return {
           controls: {...storable.controls},
@@ -1565,7 +1608,7 @@
       },
       batch: {...batch},
       currentCount, currentPresetId, activeSlot, selectedId,
-      items: items.map(it => ({id:it.id, name:it.name, img:it.img, imgKey:it.imgKey||null, w:it.w, h:it.h, boxes: cloneBoxes(it.boxes), detected: it.detected, overrides: {...(it.overrides||{})}, autoAdjust: it.autoAdjust || null, adjustedCanvas: it.adjustedCanvas || null, manualAdjust: it.manualAdjust ? {...it.manualAdjust} : null, manualCanvas: it.manualCanvas || null, adjustVersion: it.adjustVersion || 0})),
+      items: items.map(it => ({id:it.id, name:it.name, img:it.img, imgKey:it.imgKey||null, w:it.w, h:it.h, boxes: cloneBoxes(it.boxes), detected: it.detected, overrides: {...(it.overrides||{})}, autoAdjust: it.autoAdjust || null, adjustedCanvas: null, manualAdjust: it.manualAdjust ? {...it.manualAdjust} : null, manualCanvas: null, adjustVersion: it.adjustVersion || 0})),
       slots: slots.map(s => ({rect:{...s.rect}, itemId: s.item ? s.item.id : null, zoom:s.zoom, offX:s.offX, offY:s.offY, baseScale:s.baseScale}))
     };
   }
@@ -1588,11 +1631,21 @@
     currentPresetId = snap.currentPresetId;
     selectedId = snap.selectedId;
 
-    items = snap.items.map(it => ({id:it.id, name:it.name, img:it.img, imgKey:it.imgKey||null, w:it.w, h:it.h, boxes: cloneBoxes(it.boxes), detected: it.detected, overrides: {...(it.overrides||{})}, autoAdjust: it.autoAdjust || null, adjustedCanvas: it.adjustedCanvas || null, manualAdjust: it.manualAdjust ? {...it.manualAdjust} : null, manualCanvas: it.manualCanvas || null, adjustVersion: it.adjustVersion || 0}));
+    const prevById = new Map(items.map(it => [it.id, it]));
+    items = snap.items.map(it => {
+      const n = {id:it.id, name:it.name, img:it.img, imgKey:it.imgKey||null, w:it.w, h:it.h, boxes: cloneBoxes(it.boxes), detected: it.detected, overrides: {...(it.overrides||{})}, autoAdjust: it.autoAdjust || null, adjustedCanvas: null, manualAdjust: it.manualAdjust ? {...it.manualAdjust} : null, manualCanvas: null, adjustVersion: it.adjustVersion || 0};
+      // 今の画像と調整内容が同じなら、作成済みの原寸キャンバスをそのまま使い回す（元に戻すを速くするため）
+      const prev = prevById.get(it.id);
+      if(prev && prev.img === n.img && adjSig(prev) === adjSig(n)){
+        n.adjustedCanvas = prev.adjustedCanvas || null;
+        n.manualCanvas = prev.manualCanvas || null;
+      }
+      return n;
+    });
     slots = snap.slots.map(s => ({rect:{...s.rect}, item: s.itemId!=null ? items.find(i=>i.id===s.itemId) || null : null, zoom:s.zoom, offX:s.offX, offY:s.offY, baseScale:s.baseScale}));
     activeSlot = snap.activeSlot;
 
-    processedCache.clear();
+    // ぼかし済み画像のキャッシュは内容ごとに見分けているので、消さずに使い回す
     renderThumbs();
     if(getSelected()){ editorPanel.style.display = 'block'; refreshSliderUI(); drawEditor(); } else { editorPanel.style.display = 'none'; }
     renderCountTabs();
@@ -1809,15 +1862,81 @@
     return out;
   }
 
+  // ---------- サムネイル用の小さい画像（作ったものは内容が変わるまで使い回す） ----------
+  // 以前は一覧を描き直すたびに全画像を原寸でぼかし直していたため、枚数が多いと1回の操作に何秒もかかっていた
+  const THUMB_MAX = 320;
+  const thumbCache = new Map(); // id -> {raw:{key,url}, proc:{key,url}}
+  function thumbScale(item){ return Math.min(1, THUMB_MAX / Math.max(item.w, item.h)); }
+  function rawThumbURL(item){
+    const key = (item.imgKey || item.id) + '|' + item.w + 'x' + item.h;
+    const ent = thumbCache.get(item.id) || {};
+    if(ent.raw && ent.raw.key === key) return ent.raw.url;
+    const s = thumbScale(item);
+    const c = document.createElement('canvas');
+    c.width = Math.max(1, Math.round(item.w * s)); c.height = Math.max(1, Math.round(item.h * s));
+    const cx = c.getContext('2d'); cx.imageSmoothingQuality = 'high';
+    cx.drawImage(item.img, 0, 0, c.width, c.height);
+    const url = c.toDataURL('image/jpeg', 0.82);
+    ent.raw = {key, url}; thumbCache.set(item.id, ent);
+    return url;
+  }
+  // 小さいサイズのまま「自動調整→手動調整→ぼかし」を行う（見た目は原寸で処理したものと同じ）
+  function processedThumbURL(item){
+    const key = processedSig(item);
+    const ent = thumbCache.get(item.id) || {};
+    if(ent.proc && ent.proc.key === key) return ent.proc.url;
+    const s = thumbScale(item);
+    const tw = Math.max(1, Math.round(item.w * s)), th = Math.max(1, Math.round(item.h * s));
+    let base;
+    if(item.autoAdjust){
+      base = buildAdjustedCanvas(item.img, tw, th, item.autoAdjust);
+    } else {
+      base = document.createElement('canvas'); base.width = tw; base.height = th;
+      const bc = base.getContext('2d'); bc.imageSmoothingQuality = 'high';
+      bc.drawImage(item.img, 0, 0, tw, th);
+    }
+    if(hasManualAdjust(item)){
+      if(CANVAS_FILTER_OK){
+        const m = document.createElement('canvas'); m.width = tw; m.height = th;
+        const mc = m.getContext('2d');
+        mc.filter = buildManualFilterString(item.manualAdjust);
+        mc.drawImage(base, 0, 0);
+        base = m;
+      } else {
+        applyManualAdjustPixels(base, item.manualAdjust);
+      }
+    }
+    const out = document.createElement('canvas'); out.width = tw; out.height = th;
+    const oc = out.getContext('2d');
+    oc.drawImage(base, 0, 0);
+    if(blurEnabled){
+      const strength = effVal(item, 'strength');
+      const feather = effVal(item, 'feather')/100;
+      item.boxes.forEach(b => {
+        const sb = {x: b.x*s, y: b.y*s, w: b.w*s, h: b.h*s, src: b.src};
+        if(b.shape) sb.shape = b.shape;
+        if(b.points) sb.points = b.points.map(p => ({x: p.x*s, y: p.y*s}));
+        if(sb.w >= 1 && sb.h >= 1) applyBlurForBox(oc, base, sb, strength, feather);
+      });
+    }
+    const url = out.toDataURL('image/jpeg', 0.82);
+    ent.proc = {key, url}; thumbCache.set(item.id, ent);
+    return url;
+  }
+
   // ---------- サムネイル ----------
   function renderThumbs(){
     schedulePersistImages();
+    if(thumbCache.size > items.length){
+      const alive = new Set(items.map(it => it.id));
+      thumbCache.forEach((v, id) => { if(!alive.has(id)) thumbCache.delete(id); });
+    }
     thumbGrid.innerHTML = '';
     items.forEach(item => {
       const div = document.createElement('div');
       div.className = 'thumb' + (item.id === selectedId ? ' selected' : '');
       const im = document.createElement('img');
-      im.src = item.img.src;
+      im.src = rawThumbURL(item);
       div.appendChild(im);
 
       const badge = document.createElement('div');
@@ -1827,7 +1946,7 @@
 
       const marks = [];
       if(hasItemOverrides(item)) marks.push('個別設定');
-      if(item.adjustedCanvas) marks.push('自動調整');
+      if(item.autoAdjust) marks.push('自動調整');
       if(hasManualAdjust(item)) marks.push('手動調整');
       if(marks.length){
         const ov = document.createElement('div');
@@ -1864,7 +1983,7 @@
       const div = document.createElement('div');
       div.className = 'thumb';
       const im = document.createElement('img');
-      im.src = renderProcessedCanvas(item).toDataURL('image/jpeg', 0.85);
+      im.src = processedThumbURL(item);
       div.appendChild(im);
 
       if(usedCount > 0){
@@ -1917,6 +2036,7 @@
     polygonDraft = null;
     refreshSliderUI();
     drawEditor();
+    trimHeavyCanvases();
   }
 
   function getSelected(){ return items.find(i => i.id === selectedId); }
@@ -2332,7 +2452,7 @@
     btnResetItemOverrides.style.display = (sliderScope === 'item' && hasItemOverrides(item)) ? 'block' : 'none';
 
     btnAutoAdjust.disabled = !item;
-    btnResetAutoAdjust.style.display = (item && item.adjustedCanvas) ? 'block' : 'none';
+    btnResetAutoAdjust.style.display = (item && item.autoAdjust) ? 'block' : 'none';
 
     refreshManualAdjustUI();
   }
@@ -2369,8 +2489,9 @@
   function applyAutoAdjustToItem(item){
     const adj = computeAutoAdjust(item.img, item.w, item.h);
     item.autoAdjust = adj;
-    item.adjustedCanvas = buildAdjustedCanvas(item.img, item.w, item.h, adj);
-    rebuildManualCanvas(item); // 手動調整も設定済みなら、自動調整後の画像に重ね直す
+    // 原寸の調整済み画像は、表示や書き出しで必要になったときに作る（大量の画像を一括調整しても重くならないように）
+    item.adjustedCanvas = null;
+    item.manualCanvas = null;
     item.adjustVersion = (item.adjustVersion || 0) + 1;
     processedCache.delete(item.id);
   }
@@ -2506,8 +2627,8 @@
     item.imgKey = item.id + '_r' + Date.now();
     cacheImageSource(item.imgKey, url);
     item.boxes = item.boxes.map(b => rotateBoxRight(b, H));
-    item.adjustedCanvas = item.autoAdjust ? buildAdjustedCanvas(item.img, item.w, item.h, item.autoAdjust) : null;
-    rebuildManualCanvas(item);
+    item.adjustedCanvas = null; // 必要になったときに回転後の画像から作り直される
+    item.manualCanvas = null;
     item.adjustVersion = (item.adjustVersion || 0) + 1;
     processedCache.delete(item.id);
   }
@@ -3138,12 +3259,16 @@
     });
 
     btnDownloadCombined.disabled = !slots.some(s => s.item);
+    trimHeavyCanvases();
   }
 
   // ぼかし処理済みキャンバスをキャッシュ（毎フレーム再生成しない）
   const processedCache = new Map();
+  function processedSig(item){
+    return adjSig(item) + '|' + effVal(item,'strength') + '|' + effVal(item,'feather') + '|' + (blurEnabled?1:0) + '|' + JSON.stringify(item.boxes);
+  }
   function getProcessedCanvasCached(item){
-    const key = item.id + ':' + effVal(item,'strength') + ':' + effVal(item,'feather') + ':' + (item.adjustVersion||0) + ':' + (blurEnabled?1:0) + ':' + JSON.stringify(item.boxes);
+    const key = processedSig(item);
     const cached = processedCache.get(item.id);
     if(cached && cached.key === key) return cached.canvas;
     const canvas = renderProcessedCanvas(item);
@@ -3421,7 +3546,9 @@
         showStep(2);
       }
       return loadHistoryFromImgDB();
-    });
+    }).catch(e => console.error(e)).finally(() => { historyReady = true; });
+  } else {
+    historyReady = true;
   }
 
 })();
