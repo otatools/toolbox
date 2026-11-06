@@ -2923,21 +2923,44 @@ return {recog:recog};
         if (Array.isArray(saved)) coll = saved.filter(function (x) { return x && typeof x.w === 'string'; });
     } catch (e) { coll = []; }
     coll.forEach(function (it) { if (!Array.isArray(it.ws) || !it.ws.length) it.ws = [it.w]; });
-    // じしょから けした ことば・つかえなくした ことばの カードは、コレクションからも けす
+    // ===== コレクションの まもり =====
+    // ・いちばん おおかった ときの コレクションを べつの なまえで とっておく（BAK）
+    // ・ひらいた とき コレクションが からっぽで、BAK に カードが あれば もどす（「ぜんぶ けす」を おした ときは もどさない）
+    var BAK_KEY = 'kotobakoujou.collection.bak';
+    function bakLoad() { try { var b = JSON.parse(localStorage.getItem(BAK_KEY) || 'null'); return (b && Array.isArray(b.coll)) ? b : null; } catch (e) { return null; } }
+    function bakSave(list) { try { if (list && list.length) localStorage.setItem(BAK_KEY, JSON.stringify({ t: Date.now(), coll: list })); } catch (e) {} }
     (function () {
-        var before = coll.length, changed = false;
-        coll = coll.filter(function (it) {
+        var b = bakLoad();
+        if (!coll.length && b && b.coll.length) {
+            coll = b.coll.filter(function (x) { return x && typeof x.w === 'string'; });
+            coll.forEach(function (it) { if (!Array.isArray(it.ws) || !it.ws.length) it.ws = [it.w]; });
+            try { localStorage.setItem(COLL_KEY, JSON.stringify(coll)); } catch (e) {}
+        } else if (coll.length && (!b || coll.length >= b.coll.length)) bakSave(coll);
+    })();
+    // じしょから けした ことば・つかえなくした ことばの カードは、コレクションからも けす
+    // ただし じしょが うまく よめて いない とき・けす かずが おおすぎる ときは なにも けさない（ぜんぶ きえる じこを ふせぐ）
+    (function () {
+        var nDict = 0; for (var k in DICT) { if (++nDict > 1000) break; }
+        if (nDict <= 1000 || typeof window.__known !== 'function') return;
+        var before = coll.length, changed = false, out = [], removed = 0;
+        coll.forEach(function (it) {
             var ws = it.ws.filter(function (w) {
                 try { return window.__known(w) && !isBad(w) && !isChar(w); } catch (e) { return true; }
             });
             if (ws.length !== it.ws.length) changed = true;
-            if (!ws.length) return false;
-            it.ws = ws; if (ws.indexOf(it.w) < 0) it.w = ws[0];
-            return true;
+            if (!ws.length) { removed++; return; }
+            out.push({ it: it, ws: ws });
         });
-        if (changed || coll.length !== before) { try { localStorage.setItem(COLL_KEY, JSON.stringify(coll)); } catch (e) {} }
+        if (!changed) return;
+        if (removed > 3 && removed > before * 0.2) return;   // おおすぎる ときは へんなので けさない
+        bakSave(coll.map(function (it) { return JSON.parse(JSON.stringify(it)); }));
+        coll = out.map(function (o) { var it = o.it; it.ws = o.ws; if (o.ws.indexOf(it.w) < 0) it.w = o.ws[0]; return it; });
+        try { localStorage.setItem(COLL_KEY, JSON.stringify(coll)); } catch (e) {}
     })();
-    function saveColl() { try { localStorage.setItem(COLL_KEY, JSON.stringify(coll)); } catch (e) {} }
+    function saveColl() {
+        try { localStorage.setItem(COLL_KEY, JSON.stringify(coll)); } catch (e) {}
+        var b = bakLoad(); if (coll.length && (!b || coll.length >= b.coll.length)) bakSave(coll);
+    }
     // おなじ ことばが どこかのカードに あるか
     function findWord(w) { for (var i = 0; i < coll.length; i++) if (coll[i].ws.indexOf(w) >= 0) return i; return -1; }
     // おなじ イラストの カードを さがす（絵が かわったら べつのカード＝むかしの絵は そのまま）
@@ -3451,7 +3474,7 @@ return {recog:recog};
     bindPress(document.getElementById('btnClearAll'), function () {
         if (!coll.length) return;
         askConfirm('コレクションを ぜんぶ けしても いい？', function () {
-            coll = []; saveColl(); updateBadge(); renderColl();
+            coll = []; try { localStorage.removeItem(BAK_KEY); } catch (e) {} saveColl(); updateBadge(); renderColl();
         });
     });
     bindPress(document.getElementById('btnCvClose'), closeCv);
