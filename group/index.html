@@ -960,10 +960,10 @@
     </script>
 
 <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-    import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-    import { getFirestore, doc, setDoc, updateDoc, increment, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+    // アプリ固有のID
+    const THIS_APP_ID = "19";
 
+    const PORTAL_APP_ID = "otatoolssite-v1";
     const firebaseConfig = {
         apiKey: "AIzaSyB4fpt6ffIuTBDJo_9g37kYr6KOWNgIcEY",
         authDomain: "otatoolssite.firebaseapp.com",
@@ -973,35 +973,39 @@
         appId: "1:20522292752:web:22fba7fecb61736593dc95"
     };
 
-    // アプリ固有のID
-    const THIS_APP_ID = "19"; 
-    
-    const PORTAL_APP_ID = "otatoolssite-v1";
-    const app = initializeApp(firebaseConfig);
-    const db = getFirestore(app);
-    const auth = getAuth(app);
-    signInAnonymously(auth).then(async () => {
-        const todayStr = new Date().toISOString().split('T')[0];
-        const storageKey = `ota_visited_${THIS_APP_ID}`;
-        
-        if (localStorage.getItem(storageKey) === todayStr) {
-            return;
-        }
-        const docRef = doc(db, 'artifacts', PORTAL_APP_ID, 'public', 'data', 'app_views', THIS_APP_ID);
-                try {
+    // 日本時間の「今日」（toISOString は世界標準時なので、朝9時まで前の日あつかいになってしまう）
+    const d = new Date();
+    const todayStr = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    const storageKey = `ota_visited_${THIS_APP_ID}`;
+
+    let counted = false;
+    try { counted = (localStorage.getItem(storageKey) === todayStr); } catch (e) {}
+
+    // 今日すでに数えた端末は、Firebaseを読みこまない（通信と読み取りを減らす）
+    if (!counted) countView();
+
+    async function countView() {
+        try {
+            const [{ initializeApp }, { getAuth, signInAnonymously }, { getFirestore, doc, setDoc, updateDoc, increment, getDoc }] = await Promise.all([
+                import("https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js"),
+                import("https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js"),
+                import("https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js")
+            ]);
+            const app = initializeApp(firebaseConfig, "ota-views");   // ゲーム本体のFirebaseとまざらないよう名前をつける
+            const db = getFirestore(app);
+            await signInAnonymously(getAuth(app));
+            const docRef = doc(db, 'artifacts', PORTAL_APP_ID, 'public', 'data', 'app_views', THIS_APP_ID);
             const docSnap = await getDoc(docRef);
             if (docSnap.exists()) {
                 await updateDoc(docRef, { count: increment(1) });
             } else {
-                await setDoc(docRef, { count: 1 }); 
+                await setDoc(docRef, { count: 1 });
             }
-            localStorage.setItem(storageKey, todayStr);
-        } catch (e) { 
-            console.error("閲覧数のカウントに失敗しました:", e); 
+            try { localStorage.setItem(storageKey, todayStr); } catch (e) {}
+        } catch (e) {
+            console.error("閲覧数のカウントに失敗しました:", e);
         }
-    }).catch((error) => {
-        console.error("Firebase認証エラー:", error);
-    });
+    }
 </script>
 
 </body>
