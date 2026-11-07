@@ -1483,7 +1483,7 @@ document.addEventListener('wheel', function(e){ if(e.ctrlKey) e.preventDefault()
    ・つながらないとき（オフライン／ファイルを直接開いているとき）は何もしない
    ・同じ版へ何度も読みこみ直して止まらなくならないよう、1つの版につき1回だけ
    ============================================================ */
-var BUILD_ID = '20261106-2318';
+var BUILD_ID = '20261107-0830';
 var updateCheckBusy = false;
 var updateCheckLast = 0;
 var UPDATE_RETRY_MS = 30 * 60 * 1000;  // 確認に失敗したときは、30分たつまで試さない
@@ -4420,9 +4420,12 @@ function initSoloGame(){
    した間はブラウザがタイマーの発火を間引く（＝表示が止まって見える）ため、
    「開始時刻からの経過時間」を毎回計算しなおして残り時間を出す方式にする。 */
 /* ひとりプレイの制限時間：はじめは30秒。1枚正解するごとに5秒ふえる（3回まちがえたら終わりは同じ） */
+/* NO_TIMER を true にした版（先生用のページ）は、制限時間なしで遊べる（ランキングはふつうの版と同じ） */
+var NO_TIMER = false;
 var SOLO_TIME_START = 30;
 var SOLO_TIME_BONUS = 5;
 function addSoloTime(){
+  if(NO_TIMER) return;
   if(!game || game.type !== 'solo' || game.ended) return;
   game.timeTotal += SOLO_TIME_BONUS;
   var elapsedSec = game.timerStartedAt ? Math.floor((Date.now() - game.timerStartedAt) / 1000) : 0;
@@ -4450,7 +4453,9 @@ function showTimeBonus(){
   }
   t.classList.remove('time-up'); void t.offsetWidth; t.classList.add('time-up');
 }
+(function(){ if(!NO_TIMER) return; var li = document.querySelector('.solo-rules li'); if(li) li.innerHTML = '制限時間<b>なし</b>'; })();
 function startSoloTimer(){
+  if(NO_TIMER) return;
   if(!game || game.type !== 'solo' || game.ended) return;
   game.timerStartedAt = Date.now();
   if(game.timerId){ clearInterval(game.timerId); }
@@ -4694,7 +4699,7 @@ function renderHud(){
     turnLabel.textContent = '';
     deckCount.textContent = '';
     soloStats.hidden = false;
-    document.getElementById('solo-time-num').textContent = game.timeLeft + '秒';   // 「＋5秒」の表示を消さないよう、数字の部分だけ書きかえる
+    document.getElementById('solo-time-num').textContent = NO_TIMER ? '時間なし' : (game.timeLeft + '秒');   // 「＋5秒」の表示を消さないよう、数字の部分だけ書きかえる
     document.getElementById('solo-correct').textContent = '正解 ' + game.correctCount + '枚';
     soloStats.querySelectorAll('.gem').forEach(function(gem, i){
       gem.classList.toggle('is-miss', i < game.missCount);
