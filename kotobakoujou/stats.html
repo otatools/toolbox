@@ -144,6 +144,7 @@ function autoNw(r) {
 }
 function applyJ(r, j) {
   if (!j || !j.t) return;
+  if (j.t === 'bad') { if (!r.ub && !r.blocked) { r.blocked = true; r.guess = ''; r.junk = false; r.qty = false; } return; }   // いまの アプリで 使えない ことば（禁止ワード）に なった ものは「使えない」へ
   if (j.t === 'guess') r.guess = j.g;
   else if (j.t === 'q') r.guess = '';
   r.nwIdx = j.t === 'x' && /ことばじゃない/.test(j.msg || '');
@@ -180,7 +181,7 @@ async function load() {
     if (!auth.currentUser) await signInAnonymously(auth);
     const snap = await get(ref(db, 'kotoba_unknown'));
     const v = snap.val() || {};
-    rows = Object.keys(v).map(k => ({ key: k, word: v[k].word || k, count: v[k].count || 0, last: v[k].last ? new Date(v[k].last) : null, blocked: !!v[k].blocked && !(v[k].unblk !== undefined ? v[k].unblk : LOCALB[k]), wasBlocked: !!v[k].blocked, guess: v[k].guess || '', hit: v[k].hit || '', exclv: v[k].excl, junkv: v[k].junk, qtyv: v[k].qty, notqty: !!v[k].notqty, imgfail: !!v[k].imgfail, ver: v[k].v || '', x: v[k].x || '', xdb: v[k].x || '', nwv: v[k].nw, nmv: v[k].nm }));
+    rows = Object.keys(v).map(k => ({ key: k, word: v[k].word || k, count: v[k].count || 0, last: v[k].last ? new Date(v[k].last) : null, blocked: !!v[k].blocked && !(v[k].unblk !== undefined ? v[k].unblk : LOCALB[k]), wasBlocked: !!v[k].blocked, ub: !!(v[k].unblk !== undefined ? v[k].unblk : LOCALB[k]), guess: v[k].guess || '', hit: v[k].hit || '', exclv: v[k].excl, junkv: v[k].junk, qtyv: v[k].qty, notqty: !!v[k].notqty, imgfail: !!v[k].imgfail, ver: v[k].v || '', x: v[k].x || '', xdb: v[k].x || '', nwv: v[k].nw, nmv: v[k].nm }));
     const kf = await known;
     rows.forEach(r => {
       // まえに ×（ぐちゃぐちゃ・ことばじゃない など）で きろくされても、いまは 辞書に あって ふつうに できる ことばは × を はずす
@@ -324,7 +325,7 @@ async function unBlock() {
     try { localStorage.setItem('kotoba.unblk', JSON.stringify(LOCALB)); } catch (e2) {}
     msg.textContent = 'サーバーに かきこめなかったので、このブラウザだけに きおくしました：' + e.message;
   }
-  sel.forEach(r => { r.blocked = false; });
+  sel.forEach(r => { r.blocked = false; r.ub = true; });
   render();
 }
 // 数量じゃないのに 数量に はいった ことばを「全部」に もどす
