@@ -36,7 +36,7 @@
 <body>
 <main>
   <h1>？・×になったことば</h1>
-  <div class="bar"><button id="reload">最新にする</button><button id="csv">CSVでほぞん（Excel用）</button><button id="xlsx">Excelでほぞん（種類ごとのシート）</button><button id="exclBtn" disabled>除外に入れる</button><button id="nmBtn" disabled title="×にして「これは つくれないよ」と だす ものを 除外の「つくれない」に いれる">つくれない（除外）に入れる</button><button id="nwBtn" disabled title="ことばじゃない もの（でたらめ・れんしゅう打ち など）を 除外の「ことばじゃない」に いれる">ことばじゃない（除外）に入れる</button><button id="restoreBtn" disabled hidden>選んだものを全部に入れる</button><button id="del" class="del" disabled>選んだものを消す</button></div>
+  <div class="bar"><button id="reload">最新にする</button><button id="resort" title="いまの アプリで うったら どう なるかで、ぜんぶの ことばを ふりわけなおします（除外の ものは 除外の 中で）">振り分けなおす</button><button id="csv">CSVでほぞん（Excel用）</button><button id="xlsx">Excelでほぞん（種類ごとのシート）</button><button id="exclBtn" disabled>除外に入れる</button><button id="nmBtn" disabled title="×にして「これは つくれないよ」と だす ものを 除外の「つくれない」に いれる">つくれない（除外）に入れる</button><button id="nwBtn" disabled title="ことばじゃない もの（でたらめ・れんしゅう打ち など）を 除外の「ことばじゃない」に いれる">ことばじゃない（除外）に入れる</button><button id="restoreBtn" disabled hidden>選んだものを全部に入れる</button><button id="del" class="del" disabled>選んだものを消す</button></div>
   <div class="flt" id="flt"><button data-f="all" class="on">全部<small id="fc_all"></small></button><button data-f="guess" title="「〇〇？」と表示した言葉">「〇〇？」<small id="fc_guess"></small></button><button data-f="none" title="？だけ表示した言葉">？だけ<small id="fc_none"></small></button><button data-f="blocked" title="使えないことば">使えない<small id="fc_blocked"></small></button><button data-f="x" title="×になった言葉（キャラクター・ゲーム・まんが・人名など）">×になった<small id="fc_x"></small></button><button data-f="junk" title="存在しない言葉（でたらめ入力）">ぐちゃぐちゃ<small id="fc_junk"></small></button><button data-f="excl" title="除外リスト（消えない・CSVに入らない）">除外<small id="fc_excl"></small></button><button data-f="qty" title="数量のことば（よにん・はちびき・いっこ・いちおくえん…）">数量<small id="fc_qty"></small></button><button data-f="reg" title="辞書にあるので隠していた言葉">辞書にある<small id="fc_reg"></small></button></div>
   <div class="flt" id="sub" hidden><button data-s="all" class="on">除外の全部<small id="sc_all"></small></button><button data-s="guess">「〇〇？」<small id="sc_guess"></small></button><button data-s="none">？だけ<small id="sc_none"></small></button><button data-s="x">×<small id="sc_x"></small></button><button data-s="blocked">使えない<small id="sc_blocked"></small></button><button data-s="nm" title="×にして「これは つくれないよ」と だす もの">×：つくれない<small id="sc_nm"></small></button><button data-s="nw" title="ことばじゃない もの。「〇〇？」の さいしんかは しない">ことばじゃない<small id="sc_nw"></small></button></div>
   <div id="exclAdd" hidden style="margin:8px 0;padding:10px;background:#f4f7ff;border-radius:8px"><div style="font-size:.9em;margin-bottom:4px">ここに ことばを いれると、まとめて 除外リストに くわえます（いくつでも：改行か「、」「,」でくぎる）。こどもが また いれても 除外リストに はいります。</div><textarea id="exclTxt" rows="3" style="width:100%;box-sizing:border-box;font-size:16px"></textarea><button id="exclAddBtn" style="margin-top:6px">除外リストに くわえる</button></div>
@@ -144,7 +144,7 @@ function autoNw(r) {
 }
 function applyJ(r, j) {
   if (!j || !j.t) return;
-  if (j.t === 'bad') { if (!r.ub && !r.blocked) { r.blocked = true; r.guess = ''; r.junk = false; r.qty = false; r.x = ''; r.nw = false; r.nm = false; } return; }   // ×・ことばじゃない に はいっていても、いまは 禁止なら「使えない」へ
+  if (j.t === 'bad') { if (!r.ub) { r.blocked = true; r.guess = ''; r.junk = false; r.qty = false; r.x = ''; r.nw = false; r.nm = false; } return; }   // ×・ことばじゃない に はいっていても、いまは 禁止なら「使えない」へ
   if (r.excl && (r.x || r.nw || r.nm)) { r.nwIdx = j.t === 'x' && /ことばじゃない/.test(j.msg || ''); r.nmIdx = j.t === 'x' && /これは つくれない/.test(j.msg || ''); return; }   // 除外の ×・ことばじゃない・つくれない は「〇〇？」を さいしんに しない（禁止に なったかだけ みる）   // いまの アプリで 使えない ことば（禁止ワード）に なった ものは「使えない」へ
   if (j.t === 'guess') r.guess = j.g;
   else if (j.t === 'q') r.guess = '';
@@ -311,6 +311,60 @@ async function setNw(kind) {
   if (!msg.textContent) msg.textContent = sel.length + 'こ「' + (kind === 'nm' ? 'つくれない' : 'ことばじゃない') + '」に いれました';
   render();
 }
+// いまの アプリの はんていで ぜんぶ ふりわけなおす（除外は 除外の 中で。アプリが しらない ことば（？・〇〇？）に つけた「ことばじゃない」「つくれない」は そのまま）
+async function reSort() {
+  const msg = document.getElementById('msg'), btn = document.getElementById('resort');
+  if (!JUDGE) { msg.textContent = 'アプリの よみこみを まっています。すこし まってから もういちど おしてください'; return; }
+  GTOKEN++; btn.disabled = true; msg.style.color = '#7a6a55';
+  const kf = await known, list = rows.slice(), memo = {}, ch = [];
+  let i = 0;
+  await new Promise(done => { const step = () => {
+    const t0 = performance.now();
+    for (; i < list.length && performance.now() - t0 < 40; i++) {
+      const r = list[i]; let j = null; try { j = JUDGE(r.word); } catch (e) {}
+      if (!j || !j.t) continue;
+      memo[r.word] = [j.t, j.g || '', j.msg || ''];
+      const before = [r.blocked, r.nw, r.nm, r.x, r.guess].join('|');
+      if (j.t === 'bad') { r.blocked = true; r.ub = false; r.nw = false; r.nm = false; r.x = ''; r.guess = ''; r.junk = false; r.qty = false; }
+      else {
+        r.blocked = false; r.ub = r.wasBlocked;
+        if (j.t === 'x') {
+          r.xmsg = j.msg || '';
+          r.nmIdx = /これは つくれない/.test(j.msg || ''); r.nwIdx = /ことばじゃない/.test(j.msg || '');
+          if (r.nmIdx) { r.nm = true; r.nw = false; r.x = 'nomake'; r.excl = true; }
+          else if (r.nwIdx) { r.nw = true; r.nm = false; r.x = 'notword'; r.excl = true; }
+          else { r.nw = false; r.nm = false; r.x = /ゲームの なまえ/.test(j.msg) ? 'game' : /ゲームの なか/.test(j.msg) ? 'gameword' : /まんが/.test(j.msg) ? 'anime' : /じんぶつ/.test(j.msg) ? 'person' : 'char'; }
+          r.guess = '';
+        } else {
+          r.x = ''; r.nmIdx = false; r.nwIdx = false;
+          if (j.t === 'ok') { r.nw = false; r.nm = false; r.guess = ''; r.reg = !!kf && !r.qty; }
+          else r.guess = j.t === 'guess' ? j.g : '';
+        }
+      }
+      r.xdb = r.x;
+      if (before !== [r.blocked, r.nw, r.nm, r.x, r.guess].join('|')) ch.push(r);
+    }
+    if (i < list.length) { msg.textContent = '振り分けなおしています… ' + i + ' / ' + list.length; setTimeout(step, 0); } else done();
+  }; setTimeout(step, 0); });
+  const sig = await judgeSig(); jsave(sig, memo);
+  let note = '';
+  if (ch.length) {
+    try {
+      if (!auth.currentUser) await signInAnonymously(auth);
+      const u = {};
+      ch.forEach(r => { u[r.key + '/nw'] = r.nw; u[r.key + '/nm'] = r.nm; u[r.key + '/x'] = r.x || null; u[r.key + '/unblk'] = r.blocked ? null : (r.wasBlocked ? true : null); if (r.nw || r.nm) u[r.key + '/excl'] = true; r.nwv = r.nw; r.nmv = r.nm; if (r.nw || r.nm) r.exclv = true; });
+      await update(ref(db, 'kotoba_unknown'), u);
+    } catch (e) {
+      ch.forEach(r => { LOCALN[r.key] = r.nw; LOCALM[r.key] = r.nm; if (r.nw || r.nm) LOCAL[r.key] = true; LOCALB[r.key] = !r.blocked && r.wasBlocked; });
+      try { localStorage.setItem('kotoba.nw', JSON.stringify(LOCALN)); localStorage.setItem('kotoba.nm', JSON.stringify(LOCALM)); localStorage.setItem('kotoba.excl', JSON.stringify(LOCAL)); localStorage.setItem('kotoba.unblk', JSON.stringify(LOCALB)); } catch (e2) {}
+      note = '（サーバーに かきこめなかったので、このブラウザだけに きおくしました：' + e.message + '）';
+    }
+  }
+  btn.disabled = false; msg.style.color = '';
+  msg.textContent = '振り分けなおしました：' + list.length + 'こ しらべて、' + ch.length + 'こ うつしました' + note;
+  render();
+}
+document.getElementById('resort').onclick = reSort;
 document.getElementById('nwBtn').onclick = () => setNw('nw');
 document.getElementById('nmBtn').onclick = () => setNw('nm');
 async function unBlock() {
