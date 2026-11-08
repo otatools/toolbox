@@ -384,13 +384,13 @@ document.getElementById('xlsx').onclick = async () => {
   const sheet = list => [['ことば', '回数', '最後に入力された日時', '種類', '表示した「？」', '表示したメッセージ']].concat(list.slice().sort((a, b) => b.count - a.count || a.word.localeCompare(b.word, 'ja')).map(r => [r.word, r.count, fmt(r.last), kind(r), r.guess ? r.guess + '？' : '', r.xmsg || '']));
   const ne = r => !r.excl, by = f => { const o = filt; filt = f; const l = rows.filter(pass); filt = o; return l; };
   const S = [
-    ['「〇〇？」', by('guess')], ['？だけ', by('none')], ['使えない', by('blocked')], ['×になった', by('x')],
+    ['〇〇はてな', by('guess')], ['はてなだけ', by('none')], ['使えない', by('blocked')], ['×になった', by('x')],
     ['ぐちゃぐちゃ', by('junk')], ['数量', by('qty')],
-    ['除外_「〇〇？」', rows.filter(r => r.excl && !r.reg && ekind(r) === 'guess')], ['除外_？だけ', rows.filter(r => r.excl && !r.reg && ekind(r) === 'none')],
+    ['除外_〇〇はてな', rows.filter(r => r.excl && !r.reg && ekind(r) === 'guess')], ['除外_はてなだけ', rows.filter(r => r.excl && !r.reg && ekind(r) === 'none')],
     ['除外_×', rows.filter(r => r.excl && !r.reg && ekind(r) === 'x')], ['除外_使えない', rows.filter(r => r.excl && !r.reg && ekind(r) === 'blocked')], ['つくれない_×になる', rows.filter(r => r.excl && !r.reg && ekind(r) === 'nm' && isNmIdx(r))], ['つくれない_まだ×にならない', rows.filter(r => r.excl && !r.reg && ekind(r) === 'nm' && !isNmIdx(r))], ['ことばじゃない_×になる', rows.filter(r => r.excl && !r.reg && ekind(r) === 'nw' && isNwIdx(r))], ['ことばじゃない_まだ×にならない', rows.filter(r => r.excl && !r.reg && ekind(r) === 'nw' && !isNwIdx(r))]
   ];
   const wb = XLSX.utils.book_new();
-  S.forEach(([name, list]) => { const ws = XLSX.utils.aoa_to_sheet(sheet(list)); ws['!cols'] = [{ wch: 24 }, { wch: 6 }, { wch: 18 }, { wch: 26 }, { wch: 20 }, { wch: 36 }]; XLSX.utils.book_append_sheet(wb, ws, name); });
+  S.forEach(([name, list]) => { const ws = XLSX.utils.aoa_to_sheet(sheet(list)); ws['!cols'] = [{ wch: 24 }, { wch: 6 }, { wch: 18 }, { wch: 26 }, { wch: 20 }, { wch: 36 }]; XLSX.utils.book_append_sheet(wb, ws, name.replace(/[\\/?*\[\]:\uFF3C\uFF0F\uFF1F\uFF0A\uFF3B\uFF3D\uFF1A]/g, '').slice(0, 31)); });   // Excel（日本語版）は シート名に ？／＊［］：などを つかえない（つかうと「回復」がでる）
   const d = new Date(), ymd = d.getFullYear() + String(d.getMonth() + 1).padStart(2, '0') + String(d.getDate()).padStart(2, '0');
   XLSX.writeFile(wb, 'ことばこうじょう集計_' + ymd + '.xlsx');
 };
