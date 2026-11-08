@@ -144,7 +144,8 @@ function autoNw(r) {
 }
 function applyJ(r, j) {
   if (!j || !j.t) return;
-  if (j.t === 'bad') { if (!r.ub && !r.blocked) { r.blocked = true; r.guess = ''; r.junk = false; r.qty = false; } return; }   // いまの アプリで 使えない ことば（禁止ワード）に なった ものは「使えない」へ
+  if (j.t === 'bad') { if (!r.ub && !r.blocked) { r.blocked = true; r.guess = ''; r.junk = false; r.qty = false; r.x = ''; r.nw = false; r.nm = false; } return; }   // ×・ことばじゃない に はいっていても、いまは 禁止なら「使えない」へ
+  if (r.excl && (r.x || r.nw || r.nm)) { r.nwIdx = j.t === 'x' && /ことばじゃない/.test(j.msg || ''); r.nmIdx = j.t === 'x' && /これは つくれない/.test(j.msg || ''); return; }   // 除外の ×・ことばじゃない・つくれない は「〇〇？」を さいしんに しない（禁止に なったかだけ みる）   // いまの アプリで 使えない ことば（禁止ワード）に なった ものは「使えない」へ
   if (j.t === 'guess') r.guess = j.g;
   else if (j.t === 'q') r.guess = '';
   r.nwIdx = j.t === 'x' && /ことばじゃない/.test(j.msg || '');
@@ -157,7 +158,7 @@ async function refreshGuess() {
   if (!JUDGE) return;
   const tok = ++GTOKEN, sig = await judgeSig(), memo = jload(sig);
   if (tok !== GTOKEN) return;
-  const all = rows.filter(r => !r.blocked && !r.junk && !r.reg && !(r.excl && !r.nw && !r.nm && !r.x && r.guess));   // 除外の「〇〇？」は しらべなおさない   // ことばじゃない ものも、アプリで「ことばじゃないよ」に なるかを しらべる
+  const all = rows.filter(r => !r.blocked && !r.junk && !r.reg && !(r.excl && !r.nw && !r.nm && !r.x));   // 除外の「〇〇？」「？だけ」は しらべなおさない（除外の ×・ことばじゃない は 禁止に なったかだけ みる）   // 除外の「〇〇？」は しらべなおさない   // ことばじゃない ものも、アプリで「ことばじゃないよ」に なるかを しらべる
   const list = [];
   all.forEach(r => { const j = memo[r.word]; if (j) applyJ(r, { t: j[0], g: j[1], msg: j[2] }); else list.push(r); });
   render();
