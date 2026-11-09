@@ -2455,7 +2455,12 @@ return {recog:recog};
         var last = parseInt(lsGet(STRIKE_T_KEY), 10) || 0;
         if (last && Date.now() - last > STRIKE_KEEP) strikes = 0;
         strikes++; lsSet(STRIKE_KEY, String(strikes)); lsSet(STRIKE_T_KEY, String(Date.now()));
-        if (strikes >= strikeNeed()) { var ln = parseInt(lsGet(LOCKN_KEY), 10) || 0; lsSet(LOCKN_KEY, String(ln + 1)); lsSet(LOCK_KEY, String(Date.now() + lockMs(ln))); strikes = 0; lsSet(STRIKE_KEY, '0'); newNeed(); showLock(); return true; }
+        // るいけい：あいだに ふつうの ことばを はさんでも、1じかんで 5かい（2かい いじょう ロックされた子は 4かい）使えない ことばを いれたら ロック
+        var TOT_KEY = 'kk.badTimes', now = Date.now(), tl = [];
+        try { tl = (lsGet(TOT_KEY) || '').split('.').map(Number).filter(function (v) { return v > now - 60 * 60 * 1000; }); } catch (e) { tl = []; }
+        tl.push(now); lsSet(TOT_KEY, tl.map(function (v) { return Math.round(v / 1000) * 1000; }).join('.'));
+        var totNeed = (parseInt(lsGet(LOCKN_KEY), 10) || 0) >= 2 ? 4 : 5;
+        if (strikes >= strikeNeed() || tl.length >= totNeed) { lsSet(TOT_KEY, ''); var ln = parseInt(lsGet(LOCKN_KEY), 10) || 0; lsSet(LOCKN_KEY, String(ln + 1)); lsSet(LOCK_KEY, String(Date.now() + lockMs(ln))); strikes = 0; lsSet(STRIKE_KEY, '0'); newNeed(); showLock(); return true; }
         return false;
     }
     // ふつうの ことばを はさんでも かぞえなおさない（あいだに 1こ いれて 3回めを よける 子が いるため）。10ぷん あいたら かぞえなおす
