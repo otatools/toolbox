@@ -40,6 +40,7 @@
   <div class="flt" id="flt"><button data-f="all" class="on">全部<small id="fc_all"></small></button><button data-f="guess" title="「〇〇？」と表示した言葉">「〇〇？」<small id="fc_guess"></small></button><button data-f="none" title="？だけ表示した言葉">？だけ<small id="fc_none"></small></button><button data-f="blocked" title="使えないことば">使えない<small id="fc_blocked"></small></button><button data-f="x" title="×になった言葉（キャラクター・ゲーム・まんが・人名など）">×になった<small id="fc_x"></small></button><button data-f="junk" title="存在しない言葉（でたらめ入力）">ぐちゃぐちゃ<small id="fc_junk"></small></button><button data-f="excl" title="除外リスト（消えない・CSVに入らない）">除外<small id="fc_excl"></small></button><button data-f="qty" title="数量のことば（よにん・はちびき・いっこ・いちおくえん…）">数量<small id="fc_qty"></small></button><button data-f="reg" title="辞書にあるので隠していた言葉">辞書にある<small id="fc_reg"></small></button></div>
   <div class="flt" id="sub" hidden><button data-s="all" class="on">除外の全部<small id="sc_all"></small></button><button data-s="guess">「〇〇？」<small id="sc_guess"></small></button><button data-s="none">？だけ<small id="sc_none"></small></button><button data-s="x">×<small id="sc_x"></small></button><button data-s="blocked">使えない<small id="sc_blocked"></small></button><button data-s="nm" title="×にして「これは つくれないよ」と だす もの">×：つくれない<small id="sc_nm"></small></button><button data-s="nw" title="ことばじゃない もの。「〇〇？」の さいしんかは しない">ことばじゃない<small id="sc_nw"></small></button></div>
   <div id="exclAdd" hidden style="margin:8px 0;padding:10px;background:#f4f7ff;border-radius:8px"><div style="font-size:.9em;margin-bottom:4px">ここに ことばを いれると、まとめて 除外リストに くわえます（いくつでも：改行か「、」「,」でくぎる）。こどもが また いれても 除外リストに はいります。</div><textarea id="exclTxt" rows="3" style="width:100%;box-sizing:border-box;font-size:16px"></textarea><button id="exclAddBtn" style="margin-top:6px">除外リストに くわえる</button></div>
+  <div id="srch" style="margin:8px 0;display:flex;gap:8px;align-items:center;flex-wrap:wrap"><input id="sq" type="search" placeholder="ことばを さがす" style="font-size:16px;padding:6px 10px;border:1px solid #ccc;border-radius:8px;min-width:220px"><label><input type="radio" name="sm" value="head" checked> 検索（あたまが おなじ）</label><label><input type="radio" name="sm" value="any"> あいまい検索（どこかに はいっている）</label><span id="sn" style="color:#7a6a55"></span></div>
   <div id="msg"></div>
   <table><thead><tr><th class="c"><input type="checkbox" id="all" aria-label="ぜんぶ えらぶ"></th><th class="s" data-s="word">ことば<i></i></th><th class="s" data-s="count" style="text-align:right">回数<i></i></th><th class="s" data-s="last">さいご<i></i></th></tr></thead><tbody id="body"></tbody></table>
   <p id="total"></p>
@@ -209,6 +210,8 @@ async function load() {
     refreshGuess();
   } catch (e) { msg.textContent = 'よみこめませんでした：' + e.message; }
 }
+// けんさく：カタカナも ひらがなに そろえて くらべる
+function normQ(s) { return String(s || '').trim().replace(/[\u30a1-\u30f6]/g, ch => String.fromCharCode(ch.charCodeAt(0) - 0x60)); }
 function render() {
     ['all','guess','none','blocked','x','junk','excl','reg','qty'].forEach(f => { const o = filt; filt = f; document.getElementById('fc_' + f).textContent = rows.filter(pass).length; filt = o; });
     document.querySelectorAll('#flt button').forEach(b => b.classList.toggle('on', b.dataset.f === filt));
@@ -216,7 +219,10 @@ function render() {
     ['all','guess','none','x','blocked','nm','nw'].forEach(s => { document.getElementById('sc_' + s).textContent = rows.filter(r => r.excl && !r.reg && (s === 'all' || ekind(r) === s)).length; });
     document.querySelectorAll('#sub button').forEach(b => b.classList.toggle('on', b.dataset.s === sub));
     const cmp = (x, y) => { const a = x[0], b = y[0]; let d = sortKey === 'word' ? a.word.localeCompare(b.word, 'ja') : sortKey === 'last' ? (a.last || 0) - (b.last || 0) : a.count - b.count; if (!d) d = sortKey === 'count' ? (b.last || 0) - (a.last || 0) : a.word.localeCompare(b.word, 'ja'); return d * sortDir; };
-    const shown = rows.map((r, i) => [r, i]).filter(x => pass(x[0])).sort(cmp);
+    const sqv = normQ(document.getElementById('sq').value), sany = (document.querySelector('input[name=sm]:checked') || {}).value === 'any';
+    const smatch = r => { if (!sqv) return true; const w = normQ(r.word); return sany ? w.indexOf(sqv) >= 0 : w.indexOf(sqv) === 0; };
+    const shown = rows.map((r, i) => [r, i]).filter(x => pass(x[0]) && smatch(x[0])).sort(cmp);
+    document.getElementById('sn').textContent = sqv ? shown.length + 'こ みつかりました' : '';
     document.querySelectorAll('th.s').forEach(h => { h.querySelector('i').textContent = h.dataset.s === sortKey ? (sortDir > 0 ? '▲' : '▼') : ''; });
     document.getElementById('body').innerHTML = shown.map(([r, i]) => '<tr data-i="' + i + '"' + (r.blocked ? ' style="background:#fff0f0"' : '') + '><td class="c"><input type="checkbox" class="chk" data-i="' + i + '"></td><td>' + r.word.replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])) + (r.blocked ? ' <small style="color:#a33a3a">【使えないことば' + (r.hit ? '：「' + r.hit.replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])) + '」にひっかかった' : '') + '】</small>' : '') + (r.reg ? ' <small style="color:#7a5a12">【' + (r.imgfail ? '絵の よみこみに しっぱい（つうしんが おそい など）' : (r.ver && CURV && r.ver < CURV) ? 'ふるい版のアプリで 入力' : r.ver ? 'いまの版で 入力（しらべてください）' : '登録まえ／ふるい版で 入力') + '】</small>' : '') + (r.x ? ' <small style="color:#6a4fa3">【×：' + (XK[r.x] || r.x) + '】' + (r.xmsg ? ' →「' + r.xmsg.replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])) + '」と表示' : '') + '</small>' : '') + (r.nm && isNmIdx(r) && !r.x ? ' <small style="color:#6a4fa3">【×：つくれない】</small>' : '') + (r.nw && isNwIdx(r) ? ' <small style="color:#8a6d3b">【ことばじゃない】</small>' : '') + (r.guess && !r.nw && !r.nm ? ' <small style="color:#2f6f9f">→ 「' + r.guess.replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])) + '？」と表示</small>' : '') + '</td><td class="n">' + r.count + '</td><td>' + fmt(r.last) + '</td></tr>').join('');
     document.getElementById('all').checked = false; updSel();
@@ -247,7 +253,7 @@ document.getElementById('del').onclick = async () => {
   const sel = chks().filter(c => c.checked).map(c => rows[+c.dataset.i]);
   if (!sel.length) return;
   // 「ぜんぶ えらぶ」（ぜんぶ ひょうじ）で けすときは、辞書にあって ひょうじしていない ことばも いっしょに けす
-  const extra = (document.getElementById('all').checked && filt === 'all') ? rows.filter(r => r.reg && !r.excl) : [];
+  const extra = (document.getElementById('all').checked && filt === 'all' && !normQ(document.getElementById('sq').value)) ? rows.filter(r => r.reg && !r.excl) : [];
   const all = sel.concat(extra);
   if (!confirm(sel.length + '件' + (extra.length ? 'と、辞書にあって ひょうじしていない ' + extra.length + '件' : '') + 'を けしますか？（もとには もどせません）')) return;
   const msg = document.getElementById('msg'); msg.textContent = '';
@@ -367,6 +373,8 @@ async function reSort() {
   render();
 }
 document.getElementById('resort').onclick = reSort;
+document.getElementById('sq').addEventListener('input', () => render());
+document.querySelectorAll('input[name=sm]').forEach(e => e.addEventListener('change', () => render()));
 document.getElementById('nwBtn').onclick = () => setNw('nw');
 document.getElementById('nmBtn').onclick = () => setNw('nm');
 async function unBlock() {
