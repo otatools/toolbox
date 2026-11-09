@@ -226,6 +226,16 @@
             justify-content: center; 
         }
 
+        /* 都道府県の読みがな（ruby） */
+        .pref-ruby { ruby-position: over; }
+        .pref-ruby rt {
+            font-size: 0.6em;
+            font-weight: 700;
+            letter-spacing: 0.08em;
+            line-height: 1.1;
+            color: #8b5a2b;
+        }
+
         ::-webkit-scrollbar { width: 8px; }
         ::-webkit-scrollbar-track { background: transparent; }
         ::-webkit-scrollbar-thumb { background: #c2a278; border-radius: 4px; border: 1px solid #8b5a2b; }
@@ -397,6 +407,11 @@
 
             <div class="w-full md:w-[20rem] bg-[#faedd6] shrink-0 z-10 flex flex-col justify-center p-4 shadow-[0_-5px_15px_rgba(139,69,19,0.3)] md:shadow-[-5px_0_15px_rgba(139,69,19,0.3)] overflow-y-auto max-h-[50vh] md:max-h-none border-t-[6px] md:border-t-0 md:border-l-[6px] border-[#8b5a2b] pb-6 md:pb-4 map-texture">
                 <div class="w-full max-w-sm mx-auto flex flex-col h-full justify-center">
+                    <div id="ui-ruby-row" class="hidden w-full flex justify-end mb-1.5 md:mb-3 shrink-0">
+                        <button id="ruby-toggle" onclick="toggleRuby()" class="btn-pop flex items-center gap-1.5 bg-[#fdfaf3] text-[#5c3a21] font-black text-xs md:text-sm px-3 py-1 rounded-full border-2 border-[#8b5a2b] border-b-[3px] shadow-sm outline-none" aria-pressed="false">
+                            よみがな <span id="ruby-state" class="inline-block min-w-[2.6em] text-center bg-[#c2a278] text-[#fdfaf3] rounded-full px-2 py-0.5 text-[0.625rem] md:text-xs">OFF</span>
+                        </button>
+                    </div>
                     <div id="ui-choices" class="flex flex-col gap-3 w-full hidden"></div>
                     
                     <div id="ui-typing" class="hidden flex flex-col gap-3 w-full">
@@ -555,6 +570,29 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 });
 
+// 日本語Webフォントは、画面に出た文字・太さの分だけ後からダウンロードされるため、
+// 新しい県名や読みがなが出た瞬間に一瞬だけ別の書体になる。
+// アプリで使う文字を、使う太さ(700/900)すべてで起動時に先読みしておく。
+function preloadFonts() {
+    if (!document.fonts || !document.fonts.load) return Promise.resolve();
+    const extra = '正解はレベル「」()（）：:/0123456789OFFONよみがなSCORE%！？!?…';
+    // 非表示の画面の文字も含める（innerText だと非表示の画面が抜ける）
+    const uiText = Array.from(document.querySelectorAll('[id^="screen-"]')).map(el => el.textContent).join('');
+    const kanaText = PREFECTURES.map(p => p.kana + p.skana).join('');
+    const nameText = PREFECTURES.map(p => p.name + p.short).join('');
+    const uniq = (str) => Array.from(new Set(Array.from(str))).filter(c => c.trim()).join('');
+    const family = '"M PLUS Rounded 1c"';
+    // 太さ900：画面の文字＋県名＋読み（県名の漢字は900でしか出さない）
+    // 太さ700：画面の文字＋読みがな（読み込み量を増やしすぎないよう、県名の漢字は入れない）
+    const loads = [
+        document.fonts.load(`900 20px ${family}`, uniq(uiText + nameText + kanaText + extra)).catch(() => {}),
+        document.fonts.load(`700 20px ${family}`, uniq(uiText + kanaText + extra)).catch(() => {})
+    ];
+    // 通信が遅いときに「じゅんび中」のまま止まらないよう、最大2.5秒で先へ進む
+    const timeout = new Promise(r => setTimeout(r, 2500));
+    return Promise.race([Promise.all(loads), timeout]);
+}
+
 async function loadMapSVG() {
     try {
         if (window.location.protocol === 'blob:' || window.location.protocol === 'data:') {
@@ -562,9 +600,11 @@ async function loadMapSVG() {
             return;
         }
 
+        const fontsReady = preloadFonts();
         const response = await fetch('./map.svg');
         if (!response.ok) throw new Error('Network response was not ok');
         const svgText = await response.text();
+        await fontsReady; // 文字が後から別の書体に入れかわらないよう、フォントを先に読み込んでから表示する
         setupSVG(svgText);
     } catch (error) {
         console.warn('ローカルファイルの自動取得をスキップしました。');
@@ -727,10 +767,12 @@ function startGame(difficulty) {
         const choicesDiv = document.getElementById('ui-choices');
         choicesDiv.classList.remove('hidden');
         document.getElementById('ui-typing').classList.add('hidden');
-        choicesDiv.className = 'flex flex-col gap-1.5 md:gap-3 w-full h-full md:h-auto';
+        choicesDiv.className = 'flex flex-col gap-1.5 md:gap-3 w-full flex-1 min-h-0 md:flex-none md:h-auto';
+        document.getElementById('ui-ruby-row').classList.remove('hidden');
     } else {
         document.getElementById('ui-choices').classList.add('hidden');
         document.getElementById('ui-typing').classList.remove('hidden');
+        document.getElementById('ui-ruby-row').classList.add('hidden');
         document.getElementById('answer-input').value = '';
     }
 
@@ -841,11 +883,44 @@ function generateChoicesUI(targetPref) {
             btn.className = 'btn-pop w-full flex-1 min-h-0 flex items-center justify-center bg-[#faedd6] text-[#5c3a21] font-black py-2 md:py-3 px-3 md:px-4 rounded-sm border-2 border-[#8b5a2b] border-b-[4px] active:bg-[#e6cda3] text-base md:text-2xl leading-tight shadow-sm text-center tracking-widest outline-none';
         }
         
-        btn.textContent = p.name;
+        btn._pref = p;
+        setChoiceLabel(btn, p);
         btn.onclick = () => checkChoiceAnswer(p.id, targetPref.id);
         container.appendChild(btn);
     });
 }
+
+// ---- 読みがな（ON/OFF。はじめはOFF、選んだ状態は保存する） ----
+let showRuby = false;
+try { showRuby = localStorage.getItem('mapGameRuby') === '1'; } catch (e) {}
+
+function setChoiceLabel(btn, p) {
+    if (showRuby) {
+        // PREFECTURES の固定データだけを入れる（ユーザー入力は入らない）
+        btn.innerHTML = `<ruby class="pref-ruby">${p.name}<rt>${p.kana}</rt></ruby>`;
+    } else {
+        btn.textContent = p.name;
+    }
+}
+
+function updateRubyToggleUI() {
+    const btn = document.getElementById('ruby-toggle');
+    const state = document.getElementById('ruby-state');
+    if (!btn || !state) return;
+    state.textContent = showRuby ? 'ON' : 'OFF';
+    state.classList.toggle('bg-[#c84b31]', showRuby);
+    state.classList.toggle('bg-[#c2a278]', !showRuby);
+    btn.setAttribute('aria-pressed', showRuby ? 'true' : 'false');
+}
+
+function toggleRuby() {
+    showRuby = !showRuby;
+    try { localStorage.setItem('mapGameRuby', showRuby ? '1' : '0'); } catch (e) {}
+    updateRubyToggleUI();
+    // 今出ている選択肢も、並びはそのままで読みがなだけ切りかえる
+    document.querySelectorAll('#ui-choices button').forEach(b => { if (b._pref) setChoiceLabel(b, b._pref); });
+}
+updateRubyToggleUI();
 
 function checkChoiceAnswer(selectedId, correctId) {
     if (gameState.isProcessing) return;
