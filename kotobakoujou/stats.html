@@ -155,6 +155,9 @@ function applyJ(r, j) {
   if (j.t === 'x') autoNw(r);
   if (j.t === 'x' && !r.x) r.x = /ゲームの なまえ/.test(j.msg) ? 'game' : /ゲームの なか/.test(j.msg) ? 'gameword' : /まんが/.test(j.msg) ? 'anime' : /じんぶつ/.test(j.msg) ? 'person' : /これは つくれない/.test(j.msg) ? 'nomake' : /ことばじゃない|すうじ/.test(j.msg) ? 'notword' : 'char';
 }
+// うしろに かくれた タブでも とまらずに すすめる（setTimeout は かくれると 1びょうに 1かいまで おそくなるため）
+const nextTick = (f) => { const c = new MessageChannel(); c.port1.onmessage = () => { c.port1.close(); f(); }; c.port2.postMessage(0); };
+const budget = () => document.hidden ? 400 : 40;   // かくれている ときは 1かいに たくさん すすめる
 async function refreshGuess() {
   if (!JUDGE) return;
   const tok = ++GTOKEN, sig = await judgeSig(), memo = jload(sig);
@@ -167,15 +170,15 @@ async function refreshGuess() {
   const step = () => {
     if (tok !== GTOKEN) return;
     const t0 = performance.now();
-    for (; i < list.length && performance.now() - t0 < 40; i++) {
+    for (; i < list.length && performance.now() - t0 < budget(); i++) {
       const r = list[i]; let j = null; try { j = JUDGE(r.word); } catch (e) {}
       if (j && j.t) memo[r.word] = [j.t, j.g || '', j.msg || ''];
       applyJ(r, j);
     }
-    if (i < list.length) { msg.style.color = '#7a6a55'; msg.textContent = '「〇〇？」を さいしんに しています… ' + i + ' / ' + list.length + '（あたらしい ことばだけ）'; setTimeout(step, 0); }
+    if (i < list.length) { msg.style.color = '#7a6a55'; msg.textContent = '「〇〇？」を さいしんに しています… ' + i + ' / ' + list.length + '（あたらしい ことばだけ）'; nextTick(step); }
     else { msg.textContent = ''; msg.style.color = ''; jsave(sig, memo); render(); }
   };
-  setTimeout(step, 0);
+  nextTick(step);
 }
 async function load() {
   const msg = document.getElementById('msg'); msg.textContent = '';
@@ -328,7 +331,7 @@ async function reSort() {
   let i = 0;
   await new Promise(done => { const step = () => {
     const t0 = performance.now();
-    for (; i < list.length && performance.now() - t0 < 40; i++) {
+    for (; i < list.length && performance.now() - t0 < budget(); i++) {
       const r = list[i]; let j = null; try { j = JUDGE(r.word); } catch (e) {}
       if (!j || !j.t) continue;
       memo[r.word] = [j.t, j.g || '', j.msg || ''];
@@ -352,8 +355,8 @@ async function reSort() {
       r.xdb = r.x;
       if (before !== [r.blocked, r.nw, r.nm, r.x, r.guess].join('|')) ch.push(r);
     }
-    if (i < list.length) { msg.textContent = '振り分けなおしています… ' + i + ' / ' + list.length; setTimeout(step, 0); } else done();
-  }; setTimeout(step, 0); });
+    if (i < list.length) { msg.textContent = '振り分けなおしています… ' + i + ' / ' + list.length; nextTick(step); } else done();
+  }; nextTick(step); });
   const sig = await judgeSig(); jsave(sig, memo);
   let note = '';
   if (ch.length) {
