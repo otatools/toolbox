@@ -191,28 +191,31 @@
                 background: rgba(45, 55, 72, 0.72) !important;
             }
         }
-        /* 「振る」ボタンのすぐ下の小さなスペースキー表示（キーの形）。ボタンの大きさは変えず、下のすき間に置く */
-        .roll-wrap { position: relative; pointer-events: none; }
+        /* 「振る」ボタンの中の小さなスペースキー表示（キーの形）。
+           ボタンの大きさは変えず、文字を少しだけ上にずらして、下の余白に重ねて置く */
         .roll-key-hint {
             position: absolute;
-            top: calc(100% + 3px);
             left: 50%;
+            bottom: 5px;
             transform: translateX(-50%);
-            padding: 0 7px;
-            border: 1px solid rgba(255, 255, 255, 0.4);
+            padding: 0 5px;
+            border: 1px solid rgba(255, 255, 255, 0.35);
             border-bottom-width: 2px;
-            border-radius: 5px;
-            background: rgba(0, 0, 0, 0.25);
-            color: rgba(255, 255, 255, 0.85);
-            font-size: 10px;
-            line-height: 14px;
+            border-radius: 4px;
+            font-size: 9px;
+            line-height: 11px;
             font-weight: 600;
             letter-spacing: 0.08em;
+            text-shadow: none;
+            opacity: 0.75;
             white-space: nowrap;
+            pointer-events: none;
         }
-        /* スマホ・タブレットにはスペースキーがないので出さない */
+        .roll-label { transform: translateY(-5px); }
+        /* スマホ・タブレットにはスペースキーがないので出さず、文字も元の位置に */
         @media (hover: none) and (pointer: coarse) {
             .roll-key-hint { display: none; }
+            .roll-label { transform: none; }
         }
         /* 設定パネル：高さの低い画面（スマホ横など）でもはみ出さずスクロールできるように */
         #settings-modal > div { max-height: calc(100vh - 24px); max-height: calc(100dvh - 24px); overflow-y: auto; }
@@ -303,14 +306,14 @@
 
     <div id="ui-container">
         <!-- スマホではボタンを少し小さめに、PCでは大きく表示 -->
-        <div class="roll-wrap">
-            <button id="roll-btn" class="btn-roll font-bold py-3 px-8 sm:py-4 sm:px-10 rounded-full text-lg sm:text-xl flex items-center gap-2 sm:gap-3">
+        <button id="roll-btn" class="btn-roll font-bold py-3 px-8 sm:py-4 sm:px-10 rounded-full text-lg sm:text-xl flex items-center gap-2 sm:gap-3">
+            <span class="roll-label flex items-center gap-2 sm:gap-3">
                 <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="filter: drop-shadow(0px 2px 2px rgba(0,0,0,0.5));" class="w-5 h-5 sm:w-6 sm:h-6"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><path d="M9 9h.01"/><path d="M15 9h.01"/><path d="M9 15h.01"/><path d="M15 15h.01"/><path d="M12 12h.01"/></svg>
                 サイコロを振る
-            </button>
-            <!-- キーボードのある端末だけ：スペースキーでも振れることを、ボタンのすぐ下に小さく知らせる -->
+            </span>
+            <!-- キーボードのある端末だけ：スペースキーでも振れることを、ボタンの中に小さく知らせる -->
             <span class="roll-key-hint" aria-hidden="true">スペースキー</span>
-        </div>
+        </button>
     </div>
 
     <script type="module">
@@ -970,8 +973,8 @@
                 linearDamping: 0.05 + Math.random() * 0.15,
                 angularDamping: 0.01 + Math.random() * 0.04,
                 allowSleep: true,
-                sleepSpeedLimit: 0.15, // 小刻みな震えが続かないよう、止まった判定を少しゆるく
-                sleepTimeLimit: 0.5,
+                sleepSpeedLimit: 0.08, // 十分遅くなってから眠らせる（速いうちに止めると「カクッ」と見える）
+                sleepTimeLimit: 0.6,
                 collisionFilterGroup: GROUP_DEFAULT,
                 collisionFilterMask: GROUP_DEFAULT 
             });
@@ -984,7 +987,7 @@
                 if (e.body === floorBody) body.touchedFloor = true;
             });
             world.addBody(body);
-            dices.push({ mesh, body, diceType: currentDiceType, stillTime: 0, restTime: 0, spinTime: 0, currentRedIndex: -1, walled: false });
+            dices.push({ mesh, body, diceType: currentDiceType, stillTime: 0, restTime: 0, spinTime: 0, correctTime: 0, correctTries: 0, currentRedIndex: -1, walled: false });
         }
 
         function initDices() {
@@ -1186,16 +1189,22 @@
             })
         );
         const engravingAngle = -Math.PI / 4;   // 手前左の斜めの壁の向き
-        const engravingR = trayRadius - 2.2;   // 壁から少し内側（スマホ縦画面でも手前の壁の陰に隠れない位置）
         engraving.rotation.order = 'YXZ';
         engraving.rotation.set(-Math.PI / 2, engravingAngle, 0); // フェルトの上に寝かせ、ふちに沿わせる
-        // 斜めのふちの真ん中あたりに置く（手前に寄せすぎると、手前の壁のかげに隠れる）
-        const engravingShift = 0.3;
-        engraving.position.set(
-            engravingR * Math.sin(engravingAngle) + Math.cos(engravingAngle) * engravingShift,
-            0.003,
-            engravingR * Math.cos(engravingAngle) - Math.sin(engravingAngle) * engravingShift
-        );
+        // できるだけ壁に寄せる。ただし縦長の画面ほどカメラが遠く低くなり、手前の壁のかげに隠れやすいので、
+        // 画面の形に合わせて「見える範囲でいちばん壁ぎわ」に置く（実測で決めた値）
+        function placeEngraving() {
+            const aspect = window.innerWidth / window.innerHeight;
+            const fromWall = aspect >= 1.0 ? 1.2 : (aspect >= 0.6 ? 1.6 : 2.2);
+            const R = trayRadius - fromWall;
+            const shift = 0.3; // 斜めのふちの真ん中から、少しだけ手前寄り
+            engraving.position.set(
+                R * Math.sin(engravingAngle) + Math.cos(engravingAngle) * shift,
+                0.003,
+                R * Math.cos(engravingAngle) - Math.sin(engravingAngle) * shift
+            );
+        }
+        placeEngraving();
         engraving.receiveShadow = true;
         scene.add(engraving);
         // --- 4. アクションとアニメーション ---
@@ -1210,7 +1219,11 @@
 
             const sharedTime = 0.75 + Math.random() * 0.15; 
             const sharedTargetX = (Math.random() - 0.5) * 0.4; 
-            const sharedTargetZ = -2.5 + (Math.random() - 0.5) * 1.0; 
+            // ★ 投げる強さを毎回ランダムに決める（0.7＝弱い 〜 1.3＝強い）。向きはいつも手前から奥
+            //   弱いと手前寄りに落ち、強いと奥まで届いて奥の壁に当たりやすくなる
+            const throwPower = 0.7 + Math.random() * 0.6;
+            const sharedTargetZ = 2.0 - 5.0 * throwPower + (Math.random() - 0.5) * 1.0;
+            const spinPower = 0.85 + (throwPower - 0.7) * 0.5; // 強く投げたときは回転も少し強く（0.85〜1.15倍）
             const sharedStartY = 8.5 + Math.random() * 1.5; 
             const sharedVelY = 4.0 + Math.random() * 1.5;   
 
@@ -1227,6 +1240,7 @@
                 dice.correcting = false;
                 dice.restTime = 0;
                 dice.spinTime = 0;
+                dice.correctTries = 0;
                 if (dice.diceType === 'd10') {
                     // ★ 修正: 毎回配列を作り直すのではなく、キャッシュした配列を適用する
                     dice.mesh.material = D10_MAT_BLACK; 
@@ -1268,7 +1282,7 @@
                 
                 const getRandomSpin = () => {
                     const sign = Math.random() > 0.5 ? 1 : -1;
-                    return sign * (20 + Math.random() * 30);
+                    return sign * (20 + Math.random() * 30) * spinPower;
                 };
                 dice.body.angularVelocity.set(getRandomSpin(), getRandomSpin(), getRandomSpin());
                 syncInterpolation(dice.body);
@@ -1280,6 +1294,7 @@
             camera.updateProjectionMatrix();
             renderer.setSize(window.innerWidth, window.innerHeight);
             updateCamera();
+            placeEngraving();
             requestRender();
         });
 
@@ -1470,40 +1485,54 @@
                 } else {
                     dice.spinTime = 0;
                 }
-                // 傾いたまま止まりかけたとき（壁や別のサイコロに寄りかかったときなど）だけ、平らに戻す。
-                // まだ転がっているサイコロは押さない（本当に遅くなってから補正を始める）。
-                // 一度始めたら平らになるまで続け、押す力は少しずつ強める。回転の速さには上限をつけて暴れないようにする。
-                if (dice.stillTime > 0.15 && dice.stillTime <= 4.0) {
-                    findTopFace(dice);
-                    if (topFace.dot < 0.985 && topFace.dot > 0) {
-                        if (!dice.correcting && v2 < 0.3 && w2 < 0.6) dice.correcting = true;
-                        if (dice.correcting) {
-                            body.wakeUp();
-                            tempWorldNormal.set(topFace.x, topFace.y, topFace.z);
-                            tempWorldNormal.cross(UP_VECTOR, tempCrossNormal);
-                            const k = 0.2 + 0.6 * Math.min(1, (dice.stillTime - 0.15) / 1.2);
-                            body.angularVelocity.x += tempCrossNormal.x * k;
-                            body.angularVelocity.y += tempCrossNormal.y * k;
-                            body.angularVelocity.z += tempCrossNormal.z * k;
-                            const w2n = body.angularVelocity.lengthSquared();
-                            if (w2n > 16) body.angularVelocity.scale(4 / Math.sqrt(w2n), body.angularVelocity);
-                            // 寄りかかりを外すため、少しずつ横に滑らせる。
-                            // 壁ぎわなら中央へ。それ以外は、上の面が傾いている向き（＝寄りかかっている相手）の反対へ
-                            const r = Math.hypot(body.position.x, body.position.z);
-                            let dx = 0, dz = 0;
-                            if (r > trayRadius - 3.2) {
-                                dx = -body.position.x / r; dz = -body.position.z / r;
-                            } else {
-                                const hl = Math.hypot(topFace.x, topFace.z);
-                                if (hl > 0.05) { dx = -topFace.x / hl; dz = -topFace.z / hl; }
-                            }
-                            body.velocity.x += dx * 0.06;
-                            body.velocity.z += dz * 0.06;
-                            const hv = Math.hypot(body.velocity.x, body.velocity.z);
-                            if (hv > 1.2) { body.velocity.x *= 1.2 / hv; body.velocity.z *= 1.2 / hv; }
+                // 止まる直前は、フェルトの上でじわっと減速するように弱いブレーキをかける
+                // （物理エンジンが「眠らせる」瞬間に速度がゼロになるので、その手前でなめらかに落としておく）
+                const onFloor = body.position.y < floorY + 0.6;
+                if (onFloor && v2 < 0.3 && w2 < 0.3 && body.sleepState !== CANNON.Body.SLEEPING) {
+                    body.velocity.scale(0.97, body.velocity);
+                    body.angularVelocity.scale(0.97, body.angularVelocity);
+                }
+                // 傾いたまま完全に止まってしまったとき（壁や別のサイコロに寄りかかったときなど）だけ、
+                // 自重でゆっくり倒れるくらいの速さで平らにする。転がっている最中・止まりかけには何もしない。
+                // 横に滑らせることもしない（引っぱられたように見えるため）。
+                // 別のサイコロに乗り上げて傾いているものは、本物でもそのまま止まるのが自然なので直さない
+                // （無理に回すと、下で止まっているサイコロまで起こされて、がくがく動いて見える）
+                // 「触れているか」は一瞬はずれることがあるので、「近くに別のサイコロがあるか」で判定する
+                let nearDice = false;
+                for (let m = 0; m < dices.length; m++) {
+                    if (m !== n && dices[m].body.position.distanceTo(body.position) < 4.6) { nearDice = true; break; }
+                }
+                if (!dice.correcting) {
+                    // 補正は1回の振りにつき1度だけ。直らなかったものは、そのままの形で止まったことにする
+                    if (dice.restTime > 0.35 && !nearDice && dice.correctTries < 1) {
+                        findTopFace(dice);
+                        if (topFace.dot < 0.99 && topFace.dot > 0.5) {
+                            dice.correcting = true;
+                            dice.correctTime = 0;
+                            dice.correctTries++;
                         }
-                    } else {
+                    }
+                } else {
+                    dice.correctTime += FIXED_DT;
+                    findTopFace(dice);
+                    if (topFace.dot >= 0.997 || dice.correctTime > 2.0 || nearDice) {
                         dice.correcting = false;
+                        body.angularVelocity.scale(0.5, body.angularVelocity);
+                    } else {
+                        body.wakeUp();
+                        // 傾きの角度に比例した、ゆっくりした回転にする（角度が小さくなるほど遅くなり、行きすぎない）
+                        tempWorldNormal.set(topFace.x, topFace.y, topFace.z);
+                        tempWorldNormal.cross(UP_VECTOR, tempCrossNormal);
+                        const sinA = tempCrossNormal.length();
+                        if (sinA > 1e-4) {
+                            const angle = Math.asin(Math.min(1, sinA));
+                            const speed = Math.min(1.4, 0.35 + angle * 2.0);
+                            tempCrossNormal.scale(speed / sinA, tempCrossNormal);
+                            // 急に動き出さないよう、少しずつ目標の回転に近づける
+                            body.angularVelocity.x = body.angularVelocity.x * 0.85 + tempCrossNormal.x * 0.15;
+                            body.angularVelocity.y = body.angularVelocity.y * 0.85 + tempCrossNormal.y * 0.15;
+                            body.angularVelocity.z = body.angularVelocity.z * 0.85 + tempCrossNormal.z * 0.15;
+                        }
                     }
                 }
             }
