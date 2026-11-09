@@ -188,8 +188,10 @@ async function load() {
       // まえに ×（ぐちゃぐちゃ・ことばじゃない など）で きろくされても、いまは 辞書に あって ふつうに できる ことばは × を はずす
       if (r.x && kf && JUDGE && kf(r.word)) { try { const j = JUDGE(r.word); if (j && j.t === 'ok') { r.x = ''; r.xdb = ''; } } catch (e) {} }
       const notq = r.notqty || LOCALQ[r.key] === false;
-      r.qty = !r.blocked && !r.x && !notq && (r.qtyv === true || (!!QTYF && !!QTYF(r.word)));
-      r.reg = !!kf && !r.blocked && !r.x && !r.qty && !!kf(r.word);
+      // いまの アプリで ふつうに つくれる ことばは、むかしの きろく（数量・除外など）に かかわらず「辞書にある」へ
+      let okNow = false; if (kf && JUDGE && !r.blocked && kf(r.word)) { try { okNow = JUDGE(r.word).t === 'ok'; } catch (e) {} }
+      r.qty = !okNow && !r.blocked && !r.x && !notq && (r.qtyv === true || (!!QTYF && !!QTYF(r.word)));
+      r.reg = okNow || (!!kf && !r.blocked && !r.x && !r.qty && !!kf(r.word));
       const ov = r.exclv !== undefined ? r.exclv : LOCAL[r.key];
       r.excl = ov !== undefined ? !!ov : false;
       if ((r.nwv === undefined || r.nwv === null) && LOCALN[r.key] === false) r.nwv = false;
@@ -337,7 +339,7 @@ async function reSort() {
           r.guess = '';
         } else {
           r.x = ''; r.nmIdx = false; r.nwIdx = false;
-          if (j.t === 'ok') { r.nw = false; r.nm = false; r.guess = ''; r.reg = !!kf && !r.qty; }
+          if (j.t === 'ok') { r.nw = false; r.nm = false; r.guess = ''; r.qty = false; r.reg = true; }
           else r.guess = j.t === 'guess' ? j.g : '';
         }
       }
