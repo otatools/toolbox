@@ -2420,7 +2420,11 @@ return {recog:recog};
     var LOCK_KEY = 'kk.lockUntil', STRIKE_KEY = 'kk.strikes', LOCKN_KEY = 'kk.lockCount', LOCK_MS = 3 * 60 * 1000, LOCK_MS2 = 5 * 60 * 1000,   // はじめての ペナルティは 3ぷん、2かいめ からは 5ふん
         strikes = 0, lockTimer = 0;
     function lsGet(k) { var v = null; try { v = localStorage.getItem(k); } catch (e) {} if (v == null) { try { var m = document.cookie.match(new RegExp('(?:^|; )' + k.replace('.', '\\.') + '=([^;]*)')); if (m) v = m[1]; } catch (e) {} } return v; }
-    function lsSet(k, v) { try { localStorage.setItem(k, v); } catch (e) {} try { document.cookie = k + '=' + v + '; max-age=86400; path=/; SameSite=Lax'; } catch (e) {} }
+    function lsSet(k, v) { try { localStorage.setItem(k, v); } catch (e) {} try { document.cookie = k + '=' + v + '; max-age=' + (k === LOCKN_KEY ? 604800 : 86400) + '; path=/; SameSite=Lax'; } catch (e) {} }
+    // ロックされるたびに ながくする：1かいめ 3ぷん → 5ふん → 10ぷん → 15ふん → 5かいめ からは 30ぷん
+    var LOCK_STEPS = [3, 5, 10, 15, 30];
+    function lockMs(ln) { return LOCK_STEPS[Math.min(ln, LOCK_STEPS.length - 1)] * 60 * 1000; }
+    function minTxt(m) { return m + ({ 3: 'ぷん', 5: 'ふん', 10: 'ぷん', 15: 'ふん', 30: 'ぷん' }[m] || 'ふん'); }
     function lockLeft() { var u = parseInt(lsGet(LOCK_KEY), 10); return u > 0 ? u - Date.now() : 0; }
     var lockOv = document.createElement('div');
     lockOv.id = 'lockOv'; lockOv.hidden = true; lockOv.setAttribute('role', 'alertdialog');
@@ -2433,7 +2437,7 @@ return {recog:recog};
         document.getElementById('lockTime').textContent = Math.floor(s / 60) + ':' + ('0' + (s % 60)).slice(-2);
     }
     function showLock() {
-        lockOv.hidden = false; var lm = Math.ceil(lockLeft() / 60000); document.getElementById('lockMin').textContent = lm > 3 ? '5ふん' : '3ぷん'; lockTick();
+        lockOv.hidden = false; var lm = Math.ceil(lockLeft() / 60000), st = LOCK_STEPS[0]; for (var si = 0; si < LOCK_STEPS.length; si++) if (LOCK_STEPS[si] >= lm) { st = LOCK_STEPS[si]; break; } document.getElementById('lockMin').textContent = minTxt(st); lockTick();
         if (!lockTimer) lockTimer = setInterval(lockTick, 500);
     }
     // なんかい ロックされたかで、ロックまでの 回数を かえる（子どもに よまれない ように ランダム）
@@ -2449,7 +2453,7 @@ return {recog:recog};
         var last = parseInt(lsGet(STRIKE_T_KEY), 10) || 0;
         if (last && Date.now() - last > STRIKE_KEEP) strikes = 0;
         strikes++; lsSet(STRIKE_KEY, String(strikes)); lsSet(STRIKE_T_KEY, String(Date.now()));
-        if (strikes >= strikeNeed()) { var ln = parseInt(lsGet(LOCKN_KEY), 10) || 0; lsSet(LOCKN_KEY, String(ln + 1)); lsSet(LOCK_KEY, String(Date.now() + (ln >= 1 ? LOCK_MS2 : LOCK_MS))); strikes = 0; lsSet(STRIKE_KEY, '0'); newNeed(); showLock(); return true; }
+        if (strikes >= strikeNeed()) { var ln = parseInt(lsGet(LOCKN_KEY), 10) || 0; lsSet(LOCKN_KEY, String(ln + 1)); lsSet(LOCK_KEY, String(Date.now() + lockMs(ln))); strikes = 0; lsSet(STRIKE_KEY, '0'); newNeed(); showLock(); return true; }
         return false;
     }
     // ふつうの ことばを はさんでも かぞえなおさない（あいだに 1こ いれて 3回めを よける 子が いるため）。10ぷん あいたら かぞえなおす
