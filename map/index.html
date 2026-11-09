@@ -240,6 +240,38 @@
             color: #8b5a2b;
         }
 
+        /* スマホを横向きにしたとき（横長で、高さが500px以下の画面。iPadの横向きは高さがあるので入らない）：
+           縦に「地図→選択肢」と積むと地図がとても小さくなるので、「左に地図・右に選択肢」にする。
+           選択肢は2列にして1つ1つの高さをとる。上の帯も少し低くして、地図の高さを確保する */
+        @media (orientation: landscape) and (max-height: 500px) {
+            #game-header { padding-top: 0.35rem !important; padding-bottom: 0.35rem !important; }
+            #game-body { flex-direction: row !important; }
+            #game-map-area { min-height: 0 !important; min-width: 0; }
+            #game-panel {
+                width: 48% !important;
+                max-height: none !important;
+                border-top-width: 0 !important;
+                border-left-width: 6px !important;
+                padding: 0.5rem 0.75rem !important;
+                box-shadow: -5px 0 15px rgba(139, 69, 19, 0.3) !important;
+            }
+            #ui-choices:not(.hidden) {
+                display: grid !important;
+                grid-template-columns: 1fr 1fr;
+                gap: 0.5rem !important;
+                flex: 1 1 0% !important;
+                min-height: 0 !important;
+                height: auto !important;
+            }
+            /* この画面は高さが低く、基準の文字サイズ(rem)がとても小さくなるので、県名は画面の高さに合わせる */
+            #ui-choices button { min-height: 0 !important; font-size: clamp(16px, 5.5vh, 26px) !important; }
+            #ui-ruby-row { margin-top: 0.5rem !important; }
+            /* 入力モード：入力欄とボタンを少し低くして、横向きでも収まるようにする */
+            #ui-typing { gap: 0.5rem !important; }
+            #answer-input { padding-top: 0.5rem !important; padding-bottom: 0.5rem !important; }
+            #ui-typing button { padding-top: 0.6rem !important; padding-bottom: 0.6rem !important; margin-top: 0 !important; }
+        }
+
         ::-webkit-scrollbar { width: 8px; }
         ::-webkit-scrollbar-track { background: transparent; }
         ::-webkit-scrollbar-thumb { background: #c2a278; border-radius: 4px; border: 1px solid #8b5a2b; }
@@ -392,7 +424,7 @@
     </div>
 
     <div id="screen-game" class="hidden flex-1 flex flex-col h-full fade-in min-h-0 map-texture">
-        <div class="bg-[#8b5a2b] px-3 py-3 shadow-md flex justify-between items-center z-20 shrink-0 border-b-4 border-[#5c3a21]">
+        <div id="game-header" class="bg-[#8b5a2b] px-3 py-3 shadow-md flex justify-between items-center z-20 shrink-0 border-b-4 border-[#5c3a21]">
             <div class="text-sm font-black text-[#fdfaf3] bg-[#5c3a21] px-3 py-1.5 rounded-sm shadow-inner border-2 border-[#3e2723]">
                 正解: <span id="ui-q-count" class="text-lg text-[#4ade80] drop-shadow">0</span> <span class="text-xs">/ 10</span>
             </div>
@@ -404,12 +436,12 @@
             </div>
         </div>
 
-        <div class="flex-1 flex flex-col md:flex-row min-h-0 ocean-bg shadow-[inset_0_0_20px_rgba(0,0,0,0.1)]">
-            <div class="flex-1 relative flex flex-col justify-center items-center min-h-[30vh] md:min-h-0">
+        <div id="game-body" class="flex-1 flex flex-col md:flex-row min-h-0 ocean-bg shadow-[inset_0_0_20px_rgba(0,0,0,0.1)]">
+            <div id="game-map-area" class="flex-1 relative flex flex-col justify-center items-center min-h-[30vh] md:min-h-0">
                 <div id="game-map-container" class="map-wrap"></div>
             </div>
 
-            <div class="w-full md:w-[20rem] bg-[#faedd6] shrink-0 z-10 flex flex-col justify-center p-4 shadow-[0_-5px_15px_rgba(139,69,19,0.3)] md:shadow-[-5px_0_15px_rgba(139,69,19,0.3)] overflow-y-auto max-h-[50vh] md:max-h-none border-t-[6px] md:border-t-0 md:border-l-[6px] border-[#8b5a2b] pb-6 md:pb-4 map-texture">
+            <div id="game-panel" class="w-full md:w-[20rem] bg-[#faedd6] shrink-0 z-10 flex flex-col justify-center p-4 shadow-[0_-5px_15px_rgba(139,69,19,0.3)] md:shadow-[-5px_0_15px_rgba(139,69,19,0.3)] overflow-y-auto max-h-[50vh] md:max-h-none border-t-[6px] md:border-t-0 md:border-l-[6px] border-[#8b5a2b] pb-6 md:pb-4 map-texture">
                 <div class="w-full max-w-sm mx-auto flex flex-col flex-1 min-h-0 justify-center">
                     <div id="ui-choices" class="flex flex-col gap-3 w-full hidden"></div>
                     
@@ -1026,10 +1058,14 @@ function startGame(difficulty) {
         const choicesDiv = document.getElementById('ui-choices');
         choicesDiv.classList.remove('hidden');
         document.getElementById('ui-typing').classList.add('hidden');
-        choicesDiv.className = 'flex flex-col gap-1.5 md:gap-3 w-full flex-1 min-h-0 md:flex-none md:h-auto';
+        // スマホでは2列（4択は2×2、6択は2×3）にして、1つ1つのボタンを高くする。PC・タブレット横では縦1列
+        choicesDiv.className = 'grid grid-cols-2 gap-2 md:flex md:flex-col md:gap-3 w-full flex-1 min-h-0 md:flex-none md:h-auto';
         document.getElementById('ui-ruby-row').classList.remove('hidden');
     } else {
-        document.getElementById('ui-choices').classList.add('hidden');
+        // 選択肢は中身ごと消し、クラスも hidden だけにする（md:flex などが残ると、PC・iPadで前の選択肢が見えてしまう）
+        const choicesDiv = document.getElementById('ui-choices');
+        choicesDiv.innerHTML = '';
+        choicesDiv.className = 'hidden';
         document.getElementById('ui-typing').classList.remove('hidden');
         document.getElementById('ui-ruby-row').classList.add('hidden');
         document.getElementById('answer-input').value = '';
@@ -1140,9 +1176,9 @@ function generateChoicesUI(targetPref) {
         const btn = document.createElement('button');
         
         if (gameState.difficulty === 'normal') {
-            btn.className = 'btn-pop w-full flex-1 min-h-0 flex items-center justify-center bg-[#faedd6] text-[#5c3a21] font-black py-1 md:py-2 px-2 md:px-3 rounded-sm border-2 border-[#8b5a2b] border-b-[3px] md:border-b-[4px] active:bg-[#e6cda3] text-sm md:text-xl leading-tight shadow-sm text-center tracking-widest outline-none';
+            btn.className = 'btn-pop w-full flex-1 min-h-[min(3.75rem,9vh)] md:min-h-0 flex items-center justify-center bg-[#faedd6] text-[#5c3a21] font-black py-1 md:py-2 px-1 md:px-3 rounded-sm border-2 border-[#8b5a2b] border-b-[4px] active:bg-[#e6cda3] text-base md:text-xl leading-tight shadow-sm text-center tracking-wider md:tracking-widest outline-none';
         } else {
-            btn.className = 'btn-pop w-full flex-1 min-h-0 flex items-center justify-center bg-[#faedd6] text-[#5c3a21] font-black py-2 md:py-3 px-3 md:px-4 rounded-sm border-2 border-[#8b5a2b] border-b-[4px] active:bg-[#e6cda3] text-base md:text-2xl leading-tight shadow-sm text-center tracking-widest outline-none';
+            btn.className = 'btn-pop w-full flex-1 min-h-[min(4.5rem,11vh)] md:min-h-0 flex items-center justify-center bg-[#faedd6] text-[#5c3a21] font-black py-2 md:py-3 px-1 md:px-4 rounded-sm border-2 border-[#8b5a2b] border-b-[4px] active:bg-[#e6cda3] text-lg md:text-2xl leading-tight shadow-sm text-center tracking-wider md:tracking-widest outline-none';
         }
         
         btn._pref = p;
