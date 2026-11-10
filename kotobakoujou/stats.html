@@ -147,14 +147,22 @@ function autoNw(r) {
 function applyJ(r, j) {
   if (!j || !j.t) return;
   if (j.t === 'bad') { if (!r.ub) { r.blocked = true; r.guess = ''; r.junk = false; r.qty = false; r.x = ''; r.nw = false; r.nm = false; } return; }   // ×・ことばじゃない に はいっていても、いまは 禁止なら「使えない」へ
-  if (r.excl && (r.x || r.nw || r.nm)) { r.nwIdx = j.t === 'x' && /ことばじゃない/.test(j.msg || ''); r.nmIdx = j.t === 'x' && /これは つくれない/.test(j.msg || ''); return; }   // 除外の ×・ことばじゃない・つくれない は「〇〇？」を さいしんに しない（禁止に なったかだけ みる）   // いまの アプリで 使えない ことば（禁止ワード）に なった ものは「使えない」へ
-  if (j.t === 'guess') r.guess = j.g;
-  else if (j.t === 'q') r.guess = '';
-  r.nwIdx = j.t === 'x' && /ことばじゃない/.test(j.msg || '');
-  r.nmIdx = j.t === 'x' && /これは つくれない/.test(j.msg || '');   // いまの アプリで「これは つくれないよ」に なるか   // いまの アプリで「ことばじゃないよ」に なるか
+  r.nwIdx = j.t === 'x' && /ことばじゃない/.test(j.msg || '');   // いまの アプリで「ことばじゃないよ」に なるか
+  r.nmIdx = j.t === 'x' && /これは つくれない/.test(j.msg || '');   // いまの アプリで「これは つくれないよ」に なるか
   if (j.t === 'x') r.xmsg = j.msg || '';
-  if (j.t === 'x') autoNw(r);
-  if (j.t === 'x' && !r.x) r.x = /ゲームの なまえ/.test(j.msg) ? 'game' : /ゲームの なか/.test(j.msg) ? 'gameword' : /まんが/.test(j.msg) ? 'anime' : /じんぶつ/.test(j.msg) ? 'person' : /これは つくれない/.test(j.msg) ? 'nomake' : /ことばじゃない|すうじ/.test(j.msg) ? 'notword' : 'char';
+  // 「ことばじゃない」「つくれない」に いれた ものは そのまま（いまの アプリで「ことばじゃないよ」「つくれないよ」に なったら そちらへ うつす）
+  if (r.nw || r.nm) {
+    if (r.nm && r.nwIdx && r.nmv !== true) { r.nm = false; r.nw = true; }
+    else if (r.nw && r.nmIdx && r.nwv !== true) { r.nw = false; r.nm = true; }
+    return;
+  }
+  // それ いがいは、除外の 中でも いまの アプリの はんていで ふりわけなおす（〇〇？・？だけ・×）
+  if (j.t === 'ok') { r.reg = true; r.guess = ''; r.x = ''; return; }
+  r.guess = j.t === 'guess' ? (j.g || '') : '';
+  if (j.t === 'x') {
+    r.x = /ゲームの なまえ/.test(j.msg) ? 'game' : /ゲームの なか/.test(j.msg) ? 'gameword' : /まんが/.test(j.msg) ? 'anime' : /じんぶつ/.test(j.msg) ? 'person' : /これは つくれない/.test(j.msg) ? 'nomake' : /ことばじゃない|すうじ/.test(j.msg) ? 'notword' : 'char';
+    autoNw(r);
+  } else r.x = '';   // いまは × では ない（？だけ・〇〇？）ものは ×から はずす
 }
 // うしろに かくれた タブでも とまらずに すすめる（setTimeout は かくれると 1びょうに 1かいまで おそくなるため）
 const nextTick = (f) => { const c = new MessageChannel(); c.port1.onmessage = () => { c.port1.close(); f(); }; c.port2.postMessage(0); };
@@ -163,7 +171,7 @@ async function refreshGuess() {
   if (!JUDGE) return;
   const tok = ++GTOKEN, sig = await judgeSig(), memo = jload(sig);
   if (tok !== GTOKEN) return;
-  const all = rows.filter(r => !r.blocked && !r.junk && !r.reg && !(r.excl && !r.nw && !r.nm && !r.x));   // 除外の「〇〇？」「？だけ」は しらべなおさない（除外の ×・ことばじゃない は 禁止に なったかだけ みる）   // 除外の「〇〇？」は しらべなおさない   // ことばじゃない ものも、アプリで「ことばじゃないよ」に なるかを しらべる
+  const all = rows.filter(r => !r.blocked && !r.junk && !r.reg);   // 除外の 中も ぜんぶ しらべなおす
   const list = [];
   all.forEach(r => { const j = memo[r.word]; if (j) applyJ(r, { t: j[0], g: j[1], msg: j[2] }); else list.push(r); });
   render();
