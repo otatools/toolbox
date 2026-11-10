@@ -520,6 +520,7 @@
       editCanvasWrap.scrollTop = 0;
       editFitSize = null;
       updateEditCursor();
+      redrawIfPreviewScaleChanged();
       return;
     }
     if(!editFitSize){
@@ -538,6 +539,12 @@
     editCanvas.style.width = Math.round(editFitSize.w * editZoom) + 'px';
     editCanvas.style.height = Math.round(editFitSize.h * editZoom) + 'px';
     updateEditCursor();
+    redrawIfPreviewScaleChanged();
+  }
+  // 拡大率が変わって、表示に必要な細かさが変わったときだけ描き直す
+  function redrawIfPreviewScaleChanged(){
+    const item = getSelected();
+    if(item && Math.abs(editPreviewScale(item) - editScale) > 1e-6) scheduleDrawEditor();
   }
   editZoomEl.addEventListener('input', () => {
     const z = parseInt(editZoomEl.value, 10);
@@ -1821,36 +1828,75 @@
   }
 
   // ---------- 顔検出 ----------
-  async function runDetection(item, label){
-    if(!modelReady) return;
+  // ---------- 顔検出は1枚ずつ順番に行う ----------
+  // 以前は、顔検出の準備ができる前に追加した画像を、準備完了と同時に「全部いっせいに」検出していた。
+  // 枚数が多いとその間ずっと画面が固まり（数十秒〜それ以上）、メモリ不足で落ちることもあった。
+  let detectChain = Promise.resolve();
+  const detectPending = new Set();
+  function runDetection(item, label){
+    if(!modelReady || !item) return Promise.resolve();
+    const id = item.id;
+    if(detectPending.has(id)) return detectChain; // すでに順番待ちなら二重に検出しない
+    detectPending.add(id);
     item.detecting = true;
     renderThumbs();
+    const p = detectChain
+      .then(() => runDetectionNow(id, label))
+      .catch(err => console.error('detect error', err))
+      .then(() => { detectPending.delete(id); });
+    detectChain = p;
+    return p;
+  }
+  // 顔検出用の縮小画像。検出器は内部で512px四方に縮めて調べるので、原寸のまま渡しても精度は変わらず、
+  // 処理が重く（大量のメモリを使い）なるだけ。長辺1280pxに縮めてから渡し、見つかった位置を原寸に戻す
+  const DETECT_MAX = 1280;
+  function detectionInput(item){
+    const s = Math.min(1, DETECT_MAX / Math.max(item.w, item.h));
+    if(s >= 1) return {input: item.img, s: 1};
+    const c = document.createElement('canvas');
+    c.width = Math.max(1, Math.round(item.w * s)); c.height = Math.max(1, Math.round(item.h * s));
+    const cx = c.getContext('2d'); cx.imageSmoothingQuality = 'high';
+    cx.drawImage(item.img, 0, 0, c.width, c.height);
+    return {input: c, s: c.width / item.w};
+  }
+  async function runDetectionNow(id, label){
+    const item0 = items.find(i => i.id === id);
+    if(!item0) return; // 待っている間に削除された
     showLoading(label || '顔を検出中…');
     await nextPaint();
     try{
-      const sens = effVal(item, 'sensitivity')/100;
-      const results = await faceapi.detectAllFaces(item.img, new faceapi.SsdMobilenetv1Options({minConfidence: sens, maxResults: 300}));
-      // 手動で追加した枠は保持し、自動枠だけ入れ替える
-      const manual = item.boxes.filter(b => b.src === 'manual');
-      const pad = effVal(item, 'padding')/100;
-      const auto = results.map(r => {
-        const b = r.box;
-        const padX = b.width * pad, padY = b.height * pad;
-        return clampBox({
-          x: b.x - padX, y: b.y - padY,
-          w: b.width + padX*2, h: b.height + padY*2,
-          src: 'auto'
-        }, item.w, item.h);
-      });
-      item.boxes = auto.concat(manual);
-      item.detected = true;
+      const {input, s} = detectionInput(item0);
+      const sens = effVal(item0, 'sensitivity')/100;
+      const results = await faceapi.detectAllFaces(input, new faceapi.SsdMobilenetv1Options({minConfidence: sens, maxResults: 300}));
+      // 待っている間に「元に戻す」などで画像の情報が入れ替わっている場合もあるので、今の状態を探し直す
+      const item = items.find(i => i.id === id);
+      if(item && item.img === item0.img){
+        // 手動で追加した枠は保持し、自動枠だけ入れ替える
+        const manual = item.boxes.filter(b => b.src === 'manual');
+        const pad = effVal(item, 'padding')/100;
+        const auto = results.map(r => {
+          const b = r.box;
+          const bx = b.x / s, by = b.y / s, bw = b.width / s, bh = b.height / s;
+          const padX = bw * pad, padY = bh * pad;
+          return clampBox({
+            x: bx - padX, y: by - padY,
+            w: bw + padX*2, h: bh + padY*2,
+            src: 'auto'
+          }, item.w, item.h);
+        });
+        item.boxes = auto.concat(manual);
+        item.detected = true;
+      }
     }catch(err){
       console.error('detect error', err);
     }
-    item.detecting = false;
+    item0.detecting = false;
+    const cur = items.find(i => i.id === id);
+    if(cur) cur.detecting = false;
     hideLoading();
     renderThumbs();
-    if(selectedId === item.id) drawEditor();
+    if(selectedId === id) drawEditor();
+    await nextPaint(); // 1枚ごとに画面を更新する時間をはさむ
   }
 
   function clampBox(b, W, H){
@@ -1887,25 +1933,7 @@
     if(ent.proc && ent.proc.key === key) return ent.proc.url;
     const s = thumbScale(item);
     const tw = Math.max(1, Math.round(item.w * s)), th = Math.max(1, Math.round(item.h * s));
-    let base;
-    if(item.autoAdjust){
-      base = buildAdjustedCanvas(item.img, tw, th, item.autoAdjust);
-    } else {
-      base = document.createElement('canvas'); base.width = tw; base.height = th;
-      const bc = base.getContext('2d'); bc.imageSmoothingQuality = 'high';
-      bc.drawImage(item.img, 0, 0, tw, th);
-    }
-    if(hasManualAdjust(item)){
-      if(CANVAS_FILTER_OK){
-        const m = document.createElement('canvas'); m.width = tw; m.height = th;
-        const mc = m.getContext('2d');
-        mc.filter = buildManualFilterString(item.manualAdjust);
-        mc.drawImage(base, 0, 0);
-        base = m;
-      } else {
-        applyManualAdjustPixels(base, item.manualAdjust);
-      }
-    }
+    const base = scaledSource(item, s);
     const out = document.createElement('canvas'); out.width = tw; out.height = th;
     const oc = out.getContext('2d');
     oc.drawImage(base, 0, 0);
@@ -2052,29 +2080,92 @@
   }
 
   // ---------- エディタ描画 ----------
+  // ---------- 編集画面の表示は、画面に必要な大きさ（長辺1600px）に縮めて行う ----------
+  // 画面には最大でも数百〜2千px程度でしか表示されないのに、以前は原寸（スマホ写真なら4032×3024）で
+  // 毎回ぼかし直していたため、顔が多い写真でスライダーを動かすと何秒も固まっていた。
+  // ぼかしの量は範囲の大きさに比例するので、縮めて処理しても見た目は書き出し結果と同じになる。
+  // ※ダウンロード・結合の書き出しは、これまでどおり原寸で処理する。
+  const EDIT_PREVIEW_MAX = 1600; // 拡大表示中は、拡大率に合わせて細かく描く（最大で原寸）
+  function editPreviewScale(item){
+    return Math.min(1, EDIT_PREVIEW_MAX * Math.max(1, editZoom) / Math.max(item.w, item.h));
+  }
+  let editScale = 1; // 編集キャンバスの1画素が、元画像の何画素ぶんか（の逆数）
+  let editPreviewCache = {key: null, canvas: null};
+  function editPreviewSource(item, ps){
+    if(ps >= 1) return itemSource(item);
+    const key = item.id + '|' + adjSig(item) + '|' + ps;
+    if(editPreviewCache.key === key) return editPreviewCache.canvas;
+    const c = scaledSource(item, ps);
+    editPreviewCache = {key, canvas: c};
+    return c;
+  }
+  // 縮めた大きさのまま「自動調整→手動調整」をかけた画像を作る（原寸で作ってから縮めるより速い）
+  function scaledSource(item, ps){
+    const cw = Math.max(1, Math.round(item.w * ps)), ch = Math.max(1, Math.round(item.h * ps));
+    let c;
+    if(item.autoAdjust){
+      c = buildAdjustedCanvas(item.img, cw, ch, item.autoAdjust);
+    } else {
+      c = document.createElement('canvas'); c.width = cw; c.height = ch;
+      const cx = c.getContext('2d'); cx.imageSmoothingQuality = 'high';
+      cx.drawImage(item.img, 0, 0, cw, ch);
+    }
+    if(hasManualAdjust(item)){
+      if(CANVAS_FILTER_OK){
+        const m = document.createElement('canvas'); m.width = cw; m.height = ch;
+        const mc = m.getContext('2d');
+        mc.filter = buildManualFilterString(item.manualAdjust);
+        mc.drawImage(c, 0, 0);
+        c = m;
+      } else {
+        applyManualAdjustPixels(c, item.manualAdjust);
+      }
+    }
+    return c;
+  }
+  function scaleBox(b, s){
+    const sb = {x: b.x*s, y: b.y*s, w: b.w*s, h: b.h*s, src: b.src};
+    if(b.shape) sb.shape = b.shape;
+    if(b.points) sb.points = b.points.map(p => ({x: p.x*s, y: p.y*s}));
+    return sb;
+  }
+  // スライダーを動かしている間などは、描き直しを1コマに1回にまとめる
+  let drawEditorQueued = false;
+  function scheduleDrawEditor(){
+    if(drawEditorQueued) return;
+    drawEditorQueued = true;
+    requestAnimationFrame(() => { drawEditorQueued = false; drawEditor(); });
+  }
+
   function drawEditor(){
     const item = getSelected();
     if(!item) return;
     schedulePersistImages();
     updateEditCanvasAspect(item);
-    editCanvas.width = item.w;
-    editCanvas.height = item.h;
-    ectx.clearRect(0,0,item.w,item.h);
-    const src = itemSource(item);
-    ectx.drawImage(src, 0, 0, item.w, item.h);
+    const ps = editPreviewScale(item);
+    editScale = ps;
+    const cw = Math.max(1, Math.round(item.w * ps)), ch = Math.max(1, Math.round(item.h * ps));
+    editCanvas.width = cw;
+    editCanvas.height = ch;
+    ectx.setTransform(1, 0, 0, 1, 0, 0);
+    ectx.clearRect(0, 0, cw, ch);
+    const src = editPreviewSource(item, ps);
+    ectx.drawImage(src, 0, 0, cw, ch);
 
     if(blurEnabled){
       const strength = effVal(item, 'strength');
       const feather = effVal(item, 'feather')/100;
       item.boxes.forEach(b => {
-        applyBlurForBox(ectx, src, b, strength, feather);
+        const sb = ps < 1 ? scaleBox(b, ps) : b;
+        if(sb.w >= 1 && sb.h >= 1) applyBlurForBox(ectx, src, sb, strength, feather);
       });
     }
 
-    // 枠線
+    // ここから先（枠線・描きかけの範囲など）は、元画像の座標のまま描けるように縮尺をかけておく
+    ectx.setTransform(ps, 0, 0, ps, 0, 0);
     item.boxes.forEach(b => {
       ectx.strokeStyle = (b.src === 'manual' ? '#ff9500' : '#3f6fd6');
-      ectx.lineWidth = Math.max(2, item.w/300);
+      ectx.lineWidth = Math.max(2 / ps, item.w/300);
       strokeBoxOutline(ectx, b);
     });
   }
@@ -2302,8 +2393,8 @@
     if(!polygonDraft || !polygonDraft.length) return;
     ectx.save();
     ectx.strokeStyle = '#ff9500';
-    ectx.lineWidth = 2;
-    ectx.setLineDash([6,4]);
+    ectx.lineWidth = 2 / editScale;
+    ectx.setLineDash([6 / editScale, 4 / editScale]);
     ectx.beginPath();
     polygonDraft.forEach((p, i) => { if(i===0) ectx.moveTo(p.x,p.y); else ectx.lineTo(p.x,p.y); });
     if(mousePos) ectx.lineTo(mousePos.x, mousePos.y);
@@ -2312,7 +2403,7 @@
     polygonDraft.forEach((p, i) => {
       ectx.fillStyle = i === 0 ? '#2ecc71' : '#ff9500';
       ectx.beginPath();
-      ectx.arc(p.x, p.y, Math.max(3, editCanvas.width/250), 0, Math.PI*2);
+      ectx.arc(p.x, p.y, Math.max(3 / editScale, (getSelected() ? getSelected().w : editCanvas.width)/250), 0, Math.PI*2);
       ectx.fill();
     });
     ectx.restore();
@@ -2341,8 +2432,8 @@
     const x = Math.min(dragStart.x, pos.x), y = Math.min(dragStart.y, pos.y);
     const w = Math.abs(pos.x - dragStart.x), h = Math.abs(pos.y - dragStart.y);
     ectx.strokeStyle = '#ff9500';
-    ectx.lineWidth = 2;
-    ectx.setLineDash([6,4]);
+    ectx.lineWidth = 2 / editScale;
+    ectx.setLineDash([6 / editScale, 4 / editScale]);
     if(manualShape === 'rect'){
       ectx.strokeRect(x,y,w,h);
     } else {
@@ -2413,19 +2504,17 @@
     }
   });
 
+  // 画面上の位置を「元画像の座標」に変換する（編集キャンバスは縮めて表示していることがあるため）
   function canvasPos(e, allowOutside){
     const rect = editCanvas.getBoundingClientRect();
-    const scaleX = editCanvas.width / rect.width;
-    const scaleY = editCanvas.height / rect.height;
+    const item = getSelected();
+    const W = item ? item.w : editCanvas.width, H = item ? item.h : editCanvas.height;
+    const scaleX = W / rect.width;
+    const scaleY = H / rect.height;
     let x = (e.clientX - rect.left) * scaleX;
     let y = (e.clientY - rect.top) * scaleY;
-    if(!allowOutside){
-      x = Math.max(0, Math.min(editCanvas.width, x));
-      y = Math.max(0, Math.min(editCanvas.height, y));
-    } else {
-      x = Math.max(0, Math.min(editCanvas.width, x));
-      y = Math.max(0, Math.min(editCanvas.height, y));
-    }
+    x = Math.max(0, Math.min(W, x));
+    y = Math.max(0, Math.min(H, y));
     return {x,y};
   }
 
@@ -2543,11 +2632,12 @@
     const v = parseInt(el.value, 10);
     ensureManualAdjust(item)[key] = v;
     valEl.textContent = v + '%';
-    rebuildManualCanvas(item);
+    // 原寸の手動調整画像は、書き出しなどで必要になったときに作る（スライダーを動かすたびには作らない）
+    item.manualCanvas = null;
     item.adjustVersion = (item.adjustVersion || 0) + 1;
     processedCache.delete(item.id);
     btnResetManualAdjust.style.display = 'block';
-    drawEditor();
+    scheduleDrawEditor();
   }
   manualBrightnessEl.addEventListener('input', () => onManualInput('brightness', manualBrightnessEl, manualBrightnessVal));
   manualContrastEl.addEventListener('input', () => onManualInput('contrast', manualContrastEl, manualContrastVal));
@@ -2684,13 +2774,13 @@
     const v = parseFloat(strengthEl.value);
     strengthVal.textContent = strengthEl.value;
     setEffOrBatch('strength', v);
-    drawEditor();
+    scheduleDrawEditor();
   });
   featherEl.addEventListener('input', () => {
     const v = parseInt(featherEl.value,10);
     featherVal.textContent = featherEl.value + '%';
     setEffOrBatch('feather', v);
-    drawEditor();
+    scheduleDrawEditor();
   });
   paddingEl.addEventListener('input', () => {
     const v = parseInt(paddingEl.value,10);
@@ -3175,7 +3265,7 @@
           bctxMain.rect(sx, sy, sw, sh);
         }
         bctxMain.clip();
-        const proc = getProcessedCanvasCached(slot.item);
+        const proc = getProcessedCanvasCached(slot.item, scale);
         bctxMain.drawImage(proc, sx + slot.offX, sy + slot.offY, dw, dh);
         bctxMain.restore();
       }
@@ -3267,13 +3357,33 @@
   function processedSig(item){
     return adjSig(item) + '|' + effVal(item,'strength') + '|' + effVal(item,'feather') + '|' + (blurEnabled?1:0) + '|' + JSON.stringify(item.boxes);
   }
-  function getProcessedCanvasCached(item){
-    const key = processedSig(item);
+  // 結合画面（長辺1600px）では、枠に表示される大きさがあれば十分なので、必要な縮尺で作る
+  // （原寸で毎回ぼかすと、顔が多い写真を何枚も並べたときに何秒も固まるため）
+  const PROCESSED_STEPS = [0.125, 0.25, 0.375, 0.5, 0.75, 1];
+  function getProcessedCanvasCached(item, needed){
+    const q = PROCESSED_STEPS.find(v => v >= (needed || 1) * 1.05) || 1;
+    const key = processedSig(item) + '|' + q;
     const cached = processedCache.get(item.id);
     if(cached && cached.key === key) return cached.canvas;
-    const canvas = renderProcessedCanvas(item);
+    const canvas = q >= 1 ? renderProcessedCanvas(item) : renderProcessedScaled(item, q);
     processedCache.set(item.id, {key, canvas});
     return canvas;
+  }
+  function renderProcessedScaled(item, q){
+    const src = scaledSource(item, q);
+    const c = document.createElement('canvas');
+    c.width = src.width; c.height = src.height;
+    const cx = c.getContext('2d');
+    cx.drawImage(src, 0, 0);
+    if(blurEnabled){
+      const strength = effVal(item, 'strength');
+      const feather = effVal(item, 'feather')/100;
+      item.boxes.forEach(b => {
+        const sb = scaleBox(b, q);
+        if(sb.w >= 1 && sb.h >= 1) applyBlurForBox(cx, src, sb, strength, feather);
+      });
+    }
+    return c;
   }
 
   // 各画像の「処理済みキャンバス」を作る（結合用）
