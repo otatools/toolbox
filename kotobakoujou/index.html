@@ -3771,6 +3771,18 @@ return {recog:recog};
     function coinSet(n) { try { localStorage.setItem(COIN_KEY, String(Math.max(0, n))); } catch (e) {} }
     Array.prototype.forEach.call(document.querySelectorAll('.coinImg'), function (im) { im.src = COIN_SRC; });
     function showOrderDone() { if (!orderDonePending) return; orderDonePending = false; var o = orderLoad(); var more = o.rr < orderRR(); document.getElementById('odMsg').textContent = more ? '' : 'また あした ちゅうもんを うけてね'; document.getElementById('btnOdMore').hidden = !more; document.getElementById('orderDone').hidden = false; }
+    // スリープや タブを ひらいた まま 日づけが かわったとき：ちゅうもんの がめんを その日の ものに かきなおす
+    // （まえは ひらきなおすまで きのうの「また あした」が でた ままで、ちゅうもんを うけられなかった）
+    var ORDER_DAY = today();
+    function orderWake() {
+        var d = today(); if (d === ORDER_DAY) return; ORDER_DAY = d;
+        orderPicking = false; orderBig = null; orderDonePending = false;
+        try { document.getElementById('orderDone').hidden = true; ovZoom.hidden = true; } catch (e) {}
+        try { updateOrderBtn(); if (!orderView.hidden) renderOrder(); } catch (e) {}
+    }
+    document.addEventListener('visibilitychange', function () { if (!document.hidden) orderWake(); });
+    window.addEventListener('focus', orderWake); window.addEventListener('pageshow', orderWake);
+    setInterval(orderWake, 30 * 1000);
     bindPress(btnOrder, function () { if (busy) return; orderPicking = false; orderBig = null; ovZoom.hidden = true; renderOrder(); orderView.hidden = false; });
     bindPress(document.getElementById('btnOrderBack'), function () {
         // ジャンルを えらびなおして いる ときは、ひとつ まえ（ちゅうもんの カード）に もどる
