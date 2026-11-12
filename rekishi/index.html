@@ -334,6 +334,9 @@ h1{ font-size:1.5rem; text-align:center; letter-spacing:.05em; }
   color:var(--gold); font-size:1.05rem; line-height:1; padding:8px 4px; margin:0;
   min-width:26px; min-height:30px; border-radius:8px; overflow:visible;
 }
+/* ▲は小さいので、見た目は変えずに指で押せる範囲だけ左右と下に広げる（スマホで縮小表示されると、▲そのものは20px前後しかなく押しにくい） */
+button.tl-marker-btn{ position:relative; }
+button.tl-marker-btn::before{ content:""; position:absolute; left:-18px; right:-18px; top:-4px; bottom:-12px; }
 .tl-marker-btn.pickable{ color:var(--accent); background:#fff3cd; }
 .tl-marker-btn:active{ transform:scale(.85); }
 .tl-marker-btn.drag-over{ background:#ffe08a; transform:scale(1.35); box-shadow:0 0 0 4px rgba(184,134,11,.25); }
@@ -501,7 +504,7 @@ h1{ font-size:1.5rem; text-align:center; letter-spacing:.05em; }
 
 /* トースト（誤答・正解フィードバック） */
 #toast{
-  position:fixed; left:50%; top:46px; transform:translate(-50%,-220%);   /* 上部の表示と重ならない高さ */
+  position:fixed; left:50%; top:calc(46px + env(safe-area-inset-top, 0px)); transform:translate(-50%,-220%);   /* 上部の表示と重ならない高さ（ホーム画面から開いたときは、切り欠きのぶん下げる） */
   background:rgba(0,0,0,.82); color:#fff; padding:10px 18px; border-radius:999px;
   font-size:.85rem; font-weight:700; z-index:70; pointer-events:none;
   white-space:nowrap;
@@ -598,7 +601,7 @@ h1{ font-size:1.5rem; text-align:center; letter-spacing:.05em; }
 }
 /* 前面のコンテンツ */
 .home-ver{            /* 画面の一番下に、さりげなくバージョン表示（下の雲の飾りより手前） */
-  position:absolute; left:0; right:0; bottom:calc(8px + env(safe-area-inset-bottom, 0px)); z-index:3; text-align:center;
+  position:absolute; left:0; right:0; bottom:8px; z-index:3; text-align:center;   /* ホームバーのぶんは#appの余白で避けてあるので、ここで足すと二重になる */
   font-family:var(--mincho); font-size:clamp(10px, min(1.7vh, 2.8vw), 14px); letter-spacing:.08em;
   color:#a39b86; white-space:nowrap; pointer-events:none;
 }
@@ -1028,6 +1031,8 @@ h1{ font-size:1.5rem; text-align:center; letter-spacing:.05em; }
 #rank-entry{
   position:fixed; inset:0; z-index:60; background:rgba(40,34,22,.55);
   display:flex; align-items:center; justify-content:center; padding:14px; overflow-y:auto;
+  /* #appの外にあるので、ホーム画面から開いたときの切り欠き・ホームバーはここで避ける（ふだんのSafariでは14px） */
+  padding:max(14px, env(safe-area-inset-top, 0px)) max(14px, env(safe-area-inset-right, 0px)) max(14px, env(safe-area-inset-bottom, 0px)) max(14px, env(safe-area-inset-left, 0px));
 }
 #rank-entry[hidden]{ display:none; }
 .rank-entry-card{
@@ -1062,6 +1067,11 @@ h1{ font-size:1.5rem; text-align:center; letter-spacing:.05em; }
 
 /* ---- スマホを横にしたときなど、画面の高さが低いとき ----
    縦に積むと「チャレンジスタート」やリザルトのボタン、名前入力の「登録する」が画面の外に出てしまうので詰める */
+/* 縦向きのスマホの部屋（ロビー）：部屋番号の上の余白を少しだけ詰め、5人そろっても「対戦スタート」の下が切れてスクロールにならないようにする
+   （部屋番号の上の「部屋番号」の文字は小さく真ん中にあるので、左上・右上のボタンとはぶつからない） */
+@media (orientation:portrait) and (max-width:600px){
+  #lobby-screen .wa-inner{ padding-top:clamp(40px, calc(var(--app-h, 100vh) * .16 - 66px), 120px); }
+}
 /* 縦向きで背の低いスマホ（iPhone SE などでツールバーが出ているとき）は、上の余白と間を少し詰めて1画面に収める */
 @media (orientation:portrait) and (max-height:600px){
   .wa-inner{ padding-top:46px; padding-bottom:8px; }
@@ -1069,6 +1079,27 @@ h1{ font-size:1.5rem; text-align:center; letter-spacing:.05em; }
   .room-code-note{ margin-bottom:6px; }
   .wa-group{ margin-bottom:8px; }
   .result-rank-btn{ margin-top:8px; }
+  /* 部屋（ロビー）：「対戦スタート」まで1画面に収める */
+  #lobby-screen .wa-inner{ padding-top:34px; }
+  #lobby-screen .wa-rule{ margin-bottom:6px; }
+  #lobby-screen .lobby-players li{ padding-top:3px; padding-bottom:3px; }
+  #lobby-screen .lobby-settings{ margin-bottom:4px; }
+  #lobby-screen .wa-start{ margin-top:12px; }
+  /* ランクインの名前入力：「登録する」「登録しない」まで1画面に収める */
+  #rank-entry{ padding-top:max(8px, env(safe-area-inset-top, 0px)); padding-bottom:max(8px, env(safe-area-inset-bottom, 0px)); }
+  .rank-entry-card{ padding-top:8px; padding-bottom:10px; }
+  .rank-field-label{ margin:4px 0 2px; }
+  .rank-kb-tabs{ margin-top:6px; }
+  .rank-kb button{ height:31px; }
+  #rank-entry .wa-start{ margin-top:8px; padding-top:8px; padding-bottom:8px; }
+  .rank-skip{ margin:10px auto 0; }
+}
+/* さらに背の低い縦向き（320×480 など） */
+@media (orientation:portrait) and (max-height:520px){
+  #setup-solo-screen .solo-rules li{ line-height:1.6; }
+  #setup-solo-screen .wa-group{ margin-bottom:4px; }
+  #result-screen .wa-inner{ padding-top:24px; }   /* 結果画面には左上・右上のボタンが無いので、上を詰めてよい */
+  #lobby-screen .room-code{ font-size:40px; }
 }
 @media (orientation:landscape) and (max-height:500px){
   .wa-inner{ padding-top:10px; padding-bottom:8px; }
@@ -1085,6 +1116,10 @@ h1{ font-size:1.5rem; text-align:center; letter-spacing:.05em; }
   #lobby-screen .lobby-players li{ padding-top:3px; padding-bottom:3px; }
   #lobby-screen .lobby-settings{ margin-bottom:4px; }
   #lobby-screen .wa-start{ margin-top:6px; }
+  /* 5人そろうと一覧の上（参加者の人数）が画面の上で切れ、右上の「遊び方」ボタンが一覧の右端（親・あなた）に重なっていたので、
+     右をボタンのぶんあけて、一覧の行を少し詰める */
+  #lobby-screen .lobby-right{ padding-right:96px; }
+  #lobby-screen .lobby-players li{ padding-top:2px; padding-bottom:2px; }
   .wa-title, .result-title{ font-size:clamp(18px, 6vh, 24px); margin-bottom:4px; }
   .wa-rule{ margin-bottom:6px; }
   .wa-group{ margin-bottom:6px; }
@@ -1115,15 +1150,35 @@ h1{ font-size:1.5rem; text-align:center; letter-spacing:.05em; }
   .rank-page{ padding:2px 4px; font-size:11px; }
   .rank-me{ margin-top:3px; font-size:13px; }
   /* 名前入力：左に名前・地域・ボタン、右にキーボードの2列にする */
-  #rank-entry{ padding:8px; }
-  .rank-entry-card{ max-width:min(96vw, 720px); display:grid; grid-template-columns:1fr 1.15fr; column-gap:18px; align-content:start; padding:10px 14px; }
+  #rank-entry{ padding:max(8px, env(safe-area-inset-top, 0px)) max(8px, env(safe-area-inset-right, 0px)) max(8px, env(safe-area-inset-bottom, 0px)) max(8px, env(safe-area-inset-left, 0px)); }
+  .rank-entry-card{ max-width:min(96vw, 720px); display:grid; grid-template-columns:1fr 1.15fr; column-gap:18px; align-content:start; padding:8px 14px; }
   .rank-entry-card > *{ grid-column:1; }
-  .rank-entry-card > .rank-kb-tabs{ grid-column:2; grid-row:1 / span 2; align-self:start; margin-top:0; }
-  .rank-entry-card > .rank-kb{ grid-column:2; grid-row:3 / span 9; align-self:start; }
+  .rank-entry-card > .rank-kb-tabs{ grid-column:2; grid-row:1; align-self:start; margin-top:0; }
+  .rank-entry-card > .rank-kb{ grid-column:2; grid-row:2 / span 3; align-self:start; }
+  /* 地域・世代はキーボードの下（右の列）に置いて、左の列を短くし「登録しない」まで1画面に収める */
+  .rank-entry-card > .rank-kb + .rank-field-label{ grid-column:2; grid-row:5; align-self:end; }
+  .rank-entry-card > .rank-sel-row{ grid-column:2; grid-row:6; align-self:start; margin-top:8px; }
+  #rank-name{ padding-top:4px; padding-bottom:4px; }
   .rank-entry-title{ font-size:20px; }
   .rank-field-label{ margin:4px 0 2px; }
   #rank-entry .wa-start{ margin-top:8px; padding-top:8px; padding-bottom:8px; }
   .rank-skip{ margin:8px auto 0; }
+  /* 一人でチャレンジ：「ランキングを見る」まで1画面に収める（ハイスコアは見出しと同じ行に） */
+  #setup-solo-screen .wa-title{ margin-bottom:2px; }
+  #setup-solo-screen .wa-group{ margin-bottom:4px; }
+  #setup-solo-screen .wa-group + .wa-group > .wa-group-title{ display:inline-block; margin:0 .6em 0 0; vertical-align:middle; }
+  #setup-solo-screen .solo-highscore{ display:inline-block; vertical-align:middle; }
+  #setup-solo-screen .wa-start{ padding-top:6px; padding-bottom:6px; }
+  /* 部屋に入る：「もどる」まで1画面に収める */
+  #online-screen .wa-rule{ margin-bottom:6px; }
+  #online-screen .wa-group{ margin-bottom:6px; }
+  #online-screen .name-label{ font-size:16px; }
+  #online-name{ padding-top:5px; padding-bottom:5px; }
+  #join-room-input{ padding-top:4px; padding-bottom:4px; font-size:22px; }
+  .join-panel{ margin-top:6px; }
+  .join-panel .wa-start{ margin-top:8px; }
+  .join-cancel{ margin-top:14px; }
+  .rank-msg{ margin-top:4px; }
 }
 
 /* ---- デバッグ：場札イラスト一覧（?ichiranzenbu などで表示） ---- */

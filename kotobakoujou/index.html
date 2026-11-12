@@ -78,6 +78,8 @@
     html, body { touch-action: pan-x pan-y; }
 
     :root { --app-h: 100vh; --ch-fs: 60px; }
+    /* ノッチ・ホームバーを よける（webapp §25-2）。ふつうの ブラウザでは 0 */
+    :root { --safe-t: env(safe-area-inset-top, 0px); --safe-r: env(safe-area-inset-right, 0px); --safe-b: env(safe-area-inset-bottom, 0px); --safe-l: env(safe-area-inset-left, 0px); }
     @supports (height: 100dvh) { :root { --app-h: 100dvh; } }
 
     html { background: #fff; height: 100%; -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
@@ -103,6 +105,8 @@
     /* ===== 全体：固定デザインを丸ごと拡大縮小 ===== */
     #app {
         position: absolute; top: 50%; left: 50%;
+        top: calc(50% + (var(--safe-t) - var(--safe-b)) / 2);
+        left: calc(50% + (var(--safe-l) - var(--safe-r)) / 2);
         transform: translate(-50%, -50%) scale(1);
         transform-origin: center center;
         display: grid;
@@ -3791,6 +3795,17 @@ return {recog:recog};
         if (h > 0) document.documentElement.style.setProperty('--app-h', Math.round(h) + 'px');
     }
 
+    var safeProbe = null;
+    function safeInsets() {
+        if (!safeProbe) {
+            safeProbe = document.createElement('div');
+            safeProbe.style.cssText = 'position:fixed;left:0;top:0;width:0;height:0;visibility:hidden;pointer-events:none;padding:var(--safe-t) var(--safe-r) var(--safe-b) var(--safe-l);';
+            document.body.appendChild(safeProbe);
+        }
+        var cs = getComputedStyle(safeProbe);
+        return { t: parseFloat(cs.paddingTop) || 0, r: parseFloat(cs.paddingRight) || 0, b: parseFloat(cs.paddingBottom) || 0, l: parseFloat(cs.paddingLeft) || 0 };
+    }
+
     function fitToWindow() {
         setAppHeight();
         var vv = window.visualViewport;
@@ -3798,6 +3813,8 @@ return {recog:recog};
         var vw = vv ? vv.width * zs : window.innerWidth;
         var vh = vv ? vv.height * zs : window.innerHeight;
         if (!vw || !vh) return;
+        var sa = safeInsets();   // ノッチ・ホームバーの ぶんを のぞいた ひろさで 計算する
+        vw -= sa.l + sa.r; vh -= sa.t + sa.b;
 
         var LW = Math.max(1200, Math.min(1700, Math.round(844 * vw / vh)));
         var sL = Math.min((vw - 8) / LW, (vh - 8) / 844);

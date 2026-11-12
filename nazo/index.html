@@ -10,7 +10,7 @@
   gtag('config', 'G-YTH979WTKL');
 </script>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <title>なぞときアプリ｜パスワードを さがせ！ 〜わすれんぼ はかせの パソコン〜</title>
     <meta name="description" content="パスワードをわすれてしまった はかせのパソコン。画面のイラストを手がかりにパスワードを見つけて、ファイルのロックをかいじょしていく、小学生向けのなぞときゲームです。">
     <meta name="author" content="太田圭一">
@@ -31,7 +31,7 @@
     --green: #3dffa2; --cyan: #5fd8ff; --red: #ff6b7d; --yellow: #ffe066; --dim: #7fb3a6;
 }
 @supports (height: 100dvh) { :root { --app-h: 100dvh; } }
-html { background: var(--bg); }
+html { background: var(--bg); overscroll-behavior-y: none; }
 body {
     margin: 0; height: var(--app-h); overflow: hidden; overscroll-behavior-y: none;
     background: var(--bg); color: var(--green);
@@ -61,6 +61,12 @@ button { font-family: inherit; color: inherit; -webkit-appearance: none; appeara
 .btn.sub { border-color: var(--cyan); color: var(--cyan); background: rgba(95,216,255,.10); }
 .btn.sub:active { background: var(--cyan); color: var(--bg); }
 .btn.small { font-size: 15px; padding: 6px 12px; white-space: nowrap; }
+/* 小さいボタンは、見た目はそのままで おせる はんいだけ 広げる（スマホで おしやすく） */
+.btn.small { position: relative; }
+.btn.small::after { content: ''; position: absolute; left: -8px; right: -8px; top: -6px; bottom: -6px; }
+/* ノッチ・ホームバーの はば（fitToWindow で読む） */
+#safeProbe { position: fixed; left: 0; top: 0; width: 0; height: 0; visibility: hidden; pointer-events: none;
+    padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px) env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px); }
 
 /* ---------- タイトル ---------- */
 #scTitle { align-items: center; justify-content: center; text-align: center; padding: 20px; }
@@ -178,7 +184,7 @@ button { font-family: inherit; color: inherit; -webkit-appearance: none; appeara
 /* ---------- かさねる画面 ---------- */
 .ov { position: absolute; left: 0; top: 0; width: 100%; height: 100%; background: rgba(6,16,22,.9); display: flex; align-items: center; justify-content: center; z-index: 20; }
 .box { width: 360px; max-width: 92%; border: 2px solid var(--green); background: var(--bg); border-radius: 12px; padding: 20px 18px; text-align: center; }
-.box p { margin: 0 0 16px; font-size: 19px; line-height: 1.5; color: #d9fff0; }
+.box p { margin: 0 0 16px; font-size: 19px; line-height: 1.5; color: #d9fff0; word-break: keep-all; overflow-wrap: anywhere; }
 .box .row { display: flex; gap: 10px; justify-content: center; }
 .box .btn { font-size: 17px; padding: 10px 14px; white-space: nowrap; }
 .granted { font-size: 30px; color: var(--yellow); letter-spacing: 2px; margin: 0 0 2px; }
@@ -247,6 +253,14 @@ button { font-family: inherit; color: inherit; -webkit-appearance: none; appeara
 .is-portrait .hakase { height: 160px; height: min(300px, calc(100% - 520px)); width: 320px; }
 .is-portrait #scTitle .logo-sub { margin: 4px 0 10px; }
 .is-portrait .mstand { margin-bottom: 12px; }
+/* スマホを横にしたとき（高さが低い）：タイトルのモニターを小さくして 1画面に入れる */
+.is-landscape.is-short #scTitle { padding-top: 8px; }
+.is-landscape.is-short #scTitle .logo-sub { margin: 4px 0 8px; }
+.is-landscape.is-short .monitor { width: 340px; height: 244px; }
+.is-landscape.is-short .mscreen .boot { width: 268px; height: 54px; font-size: 12px; }
+.is-landscape.is-short .mscreen .logo-lock { width: 64px; height: 64px; }
+.is-landscape.is-short .mlocked { font-size: 18px; }
+.is-landscape.is-short .mstand { margin-bottom: 8px; }
 /* パソコンの中に入ったとき：全体にうすい走査線 */
 #app.inside::after { content: ''; position: absolute; left: 0; top: 0; width: 100%; height: 100%; pointer-events: none; z-index: 50;
     background: repeating-linear-gradient(0deg, rgba(0,0,0,.13) 0 1px, transparent 1px 3px); }
@@ -296,6 +310,7 @@ button { font-family: inherit; color: inherit; -webkit-appearance: none; appeara
 </style>
 </head>
 <body>
+<div id="safeProbe"></div>
 <h1 class="sr-only">パスワードを さがせ！ 〜わすれんぼ はかせの パソコン〜 小学生向け なぞときゲーム</h1>
 <div id="stage">
 <div id="app" class="is-landscape">
@@ -1115,18 +1130,26 @@ function fitToWindow() {
     const vv = window.visualViewport;
     const vw = vv ? vv.width : window.innerWidth, vh = vv ? vv.height : window.innerHeight;
     if (!(vw > 0 && vh > 0)) return;
-    const aw = Math.max(50, vw - 8), ah = Math.max(50, vh - 8), ratio = aw / ah;
+    /* ノッチ・ホームバーに かからないよう、そのぶん よけて おく（ふつうの ブラウザでは 0） */
+    let st = 0, sr = 0, sb = 0, sl = 0;
+    try { const cs = getComputedStyle($('safeProbe')); st = parseFloat(cs.paddingTop) || 0; sr = parseFloat(cs.paddingRight) || 0; sb = parseFloat(cs.paddingBottom) || 0; sl = parseFloat(cs.paddingLeft) || 0; } catch (e) {}
+    const aw = Math.max(50, vw - 8 - sl - sr), ah = Math.max(50, vh - 8 - st - sb), ratio = aw / ah;
     const portrait = ratio < 0.85, app = $('app');
     let W, H;
     if (portrait) {
         if (ratio < 400 / 680) { W = 400; H = Math.min(900, Math.floor(400 / ratio)); }
         else { H = 680; W = Math.floor(680 * ratio); }
     } else {
-        if (ratio >= 920 / 600) { H = 600; W = Math.min(1600, Math.floor(600 * ratio)); }
+        /* スマホを横にしたとき（高さが低い）は、もとの高さを 480 にして 文字やボタンを大きく見せる */
+        const baseH = ah < 460 ? 480 : 600;
+        if (ratio >= 920 / baseH) { H = baseH; W = Math.min(1600, Math.floor(baseH * ratio)); }
         else { W = 920; H = Math.min(1100, Math.floor(920 / ratio)); }
     }
     app.classList.toggle('is-portrait', portrait); app.classList.toggle('is-landscape', !portrait);
+    app.classList.toggle('is-short', !portrait && H < 600);
     app.style.width = W + 'px'; app.style.height = H + 'px';
+    app.style.left = (sl || sr) ? 'calc(50% + ' + ((sl - sr) / 2) + 'px)' : '';
+    app.style.top = (st || sb) ? 'calc(50% + ' + ((st - sb) / 2) + 'px)' : '';
     app.style.transform = 'translate(-50%, -50%) scale(' + Math.min(aw / W, ah / H) + ')';
     /* もんだいの絵（モニター）も、あいている場所に合わせて大きくする */
     const crt = $('crt'), play = document.querySelector('.play');
