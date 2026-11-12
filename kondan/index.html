@@ -117,6 +117,9 @@ textarea { width: 100%; resize: vertical; }
 .lbox h3 { margin: 0; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .ltag span { font-size: 12px; font-weight: 400; color: var(--sub); border: 1px solid var(--line); background: #fff; border-radius: 999px; padding: 2px 10px; }
 .ltag span.ok { color: var(--ok); border-color: var(--ok); font-weight: 700; }
+.lbox .btn, .abox .btn { white-space: normal; max-width: 100%; }
+@media (max-width: 360px) { #tabs { gap: 3px !important; } #tabs button { padding: 5px 6px !important; font-size: 12px !important; gap: 3px !important; } #tabs button b { width: 17px !important; height: 17px !important; font-size: 10.5px !important; } }
+.tbl td.empty { white-space: normal; }
 .lbox .btn small { font-weight: 400; font-size: 12px; margin-left: 2px; }
 .lpdlg { margin-top: 10px; background: #e5e9ef; padding: 8px; border-radius: 8px; text-align: center; }
 .lpdlg { max-height: 62vh; overflow-y: auto; }
@@ -402,8 +405,20 @@ body.on-plan footer.ver { display: none; }
 footer.ver { text-align: center; color: #9aa6b4; font-size: 12px; margin: 18px 0 4px; }
 
 /* モーダル・トースト */
-#modal { position: fixed; inset: 0; z-index: 50; background: rgba(20, 35, 55, .35); display: flex; align-items: center; justify-content: center; padding: 20px; }
-#modal .box { background: #fff; border-radius: 14px; padding: 20px; max-width: 420px; width: 100%; box-shadow: 0 10px 40px rgba(0,0,0,.2); max-height: 92vh; overflow-y: auto; }
+/* iPhoneでは100vhが見えている高さより大きいので、実測した高さ(--app-h)に合わせる。下のボタンは常に見えるようにし、中だけスクロール */
+#modal { position: fixed; top: 0; left: 0; right: 0; bottom: 0; max-height: var(--app-h); box-sizing: border-box; z-index: 50; background: rgba(20, 35, 55, .35); display: flex; align-items: center; justify-content: center;
+  padding: calc(12px + var(--safe-t)) calc(12px + var(--safe-r)) calc(12px + var(--safe-b)) calc(12px + var(--safe-l)); }
+#modal .box { background: #fff; border-radius: 14px; padding: 16px; max-width: 420px; width: 100%; box-sizing: border-box; box-shadow: 0 10px 40px rgba(0,0,0,.2); max-height: 100%; display: flex; flex-direction: column; overflow: hidden; }
+#modalMsg { flex: 1 1 auto; min-height: 0; overflow-y: auto; overflow-x: hidden; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; }
+#modalBtns { flex: none; padding-top: 12px; }
+/* ポップアップが出ている間のお知らせ（トースト）は、下のボタンに重ならないよう上に出す */
+body:has(#modal:not([hidden])) #toast { bottom: auto; top: calc(10px + var(--safe-t)); }
+@media (max-width: 520px) {
+  #modal .adlg h3 { font-size: 16px; } #modal .adlg .aq { margin-top: 10px; }
+  #modal .aopt span { padding: 7px 10px; flex-direction: row; align-items: baseline; gap: 2px 8px; flex-wrap: wrap; }
+  #modal .aopt small { font-size: 11.5px; }
+  #modal #modalBtns .btn { flex: 1 1 auto; }
+}
 #modal .box:has(.adlg) { max-width: 620px; }
 .adlg h3 { font-size: 18px; margin: 0 0 6px; }
 .awarn { margin: 12px 0 0; padding: 8px 10px; border-radius: 8px; background: var(--warn-l); color: #7a4f0e; font-size: 13px; }
@@ -453,6 +468,9 @@ footer.ver { text-align: center; color: #9aa6b4; font-size: 12px; margin: 18px 0
 .lside label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--sub); }
 .csum { display: flex; flex-direction: column; gap: 6px; margin-top: 6px; font-size: 14.5px; }
 .cday { display: inline-block; border: 1px solid var(--line); background: #fff; border-radius: 8px; padding: 2px 10px; margin: 0 6px 4px 0; }
+.blankbox { border: 1px dashed var(--line); border-radius: 10px; padding: 8px 10px; }
+.lallchk { align-items: flex-start !important; flex-direction: row !important; gap: 8px; font-size: 14px !important; color: inherit !important; }
+.lallchk small { display: block; font-size: 12px; color: var(--sub); }
 .lbox.need { border-color: var(--warn); background: #fff8ec; }
 .lbox.done { padding: 8px 12px; }
 .lpbox { background: #e9edf2; border-radius: 10px; padding: 12px; }
@@ -688,6 +706,9 @@ footer.ver { text-align: center; color: #9aa6b4; font-size: 12px; margin: 18px 0
             <button class="btn pri" id="letterPdf">全員分をPDFで保存</button>
             <button class="btn" id="letterPrint">全員分を印刷</button>
             <span class="hint" style="margin:0" id="letterCount"></span>
+            <label class="chk lallchk"><input type="checkbox" id="lAll"><span>日時がまだの人の分も作る<small>（日時は空らん。あとで手書きで入れます）</small></span></label>
+            <div class="blankbox"><div class="hint" style="margin:0 0 6px">手書き用：名前も日時も空らんの用紙</div>
+              <div class="row"><button class="btn sm" data-blank="pdf">PDFで保存</button><button class="btn sm" data-blank="print">印刷</button></div></div>
           </div>
           <div class="lprev">
             <div class="row" style="margin-bottom:8px"><span class="hint" style="margin:0">見本：</span><select id="lpWho" style="flex:1;min-width:0"></select><button class="btn sm" id="letterOne" title="日時を変えた人だけ、作り直したいとき">この人だけPDF</button></div>
@@ -740,13 +761,15 @@ footer.ver { text-align: center; color: #9aa6b4; font-size: 12px; margin: 18px 0
           <div class="lprev">
             <div class="hint" style="margin:0 0 8px">見本（名前と日時は例です）</div>
             <div class="lpbox"><canvas id="lpCanvas2"></canvas></div>
+            <div class="blankbox" style="margin-top:10px"><div class="hint" style="margin:0 0 6px">テスト印刷：名前と日時が空らんの用紙を出します。手書きで作る先生に、そのまま配ることもできます。</div>
+              <div class="row"><button class="btn sm" data-blank="pdf">空らんの用紙をPDFで保存</button><button class="btn sm" data-blank="print">空らんの用紙を印刷</button></div></div>
           </div>
         </div>
       </div>
       <div class="nextbar"><button class="btn" data-go="2" data-kyomu="1">① 日にちと時間にもどる</button><button class="btn" data-go="1">1の画面へ</button><button class="btn pri" id="letterSave2">③ 学校の設定ファイルを保存（配る用）</button></div>
     </section>
 
-    <footer class="ver">面談日程メーカー ｜ ver.2.0 ｜ ota tools</footer>
+    <footer class="ver">面談日程メーカー ｜ ver.2.3 ｜ ota tools</footer>
     <input type="file" id="letterFile" accept=".json,application/json" hidden>
   </main>
 </div>
@@ -2472,6 +2495,10 @@ function jpTime(t) { const h = Math.floor(t / 60), m = t % 60; if (h === 12 && !
 function fillTpl(str, s) {
   if (s.demo) return String(str || '').replace(/\{(日付|開始24|終了24|開始|終了|時間|名前|番号)\}/g, (_, k) => ({ '日付': '〇月〇日（〇）', '開始': '午後〇時〇分', '終了': '午後〇時〇分', '開始24': '〇:〇〇', '終了24': '〇:〇〇', '時間': (S.per || 15) + '分', '名前': '〇〇　〇〇', '番号': '〇' })[k]);
   const a = S.assign[s.id], d = a && DB[a.dayId];
+  if (!d || s.form) {   // 日時がまだ・手書き用：空らんにして、あとで書きこめるようにする
+    const bl = { '日付': '　　月　　日（　　）', '開始': '午前・午後　　時　　分', '終了': '　　時　　分', '開始24': '　　：　　', '終了24': '　　：　　', '時間': (S.per || 15) + '分', '名前': s.name || '', '番号': s.no || '' };
+    return String(str || '').replace(/\{(日付|開始24|終了24|開始|終了|時間|名前|番号)\}/g, (_, k) => bl[k]);
+  }
   const t0 = d ? fStart(d, a.idx) : 0, t1 = t0 + durOf(s);
   const map = { '日付': d ? dayLabelLong(d.date) : '（未定）', '開始': d ? jpTime(t0) : '', '終了': d ? jpTime(t1) : '', '開始24': d ? fmt(t0) : '', '終了24': d ? fmt(t1) : '',
     '時間': durOf(s) + '分', '名前': s.name || '', '番号': s.no || '' };
@@ -2517,12 +2544,12 @@ function drawLetter(x, s, L, X0, Y0, k) {
     let y = Y0 + m(24);
     T(jpDate(L.date, L.dateFmt), R, y, `${P(10.5)}px ${body}`, 'right');
     y += v(6);
-    { const no = L.showNo && (s.demo ? '〇' : s.no) ? `${s.demo ? '〇' : s.no}番` : ''; const head = [L.cls || (s.demo ? '〇年〇組' : ''), no].filter(Boolean).join('　'); if (head) T(head, Lx, y, `${P(10.5)}px ${body}`); }
+    { const no = L.showNo && (s.demo ? '〇' : s.form ? '　　' : s.no) ? `${s.demo ? '〇' : s.form ? '　　' : s.no}番` : ''; const head = [L.cls || (s.demo ? '〇年〇組' : s.form ? '　　年　　組' : ''), no].filter(Boolean).join('　'); if (head) T(head, Lx, y, `${P(10.5)}px ${body}`); }
     y += v(5.4);
-    if (!dry) { x.font = `${P(11)}px ${body}`; x.fillText(s.name || '', Lx, y); const nw = x.measureText(s.name || '').width; x.font = `${P(11)}px ${body}`; x.fillText(L.honor || '', Lx + nw + m(4), y); }
+    if (!dry) { x.font = `${P(11)}px ${body}`; x.fillText(s.name || '', Lx, y); const nw = s.form ? m(42) : x.measureText(s.name || '').width; if (s.form) { x.fillRect(Lx, y + m(1.2), nw, Math.max(1, m(0.25))); } x.font = `${P(11)}px ${body}`; x.fillText(L.honor || '', Lx + nw + m(4), y); }
     y += v(5.4);
     // 発行者：学校名の幅にそろえ、校長・担任は「校　長」「担　任」と役職の幅もそろえて均等割り付け
-    const snd = (L.senders || []).concat(s.demo && !L.hideTeacher && !L.hasTeacher ? [{ role: '担任', name: '〇〇　〇〇' }] : []);
+    const snd = (L.senders || []).concat((s.demo || s.form) && !L.hideTeacher && !L.hasTeacher ? [{ role: '担任', name: s.form ? '　　　　　' : '〇〇　〇〇' }] : []);
     if (L.school || snd.length) {
       x.font = `${P(10.5)}px ${body}`; x.textAlign = 'left';
       const mw = t => x.measureText(t).width, em = mw('校');
@@ -2571,10 +2598,11 @@ function drawLetter(x, s, L, X0, Y0, k) {
   }
 }
 function letterTargets() {
-  return active().filter(s => S.assign[s.id]).sort((a, b) => (parseInt(a.no, 10) || 9999) - (parseInt(b.no, 10) || 9999));
+  return active().filter(s => S.letterAll || S.assign[s.id]).sort((a, b) => (parseInt(a.no, 10) || 9999) - (parseInt(b.no, 10) || 9999));
 }
-function letterPages(two) {
-  const L = getL(), list = letterTargets(), pages = [];
+const FORM_S = { id: '', name: '', no: '', form: true };   // 名前も日時も空らんの用紙（手書き用）
+function letterPages(two, only) {
+  const L = getL(), list = only || letterTargets(), pages = [];
   if (!two) list.forEach(s => { const P = newPage(false); drawLetter(P.x, s, L, 0, 0, 1); pages.push(P); });
   else for (let i = 0; i < list.length; i += 2) {
     const P = newPage(true), k = 148.5 / 210 * 0.98;
@@ -2588,7 +2616,7 @@ let lpTimer = null;
 function drawPreview() {
   const cv = $('#lpCanvas'); if (!cv) return;
   { const L0 = getL(), tx = $('#lDateTxt'); if (tx) tx.textContent = `お知らせには「${jpDate(L0.date, L0.dateFmt)}」と入ります。担任の先生が読み込むと、この日付になります（あとで変えられます）。`; }
-  const L = getL(), pick = SB[$('#lpWho').value], who = (pick && S.assign[pick.id] ? pick : letterTargets()[0]) || { id: '', name: '〇〇　〇〇', no: '', demo: true };
+  const L = getL(), pick = SB[$('#lpWho').value], who = (pick && (S.assign[pick.id] || S.letterAll) ? pick : letterTargets()[0]) || { id: '', name: '〇〇　〇〇', no: '', demo: true };
   const sc = 0.5;   // 見本は軽く
   cv.width = Math.round(210 * MM * sc); cv.height = Math.round(297 * MM * sc);
   const x = cv.getContext('2d'); x.fillStyle = '#fff'; x.fillRect(0, 0, cv.width, cv.height);
@@ -2601,11 +2629,12 @@ function renderOut(force) {
   const L = getL();
   document.querySelectorAll('#lform [data-l]').forEach(el => { const v = L[el.dataset.l]; if (el.type === 'checkbox') el.checked = !!v; else if (force || document.activeElement !== el) el.value = v == null ? '' : v; });
   const T = letterTargets(), sel = $('#lpWho').value;
-  $('#lpWho').innerHTML = T.length ? T.map(s => `<option value="${s.id}">${esc(s.no)}　${esc(s.name)}　${esc(whenShort(s))}</option>`).join('') : '<option value="">〇〇　〇〇（日時が決まると、一人ずつ見られます）</option>';
+  $('#lpWho').innerHTML = T.length ? T.map(s => `<option value="${s.id}">${esc(s.no)}　${esc(s.name)}　${S.assign[s.id] ? esc(whenShort(s)) : '（日時は空らん）'}</option>`).join('') : '<option value="">〇〇　〇〇（日時が決まると、一人ずつ見られます）</option>';
   $('#letterOne').disabled = !T.length;
   if (sel && SB[sel]) $('#lpWho').value = sel;
   const un = active().length - T.length;
-  $('#letterCount').textContent = `${T.length}人分` + (un ? `（まだ日時が決まっていない${un}人は入りません）` : '');
+  { const na = active().filter(x => !S.assign[x.id]).length; $('#lAll').checked = !!S.letterAll;
+    $('#letterCount').textContent = `${T.length}人分` + (na ? (S.letterAll ? `（うち${na}人は日時が空らん）` : `（まだ日時が決まっていない${na}人は入りません）`) : ''); }
   ['#lDate', '#lDate6'].forEach(id => { const box = $(id); if (!box.contains(document.activeElement)) box.innerHTML = ymdHtml(L.date); });
   const cs = $('#confSum');
   if (cs) cs.innerHTML = `<h3>日にちと時間 <button class="btn sm" data-go="2" data-kyomu="1" style="margin-left:auto">① 日にちと時間を直す</button></h3>
@@ -2725,15 +2754,15 @@ function letterIssues(list) {
   { const mm = String(L.body || '').match(/(\d+)\s*分程度/); if (mm && Number(mm[1]) !== S.per) out.push(`本文は「${mm[1]}分程度」ですが、1人の時間は${S.per}分です`); }
   if (!L.date) out.push('日付が入っていません');
   else {
-    const first = list.map(s => DB[S.assign[s.id].dayId].date).sort()[0];
+    const first = list.filter(s => S.assign[s.id]).map(s => DB[S.assign[s.id].dayId].date).sort()[0];
     if (first && L.date > first) out.push(`日付（${jpDate(L.date, L.dateFmt)}）が、${S.kind === 'visit' ? '家庭訪問' : '懇談'}の初日より後になっています`);
   }
-  const pr = list.filter(s => problemsOf(s.id).length);
+  const pr = list.filter(s => S.assign[s.id] && problemsOf(s.id).length);
   if (pr.length) out.push(`日程に問題がある人がいます（${pr.slice(0, 5).map(s => esc(s.no) + '番').join('、')}${pr.length > 5 ? ' ほか' : ''}）。4の画面で確かめてください`);
   return out;
 }
 async function letterGo(list) {
-  if (!list.length) { toast('日時が決まっている人がいません'); return false; }
+  if (!list.length) { toast('日時が決まっている人がいません。「日時がまだの人の分も作る」にチェックを入れると、空らんで作れます'); return false; }
   const is = letterIssues(list); if (!is.length) return true;
   return await dlg(`<b>出す前に確かめてください</b><ul class="lchklist">${is.map(t => `<li>${t}</li>`).join('')}</ul>`, [{ label: 'なおす', value: false }, { label: 'このまま作る', value: true, cls: 'pri' }]);
 }
@@ -2749,7 +2778,7 @@ $('#letterPdf').onclick = async () => {
 };
 $('#letterOne').onclick = async () => {
   const s = SB[$('#lpWho').value];
-  if (!s || !S.assign[s.id]) { toast('日時が決まっている人を選んでください'); return; }
+  if (!s) { toast('名前を登録すると、一人ずつ作れます'); return; }
   if (!(await letterGo([s]))) return;
   busy($('#letterOne'), '作成中…', async () => {
     const P = newPage(false); drawLetter(P.x, s, getL(), 0, 0, 1);
@@ -2757,6 +2786,20 @@ $('#letterOne').onclick = async () => {
     toast(`${s.no}番の分を保存しました`);
   });
 };
+async function printPages(pages) {
+  $('#printArea').innerHTML = pages.map(P => `<img class="lpage ${P.land ? 'land' : ''}" src="${P.c.toDataURL('image/jpeg', 0.9)}" alt="">`).join('');
+  await new Promise(r => setTimeout(r, 300)); window.print();
+}
+/* 手書き用：名前も日時も空らんの用紙を1枚 */
+function blankPages() { const two = $('#lLayout').value === '2'; return letterPages(two, two ? [FORM_S, FORM_S] : [FORM_S]); }
+document.addEventListener('click', e => {
+  const b = e.target.closest('[data-blank]'); if (!b) return;
+  busy(b, '作成中…', async () => {
+    if (b.dataset.blank === 'pdf') { downloadBlob(letterFile('手書き用.pdf'), await pagesToPdf(blankPages())); toast('空らんの用紙を保存しました（名前と日時を手書きで入れられます）'); }
+    else await printPages(blankPages());
+  });
+});
+$('#lAll').addEventListener('change', e => { S.letterAll = e.target.checked; save(); renderOut(); });
 $('#letterPrint').onclick = async () => {
   if (!(await letterGo(letterTargets()))) return;
   const two = $('#lLayout').value === '2';
