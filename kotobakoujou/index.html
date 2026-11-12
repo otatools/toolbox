@@ -256,6 +256,12 @@
     /* ---------- 使えないことばを つづけて 3回 → 3分 つかえない ---------- */
     #lockOv { position: fixed; left: 0; top: 0; right: 0; bottom: 0; z-index: 2147483000; background: rgba(40, 20, 20, .96); color: #fff; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 24px; box-sizing: border-box; touch-action: none; -webkit-user-select: none; user-select: none; }
     #lockOv[hidden] { display: none; }
+    #hvOv { position: fixed; inset: 0; z-index: 2147482900; background: rgba(30, 12, 12, .97); color: #fff; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 24px; box-sizing: border-box; touch-action: none; user-select: none; -webkit-user-select: none; }
+    #hvOv[hidden] { display: none; }
+    #hvOv .hv1 { font-size: clamp(26px, 6.5vmin, 50px); font-weight: 900; color: #ff5a4e; letter-spacing: .08em; border-bottom: 4px solid #ff5a4e; padding-bottom: 6px; }
+    #hvOv .hv4 { margin-top: 22px; padding: .5em 1.2em; border: 2px solid rgba(255,255,255,.35); border-radius: 10px; font-size: clamp(15px, 3.2vmin, 22px); line-height: 1.7; font-weight: 700; color: #ffd0cc; font-variant-numeric: tabular-nums; }
+    #hvOv .hv2 { margin-top: 16px; font-size: clamp(17px, 3.8vmin, 28px); line-height: 1.8; font-weight: 700; }
+    #hvOv .hv3 { margin-top: 20px; width: clamp(64px, 14vmin, 110px); height: clamp(64px, 14vmin, 110px); border-radius: 50%; background: transparent; border: 5px solid #ff5a4e; display: flex; align-items: center; justify-content: center; font-size: clamp(30px, 7vmin, 54px); font-weight: 900; color: #fff; font-variant-numeric: tabular-nums; }
 #lockOv.hard { background: #2b2b2b; color: #222; padding: 12px; }
 #lockOv .hb { background: #f2f2f2; width: min(640px, 100%); border-radius: 4px; overflow: hidden; box-shadow: 0 10px 30px #000; text-align: left; }
 #lockOv .hbh { background: #c62828; color: #fff; padding: .7em 1em; font-weight: 700; font-size: clamp(14px, min(4vw, 3vmin), 20px); letter-spacing: .03em; }
@@ -2493,16 +2499,45 @@ return {recog:recog};
         shake(btnDone);
     }
     function hideBlocked() { blockMsg.hidden = true; clearTimeout(blockTimer); }
+    /* 悪質ワード：高学年むけの きびしい 警告がめんを 10びょう だす（その あいだは なにも おせない） */
+    var hvOv = document.createElement('div'), hvTimer = 0, hvEnd = 0, HV_MS = 10000;
+    hvOv.id = 'hvOv'; hvOv.hidden = true; hvOv.setAttribute('role', 'alertdialog');
+    hvOv.innerHTML = '<div class="hv1">入力を止めています</div><div class="hv2">その言葉は、学習アプリにふさわしくない<br>言葉の可能性が高いです。</div><div class="hv2">ここに打ってよい言葉かどうか、<br>よく考えてから入力しなさい。</div><div class="hv3" id="hvSec">10</div><div class="hv4">この入力は記録されました。<br><span id="hvInfo"></span></div>';
+    document.body.appendChild(hvOv);
+    ['pointerdown', 'pointerup', 'click', 'touchstart', 'touchend'].forEach(function (ty) { hvOv.addEventListener(ty, function (e) { e.preventDefault(); e.stopPropagation(); }, { passive: false }); });
+    document.addEventListener('keydown', function (e) { if (!hvOv.hidden) { e.preventDefault(); e.stopPropagation(); } }, true);
+    function hvTick() {
+        var s = Math.ceil((hvEnd - Date.now()) / 1000);
+        if (s <= 0) { hvOv.hidden = true; clearInterval(hvTimer); hvTimer = 0; return; }
+        document.getElementById('hvSec').textContent = s;
+    }
+    function devName() {   // そとに なにも おくらずに わかる 端末の しゅるい
+        var u = navigator.userAgent || '', tp = navigator.maxTouchPoints || 0;
+        if (/CrOS/.test(u)) return 'Chromebook';
+        if (/iPad/.test(u) || (/Macintosh/.test(u) && tp > 1)) return 'iPad';
+        if (/iPhone|iPod/.test(u)) return 'iPhone';
+        if (/Android/.test(u)) return /Mobile/.test(u) ? 'Androidスマートフォン' : 'Androidタブレット';
+        if (/Windows/.test(u)) return 'Windows';
+        if (/Macintosh/.test(u)) return 'Mac';
+        if (/Linux/.test(u)) return 'パソコン';
+        return 'この端末';
+    }
+    function showHeavy() {
+        var d = new Date(), z = function (n) { return ('0' + n).slice(-2); };
+        var inf = document.getElementById('hvInfo'); if (inf) inf.textContent = '（' + d.getFullYear() + '年' + (d.getMonth() + 1) + '月' + d.getDate() + '日 ' + d.getHours() + ':' + z(d.getMinutes()) + '／' + devName() + '）';
+        hideBlocked(); hvEnd = Date.now() + HV_MS; hvOv.hidden = false; hvTick();
+        clearInterval(hvTimer); hvTimer = setInterval(hvTick, 200);
+    }
 
     /* 使えない ことばを つづけて 3回 いれたら 3分 つかえなくする（こうしん・さいきどうでも もどらない：じこくを localStorage と cookie に のこす） */
     var LOCK_KEY = 'kk.lockUntil', STRIKE_KEY = 'kk.strikes', LOCKN_KEY = 'kk.lockCount', LOCK_MS = 3 * 60 * 1000, LOCK_MS2 = 5 * 60 * 1000,   // はじめての ペナルティは 3ぷん、2かいめ からは 5ふん
         strikes = 0, lockTimer = 0;
     function lsGet(k) { var v = null; try { v = localStorage.getItem(k); } catch (e) {} if (v == null) { try { var m = document.cookie.match(new RegExp('(?:^|; )' + k.replace('.', '\\.') + '=([^;]*)')); if (m) v = m[1]; } catch (e) {} } return v; }
-    function lsSet(k, v) { try { localStorage.setItem(k, v); } catch (e) {} try { document.cookie = k + '=' + v + '; max-age=' + (k === LOCKN_KEY || k === 'kk.hardCount' || k === 'kk.hardNeed' || k === 'kk.heavyN' || k === 'kk.lockHard' || k === 'kk.lockTotal' || k === LOCK_KEY ? 31536000 : 172800) + '; path=/; SameSite=Lax'; } catch (e) {} }
+    function lsSet(k, v) { try { localStorage.setItem(k, v); } catch (e) {} try { document.cookie = k + '=' + v + '; max-age=' + (k === LOCKN_KEY || k === 'kk.hardCount' || k === 'kk.hardNeed' || k === 'kk.heavyN' || k === 'kk.hvNeed' || k === 'kk.lockHard' || k === 'kk.lockTotal' || k === LOCK_KEY ? 31536000 : 172800) + '; path=/; SameSite=Lax'; } catch (e) {} }
     // ロックされるたびに ながくする：1かいめ 3ぷん → 5ふん → 10ぷん → 15ふん → 5かいめ からは 30ぷん
     var LOCK_STEPS = [3, 5, 10, 15, 30];
-    // 悪質ワードの レベル：るいけいで 5かい うつごとに 1つ あがる（はじめは 1）。ロックの ながさは ふつうの ぷんすう × レベル
-    function hvLevel() { return 1 + Math.floor((parseInt(lsGet('kk.heavyN'), 10) || 0) / 5); }
+    // 悪質ワードの レベル：るいけいで 3かい うつごとに 1つ あがる（はじめは 1）。ロックの ながさは ふつうの ぷんすう × レベル
+    function hvLevel() { return 1 + Math.floor((parseInt(lsGet('kk.heavyN'), 10) || 0) / 3); }
     function lockMs(ln) { return LOCK_STEPS[Math.min(ln, LOCK_STEPS.length - 1)] * hvLevel() * 60 * 1000; }
     function minTxt(m) {
         function fun(n) { return n + ('2579'.indexOf(String(n % 10)) >= 0 ? 'ふん' : 'ぷん'); }
@@ -2539,7 +2574,7 @@ return {recog:recog};
         lsSet(NEED_KEY, String(n)); return n;
     }
     function strikeNeed() { var n = parseInt(lsGet(NEED_KEY), 10); return n > 0 ? n : newNeed(); }
-    function addStrike(wt, extraMs) {   // wt：かぞえる かず（悪質ワードは 2）、extraMs：悪質ワード 5かいごとの ロック（かさなったら たす）
+    function addStrike(wt, extraMs, heavy) {   // wt：かぞえる かず（悪質ワードは 2）、extraMs：悪質ワード 3かいごとの ロック（かさなったら たす）
         wt = wt || 1; extraMs = extraMs || 0;
         var last = parseInt(lsGet(STRIKE_T_KEY), 10) || 0;
         if (last && Date.now() - last > STRIKE_KEEP) strikes = 0;
@@ -2553,12 +2588,18 @@ return {recog:recog};
         var DAY_KEY = 'kk.badDay', dl = [];
         try { dl = (lsGet(DAY_KEY) || '').split('.').map(Number).filter(function (v) { return v > now - 24 * 60 * 60 * 1000; }); } catch (e) { dl = []; }
         for (var wj = 0; wj < wt; wj++) dl.push(now); lsSet(DAY_KEY, dl.map(function (v) { return Math.round(v / 1000) * 1000; }).join('.'));
-        // 24じかん ロックを 1かいでも うけた 端末は、つぎから 15〜20かい（ランダム）で 24じかん ロック
-        var HARD_N_KEY = 'kk.hardCount', HARD_NEED_KEY = 'kk.hardNeed', hn = parseInt(lsGet(HARD_N_KEY), 10) || 0, dayNeed = 20;
-        if (hn > 0) { dayNeed = parseInt(lsGet(HARD_NEED_KEY), 10) || 0; if (!(dayNeed >= 15 && dayNeed <= 20)) { dayNeed = 15 + Math.floor(Math.random() * 6); lsSet(HARD_NEED_KEY, String(dayNeed)); } }
+        // 1にち（24じかん）で 15かい 使えない ことばを いれたら 24じかん ロック。
+        // 24じかん ロックを 1かいでも うけた 端末は、つぎから 10〜15かい（ランダム）で 24じかん ロック
+        var HARD_N_KEY = 'kk.hardCount', HARD_NEED_KEY = 'kk.hardNeed', hn = parseInt(lsGet(HARD_N_KEY), 10) || 0, dayNeed = 15;
+        if (hn > 0) { dayNeed = parseInt(lsGet(HARD_NEED_KEY), 10) || 0; if (!(dayNeed >= 10 && dayNeed <= 15)) { dayNeed = 10 + Math.floor(Math.random() * 6); lsSet(HARD_NEED_KEY, String(dayNeed)); } }
+        // 悪質ワードだけを べつに かぞえる：24じかんで 10かい（24じかん ロックを うけた 端末は 5〜7かい）で 24じかん ロック
+        var HVD_KEY = 'kk.hvDay', HVN_KEY = 'kk.hvNeed', hvl = [], hvNeed = 10;
+        try { hvl = (lsGet(HVD_KEY) || '').split('.').map(Number).filter(function (v) { return v > now - 24 * 60 * 60 * 1000; }); } catch (e) { hvl = []; }
+        if (heavy) { hvl.push(now); lsSet(HVD_KEY, hvl.map(function (v) { return Math.round(v / 1000) * 1000; }).join('.')); }
+        if (hn > 0) { hvNeed = parseInt(lsGet(HVN_KEY), 10) || 0; if (!(hvNeed >= 5 && hvNeed <= 7)) { hvNeed = 5 + Math.floor(Math.random() * 3); lsSet(HVN_KEY, String(hvNeed)); } }
         // 24じかん ロック（× 悪質ワードの レベル）・ふつうの ロック・悪質ワードの ロックが かさなったら、ぜんぶ たした じかん ロックする
-        var total = 0, ln = parseInt(lsGet(LOCKN_KEY), 10) || 0, nl = ln, dayHit = dl.length >= dayNeed;
-        if (dayHit) { lsSet(HARD_N_KEY, String(hn + 1)); lsSet(HARD_NEED_KEY, String(15 + Math.floor(Math.random() * 6))); lsSet(DAY_KEY, ''); total += 24 * 60 * 60 * 1000 * hvLevel(); nl++; }
+        var total = 0, ln = parseInt(lsGet(LOCKN_KEY), 10) || 0, nl = ln, dayHit = dl.length >= dayNeed || hvl.length >= hvNeed || (heavy && hvLevel() >= 3);   // 悪質レベル3 いじょうは 1かいで 24じかん × レベル
+        if (dayHit) { lsSet(HARD_N_KEY, String(hn + 1)); lsSet(HARD_NEED_KEY, String(10 + Math.floor(Math.random() * 6))); lsSet(HVN_KEY, String(5 + Math.floor(Math.random() * 3))); lsSet(DAY_KEY, ''); lsSet(HVD_KEY, ''); total += 24 * 60 * 60 * 1000 * hvLevel(); nl++; }
         if (strikes >= strikeNeed() || tl.length >= totNeed) { total += lockMs(ln); nl++; }
         total += extraMs;
         if (total > 0) {
@@ -2580,6 +2621,7 @@ return {recog:recog};
         if (busy) return;
         lastEntry = null;
         if (lockLeft() > 0) { showLock(); return; }
+        if (!hvOv.hidden) return;
         if (!chars.length) { shake(btnDone); return; }
         lastTyped = chars.join('');
         var w0 = toHira(lastTyped);
@@ -2588,15 +2630,15 @@ return {recog:recog};
             try { if (window.__logUnknown) window.__logUnknown(w0, true, null, badHit(w0)); } catch (e) {}
             chars = []; cur = -1;       // 入れたことばは けす
             render(false);
-            // 悪質ワード：るいけいで 5かい つかうごとに レベルが 1つ あがる（ふつうの ロックの ぷんすう × レベル）。
-            // それとは べつに、5かい ごとに 1じかん × （5かいの なんかいめか）の ロック（1かいめ 1じかん、2かいめ 2じかん…）
+            // 悪質ワード：るいけいで 3かい つかうごとに レベルが 1つ あがる（ふつうの ロックの ぷんすう × レベル）。
+            // それとは べつに、3かい ごとに 1じかん × （3かいの なんかいめか）の ロック（1かいめ 1じかん、2かいめ 2じかん…）
             // ふつうの 禁止ワードの かぞえかたでは 2こぶんに かぞえる
             var heavy = isHeavy(w0);
             if (heavy) {
                 var hvn = (parseInt(lsGet('kk.heavyN'), 10) || 0) + 1; lsSet('kk.heavyN', String(hvn));
             }
-            if (addStrike(heavy ? 2 : 1, heavy && hvn % 5 === 0 ? (hvn / 5) * 60 * 60 * 1000 : 0)) { hideBlocked(); return; }
-            showBlocked();
+            if (addStrike(heavy ? 2 : 1, heavy && hvn % 3 === 0 ? (hvn / 3) * 60 * 60 * 1000 : 0, heavy)) { hideBlocked(); return; }
+            if (heavy) showHeavy(); else showBlocked();
             return;
         }
         clearStrikes();
