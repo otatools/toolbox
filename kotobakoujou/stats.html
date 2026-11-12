@@ -134,6 +134,9 @@ async function judgeSig() {
   return JSIG;
 }
 function jload(sig) { try { const o = JSON.parse(localStorage.getItem('kotoba.judge') || 'null'); if (o && sig && o.sig === sig) return o.m || {}; } catch (e) {} return {}; }
+// おなじ index.html の あいだは、しらべた こたえを ページの 中で ひとつに まとめて つかいまわす（「〇〇？を さいしんに」と「振り分けなおし」で おなじ ものを 2どしらべない）
+let JM = null, JMS = null;
+function getMemo(sig) { if (JMS !== sig || !JM) { JM = jload(sig); JMS = sig; } return JM; }
 function jsave(sig, m) { if (!sig) return; try { localStorage.setItem('kotoba.judge', JSON.stringify({ sig: sig, m: m })); } catch (e) {} }
 // アプリで「ことばじゃないよ」に なった ものは、じどうで「ことばじゃない（除外）」に いれる（「全部に入れる」で もどした ものは そのまま）
 // いまの アプリで「ことばじゃないよ」（×）に なる か（しらべる まえは サーバーの きろくで みる）
@@ -169,7 +172,7 @@ const nextTick = (f) => { const c = new MessageChannel(); c.port1.onmessage = ()
 const budget = () => document.hidden ? 400 : 40;   // かくれている ときは 1かいに たくさん すすめる
 async function refreshGuess() {
   if (!JUDGE) return;
-  const tok = ++GTOKEN, sig = await judgeSig(), memo = jload(sig);
+  const tok = ++GTOKEN, sig = await judgeSig(), memo = getMemo(sig);
   if (tok !== GTOKEN) return;
   const all = rows.filter(r => !r.blocked && !r.junk && !r.reg);   // 除外の 中も ぜんぶ しらべなおす
   const list = [];
@@ -336,14 +339,15 @@ async function reSort() {
   const msg = document.getElementById('msg'), btn = document.getElementById('resort');
   if (!JUDGE) { msg.textContent = 'アプリの よみこみを まっています。すこし まってから もういちど おしてください'; return; }
   GTOKEN++; btn.disabled = true; msg.style.color = '#7a6a55';
-  const kf = await known, list = rows.slice(), memo = {}, ch = [];
+  const kf = await known, list = rows.slice(), memo = getMemo(await judgeSig()), ch = [];
   let i = 0;
   await new Promise(done => { const step = () => {
     const t0 = performance.now();
     for (; i < list.length && performance.now() - t0 < budget(); i++) {
-      const r = list[i]; let j = null; try { j = JUDGE(r.word); } catch (e) {}
+      const r = list[i], mj = memo[r.word]; let j = null;
+      if (mj) j = { t: mj[0], g: mj[1], msg: mj[2] };   // もう しらべてある ことばは その こたえを つかう
+      else { try { j = JUDGE(r.word); } catch (e) {} if (j && j.t) memo[r.word] = [j.t, j.g || '', j.msg || '']; }
       if (!j || !j.t) continue;
-      memo[r.word] = [j.t, j.g || '', j.msg || ''];
       const before = [r.blocked, r.nw, r.nm, r.x, r.guess].join('|');
       if (j.t === 'bad') { r.blocked = true; r.ub = false; r.nw = false; r.nm = false; r.x = ''; r.guess = ''; r.junk = false; r.qty = false; }
       else {
