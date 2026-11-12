@@ -233,6 +233,10 @@ button { font-family: inherit; color: inherit; -webkit-appearance: none; appeara
 #tv { position: absolute; left: 0; top: 0; width: 100%; height: 100%; z-index: 60; background: #000; }
 #tvBar { position: absolute; left: 0; top: 0; width: 100%; height: 100%; display: block; background: #e6fff3; }
 
+/* 画面が にゅーん と ひろがる まく */
+#ghost { position: absolute; z-index: 45; pointer-events: none; transform-origin: 0 0; background: var(--panel); border: 3px solid var(--yellow); border-radius: 12px; }
+#ghost.file { border-color: var(--cyan); background: #0d2331; }
+
 /* ---------- フォルダ・ファイルの画面 ---------- */
 .exp { flex: 1 1 0; min-height: 0; display: flex; }
 .tree { flex: 0 0 210px; overflow-y: auto; overflow-x: hidden; border-right: 2px solid var(--line); background: #0d2331; padding: 8px 6px; }
@@ -286,7 +290,7 @@ button { font-family: inherit; color: inherit; -webkit-appearance: none; appeara
         </div>
         <div class="mstand tfade"></div>
         <button class="btn big tfade" id="btnStart" type="button">スタート</button>
-        <div class="title-foot tfade">パスワードを さがせ！ ｜ ver.1.3 ｜ ota tools</div>
+        <div class="title-foot tfade">パスワードを さがせ！ ｜ ver.1.4 ｜ ota tools</div>
     </section>
 
     <!-- いちらん（パソコンの中） -->
@@ -355,6 +359,7 @@ button { font-family: inherit; color: inherit; -webkit-appearance: none; appeara
     <!-- 全画面の かくにん中／OK／ERROR -->
     <div class="crt-msg" id="crtMsg" hidden><i class="stripe t"></i><div class="big" id="crtBig"></div><div class="chars" id="crtChars"></div><div class="sm" id="crtSm"></div><i class="stripe b"></i></div>
     <div id="fx"></div>
+    <div id="ghost" hidden></div>
     <div id="tv" hidden><i id="tvBar"></i></div>
 
     <!-- はい／いいえ -->
@@ -523,6 +528,15 @@ const sfx = {
         } catch (e) {}
         tone(1760, 0.45, 'sine', 0.1, 0.02);
     },
+    zoom: () => {
+        if (!save.sound || !actx || actx.state !== 'running') return;
+        try {
+            const t = actx.currentTime, o = actx.createOscillator(), g = actx.createGain();
+            o.type = 'sine'; o.frequency.setValueAtTime(260, t); o.frequency.exponentialRampToValueAtTime(980, t + 0.4);
+            g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.09, t + 0.08); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.48);
+            o.connect(g); g.connect(actx.destination); o.start(t); o.stop(t + 0.5);
+        } catch (e) {}
+    },
     hit: () => { tone(880, 0.08, 'square', 0, 0.08); tone(1320, 0.14, 'square', 0.07, 0.08); },
     ok: () => [523, 659, 784, 1047, 1319].forEach((f, i) => tone(f, 0.16, 'square', i * 0.09, 0.07)),
     open: () => { tone(660, 0.07); tone(990, 0.1, 'square', 0.07); },
@@ -535,6 +549,7 @@ function show(id) {
     cancelAll();
     ['scTitle', 'scSelect', 'scPlay'].forEach(s => { $(s).hidden = (s !== id); });
     $('ovClear').hidden = true; $('ovAsk').hidden = true; $('crtMsg').hidden = true;
+    if (id !== 'scPlay') { navBusy = false; $('ghost').hidden = true; }
     current = id;
     if (id === 'scTitle') { titleAnims.forEach(a => { try { a.cancel(); } catch (e) {} }); titleAnims = []; entering = false; $('app').classList.remove('inside'); $('tv').hidden = true; }
     if (id === 'scTitle') bootText();
@@ -605,10 +620,55 @@ function tile(svg, done, name, st, onClick) {
     b.innerHTML = '<svg viewBox="0 0 100 100">' + svg + '</svg><span class="no"></span><span class="st"></span>';
     const no = b.querySelector('.no'); no.textContent = name; if ([...name].length > 6) no.classList.add('long');
     b.querySelector('.st').textContent = st;
-    b.addEventListener('click', onClick);
+    b.addEventListener('click', () => onClick(b));
     return b;
 }
-function pickFolder(fi) { sfx.open(); curFolder = fi; renderSelect(); $('grid').parentNode.scrollTop = 0; }
+/* ---------- 画面の きりかえアニメーション ---------- */
+let navBusy = false;
+/* おしたアイコンが にゅーん と ひろがって つぎの画面になる */
+function zoomFrom(el, target, kind, cb) {
+    if (navBusy) return; navBusy = true;
+    const done = () => { cb(); };
+    try {
+        const app = $('app'), ar = app.getBoundingClientRect(), k = ar.width / app.offsetWidth || 1;
+        const r = el.getBoundingClientRect(), t = target.getBoundingClientRect(), g = $('ghost');
+        g.className = kind; g.hidden = false;
+        g.style.left = ((t.left - ar.left) / k - app.clientLeft) + 'px'; g.style.top = ((t.top - ar.top) / k - app.clientTop) + 'px';
+        g.style.width = (t.width / k) + 'px'; g.style.height = (t.height / k) + 'px';
+        const from = 'translate(' + ((r.left - t.left) / k) + 'px,' + ((r.top - t.top) / k) + 'px) scale(' + (r.width / t.width) + ',' + (r.height / t.height) + ')';
+        sfx.zoom();
+        g.animate([{ transform: from, opacity: 0.85 }, { transform: 'translate(0,0) scale(1,1)', opacity: 1 }], { duration: 420, easing: 'cubic-bezier(.3,.05,.2,1)' }).onfinish = () => {
+            done();
+            g.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 240, easing: 'ease-out' }).onfinish = () => { g.hidden = true; navBusy = false; };
+        };
+    } catch (e) { $('ghost').hidden = true; navBusy = false; done(); }
+}
+/* 中身が 下から じゅんばんに 出てくる */
+function popIn(list, step) {
+    [...list].forEach((el, i) => { try { el.animate([{ opacity: 0, transform: 'translateY(16px) scale(.9)' }, { opacity: 1, transform: 'translateY(0) scale(1)' }], { duration: 260, delay: i * (step || 45), easing: 'cubic-bezier(.2,.8,.3,1.2)', fill: 'backwards' }); } catch (e) {} });
+}
+function pickFolder(fi, el) {
+    if (navBusy) return;
+    const go = () => { curFolder = fi; renderSelect(); $('grid').parentNode.scrollTop = 0; };
+    if (curFolder < 0 && el) {
+        zoomFrom(el, $('exp'), 'folder', () => {
+            go();
+            try { $('tree').animate([{ transform: 'translateX(-100%)' }, { transform: 'translateX(0)' }], { duration: 300, easing: 'cubic-bezier(.2,.8,.2,1)' }); } catch (e) {}
+        });
+    } else { sfx.open(); go(); }
+}
+function openFile(i, el) {
+    if (navBusy) return;
+    zoomFrom(el, $('app'), 'file', () => {
+        openPuzzle(i);
+        try { $('scPlay').animate([{ opacity: 0, transform: 'scale(.94)' }, { opacity: 1, transform: 'scale(1)' }], { duration: 280, easing: 'ease-out' }); } catch (e) {}
+    });
+}
+function closeFolder() {
+    if (navBusy) return; navBusy = true; sfx.del();
+    const fin = () => { curFolder = -1; renderSelect(); navBusy = false; };
+    try { $('exp').animate([{ opacity: 1, transform: 'scale(1)' }, { opacity: 0, transform: 'scale(.9)' }], { duration: 200, easing: 'ease-in' }).onfinish = fin; } catch (e) { fin(); }
+}
 function renderSelect() {
     const g = $('grid'), tree = $('tree'); g.textContent = ''; tree.textContent = '';
     const all = PUZZLES.length, allN = solvedCount();
@@ -621,8 +681,9 @@ function renderSelect() {
         $('selMeter').style.width = (all ? allN / all * 100 : 0) + '%';
         FOLDERS.forEach((f, fi) => {
             const m = inFolder(fi).length, n = folderSolved(fi), done = m > 0 && n >= m;
-            g.appendChild(tile(folderSvg(done), done, folderName(fi), n + ' / ' + m, () => pickFolder(fi)));
+            g.appendChild(tile(folderSvg(done), done, folderName(fi), n + ' / ' + m, el => pickFolder(fi, el)));
         });
+        popIn(g.children, 70);
         return;
     }
     /* 左にフォルダ、右にその中のファイル */
@@ -642,8 +703,9 @@ function renderSelect() {
     $('selMeter').style.width = (list.length ? n / list.length * 100 : 0) + '%';
     list.forEach(p => {
         const done = !!save.solved[p.id];
-        g.appendChild(tile(fileSvg(done), done, pcName(p), done ? 'かいじょ ずみ' : 'LOCKED', () => { sfx.open(); openPuzzle(PUZZLES.indexOf(p)); }));
+        g.appendChild(tile(fileSvg(done), done, pcName(p), done ? 'かいじょ ずみ' : 'LOCKED', el => openFile(PUZZLES.indexOf(p), el)));
     });
+    popIn(g.children);
     const on = tree.querySelector('.on'); if (on) { try { tree.scrollTop = Math.max(0, on.offsetTop - 60); } catch (e) {} }
 }
 
@@ -900,7 +962,7 @@ document.querySelectorAll('.fn .key').forEach(b => b.addEventListener('click', (
 $('logoLock').innerHTML = '<svg viewBox="0 0 100 100" width="100%" height="100%">' + lockSvg(false) + '</svg>';
 $('btnStart').addEventListener('click', enterWorld);
 $('btnSound').addEventListener('click', () => { save.sound = !save.sound; store(); setSoundLabel(); if (save.sound) { unlockAudio(); T(() => sfx.key(), 60); } });
-$('btnToTitle').addEventListener('click', () => { if (curFolder >= 0) { sfx.del(); curFolder = -1; renderSelect(); } else powerOff(); });
+$('btnToTitle').addEventListener('click', () => { if (navBusy) return; if (curFolder >= 0) closeFolder(); else powerOff(); });
 $('btnBack').addEventListener('click', () => show('scSelect'));
 $('btnClList').addEventListener('click', () => show('scSelect'));
 $('btnClNext').addEventListener('click', () => { const i = nextUnsolved(); if (i >= 0) openPuzzle(i); else show('scSelect'); });
