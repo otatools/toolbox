@@ -155,6 +155,9 @@ body.kind-visit table.tbl { min-width: 560px; }
 .dayrow { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; padding: 8px 0; border-bottom: 1px solid #edf1f5; }
 .dayrow .wd { min-width: 96px; font-weight: 700; }
 .dayrow .cnt { color: var(--sub); font-size: 13px; }
+.dayrow .daymax { display: inline-flex; align-items: center; gap: 4px; font-size: 13px; color: var(--sub); white-space: nowrap; }
+.dayrow .daymax input { width: 64px !important; min-width: 0; text-align: center; }
+.colhead .cnt.over { color: var(--ng); font-weight: 700; }
 .dayrow .dayarea { flex: 1 1 100%; margin-left: 104px; display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--sub); }
 .dayrow .dayarea input { flex: 1; min-width: 0; font-size: 15px; }
 @media (max-width: 760px) { .dayrow .dayarea { margin-left: 0; } }
@@ -678,6 +681,7 @@ body:has(#modal:not([hidden])) #toast { bottom: auto; top: calc(10px + var(--saf
         <div class="field kyomu-hide"><label for="per">1人の時間</label><select id="per"></select><span>分</span><span class="hint" style="margin:0">全員共通です。長くとりたい人だけ、3の画面で変えられます</span></div>
         <div class="field wish-only kyomu-show"><label for="ask">保護者に聞く区切り</label><select id="ask"></select><span class="hint" style="margin:0">お便りで○×をつけてもらう表の区切り。<span class="talk-only">懇談</span><span class="visit-only">訪問</span>の区切りとちがうときに変えます（例：30分ごとに聞いて、15分ずつ入れる）</span></div>
         <div class="field kyomu-hide"><label for="travel"><span class="visit-only">移動の時間</span><span class="talk-only">入れかえの時間</span></label><select id="travel"></select><span>分</span><span class="hint" style="margin:0">1人ごとにあける時間<span class="talk-only">（0分でもOK）</span></span></div>
+        <div class="field kyomu-hide"><label for="maxDay">1日の人数</label><select id="maxDay"></select><span class="hint" style="margin:0">1日に入れる人数の上限。日ごとに変えたいときは、下の日にちの右の「人まで」に入れます</span></div>
         <div class="field visit-only kyomu-hide"><label>地区</label><label class="chk"><input type="checkbox" id="groupArea">同じ地区の家を、同じ日の続きの時間にまとめる</label></div>
         <p class="hint kyomu-hide" id="frameInfo"></p>
       </div>
@@ -814,7 +818,7 @@ body:has(#modal:not([hidden])) #toast { bottom: auto; top: calc(10px + var(--saf
       <div class="nextbar"><button class="btn" data-go="2" data-kyomu="1">① 日にちと時間にもどる</button><button class="btn" data-go="1">1の画面へ</button><button class="btn pri" id="letterSave2">③ 学校の設定ファイルを保存（配る用）</button></div>
     </section>
 
-    <footer class="ver">面談日程メーカー ｜ ver.2.8 ｜ ota tools</footer>
+    <footer class="ver">面談日程メーカー ｜ ver.2.9 ｜ ota tools</footer>
     <input type="file" id="letterFile" accept=".json,application/json" hidden>
   </main>
 </div>
@@ -923,6 +927,7 @@ function normalize(o) {
   s.per = Math.max(5, Number(s.per) || 15);
   s.travel = Math.max(0, Number(s.travel) || 0);
   s.ask = Math.max(0, Number(s.ask) || 0);
+  s.maxDay = Math.max(0, Math.round(Number(s.maxDay) || 0));
   if (typeof s.useWish !== 'boolean') s.useWish = true;
   if (typeof o.asked !== 'boolean') s.asked = s.students.length > 0;   // 前の版のデータは聞かずにそのまま使う
   if (!s.autoPref || typeof s.autoPref !== 'object') s.autoPref = null;
@@ -930,7 +935,7 @@ function normalize(o) {
   s.blocked = s.blocked && typeof s.blocked === 'object' ? s.blocked : {};
   s.students = Array.isArray(s.students) ? s.students.filter(x => x && x.id).map(x => Object.assign({ no: '', name: '', area: '', mult: 1, ng: {}, sibs: [], memo: '', done: false, skip: false, pair: '' }, x)) : [];
   s.students.forEach(x => { if (Number(x.dur) > 0) x.mult = Math.max(1, Math.min(4, Math.round(Number(x.dur) / s.per))); delete x.dur; if (!x.ng || typeof x.ng !== 'object') x.ng = {}; if (!Array.isArray(x.sibs)) x.sibs = []; });
-  s.days.forEach(d => { if (typeof d.areas !== 'string') d.areas = ''; });
+  s.days.forEach(d => { if (typeof d.areas !== 'string') d.areas = ''; d.max = Math.max(0, Math.round(Number(d.max) || 0)) || ''; });
   s.assign = s.assign && typeof s.assign === 'object' ? s.assign : {};
   s.students.forEach(x => { if (x.skip) delete s.assign[x.id]; if (x.pair && !s.students.some(y => y.id === x.pair)) x.pair = ''; });
   s.students.forEach(x => x.sibs.forEach(b => { if (b.note && !b.cls) { const m = String(b.note).trim().match(/^(兄|姉|弟|妹)[\s　]*(.*)$/) || String(b.note).trim().match(/^(.*?)[\s　]*(兄|姉|弟|妹)$/); if (m) { const rel = /^[兄姉弟妹]$/.test(m[1]) ? m[1] : m[2]; b.rel = rel; b.cls = (m[1] === rel ? m[2] : m[1]).trim(); } else b.cls = b.note; } delete b.note; if (typeof b.cls !== 'string') b.cls = ''; if (typeof b.rel !== 'string') b.rel = ''; if (typeof b.no !== 'string') b.no = b.no == null ? '' : String(b.no); }));
@@ -1058,6 +1063,9 @@ const active = () => S.students.filter(s => !s.skip);
 const REASON = { area: 'この日に回る地区ではない', ng: '保護者の都合が×の時間', blocked: 'だれも入れない時間', sib: 'きょうだいの時間と重なる', over: '終わりの時刻をこえる', range: '時間の枠がない', overlap: 'ほかの人と重なる' };
 function framesOf(s, d, i) { const c = frameCount(d), n = nOf(s), r = []; for (let k = i; k < Math.min(i + n, c); k++) r.push(k); return r; }
 
+/* その日に入れる人数の上限（決めていなければ Infinity） */
+function capOf(d) { return d && Number(d.max) > 0 ? Number(d.max) : (S.maxDay > 0 ? S.maxDay : Infinity); }
+function dayCount(dayId, except) { let n = 0; for (const id in S.assign) if (id !== except && S.assign[id].dayId === dayId && SB[id]) n++; return n; }
 /* ===== 自動調整 ===== */
 function costOf(asg) {
   let cost = 0; const byDay = {};
@@ -1125,6 +1133,8 @@ function solve() {
   const baseOcc = {};
   for (const id in locked) { const a = locked[id], d = DB[a.dayId]; framesOf(SB[id], d, a.idx).forEach(k => baseOcc[a.dayId + '|' + k] = id); }
 
+  const capD = {}; S.days.forEach(d => capD[d.id] = capOf(d));
+  const cntDay = (asg, dayId) => { let n = 0; for (const id in asg) if (asg[id].dayId === dayId) n++; return n; };
   const isFree = (occ, s, o, ignore) => {
     const d = DB[o.dayId];
     for (const k of framesOf(s, d, o.idx)) { const w = occ[o.dayId + '|' + k]; if (w && w !== ignore) return false; }
@@ -1134,8 +1144,10 @@ function solve() {
   const take = (occ, asg, s) => { const a = asg[s.id]; if (!a) return; framesOf(s, DB[a.dayId], a.idx).forEach(k => { if (occ[a.dayId + '|' + k] === s.id) delete occ[a.dayId + '|' + k]; }); delete asg[s.id]; };
   const bestSpot = (occ, asg, s) => {
     let best = null, bc = Infinity;
+    const dc = {};
     for (const o of cand[s.id]) {
       if (!isFree(occ, s, o)) continue;
+      if (capD[o.dayId] !== Infinity) { if (dc[o.dayId] == null) dc[o.dayId] = cntDay(asg, o.dayId); if (dc[o.dayId] >= capD[o.dayId]) continue; }
       asg[s.id] = o; const c = costOf(asg); delete asg[s.id];
       if (c < bc) { bc = c; best = o; }
     }
@@ -1152,9 +1164,10 @@ function solve() {
       .sort((a, b) => a.k - b.k).map(x => x.s);
     const un = [];
     for (const s of order) {
-      let opts = [];
+      let opts = []; const dc = {};
       for (const o of cand[s.id]) {
         if (!isFree(occ, s, o)) continue;
+        if (capD[o.dayId] !== Infinity) { if (dc[o.dayId] == null) dc[o.dayId] = cntDay(asg, o.dayId); if (dc[o.dayId] >= capD[o.dayId]) continue; }
         asg[s.id] = o; opts.push({ o, c: costOf(asg) }); delete asg[s.id];
       }
       if (!opts.length) { un.push(s); continue; }
@@ -1172,7 +1185,9 @@ function solve() {
         if (bl.size !== 1) continue;
         const bid = [...bl][0]; if (locked[bid]) continue;
         const b = SB[bid], prev = asg[bid];
-        take(occ, asg, b); put(occ, asg, u, o);
+        take(occ, asg, b);
+        if (cntDay(asg, o.dayId) >= capD[o.dayId]) { put(occ, asg, b, prev); continue; }
+        put(occ, asg, u, o);
         const spot = bestSpot(occ, asg, b);
         if (spot) { put(occ, asg, b, spot); done = true; break; }
         take(occ, asg, u); put(occ, asg, b, prev);
@@ -1197,6 +1212,7 @@ function solve() {
         const a = placed[x], b = placed[y]; if (nOf(a) !== nOf(b)) continue;
         const pa = asg[a.id], pb = asg[b.id];
         if (check(a, DB[pb.dayId], pb.idx) || check(b, DB[pa.dayId], pa.idx)) continue;
+        if (!isFree(occ, a, pb, b.id) || !isFree(occ, b, pa, a.id)) continue;
         asg[a.id] = pb; asg[b.id] = pa;
         const c = costOf(asg);
         if (c < cur - 1e-9) { cur = c; improved = true; framesOf(a, DB[pb.dayId], pb.idx).forEach(k => occ[pb.dayId + '|' + k] = a.id); framesOf(b, DB[pa.dayId], pa.idx).forEach(k => occ[pa.dayId + '|' + k] = b.id); }
@@ -1420,6 +1436,8 @@ function renderDays() {
   reindex();
   if (kyomuFlow && !S.ask) { S.ask = 15; save(); }
   $('#ask').querySelector('option[value="0"]').hidden = kyomuFlow;
+  if (!$('#maxDay').options.length) $('#maxDay').innerHTML = '<option value="0">決めない</option>' + Array.from({ length: 30 }, (_, k) => `<option value="${k + 1}">${k + 1}人まで</option>`).join('');
+  $('#maxDay').value = S.maxDay || 0;
   $('#title').value = S.title; $('#per').value = S.per; $('#travel').value = S.travel; $('#ask').value = S.ask || 0; $('#groupArea').checked = !!S.groupArea;
   $('#frameInfo').textContent = S.travel > 0
     ? `1人${S.per}分＋${isVisit() ? '移動' : '入れかえ'}${S.travel}分で、${FR()}分ごとに次の人が始まります。`
@@ -1431,6 +1449,7 @@ function renderDays() {
       <input type="time" data-f="start" value="${d.start ? esc(fmt2(toMin(d.start))) : ''}" step="300"><span>〜</span>
       <input type="time" data-f="end" value="${d.end ? esc(fmt2(toMin(d.end))) : ''}" step="300">
       <span class="cnt kyomu-hide">${frameCount(d)}人分</span>
+      <label class="daymax kyomu-hide"><input type="number" data-f="max" min="1" max="99" inputmode="numeric" value="${d.max || ''}" placeholder="${S.maxDay || 'なし'}" aria-label="この日の人数の上限"><span>人まで</span></label>
       <button class="icon-btn" data-delday="${d.id}" aria-label="削除">${SVG_DEL}</button>
       <label class="dayarea visit-only kyomu-hide"><span>回る地区</span><input type="text" data-f="areas" value="${esc(d.areas || '')}" list="areaList2" placeholder="空らん＝どの地区でも　例）北町、南町"></label></div>`).join('')
     + `<datalist id="areaList2">${[...new Set(S.students.map(s => (s.area || '').trim()).filter(Boolean))].map(a => `<option value="${esc(a)}">`).join('')}</datalist>`
@@ -1441,9 +1460,14 @@ function renderDays() {
 function renderCap() {
   let total = 0; S.days.forEach(d => total += frameCount(d));
   let need = 0; active().forEach(s => need += nOf(s));
+  const lim = S.days.some(d => capOf(d) !== Infinity);
+  let capSum = 0; S.days.forEach(d => capSum += Math.min(capOf(d), frameCount(d)));
+  const n = active().length, short = lim && capSum < n;
   const el = $('#capInfo');
-  el.className = 'cap kyomu-hide' + (need > total ? ' bad' : '');
-  el.textContent = `入れられる枠：${total}人分　／　必要な枠：${need}人分（${active().length}人）` + (need > total ? `　→ あと${need - total}人分足りません。日にちか時間帯を増やしてください${S.days.length && total ? `（今の時間帯なら、あと${Math.ceil((need - total) / Math.max(1, Math.round(total / S.days.length)))}日）` : ''}。` : '');
+  el.className = 'cap kyomu-hide' + (need > total || short ? ' bad' : '');
+  el.textContent = `入れられる枠：${total}人分　／　必要な枠：${need}人分（${n}人）` + (lim ? `　／　人数の上限の合計：${capSum}人` : '')
+    + (need > total ? `　→ あと${need - total}人分足りません。日にちか時間帯を増やしてください${S.days.length && total ? `（今の時間帯なら、あと${Math.ceil((need - total) / Math.max(1, Math.round(total / S.days.length)))}日）` : ''}。`
+      : short ? `　→ 人数の上限だと、あと${n - capSum}人入りません。上限を増やすか、日にちを増やしてください。` : '');
 }
 function setKind(kind) {
   if (kind === S.kind) return;
@@ -1505,6 +1529,7 @@ function keepTimes(change) {
   if (lost) msg.push(`${lost}人を「まだ入っていない人」にもどしました`);
   if (msg.length) toast(msg.join('。'));
 }
+$('#maxDay').addEventListener('change', e => { commitHist(); S.maxDay = Number(e.target.value) || 0; save(); renderDays(); });
 $('#per').addEventListener('change', e => { const v = Number(e.target.value); keepTimes(() => { S.per = v; }); renderDays(); });
 $('#ask').addEventListener('change', e => { S.ask = Number(e.target.value) || 0; save(); renderDays(); });
 $('#travel').addEventListener('change', e => { const v = Number(e.target.value); keepTimes(() => { S.travel = v; }); renderDays(); });
@@ -1520,6 +1545,7 @@ $('#dayList').addEventListener('change', e => {
   const t = e.target, row = t.closest('.dayrow'); if (!row || !t.dataset.f) return;
   const d = DB[row.dataset.id]; if (!d) return;
   if (t.dataset.f === 'start' || t.dataset.f === 'end') { t.dataset.dirty = '1'; return; }   // 時刻は打ち終わってから反映する
+  if (t.dataset.f === 'max') { commitHist(); d.max = Math.max(0, Math.min(99, Math.round(Number(t.value) || 0))) || ''; save(); renderDays(); return; }
   d[t.dataset.f] = t.value;
   if (t.dataset.f === 'date') S.days.sort((a, b) => (a.date || '').localeCompare(b.date || ''));
   save(); reindex(); renderDays();
@@ -1926,7 +1952,7 @@ function renderPlan() {
   g += '<span class="tcorner" style="grid-row:1;grid-column:1"></span>';
   S.days.forEach((d, k) => {
     const cnt = studs.filter(s => S.assign[s.id] && S.assign[s.id].dayId === d.id).length;
-    g += `<div class="colhead dh" style="grid-row:1;grid-column:${k + 2}">${esc(dayLabel(d.date))}<span class="cnt">${cnt}人</span></div>`;
+    g += `<div class="colhead dh" style="grid-row:1;grid-column:${k + 2}">${esc(dayLabel(d.date))}<span class="cnt ${cnt > capOf(d) ? 'over' : ''}">${cnt}${capOf(d) !== Infinity ? '／' + capOf(d) : ''}人</span></div>`;
   });
   // 1時間ごと・30分ごとの線
   for (let m = Math.ceil(minS / 30) * 30; m < maxE; m += 30) {
@@ -2114,6 +2140,10 @@ async function placeAt(s, d, i) {
     const ok = await dlg(`<b>${esc(s.name)}</b>さんを ${esc(dayLabel(d.date))} ${fmt(fStart(d, i))} に入れようとしています。<br>この時間は「${esc(REASON[r])}」です。<br>それでも入れますか？`, [{ label: 'やめる', value: false }, { label: '入れる', value: true, cls: 'pri' }]);
     if (!ok) return false;
   }
+  if (capOf(d) !== Infinity && dayCount(d.id, s.id) >= capOf(d)) {
+    const ok = await dlg(`${esc(dayLabel(d.date))} は、上限の<b>${capOf(d)}人</b>がもう入っています。<br>それでも<b>${esc(s.name)}</b>さんを入れますか？`, [{ label: 'やめる', value: false }, { label: '入れる', value: true, cls: 'pri' }]);
+    if (!ok) return false;
+  }
   commitHist();
   const moved = !!S.assign[s.id];
   S.assign[s.id] = { dayId: d.id, idx: i, lock: true };
@@ -2205,7 +2235,7 @@ $('#autoBtn').onclick = async () => {
       const names = (L) => L.map(x => esc(x.s.name)).join('、');
       dlg(`<b>${un.length}人が入りませんでした。</b>（左の一覧の黄色の人です）` +
         (noSpot.length ? `<br><br><b>○の時間がない人（${noSpot.length}人）</b><br>${names(noSpot)}<br><span class="hint">保護者に別の時間を聞いてください。</span>` : '') +
-        (full.length ? `<br><br><b>空いている枠がない人（${full.length}人）</b><br>${names(full)}<br><span class="hint">「2. 日時の設定」で日にちか時間帯を増やすか、マスに直接入れてください。</span>` : ''),
+        (full.length ? `<br><br><b>空いている枠がない人（${full.length}人）</b><br>${names(full)}<br><span class="hint">「2. 日時の設定」で日にちか時間帯${S.days.some(d => capOf(d) !== Infinity) ? '（または人数の上限）' : ''}を増やすか、マスに直接入れてください。</span>` : ''),
         [{ label: 'とじる', value: 1, cls: 'pri' }]);
     }
   }, 30);
