@@ -106,6 +106,11 @@ textarea { width: 100%; resize: vertical; }
 .seg button.on { background: var(--pri); color: #fff; font-weight: 700; }
 .kindseg { margin: 6px 0 4px; }
 .senders { margin-top: 10px; display: flex; flex-direction: column; gap: 6px; }
+.clsrow { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 4px; }
+.clsrow label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--sub); }
+.clsrow .cbox { display: flex; align-items: center; gap: 6px; }
+.clsrow .cbox input { width: 96px !important; flex: none; font-size: 16px; }
+.clsrow .cbox i { font-style: normal; font-size: 15px; color: #1f2937; }
 .senders .shead { font-size: 13px; color: var(--sub); }
 .srow { display: flex; gap: 6px; align-items: center; }
 .senders .srow input[data-sr$=ole] { width: 116px !important; flex: none; min-width: 0; }
@@ -592,9 +597,6 @@ body:has(#modal:not([hidden])) #toast { bottom: auto; top: calc(10px + var(--saf
       <div class="card">
         <div class="modeline"><span id="modeLine"></span><button class="btn sm" id="modeBtn">変える</button></div>
         <h3 style="margin-top:14px">クラス <span class="hint" style="font-weight:400;margin:0">印刷する表やお知らせに入ります</span></h3>
-        <div class="lf2 scls">
-          <label>学年・組<input type="text" data-p="cls" placeholder="例）1年1組"></label>
-        </div>
         <div class="senders" data-kind="teach"></div>
         <div class="lbox">
           <h3>学校でそろえる設定 <span class="ltag" id="letterStat"></span></h3>
@@ -769,11 +771,13 @@ body:has(#modal:not([hidden])) #toast { bottom: auto; top: calc(10px + var(--saf
       <div class="nextbar"><button class="btn" data-go="2" data-kyomu="1">① 日にちと時間にもどる</button><button class="btn" data-go="1">1の画面へ</button><button class="btn pri" id="letterSave2">③ 学校の設定ファイルを保存（配る用）</button></div>
     </section>
 
-    <footer class="ver">面談日程メーカー ｜ ver.2.3 ｜ ota tools</footer>
+    <footer class="ver">面談日程メーカー ｜ ver.2.4 ｜ ota tools</footer>
     <input type="file" id="letterFile" accept=".json,application/json" hidden>
   </main>
 </div>
 
+<datalist id="gradeList"><option value="1"><option value="2"><option value="3"><option value="4"><option value="5"><option value="6"></datalist>
+<datalist id="kumiList"><option value="1"><option value="2"><option value="3"><option value="4"><option value="5"><option value="6"><option value="A"><option value="B"><option value="C"><option value="D"></datalist>
 <div id="modal" hidden><div class="box"><div id="modalMsg"></div><div id="modalBtns"></div></div></div>
 <div id="toast"></div>
 <div id="printArea"></div>
@@ -895,13 +899,19 @@ function normalize(o) {
 const PS_KEY = 'mendanNittei.school';
 function stripRole(v) { return String(v || '').replace(/^(校\s*長|担任)\s*/, '').trim(); }
 function teacherText() { return SCH.teachers.filter(t => t.name.trim()).map(t => (t.role.trim() ? t.role.trim() + '　' : '') + t.name.trim()).join('　／　'); }
-function defaultProfile() { return { school: '', prinRole: '校長', principal: '', teachers: [{ role: '担任', name: '' }], cls: '', teacher: '', honor: '保護者様', dateFmt: 'wareki', font: 'mincho', letters: { talk: {}, visit: {} } }; }
+function clsOf(g, k) { g = String(g || '').trim().replace(/年$/, ''); k = String(k || '').trim().replace(/組$/, ''); return (g ? g + '年' : '') + (k ? k + (/(級|クラス)$/.test(k) ? '' : '組') : ''); }
+function splitCls(c) { c = String(c || '').trim(); const m = c.match(/^(.+?)\s*年\s*(.*?)\s*組?$/); return m ? { grade: m[1], kumi: m[2] } : { grade: '', kumi: c.replace(/組$/, '').trim() }; }
+function defaultProfile() { return { grade: '', kumi: '', school: '', prinRole: '校長', principal: '', teachers: [{ role: '担任', name: '' }], cls: '', teacher: '', honor: '保護者様', dateFmt: 'wareki', font: 'mincho', letters: { talk: {}, visit: {} } }; }
 function normProfile(o) {
   const d = defaultProfile(); if (!o || typeof o !== 'object') return d;
   const p = Object.assign(d, o);
   ['school', 'principal', 'cls', 'teacher', 'honor', 'dateFmt', 'font'].forEach(k => { if (typeof p[k] !== 'string') p[k] = d[k]; });
   if (!p.letters || typeof p.letters !== 'object') p.letters = {};
   ['talk', 'visit'].forEach(k => { if (!p.letters[k] || typeof p.letters[k] !== 'object') p.letters[k] = {}; });
+  if (typeof o.grade !== 'string' || typeof o.kumi !== 'string') {   // 前の版の「1年1組」を、学年と組に分ける
+    const sp = splitCls(p.cls); p.grade = sp.grade; p.kumi = sp.kumi;
+  }
+  p.cls = clsOf(p.grade, p.kumi);
   if (typeof p.prinRole !== 'string') p.prinRole = '校長';
   p.principal = stripRole(p.principal);
   if (!Array.isArray(p.teachers) || !p.teachers.length) p.teachers = [{ role: '担任', name: stripRole(p.teacher) }];
@@ -912,7 +922,7 @@ function normProfile(o) {
 }
 let SCH;
 try { SCH = normProfile(JSON.parse(localStorage.getItem(PS_KEY) || 'null')); } catch (e) { SCH = defaultProfile(); }
-function saveP() { SCH.teacher = SCH.teachers[0] ? SCH.teachers[0].name : ''; try { localStorage.setItem(PS_KEY, JSON.stringify(SCH)); } catch (e) {} }
+function saveP() { SCH.teacher = SCH.teachers[0] ? SCH.teachers[0].name : ''; SCH.cls = clsOf(SCH.grade, SCH.kumi); try { localStorage.setItem(PS_KEY, JSON.stringify(SCH)); } catch (e) {} }
 
 /* 前の版は文面をデータの中に持っていた：学校の登録に移す */
 function migrateLetters(s) {
@@ -923,7 +933,8 @@ function migrateLetters(s) {
   ['talk', 'visit'].forEach(k => {
     const L = s.letters[k]; if (!L || typeof L !== 'object') return;
     ['title', 'body', 'notes', 'box1', 'box2', 'ki', 'ijo'].forEach(f => { if (L[f] !== undefined && SCH.letters[k][f] === undefined) SCH.letters[k][f] = L[f]; });
-    ['school', 'principal', 'cls'].forEach(f => { if (!SCH[f] && !dummy(L[f])) SCH[f] = stripRole(L[f]); });
+    ['school', 'principal'].forEach(f => { if (!SCH[f] && !dummy(L[f])) SCH[f] = stripRole(L[f]); });
+    if (!SCH.grade && !SCH.kumi && !dummy(L.cls)) { const sp = splitCls(L.cls); SCH.grade = sp.grade; SCH.kumi = sp.kumi; }
     if (!SCH.teachers[0].name && !dummy(L.teacher)) SCH.teachers[0].name = stripRole(L.teacher);
     ['honor', 'dateFmt', 'font'].forEach(f => { if (L[f] && SCH[f] === defaultProfile()[f]) SCH[f] = L[f]; });
     if (L.date && !s.letterDate) s.letterDate = L.date;
@@ -1213,13 +1224,16 @@ function renderSenders(force) {
         <div class="srow"><input type="text" data-sr="prinRole" value="${esc(SCH.prinRole)}" placeholder="役職" autocomplete="off"><input type="text" data-sr="principal" value="${esc(SCH.principal)}" placeholder="名前　例）〇〇　〇〇" autocomplete="off"></div>`;
       return;
     }
-    box.innerHTML = `<div class="shead">担任名（役職は書きかえられます。空らんにすると名前だけになります）</div>` +
+    box.innerHTML = `<div class="clsrow"><label>学年<span class="cbox"><input type="text" data-sr="grade" value="${esc(SCH.grade)}" list="gradeList" placeholder="例）1" autocomplete="off" inputmode="text"><i>年</i></span></label>
+      <label>組<span class="cbox"><input type="text" data-sr="kumi" value="${esc(SCH.kumi)}" list="kumiList" placeholder="例）1、A" autocomplete="off"><i>組</i></span></label></div>
+      <div class="shead">担任名（役職は書きかえられます。空らんにすると名前だけになります）</div>` +
       SCH.teachers.map((t, i) => `<div class="srow"><input type="text" data-sr="trole" data-i="${i}" value="${esc(t.role)}" placeholder="役職" list="roleList" autocomplete="off"><input type="text" data-sr="tname" data-i="${i}" value="${esc(t.name)}" placeholder="名前　例）〇〇　〇〇" autocomplete="off">${SCH.teachers.length > 1 ? `<button class="icon-btn" data-srdel="${i}" aria-label="削除">${SVG_DEL}</button>` : ''}</div>`).join('') +
       `<div><button class="btn sm" data-sradd="1">＋ 担任・副担任を追加</button></div><datalist id="roleList"><option value="担任"><option value="副担任"></datalist>`;
   });
 }
 document.addEventListener('input', e => {
   const el = e.target, k = el.dataset && el.dataset.sr; if (!k) return;
+  if (k === 'grade' || k === 'kumi') { SCH[k] = el.value.trim().replace(k === 'grade' ? /年$/ : /組$/, ''); saveP(); renderSenders(); const h = $('#hdSub'); if (h) h.textContent = SCH.cls || '家庭訪問・個人懇談'; if (page >= 5) { clearTimeout(lpTimer); lpTimer = setTimeout(drawPreview, 120); } return; }
   if (k === 'prinRole') SCH.prinRole = el.value; else if (k === 'principal') SCH.principal = el.value;
   else { const t = SCH.teachers[Number(el.dataset.i)]; if (!t) return; if (k === 'trole') t.role = el.value; else t.name = el.value; }
   saveP(); renderSenders(); if (page >= 5) { clearTimeout(lpTimer); lpTimer = setTimeout(drawPreview, 120); }
@@ -2882,14 +2896,12 @@ async function askFirst(force) {
     <div class="aq">保護者の希望（○×）を入力しますか？</div>
     <div class="aopts two">${card('w', '1', '入力する', '届いた都合に合わせて、自動で入れる', S.useWish)}${card('w', '0', '入力しない', '手元の用紙を見ながら、1人ずつ入れる', !S.useWish)}</div>
     <div class="aq">学年・組と担任名　<span class="hint" style="font-weight:400">印刷やお知らせに入ります。あとでも入れられます</span></div>
-    <div class="row acls"><input type="text" id="aCls" value="${esc(SCH.cls)}" placeholder="学年・組　例）1年1組" autocomplete="off"></div>
     <div class="senders" data-kind="teach"></div>
     <p class="hint" style="margin:10px 0 0">どれも、あとから「1. 名前の登録」の画面で変えられます。</p></div>`, force ? [{ label: 'やめる', value: 0 }, { label: '決定', value: 1, cls: 'pri' }] : [{ label: '学校の設定を作る（教務の先生）', value: 'make', cls: 'left' }, { label: 'はじめる', value: 1, cls: 'pri' }]);
   renderSenders(true);
   const res = await pr;
   if (force && !res) return;
-  const ac = document.querySelector('#aCls');
-  if (ac) SCH.cls = ac.value.trim(); saveP();
+  saveP();
   const k = document.querySelector('#modalMsg input[name=k]:checked'), w = document.querySelector('#modalMsg input[name=w]:checked');
   const kind = k ? k.value : 'talk';
   if (force) { setKind(kind); S.useWish = w ? w.value === '1' : true; save(); render(); return; }
