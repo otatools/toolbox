@@ -202,7 +202,11 @@ button.colhead:hover { background: #edf2f8; }
   background: #f6f8fb; border-radius: 8px; padding: 0 8px; font-size: 13px; font-weight: 400; white-space: nowrap; color: var(--sub);
   font-variant-numeric: tabular-nums; height: var(--rh); text-align: right;
 }
-.wrow:hover { background: #edf2f8; }
+.wrow:hover, .whour:hover { background: #edf2f8; }
+.whour { position: sticky; left: 0; z-index: 2; -webkit-appearance: none; appearance: none; border: 1px solid var(--line); background: #eef3f9; border-radius: 8px; padding: 0; font-size: 11px; color: var(--sub); line-height: 1.25; display: flex; flex-direction: column; align-items: center; justify-content: center; cursor: pointer; }
+.whour b { font-size: 15px; color: var(--ink); }
+.wtable.hasH .wrow { left: 40px; }
+.wtable.hasH .wrow .mm { font-size: 13.5px; color: var(--ink); }
 .wrow b { color: var(--ink); font-size: 14px; }
 .wcorner { position: sticky; left: 0; background: var(--card); }
 .wnone { height: var(--rh); border-radius: 8px; background: repeating-linear-gradient(135deg, #f3f5f8 0 6px, #fff 6px 12px); }
@@ -774,7 +778,7 @@ body:has(#modal:not([hidden])) #toast { bottom: auto; top: calc(10px + var(--saf
       <div class="nextbar"><button class="btn" data-go="2" data-kyomu="1">① 日にちと時間にもどる</button><button class="btn" data-go="1">1の画面へ</button><button class="btn pri" id="letterSave2">③ 学校の設定ファイルを保存（配る用）</button></div>
     </section>
 
-    <footer class="ver">面談日程メーカー ｜ ver.2.5 ｜ ota tools</footer>
+    <footer class="ver">面談日程メーカー ｜ ver.2.7 ｜ ota tools</footer>
     <input type="file" id="letterFile" accept=".json,application/json" hidden>
   </main>
 </div>
@@ -1560,7 +1564,7 @@ function renderWishMain() {
     </div>
     ${S.useWish ? `
     <div class="legend"><span><i style="background:var(--ok-l);box-shadow:inset 0 0 0 1px #bfe3cc"></i>○ 来られる</span><span><i style="background:var(--ng-l);box-shadow:inset 0 0 0 1px #f2c4c4"></i>× 来られない</span><span><i style="background:repeating-linear-gradient(135deg,#d3d8df 0 3px,#eef1f4 3px 6px)"></i>だれも入れない時間</span><span><i style="background:#fff;box-shadow:inset 0 0 0 2px var(--warn)"></i>きょうだいと重なる</span></div>
-    <p class="hint">マスを押すと ○ と × が切りかわります。左の時刻を押すとその時間帯を、日にちの見出しを押すとその日を、まとめて切りかえます。</p>
+    <p class="hint">マスを押すと ○ と × が切りかわります。左はしの「13時」などを押すとその1時間を、時刻を押すとその行を、日にちの見出しを押すとその日を、まとめて切りかえます。</p>
     ${S.days.length ? wishTable(s) : '<p class="empty">先に「2. 日時の設定」で日にちを入れてください。</p>'}` : ''}
     <div class="detail">
       <div class="field"><label for="wDur">この人の${isVisit() ? '訪問' : '懇談'}時間</label><select id="wDur">${durOpts}</select><span class="hint" style="margin:0">相談ごとがあるなど、長くとりたい人だけ ×2 などにします</span></div>
@@ -1620,13 +1624,17 @@ function wishTable(s) {
   S.days.forEach(d => wishCells(d).forEach(w => { if (!rows.has(w.a)) rows.set(w.a, w.label); }));
   const times = [...rows.keys()].sort((x, y) => x - y);
   const cellMap = S.days.map(d => { const m = {}; wishCells(d).forEach(w => m[w.a] = w); return m; });
-  let g = `<div class="wtable" id="wGrid" style="grid-template-columns: 58px repeat(${S.days.length}, minmax(76px, 1fr))">`;
-  g += '<span class="wcorner"></span>';
+  // 1時間に2行以上あるときは、左はしに「〇時」のボタンを出す（その時間をまとめて○×）
+  const perHour = {}; times.forEach(a => { const h = Math.floor(a / 60); perHour[h] = (perHour[h] || 0) + 1; });
+  const hcol = Object.values(perHour).some(n => n > 1);
+  let g = `<div class="wtable ${hcol ? 'hasH' : ''}" id="wGrid" style="grid-template-columns: ${hcol ? '36px 46px' : '58px'} repeat(${S.days.length}, minmax(76px, 1fr))">`;
+  g += `<span class="wcorner" ${hcol ? 'style="grid-column: span 2"' : ''}></span>`;
   g += S.days.map(d => `<button class="colhead" data-wday="${d.id}">${esc(dayLabel(d.date))}<small>${esc(d.start)}〜${esc(d.end)}</small></button>`).join('');
   let prevT = null;
   times.forEach(a => {
     if (prevT != null && Math.floor(prevT / 60) !== Math.floor(a / 60)) g += '<div class="hsep" style="grid-column:1 / -1"></div>';
-    g += `<button class="wrow" data-wrow="${a}">${timeLabel(a, prevT)}</button>`;
+    if (hcol && (prevT == null || Math.floor(prevT / 60) !== Math.floor(a / 60))) { const h = Math.floor(a / 60); g += `<button class="whour" data-whour="${h}" style="grid-row: span ${perHour[h]}" title="${h}時台をまとめて○×"><b>${h}</b>時</button>`; }
+    g += `<button class="wrow" data-wrow="${a}" title="${fmt(a)}">${hcol ? `<span class="mm">:${String(a % 60).padStart(2, '0')}</span>` : timeLabel(a, prevT)}</button>`;
     prevT = a;
     S.days.forEach((d, k) => {
       const w = cellMap[k][a];
@@ -1681,6 +1689,14 @@ $('#wishMain').addEventListener('click', e => {
   const wr = e.target.closest('[data-wrow]');
   if (wr) {
     const cs = [...document.querySelectorAll(`#wGrid .wc[data-a="${wr.dataset.wrow}"]`)];
+    const anyOk = cs.some(c => !cellNg(s, c));
+    cs.forEach(c => toggleWishCell(c, anyOk));
+    markDone(s); save(); renderWish(); return;
+  }
+  const wh = e.target.closest('[data-whour]');
+  if (wh) {
+    const h = Number(wh.dataset.whour);
+    const cs = [...document.querySelectorAll('#wGrid .wc')].filter(c => Math.floor(Number(c.dataset.a) / 60) === h);
     const anyOk = cs.some(c => !cellNg(s, c));
     cs.forEach(c => toggleWishCell(c, anyOk));
     markDone(s); save(); renderWish(); return;
