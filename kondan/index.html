@@ -317,6 +317,9 @@ body.no-wish #blockBtn { grid-column: 1 / -1; order: -1; }
 @media (max-width: 760px) { body.no-wish .ptools { grid-template-columns: repeat(3, 1fr); } body.no-wish #blockBtn { grid-column: auto; order: 0; } .pside .phint { font-size: 11px; } }
 .phint .li.pairtxt { display: block; white-space: normal; margin: 2px 0; }
 .item.pairhl { box-shadow: 0 0 0 3px var(--warn); z-index: 3; }
+.lg.swl { border: 2px solid #1a8f5a; background: #fff; }
+.item.swok { box-shadow: 0 0 0 2.5px #1a8f5a inset; }
+.item .swtag { position: absolute; right: 2px; top: 1px; font-size: 9.5px; line-height: 1.2; font-weight: 700; color: #fff; background: #1a8f5a; border-radius: 4px; padding: 0 3px; pointer-events: none; }
 .lg.sibm { border: 2px dashed var(--warn); background: var(--ng-l); }
 .sibmark { pointer-events: none; border: 2px dashed var(--warn); border-radius: 6px; margin: 1px 2px; display: flex; align-items: center; justify-content: flex-end; padding-right: 6px; z-index: 4; min-width: 0; overflow: hidden; }
 .sibmark span { font-size: 11px; font-weight: 700; color: #8a5a0b; background: rgba(255,255,255,.85); border-radius: 4px; padding: 0 4px; white-space: nowrap; }
@@ -771,7 +774,7 @@ body:has(#modal:not([hidden])) #toast { bottom: auto; top: calc(10px + var(--saf
       <div class="nextbar"><button class="btn" data-go="2" data-kyomu="1">① 日にちと時間にもどる</button><button class="btn" data-go="1">1の画面へ</button><button class="btn pri" id="letterSave2">③ 学校の設定ファイルを保存（配る用）</button></div>
     </section>
 
-    <footer class="ver">面談日程メーカー ｜ ver.2.4 ｜ ota tools</footer>
+    <footer class="ver">面談日程メーカー ｜ ver.2.5 ｜ ota tools</footer>
     <input type="file" id="letterFile" accept=".json,application/json" hidden>
   </main>
 </div>
@@ -1181,6 +1184,29 @@ function freeAt(s, d, i, ignore) {
   }
   return true;
 }
+/* 選んだ人(A)と、入っている人(B)を入れかえられるか、先に調べる。
+   'swap'＝入れかえて2人とも条件に合う／'give'＝Aはまだ入っていないが、Bの所に入れてBを別の空きに動かせる／''＝できない */
+function swapInfo(aid, bid) {
+  const a = SB[aid], b = SB[bid], pa = S.assign[aid], pb = S.assign[bid];
+  if (!a || !b || !pb || aid === bid) return '';
+  const keepA = pa, keepB = pb; let res = '';
+  delete S.assign[aid]; delete S.assign[bid];
+  try {
+    const dB = DB[pb.dayId];
+    if (!dB || check(a, dB, pb.idx) || !freeAt(a, dB, pb.idx, [])) return '';
+    S.assign[aid] = { dayId: pb.dayId, idx: pb.idx };
+    if (pa) {
+      const dA = DB[pa.dayId];
+      if (dA && !check(b, dA, pa.idx) && freeAt(b, dA, pa.idx, [])) { S.assign[bid] = { dayId: pa.dayId, idx: pa.idx }; if (!problemsOf(aid).length && !problemsOf(bid).length) res = 'swap'; }
+    } else {
+      outer: for (const d of S.days) { const n = frameCount(d); for (let i = 0; i < n; i++) if (!check(b, d, i) && freeAt(b, d, i, [])) { res = 'give'; break outer; } }
+    }
+    return res;
+  } finally {
+    delete S.assign[aid]; delete S.assign[bid];
+    if (keepA) S.assign[aid] = keepA; S.assign[bid] = keepB;
+  }
+}
 function problemsOf(id) {
   const a = S.assign[id], s = SB[id], d = a && DB[a.dayId]; if (!a || !s || !d) return [];
   const r = []; const c = check(s, d, a.idx); if (c) r.push(REASON[c]);
@@ -1233,7 +1259,7 @@ function renderSenders(force) {
 }
 document.addEventListener('input', e => {
   const el = e.target, k = el.dataset && el.dataset.sr; if (!k) return;
-  if (k === 'grade' || k === 'kumi') { SCH[k] = el.value.trim().replace(k === 'grade' ? /年$/ : /組$/, ''); saveP(); renderSenders(); const h = $('#hdSub'); if (h) h.textContent = SCH.cls || '家庭訪問・個人懇談'; if (page >= 5) { clearTimeout(lpTimer); lpTimer = setTimeout(drawPreview, 120); } return; }
+  if (k === 'grade' || k === 'kumi') { SCH[k] = el.value.trim().replace(k === 'grade' ? /年$/ : /組$/, ''); saveP(); renderSenders(); const h = $('#hdSub'); if (h) h.textContent = SCH.cls || ''; if (page >= 5) { clearTimeout(lpTimer); lpTimer = setTimeout(drawPreview, 120); } return; }
   if (k === 'prinRole') SCH.prinRole = el.value; else if (k === 'principal') SCH.principal = el.value;
   else { const t = SCH.teachers[Number(el.dataset.i)]; if (!t) return; if (k === 'trole') t.role = el.value; else t.name = el.value; }
   saveP(); renderSenders(); if (page >= 5) { clearTimeout(lpTimer); lpTimer = setTimeout(drawPreview, 120); }
@@ -1247,7 +1273,7 @@ document.addEventListener('click', e => {
 });
 function renderHeader() {
   renderSenders();
-  const h = $('#hdSub'); if (h) h.textContent = SCH.cls || '家庭訪問・個人懇談';
+  const h = $('#hdSub'); if (h) h.textContent = SCH.cls || '';
   document.querySelectorAll('.scls [data-p]').forEach(el => { if (document.activeElement !== el) el.value = SCH[el.dataset.p] || ''; });
   const st = $('#letterStat'); if (st) st.innerHTML = letterStatus();
 }
@@ -1257,7 +1283,7 @@ function letterStatus() {
   const r = letterRegistered();
   return `<span class="${r ? 'ok' : ''}">${r ? '読み込みずみ' : 'まだ読み込んでいません'}</span>`;
 }
-document.addEventListener('input', e => { const el = e.target; if (el.dataset && el.dataset.p && el.closest('.scls')) { SCH[el.dataset.p] = el.value; saveP(); const h = $('#hdSub'); if (h) h.textContent = SCH.cls || '家庭訪問・個人懇談'; } });
+document.addEventListener('input', e => { const el = e.target; if (el.dataset && el.dataset.p && el.closest('.scls')) { SCH[el.dataset.p] = el.value; saveP(); const h = $('#hdSub'); if (h) h.textContent = SCH.cls || ''; } });
 function render() { renderHeader(); applyKind(); reindex(); if (page === 1) renderNames(); if (page === 2) renderDays(); if (page === 3) renderWish(); if (page === 4) renderPlan(); if (page >= 5) renderOut(); }
 
 /* ===== 1. 名前 ===== */
@@ -1756,7 +1782,7 @@ function renderPlan() {
   $('#planHint').innerHTML = blockMode
     ? '<b>休けいの設定中</b>だれも入れない時間のマスを押します。終わったら「休けいを設定」をもう一度押します。'
     : selS
-      ? `<b>${esc(selS.name || '名前なし')}</b>${selS.pair && SB[selS.pair] ? `<span class="li pairtxt">きょうだい：${esc(SB[selS.pair].name)}（${S.assign[selS.pair] ? esc(whenOf(SB[selS.pair])) : 'まだ'}）</span>` : ''} <span class="li"><span class="lg can"></span>押すと入れられる</span> ${S.useWish ? '<span class="li"><span class="lg ngc"></span>保護者が×</span>' : ''} <span class="li"><span class="lg blk"></span>休けい</span>${selS.sibs.some(b => b.start && b.end) ? '<span class="li"><span class="lg sibm"></span>きょうだいの時間</span>' : ''}`
+      ? `<b>${esc(selS.name || '名前なし')}</b>${selS.pair && SB[selS.pair] ? `<span class="li pairtxt">きょうだい：${esc(SB[selS.pair].name)}（${S.assign[selS.pair] ? esc(whenOf(SB[selS.pair])) : 'まだ'}）</span>` : ''} <span class="li"><span class="lg can"></span>押すと入れられる</span> ${S.useWish ? '<span class="li"><span class="lg ngc"></span>保護者が×</span>' : ''} <span class="li"><span class="lg blk"></span>休けい</span><span class="li"><span class="lg swl"></span>${S.assign[selS.id] ? '入れかえOKの人' : 'ゆずれる人（別の空きに動かせる）'}</span>${selS.sibs.some(b => b.start && b.end) ? '<span class="li"><span class="lg sibm"></span>きょうだいの時間</span>' : ''}`
       : (S.useWish ? '名前を押すと、その人を入れられる時間が緑になります。' : 'マスを押して番号を入れるか、名前を押してから緑のマスを押して入れます。');
   const act = active(), done = act.filter(s => S.assign[s.id]).length;
   $('#planProg').innerHTML = act.length ? `<div class="pp-t">入れた人 <b>${done}</b> / ${act.length}人<span class="${done === act.length ? 'ok' : ''}">${done === act.length ? '全員入りました' : `あと <b>${act.length - done}</b>人`}</span></div><div class="pp-bar"><i style="width:${Math.round(done / act.length * 100)}%"></i></div>` : '';
@@ -1871,8 +1897,9 @@ function renderPlan() {
         : `<span class="s">${fmt(t0)}</span><span class="e">〜${fmt(t0 + durOf(s))}</span>`;
       const ac = isVisit() ? areaColor(s.area) : '';
       const pairOn = sel && sel.pair === s.id;
-      g += `<button class="item ${pr.length ? 'warn' : ''} ${selId === s.id ? 'sel' : ''} ${pairOn ? 'pairhl' : ''} ${ac ? 'acol' : ''}" style="${ac ? `--ac:${ac};` : ''}grid-column:${col};grid-row:${row(t0)} / ${row(t1)}" data-sid="${s.id}" data-rows="${row(t1) - row(t0)}" title="${esc(pr.join('、'))}">
-        <span class="nm">${esc(s.name || '名前なし')}</span><span class="sub">${subHtml}</span>${a.lock && S.useWish ? SVG_PIN : ''}</button>`;
+      const sw = sel && !blockMode && sel.id !== s.id ? swapInfo(sel.id, s.id) : '';
+      g += `<button class="item ${pr.length ? 'warn' : ''} ${selId === s.id ? 'sel' : ''} ${pairOn ? 'pairhl' : ''} ${ac ? 'acol' : ''} ${sw ? 'swok' : ''}" style="${ac ? `--ac:${ac};` : ''}grid-column:${col};grid-row:${row(t0)} / ${row(t1)}" data-sid="${s.id}" data-rows="${row(t1) - row(t0)}" title="${esc(pr.join('、'))}">
+        <span class="nm">${esc(s.name || '名前なし')}</span><span class="sub">${subHtml}</span>${a.lock && S.useWish ? SVG_PIN : ''}${sw ? `<span class="swtag">${sw === 'swap' ? '入れかえOK' : 'ゆずれる'}</span>` : ''}</button>`;
     });
   });
   grid.innerHTML = g + '</div>';
