@@ -36,7 +36,7 @@
 <body>
 <main>
   <h1>？・×になったことば</h1>
-  <div class="bar"><button id="reload">最新にする</button><button id="resort" title="いまの アプリで うったら どう なるかで、ぜんぶの ことばを ふりわけなおします（除外の ものは 除外の 中で）">振り分けなおす</button><button id="csv">CSVでほぞん（Excel用）</button><button id="xlsx">Excelでほぞん（種類ごとのシート）</button><button id="exclBtn" disabled>除外に入れる</button><button id="nmBtn" disabled title="×にして「これは つくれないよ」と だす ものを 除外の「つくれない」に いれる">つくれない（除外）に入れる</button><button id="nwBtn" disabled title="ことばじゃない もの（でたらめ・れんしゅう打ち など）を 除外の「ことばじゃない」に いれる">ことばじゃない（除外）に入れる</button><button id="restoreBtn" disabled hidden>選んだものを全部に入れる</button><button id="del" class="del" disabled>選んだものを消す</button></div>
+  <div class="bar"><button id="reload">最新にする</button><button id="undoAuto" title="まえに じどうで 除外（ことばじゃない・つくれない）に はいって しまった ことばを、全部に もどします">自動で除外に入ったものをもどす</button><button id="resort" title="いまの アプリで うったら どう なるかで、ぜんぶの ことばを ふりわけなおします（除外の ものは 除外の 中で）">振り分けなおす</button><button id="csv">CSVでほぞん（Excel用）</button><button id="xlsx">Excelでほぞん（種類ごとのシート）</button><button id="exclBtn" disabled>除外に入れる</button><button id="nmBtn" disabled title="×にして「これは つくれないよ」と だす ものを 除外の「つくれない」に いれる">つくれない（除外）に入れる</button><button id="nwBtn" disabled title="ことばじゃない もの（でたらめ・れんしゅう打ち など）を 除外の「ことばじゃない」に いれる">ことばじゃない（除外）に入れる</button><button id="restoreBtn" disabled hidden>選んだものを全部に入れる</button><button id="del" class="del" disabled>選んだものを消す</button></div>
   <div class="flt" id="flt"><button data-f="all" class="on" title="除外いがいの ぜんぶ（ぐちゃぐちゃ・×・数量・辞書にある も ふくむ）">全部<small id="fc_all"></small></button><button data-f="guess" title="「〇〇？」と表示した言葉">「〇〇？」<small id="fc_guess"></small></button><button data-f="none" title="？だけ表示した言葉">？だけ<small id="fc_none"></small></button><button data-f="blocked" title="使えないことば">使えない<small id="fc_blocked"></small></button><button data-f="heavy" title="使えないことばの うち、低学年が ふつう いわない 悪質ワード（5回で ロックのレベルが上がる）">悪質ワード<small id="fc_heavy"></small></button><button data-f="x" title="×になった言葉（キャラクター・ゲーム・まんが・人名など）">×になった<small id="fc_x"></small></button><button data-f="junk" title="存在しない言葉（でたらめ入力）">ぐちゃぐちゃ<small id="fc_junk"></small></button><button data-f="excl" title="除外リスト（消えない・CSVに入らない）">除外<small id="fc_excl"></small></button><button data-f="qty" title="数量のことば（よにん・はちびき・いっこ・いちおくえん…）">数量<small id="fc_qty"></small></button><button data-f="reg" title="辞書にあるので隠していた言葉">辞書にある<small id="fc_reg"></small></button></div>
   <div class="flt" id="sub" hidden><button data-s="all" class="on">除外の全部<small id="sc_all"></small></button><button data-s="guess">「〇〇？」<small id="sc_guess"></small></button><button data-s="none">？だけ<small id="sc_none"></small></button><button data-s="x">×<small id="sc_x"></small></button><button data-s="blocked">使えない<small id="sc_blocked"></small></button><button data-s="heavy" title="使えない ことばの うち 悪質ワード">悪質ワード<small id="sc_heavy"></small></button><button data-s="nm" title="×にして「これは つくれないよ」と だす もの">×：つくれない<small id="sc_nm"></small></button><button data-s="nw" title="ことばじゃない もの。「〇〇？」の さいしんかは しない">ことばじゃない<small id="sc_nw"></small></button></div>
   <div id="exclAdd" hidden style="margin:8px 0;padding:10px;background:#f4f7ff;border-radius:8px"><div style="font-size:.9em;margin-bottom:4px">ここに ことばを いれると、まとめて 除外リストに くわえます（いくつでも：改行か「、」「,」でくぎる）。こどもが また いれても 除外リストに はいります。</div><textarea id="exclTxt" rows="3" style="width:100%;box-sizing:border-box;font-size:16px"></textarea><button id="exclAddBtn" style="margin-top:6px">除外リストに くわえる</button></div>
@@ -138,11 +138,12 @@ function jload(sig) { try { const o = JSON.parse(localStorage.getItem('kotoba.ju
 let JM = null, JMS = null;
 function getMemo(sig) { if (JMS !== sig || !JM) { JM = jload(sig); JMS = sig; } return JM; }
 function jsave(sig, m) { if (!sig) return; try { localStorage.setItem('kotoba.judge', JSON.stringify({ sig: sig, m: m })); } catch (e) {} }
-// アプリで「ことばじゃないよ」に なった ものは、じどうで「ことばじゃない（除外）」に いれる（「全部に入れる」で もどした ものは そのまま）
+// 除外に いれるのは、先生が stats で えらんで いれた ものだけ（アプリで「ことばじゃないよ」「つくれないよ」に なっても、じどうでは 除外に いれない）
 // いまの アプリで「ことばじゃないよ」（×）に なる か（しらべる まえは サーバーの きろくで みる）
 function isNwIdx(r) { return r.nwIdx !== undefined ? r.nwIdx : r.xdb === 'notword'; }
 function isNmIdx(r) { return r.nmIdx !== undefined ? r.nmIdx : r.xdb === 'nomake'; }
 function autoNw(r) {
+  return;   // じどうで 除外に いれるのは やめた（先生が えらんだ ものだけ 除外に いれる）
   if (r.nmv !== false && !r.nm && (r.xdb === 'nomake' || /これは つくれない/.test(r.xmsg || ''))) { r.nm = true; r.nw = false; r.excl = true; return; }
   if (r.nwv === false || r.nw || r.nm) return;
   if (r.xdb === 'notword' || /ことばじゃない/.test(r.xmsg || '')) { r.nw = true; r.excl = true; }
@@ -355,9 +356,10 @@ async function reSort() {
         if (j.t === 'x') {
           r.xmsg = j.msg || '';
           r.nmIdx = /これは つくれない/.test(j.msg || ''); r.nwIdx = /ことばじゃない/.test(j.msg || '');
-          if (r.nmIdx) { r.nm = true; r.nw = false; r.x = 'nomake'; r.excl = true; }
-          else if (r.nwIdx) { r.nw = true; r.nm = false; r.x = 'notword'; r.excl = true; }
-          else { r.nw = false; r.nm = false; r.x = /ゲームの なまえ/.test(j.msg) ? 'game' : /ゲームの なか/.test(j.msg) ? 'gameword' : /まんが/.test(j.msg) ? 'anime' : /じんぶつ/.test(j.msg) ? 'person' : 'char'; }
+          // 「ことばじゃないよ」「つくれないよ」に なっても、じどうでは 除外に いれない（×の しるしだけ つける。先生が いれた 除外は そのまま）
+          if (r.nmIdx) r.x = 'nomake';
+          else if (r.nwIdx) r.x = 'notword';
+          else r.x = /ゲームの なまえ/.test(j.msg) ? 'game' : /ゲームの なか/.test(j.msg) ? 'gameword' : /まんが/.test(j.msg) ? 'anime' : /じんぶつ/.test(j.msg) ? 'person' : 'char';
           r.guess = '';
         } else {
           r.x = ''; r.nmIdx = false; r.nwIdx = false;
@@ -389,6 +391,31 @@ async function reSort() {
   render();
 }
 document.getElementById('resort').onclick = reSort;
+// まえに じどうで 除外に はいって しまった ものを もどす（先生が えらんで いれた ことば＝KEEP は そのまま）
+const KEEP = new Set(["あいうえおのことば", "あおいか", "あかあめいろ", "あかいらんどせる", "あかいりんごのは", "あかいろーぷ", "あかまるいろ", "あきふゆうきょう", "あくあぷれーず", "あこめ", "あさいか", "あじいか", "あじのりょうり", "あたらしいはこ", "あといっこ", "あにあに", "あまみあかがえる", "あめのがれ", "ありくいぞう", "ありそうな", "あるい", "あんぷたっくからーず", "いいことがある", "いうよ", "いえすいえす", "いくよ", "いぐろ", "いけめんなひと", "いそがま", "いたいよ", "いちからじゅう", "いちてん", "いちねんしき", "いっせんまんえん", "いってん", "いっぷん", "いっぽん", "いまはいいよ", "うすぐろいろ", "うすすおう", "えぞほそあかくわがた", "えるげーと", "えんきゅう", "おいねこ", "おうらいおん", "おおきいかず", "おおきいすうじ", "おおさかしふくしまくさぎす", "おかあさんだいすき", "おすどり", "おすどりのめす", "おそとにいく", "おそろしいおばけ", "おそろしいかいぶつ", "おどりまくり", "おなじことば", "おにおんらーめん", "おにかめん", "おむかえがおそい", "おわってない", "おんがくしき", "おーくがた", "かきだいだい", "かくれ", "かたすきる", "かたづけをする", "かっぷす", "かっぷわかめうどん", "かばんぴんく", "かぼん", "かまきりのあかちゃん", "かまきりのうんこ", "かまきりのせいちゅう", "かみかーてん", "かめる", "からいみそ", "からせみ", "かれーばん", "かわいいかき", "かんごしさんのぼうし", "かんじがします", "かんだえそ", "がらぱごすとびへび", "きいろかばー", "きもあげ", "きゅうがつ", "きんのおうかん", "ぎゅうあいびきにく", "くもじ", "くりすたるふらわー", "くろしろくつした", "くろにほんとかげ", "ぐりどら", "ぐれーしろ", "けいとのいろ", "こいちゃいろ", "こいぬのまーち", "こうしょく", "こがねかぶと", "こくげん", "こまんぼう", "これは", "こんぱるいろ", "ごこ", "さいゆう", "さぎすこうえん", "さどかしわ", "さばくとかげ", "さびぐれー", "さぶろく", "さりあ", "さんじゅうごこ", "さんじゅっきろ", "さんすうしゃかい", "さんたととなかい", "さんてぃ", "さんびゃくえん", "しえんきゅうじょう", "しちさい", "しゃしんをとる", "しょうりゅうき", "しろいしろいろ", "しろばつ", "しんぐ", "じっとみる", "じゃいあんとごりら", "じゅうおくえん", "じゅうごさい", "じゅうまんえん", "じゅうよりおおきいかず", "じゆうのかみ", "じょういろ", "じょうしんぷらざ", "すくなめに", "すごいごちそう", "すずめのおばね", "すまとらねこ", "すりーぴー", "そっちじゃない", "そふとますく", "そらのしろぶどう", "そーばー", "たがる", "たくあんいろ", "だいぎし", "だいらいおん", "だき", "ちいさいいぬ", "ちっちゃいねこ", "ちふゆ", "ちゃっぴー", "ちゅうりつあん", "つなげ", "つよいひと", "つりこのは", "てぃーぶーとるびー", "てすとれいてん", "てのうえ", "てらはら", "てらはらしょうがっこう", "てんしとあくま", "でぃっぱーだんくれーぷ", "でじろー", "とうるいはん", "どいつらんど", "どころ", "どんきーず", "どんぐりめいろ", "ながいかみのけ", "ながいほん", "なくひと", "ななさい", "ななじゅうきゅうこ", "なんふん", "にじかん", "にじゅうまい", "にせんにじゅうろくねん", "にだい", "ぬも", "ぬりえにっき", "ねぎいろ", "ねぎましましらーめん", "のりとはさみ", "はいしろねこ", "はしいろ", "はちじ", "はちばん", "はまなしいろ", "はをぬく", "ばってぃんぐげーむ", "ばってんげーむ", "ばーがーふうぱんけーき", "ぱぱままだいすき", "ひきずりおんな", "ひとぞく", "ひめはこべ", "ひゃくおくえん", "ひゃくまんえん", "ひらがなこうじょう", "ぴかぴかのたま", "ぴぐみー", "ぴとぴと", "ふちま", "ふまんしん", "ぶどうをひとつどうですか", "ぷろちーたー", "へいわどん", "へこし", "へんへん", "ほおずきだな", "ほぞんいちご", "ほぼかんぺき", "ほんく", "ぼたにかるはうす", "ぼーいずあんどがーるず", "ぽめとといぷーどる", "まえまつげ", "まかれて", "ますかっとばすけっと", "まずく", "まぬ", "まるがめそうめん", "まんがこま", "まんがをみる", "まーきー", "みどりがえる", "みるくのこな", "むかでじゃいあんとですすとーかー", "むしのほん", "むめいいろ", "めちゃうまい", "めびらき", "もぐらかわいい", "もしものせかい", "もすごりら", "もずくどん", "もってきた", "もんど", "やいたおにく", "やまはひろい", "やまをかう", "やみのまほう", "ゆきがつもる", "ようかいどろぼう", "よにん", "らっこやき", "らぶふぉー", "りぱ", "りんごのかわをむく", "るーるがいど", "れいとうぶろ", "ろくさい", "ろみ", "ろりーた", "ろんぐぷーる", "わらびむし", "をた"]);
+document.getElementById('undoAuto').onclick = async () => {
+  const msg = document.getElementById('msg');
+  if (!JUDGE) { msg.textContent = 'アプリの よみこみを まっています。すこし まってから もういちど おしてください'; return; }
+  const memo = getMemo(await judgeSig()), list = [];
+  rows.forEach(r => {
+    if (!r.excl || !(r.nw || r.nm) || KEEP.has(r.word)) return;
+    let j = null; const mj = memo[r.word];
+    if (mj) j = { t: mj[0], g: mj[1], msg: mj[2] }; else { try { j = JUDGE(r.word); } catch (e) {} }
+    if (j && j.t === 'x' && /ことばじゃない|これは つくれない/.test(j.msg || '')) list.push(r);
+  });
+  if (!list.length) { msg.textContent = 'もどす ものは ありませんでした'; return; }
+  if (!confirm(list.length + 'こ を 全部に もどします。\n（れい：' + list.slice(0, 20).map(r => r.word).join('、') + (list.length > 20 ? ' など' : '') + '）')) return;
+  try {
+    if (!auth.currentUser) await signInAnonymously(auth);
+    const u = {}; list.forEach(r => { u[r.key + '/excl'] = false; u[r.key + '/nw'] = false; u[r.key + '/nm'] = false; });
+    await update(ref(db, 'kotoba_unknown'), u);
+    list.forEach(r => { r.excl = false; r.exclv = false; r.nw = false; r.nwv = false; r.nm = false; r.nmv = false; delete LOCAL[r.key]; delete LOCALN[r.key]; delete LOCALM[r.key]; });
+    try { localStorage.setItem('kotoba.excl', JSON.stringify(LOCAL)); localStorage.setItem('kotoba.nw', JSON.stringify(LOCALN)); localStorage.setItem('kotoba.nm', JSON.stringify(LOCALM)); } catch (e2) {}
+    msg.textContent = list.length + 'こ を 全部に もどしました（×の しるしは ついた まま 全部に でます）';
+  } catch (e) { msg.textContent = 'もどせませんでした：' + e.message; }
+  render();
+};
+
 document.getElementById('sq').addEventListener('input', () => render());
 document.querySelectorAll('input[name=sm]').forEach(e => e.addEventListener('change', () => render()));
 document.getElementById('nwBtn').onclick = () => setNw('nw');
