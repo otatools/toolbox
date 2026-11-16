@@ -245,11 +245,16 @@ input[type=range]::-moz-range-thumb { width: 30px; height: 30px; border-radius: 
     line-height: 1; padding: 0; white-space: nowrap; }
 .pc small { position: absolute; left: 0; right: 0; bottom: 8px; font-size: 24px; line-height: 1; color: #2f7d32; }
 .is-portrait .pc small { bottom: 6px; font-size: 20px; }
-.pc.numc { background: #e6f0fd; border-color: #9cbfee; box-shadow: 0 6px 0 #9cbfee; color: #2f66b3; font-size: 66px; }
-.is-portrait .pc.numc { font-size: 54px; }
 .pc.sel { border-color: #f0a800; background: #fff3a8; box-shadow: 0 6px 0 #f0a800; transform: translateY(-4px); }
 .pc.ok { border-color: #49a942; background: #eef8e6; box-shadow: 0 6px 0 #49a942; }
 .pc.ng { border-color: #e8505b; background: #fdeaea; box-shadow: 0 6px 0 #e8505b; animation: shake .35s; }
+.pc.rev { background: #e6f0fd; border-color: #9cbfee; box-shadow: 0 6px 0 #9cbfee; color: #2f66b3; font-size: 66px; animation: flipin .28s; }
+.pc.rev small { color: #5f84ba; }
+.pc.rev.f { padding-bottom: 22px; font-size: 60px; }
+.is-portrait .pc.rev.f { padding-bottom: 18px; font-size: 48px; }
+.pc.rev.ng { border-color: #e8505b; box-shadow: 0 6px 0 #e8505b; animation: shake .35s .3s; }
+.is-portrait .pc.rev { font-size: 54px; }
+@keyframes flipin { 0% { transform: scaleX(0); } 100% { transform: scaleX(1); } }
 .pc.pop { animation: pop .3s; }
 .pc.empty { visibility: hidden; }
 @keyframes shake { 0%,100% { transform: translateX(0); } 25% { transform: translateX(-8px); } 75% { transform: translateX(8px); } }
@@ -258,7 +263,7 @@ input[type=range]::-moz-range-thumb { width: 30px; height: 30px; border-radius: 
 #pBarW { height: 26px; border-radius: 13px; background: #f3e3c3; overflow: hidden; margin-top: 6px; }
 #pBar { height: 100%; width: 100%; border-radius: 13px; background: #49a942; }
 #pBar.low { background: #e8505b; }
-#pMsg { flex: 1 1 0; display: flex; align-items: center; justify-content: center; font-size: 20px; line-height: 1.7; }
+#pMsg { flex: 1 1 0; display: flex; align-items: center; justify-content: center; font-size: 17px; line-height: 1.8; white-space: nowrap; }
 .pside .panel { font-size: 18px; }
 .pside b { font-size: 44px; font-weight: 900; line-height: 1.1; display: block; }
 .is-portrait .board { grid-template-columns: repeat(3, 128px); grid-auto-rows: 112px; gap: 10px; order: 2; }
@@ -730,7 +735,7 @@ const PROD = {};
 N9.forEach(a => N9.forEach(b => (PROD[a * b] = PROD[a * b] || []).push([a, b])));
 const VALS = Object.keys(PROD).map(Number);
 const P_MAX = 60, P_START = 45, P_ADD = 3, P_SUB = 5;
-const P_MSG = '答えが 同じ カードを<br>2まい えらぼう<br>しきと 数 … 1点<br>しきと しき … 2点';
+const P_MSG = '2まい えらぶと めくれるよ<br>同じ 数が 出たら あたり！<br>しきと 数 … 1点<br>しきと しき … 2点';
 // カードは しき {a,b,v} か、数 {v}。ぎゃくに しただけの しき（2×8 と 8×2）は 同時に 出さない
 let P = { run: false, cards: [] };
 (function () { const bd = $('pBoard'); for (let i = 0; i < 12; i++) { const b = document.createElement('button'); b.className = 'pc empty'; b.onclick = () => pairTap(i); bd.appendChild(b); } })();
@@ -762,7 +767,7 @@ function pFill() {
 function pairOpen() {
     go('pair'); P = { run: false, cards: new Array(12).fill(null), sel: -1, score: 0, time: P_START, lock: false };
     $('pMsg').innerHTML = P_MSG; pairDraw([]);
-    showDlg('九九あわせ', '答えが 同じに なる カードを 2まい えらぼう。<br>しきと 数の カードなら 1点、<br>しきと しきなら 2点！<br>あたると 時間が ふえて、まちがえると へるよ。<br><small>いちばん よい きろく：' + (S.bestPair || 0) + '点</small>', [
+    showDlg('九九あわせ', '答えが 同じに なる カードを 2まい えらぼう。<br>めくって 同じ 数が 出たら あたり！<br>しきと 数で 1点、しきと しきなら 2点。<br>あたると 時間が ふえて、まちがえると へるよ。<br><small>いちばん よい きろく：' + (S.bestPair || 0) + '点</small>', [
         { t: 'スタート', go: 1, fn: pairStart }, { t: 'やめる', fn: () => go('home') }]);
 }
 function pairStart() {
@@ -782,8 +787,8 @@ function pairHud() {
 const pTxt = c => c.a + ' × ' + c.b;
 function pairDraw(news) {
     [...$('pBoard').children].forEach((b, i) => { const c = P.cards[i];
-        b.className = 'pc' + (c ? (c.a ? '' : ' numc') : ' empty') + (i === P.sel ? ' sel' : '');
-        b.innerHTML = c ? (c.a ? pTxt(c) + '<small></small>' : c.v) : '';
+        b.className = 'pc' + (c ? '' : ' empty') + (i === P.sel ? ' sel' : '');
+        b.textContent = c ? (c.a ? pTxt(c) : c.v) : '';
         if (news.includes(i)) anim(b, 'pop'); });
     pairHud();
 }
@@ -793,19 +798,21 @@ function pairTap(i) {
     if (P.sel === i) { P.sel = -1; bs[i].classList.remove('sel'); return; }
     if (P.sel < 0) { P.sel = i; bs[i].classList.add('sel'); snd.key(); return; }
     const j = P.sel, a = P.cards[j], b = P.cards[i]; P.sel = -1; P.lock = true;
-    [i, j].forEach(k => bs[k].classList.remove('sel'));
+    // 2まいとも めくって、青い 面に 答えの 数を 出す（しきの カードは 下に しきも のこす）
+    [[j, a], [i, b]].forEach(([k, c]) => { bs[k].className = 'pc rev' + (c.a ? ' f' : ''); bs[k].innerHTML = c.v + (c.a ? '<small>' + pTxt(c) + '</small>' : ''); });
+    snd.flip();
     if (a.v === b.v) {
         const pts = a.a && b.a ? 2 : 1;
         P.score += pts; P.time = Math.min(P_MAX, P.time + P_ADD); snd.ok(); if (pts === 2) tone(1760, .2, 'sine', .13, .2);
-        [i, j].forEach(k => { bs[k].classList.add('ok'); const s = bs[k].querySelector('small'); if (s) s.textContent = '＝ ' + a.v; });
         $('pMsg').innerHTML = pts === 2 ? pTxt(a) + ' と ' + pTxt(b) + '<br>どちらも ' + a.v + '！<br>2点' : pTxt(a.a ? a : b) + ' ＝ ' + a.v + '<br>1点';
         pairHud(); anim($('pScore'), 'pop');
-        T(() => { P.cards[i] = P.cards[j] = null; P.lock = false; if (P.run) pairDraw(pFill()); }, 700);
+        T(() => { P.cards[i] = P.cards[j] = null; P.lock = false; if (P.run) pairDraw(pFill()); }, 900);
     } else {
-        P.time = Math.max(0, P.time - P_SUB); snd.ng();
-        [i, j].forEach(k => { bs[k].classList.remove('pop'); anim(bs[k], 'ng'); });
+        P.time = Math.max(0, P.time - P_SUB); T(() => snd.ng(), 300);
+        [i, j].forEach(k => bs[k].classList.add('ng'));
+        $('pMsg').innerHTML = a.v + ' と ' + b.v + '<br>ちがう 数だったよ';
         pairHud();
-        T(() => { [i, j].forEach(k => bs[k].classList.remove('ng')); P.lock = false; }, 450);
+        T(() => { P.lock = false; if (P.run) pairDraw([]); }, 1200);
     }
 }
 function pairEnd() {
