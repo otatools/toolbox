@@ -2603,7 +2603,7 @@ return {recog:recog};
     var LOCK_KEY = 'kk.lockUntil', STRIKE_KEY = 'kk.strikes', LOCKN_KEY = 'kk.lockCount', LOCK_MS = 3 * 60 * 1000, LOCK_MS2 = 5 * 60 * 1000,   // はじめての ペナルティは 3ぷん、2かいめ からは 5ふん
         strikes = 0, lockTimer = 0;
     function lsGet(k) { var v = null; try { v = localStorage.getItem(k); } catch (e) {} if (v == null) { try { var m = document.cookie.match(new RegExp('(?:^|; )' + k.replace('.', '\\.') + '=([^;]*)')); if (m) v = m[1]; } catch (e) {} } return v; }
-    function lsSet(k, v) { try { localStorage.setItem(k, v); } catch (e) {} try { document.cookie = k + '=' + v + '; max-age=' + (k === LOCKN_KEY || k === 'kk.hardCount' || k === 'kk.hardNeed' || k === 'kk.heavyN' || k === 'kk.hvNeed' || k === 'kk.lockHard' || k === 'kk.lockTotal' || k === LOCK_KEY ? 31536000 : 172800) + '; path=/; SameSite=Lax'; } catch (e) {} }
+    function lsSet(k, v) { try { localStorage.setItem(k, v); } catch (e) {} try { document.cookie = k + '=' + v + '; max-age=' + (k === LOCKN_KEY || k === 'kk.hardCount' || k === 'kk.hardNeed' || k === 'kk.heavyN' || k === 'kk.badN' || k === 'kk.hvNeed' || k === 'kk.lockHard' || k === 'kk.lockTotal' || k === LOCK_KEY ? 31536000 : 172800) + '; path=/; SameSite=Lax'; } catch (e) {} }
     // ロックされるたびに ながくする：1かいめ 3ぷん → 5ふん → 10ぷん → 15ふん → 5かいめ からは 30ぷん
     var LOCK_STEPS = [3, 5, 10, 15, 30];
     // 悪質ワードの レベル：るいけいで 3かい うつごとに 1つ あがる（はじめは 1）。ロックの ながさは ふつうの ぷんすう × レベル
@@ -2709,12 +2709,16 @@ return {recog:recog};
             // 悪質ワード：るいけいで 3かい つかうごとに レベルが 1つ あがる（ふつうの ロックの ぷんすう × レベル）。
             // それとは べつに、3かい ごとに ロック（3かいめ 1じかん、6かいめ 2じかん、9かいめ 3じかん、12かいめ 1にち、15かいめ 2にち…）
             // ふつうの 禁止ワードの かぞえかたでは 2こぶんに かぞえる
-            var heavy = isHeavy(w0);
-            if (heavy) {
+            var heavy = isHeavy(w0), hvUp = heavy;
+            if (!heavy) {   // ふつうの 使えない ことばも、るいけい 10かいで 悪質カウント 1つぶんに なる
+                var bdn = (parseInt(lsGet('kk.badN'), 10) || 0) + 1; lsSet('kk.badN', String(bdn));
+                if (bdn % 10 === 0) hvUp = true;
+            }
+            if (hvUp) {
                 var hvn = (parseInt(lsGet('kk.heavyN'), 10) || 0) + 1; lsSet('kk.heavyN', String(hvn));
             }
             // 3・6・9かいめは 1・2・3じかん、12かいめ からは 1にち・2にち・3にち…と 1にちずつ のびる
-            var hvk = heavy && hvn % 3 === 0 ? hvn / 3 : 0, hvExtra = hvk ? (hvk <= 3 ? hvk : (hvk - 3) * 24) * 60 * 60 * 1000 : 0;
+            var hvk = hvUp && hvn % 3 === 0 ? hvn / 3 : 0, hvExtra = hvk ? (hvk <= 3 ? hvk : (hvk - 3) * 24) * 60 * 60 * 1000 : 0;
             if (addStrike(heavy ? 2 : 1, hvExtra, heavy)) { hideBlocked(); return; }
             if (heavy) showHeavy(); else showBlocked();
             return;
