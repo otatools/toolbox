@@ -1,6 +1,14 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
+    <!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-YTH979WTKL"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+  gtag('config', 'G-YTH979WTKL');
+</script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>合成図形パズル</title>
@@ -931,8 +939,11 @@
         const TIERS = [
             { name: 'ステージ 1〜10', pieces: '大きい三角・中くらいの三角・小さい三角', unlockNew: null },
             { name: 'ステージ 11〜20', pieces: '＋ 正方形', unlockNew: '正方形' },
-            { name: 'ステージ 21〜30', pieces: '＋ 平行四辺形・台形', unlockNew: '平行四辺形と台形' }
+            { name: 'ステージ 21〜30', pieces: '＋ 平行四辺形・台形', unlockNew: '平行四辺形と台形' },
+            { name: 'みんなが作った問題', pieces: '', unlockNew: null }
         ];
+        // 31番目以降（もんだい作成ツールで作って追加した問題）は、最初からいつでも遊べる
+        const BUILTIN_STAGE_COUNT = 30;
         const STORAGE_KEY = 'tangramClearedStages_v1';
 
         const SVG_NS = 'http://www.w3.org/2000/svg';
@@ -958,8 +969,43 @@
                 this.particleGroup = document.getElementById('particle-group');
 
                 this.initEvents();
-                this.renderHomeStageGrid();
-                this.showHomeScreen();
+
+                // もんだい作成ツール(make.html)の「ためしにあそぶ」から来たときは、その問題をすぐ遊ぶ
+                this.tryMode = false;
+                const tryStage = this.readTryStage();
+                if (tryStage) {
+                    this.tryMode = true;
+                    STAGES.push(tryStage);
+                    this.tryIndex = STAGES.length - 1;
+                    document.getElementById('btn-home-from-clear').textContent = '作る画面にもどる';
+                    document.getElementById('btn-next-stage').textContent = 'もう一回あそぶ';
+                    this.goToStage(this.tryIndex);
+                } else {
+                    this.renderHomeStageGrid();
+                    this.showHomeScreen();
+                }
+            }
+
+            // URLの #try=... から、ためしプレイ用の問題を読み取る（形がおかしいときは使わない）
+            readTryStage() {
+                try {
+                    const m = location.hash.match(/^#try=(.+)$/);
+                    if (!m) return null;
+                    const data = JSON.parse(decodeURIComponent(m[1]));
+                    const okTarget = (t) => t && typeof t.type === 'string' && Object.values(TANGRAM_SHAPES).some(s => s.type === t.type)
+                        && [t.x, t.y, t.rotation].every(Number.isFinite);
+                    const okSpawn = (s) => s && TANGRAM_SHAPES[s.shape] && [s.x, s.y, s.rotation].every(Number.isFinite);
+                    if (!data || !Array.isArray(data.targetSolutions) || !Array.isArray(data.spawnPieces)) return null;
+                    if (!data.targetSolutions.length || !data.targetSolutions.every(sol => Array.isArray(sol) && sol.length && sol.every(okTarget))) return null;
+                    if (!data.spawnPieces.length || !data.spawnPieces.every(okSpawn)) return null;
+                    return { targetSolutions: data.targetSolutions, spawnPieces: data.spawnPieces };
+                } catch (e) { return null; }
+            }
+
+            // ためしプレイから作成ツールへもどる
+            backToMaker() {
+                if (history.length > 1) history.back();
+                else location.href = 'make.html';
             }
 
             // ---- 画面切り替え（ホーム画面 ⇔ ゲーム画面） ----
@@ -1005,6 +1051,7 @@
             }
 
             isStageUnlocked(idx) {
+                if (idx >= BUILTIN_STAGE_COUNT) return true;
                 return this.isTierUnlocked(Math.floor(idx / TIER_SIZE));
             }
 
@@ -1020,9 +1067,10 @@
                 grid.innerHTML = '';
 
                 STAGES.forEach((s, idx) => {
-                    const tier = Math.floor(idx / TIER_SIZE);
-                    if (idx % TIER_SIZE === 0) {
-                        const unlocked = this.isTierUnlocked(tier);
+                    if (this.tryMode && idx === this.tryIndex) return; // ためしプレイ用の問題は一覧に出さない
+                    const tier = Math.min(Math.floor(idx / TIER_SIZE), TIERS.length - 1);
+                    if (idx % TIER_SIZE === 0 && (idx < BUILTIN_STAGE_COUNT || idx === BUILTIN_STAGE_COUNT)) {
+                        const unlocked = idx >= BUILTIN_STAGE_COUNT || this.isTierUnlocked(tier);
                         const head = document.createElement('div');
                         head.style.gridColumn = '1 / -1';
                         head.className = 'text-amber-100 font-black text-sm md:text-base ' + (tier > 0 ? 'mt-3 ' : '');
@@ -1062,7 +1110,9 @@
                 this.currentStageIndex = index;
                 const stage = STAGES[index];
 
-                document.getElementById('level-title').innerText = `ステージ ${index + 1} / ${STAGES.length}`;
+                document.getElementById('level-title').innerText = (this.tryMode && index === this.tryIndex)
+                    ? 'ためしプレイ（作った問題）'
+                    : (index < BUILTIN_STAGE_COUNT ? `ステージ ${index + 1} / ${BUILTIN_STAGE_COUNT}` : `みんなの問題 ${index - BUILTIN_STAGE_COUNT + 1}`);
                 this.isCleared = false;
                 this.selectedPieceId = null;
                 document.getElementById('btn-reopen-clear').classList.add('hidden');
@@ -1516,6 +1566,7 @@
 
                 document.getElementById('btn-home').addEventListener('click', () => {
                     audio.playWoodClick();
+                    if (this.tryMode) { this.backToMaker(); return; }
                     this.showHomeScreen();
                 });
 
@@ -1531,8 +1582,9 @@
 
                 document.getElementById('btn-next-stage').addEventListener('click', () => {
                     audio.playWoodClick();
-                    const next = this.findNextStage(this.currentStageIndex);
                     document.getElementById('modal-clear').classList.add('hidden');
+                    if (this.tryMode) { this.goToStage(this.tryIndex); return; }
+                    const next = this.findNextStage(this.currentStageIndex);
                     if (next >= 0) this.goToStage(next);
                     else this.showHomeScreen();
                 });
@@ -1541,6 +1593,7 @@
                     audio.playWoodClick();
                     document.getElementById('modal-clear').classList.add('hidden');
                     document.getElementById('btn-reopen-clear').classList.add('hidden');
+                    if (this.tryMode) { this.backToMaker(); return; }
                     this.showHomeScreen();
                 });
 
@@ -1953,9 +2006,11 @@
                     // 進行状況を保存し、新しい段が解放されたか調べる
                     const idx = this.currentStageIndex;
                     const before = [0, 1, 2].map(t => this.isTierUnlocked(t));
-                    this.cleared.add(idx);
-                    this.saveProgress();
-                    const newTier = [1, 2].find(t => !before[t] && this.isTierUnlocked(t));
+                    if (!this.tryMode) {
+                        this.cleared.add(idx);
+                        this.saveProgress();
+                    }
+                    const newTier = this.tryMode ? undefined : [1, 2].find(t => !before[t] && this.isTierUnlocked(t));
 
                     const msg = document.getElementById('clear-unlock-msg');
                     if (newTier) {
@@ -1965,7 +2020,7 @@
                         msg.classList.add('hidden');
                     }
                     const nextBtn = document.getElementById('btn-next-stage');
-                    const hasNext = this.findNextStage(idx) >= 0;
+                    const hasNext = this.tryMode || this.findNextStage(idx) >= 0;
                     nextBtn.disabled = !hasNext;
                     nextBtn.classList.toggle('opacity-40', !hasNext);
 
