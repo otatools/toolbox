@@ -1,0 +1,463 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>なかまの並びかえツール｜かけ算のひっ算マスター</title>
+<link href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@500;700;800;900&display=swap" rel="stylesheet">
+<style>
+* { box-sizing: border-box; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+:root { --ink: #22304e; --ink2: #51607d; --c1: #ffb3cf; --c2: #f76ea6; --c4: #ffe4ee; --sw: 120px; --app-h: 100vh; }
+@supports (height: 100dvh) { :root { --app-h: 100dvh; } }
+html, body { margin: 0; height: 100%; overflow: hidden; }
+body {
+  font-family: 'M PLUS Rounded 1c', 'Hiragino Maru Gothic ProN', 'Yu Gothic', sans-serif;
+  color: var(--ink); background: linear-gradient(160deg, #fff0f5, #ffe2ed);
+  user-select: none; -webkit-user-select: none;
+}
+/* 1画面に ぜんぶ おさめる（スクロールなし）。マスの大きさは JS が ウィンドウに合わせて決める */
+.wrap { height: var(--app-h); display: flex; flex-direction: column; gap: 8px; padding: 10px 14px 12px; }
+.head { flex: none; display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+h1 { margin: 0; font-size: 20px; font-weight: 900; white-space: nowrap; }
+.lead { flex: none; margin: 0; font-size: 12.5px; font-weight: 700; color: var(--ink2); line-height: 1.5; }
+.lead b { color: #d97706; }
+.tabs { display: flex; gap: 6px; flex-wrap: wrap; }
+.tab {
+  border: 0; cursor: pointer; font: inherit; font-weight: 900; font-size: 14px;
+  padding: 7px 13px; border-radius: 999px; color: var(--tc); background: #fff;
+  box-shadow: 0 3px 0 rgba(0,0,0,.08); position: relative; white-space: nowrap;
+}
+.tab.on { color: #fff; background: var(--tc); box-shadow: 0 3px 0 rgba(0,0,0,.18); }
+.tab .dot { display: none; position: absolute; top: -3px; right: -3px; width: 12px; height: 12px; border-radius: 50%; background: #ef4444; border: 2px solid #fff; }
+.tab.changed .dot { display: block; }
+.board { flex: 1 1 0; min-height: 0; background: #fff; border-radius: 20px; padding: 10px 12px 12px; box-shadow: 0 10px 26px rgba(120,50,80,.10); }
+.area { width: 100%; height: 100%; display: flex; justify-content: center; align-items: flex-start; gap: 0; }
+.area.port { flex-direction: column; align-items: center; justify-content: flex-start; }
+.col { flex: none; }
+.row-title { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; height: 26px; margin: 0 2px; overflow: hidden; }
+.row-title h2 { margin: 0; font-size: 16px; font-weight: 900; white-space: nowrap; }
+.row-title span { font-size: 11px; font-weight: 700; color: var(--ink2); white-space: nowrap; }
+.grid { display: grid; grid-template-columns: repeat(5, var(--sw)); gap: 8px; }
+.spare-area { margin-left: 14px; padding-left: 14px; border-left: 3px dashed #e6edf5; }
+.spare-area .grid { grid-template-columns: repeat(2, var(--sw)); }
+.area.port .spare-area { margin: 8px 0 0; padding: 4px 0 0; border-left: 0; border-top: 3px dashed #e6edf5; }
+.area.port .spare-area .grid { grid-template-columns: repeat(5, var(--sw)); }
+.spare-area .row-title h2 { color: #737373; }
+.slot {
+  position: relative; border-radius: 14px; background: #f7f9fc; border: 3px solid #e6edf5;
+  width: var(--sw); aspect-ratio: 1 / 1.12; cursor: pointer; overflow: hidden;
+  transition: transform .12s ease, border-color .12s, background-color .12s;
+}
+.slot img { position: absolute; left: 6%; top: 3%; width: 88%; height: 80%; object-fit: contain; pointer-events: none; -webkit-user-drag: none; }
+.slot .lv {
+  position: absolute; left: 50%; bottom: 4px; transform: translateX(-50%);
+  font-size: 12px; font-weight: 900; color: #fff; background: var(--c2);
+  padding: 0 9px; border-radius: 999px; white-space: nowrap; line-height: 1.5;
+}
+.slot .was {
+  position: absolute; right: 4px; top: 4px; font-size: 10px; font-weight: 800; line-height: 1.4;
+  color: #64748b; background: #eef2f7; border-radius: 8px; padding: 0 5px;
+}
+.slot.moved .was { color: #b45309; background: #fef3c7; }
+.slot.moved { border-color: #fbbf24; }
+.slot.sel { border-color: var(--c2); background: var(--c4); transform: scale(1.04); box-shadow: 0 0 0 4px rgba(0,0,0,.06); z-index: 2; }
+.slot.over { border-style: dashed; border-color: var(--c2); }
+.slot.dragging { opacity: .35; }
+.spare-area .slot { background: #f1f1f1; border-color: #d4d4d4; }
+.spare-area .slot .lv { background: #737373; }
+.spare-area .slot.sel { border-color: var(--c2); background: var(--c4); }
+.ghost { position: fixed; z-index: 99; width: 110px; height: 110px; pointer-events: none; opacity: .9; transform: translate(-50%, -50%) scale(1.05); }
+.ghost img { width: 100%; height: 100%; object-fit: contain; filter: drop-shadow(0 6px 10px rgba(0,0,0,.25)); }
+.actions { flex: none; display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+.btn { border: 0; cursor: pointer; font: inherit; font-weight: 900; font-size: 14px; padding: 10px 16px; border-radius: 14px; white-space: nowrap; }
+.btn.main { color: #fff; background: linear-gradient(160deg, #ff9fc0, #f4669c); box-shadow: 0 4px 0 #d94c84; }
+.btn.main:active { transform: translateY(3px); box-shadow: 0 1px 0 #d94c84; }
+.btn.sub { color: var(--ink2); background: #fff; box-shadow: 0 3px 0 rgba(0,0,0,.08); }
+/* --- レインボー（たからさがしの なかま）：6ステージに 20体ずつ --- */
+[hidden] { display: none !important; }
+.rb .row-title { height: 34px; align-items: center; }
+.subtabs { display: grid; grid-template-columns: repeat(6, 1fr); gap: 4px; width: calc(5 * var(--rw) + 32px); }
+.subtab { border: 0; cursor: pointer; font: inherit; font-weight: 900; font-size: 12px; padding: 5px 2px; min-width: 0; overflow: hidden; border-radius: 10px; color: var(--ink2); background: #eef2f7; white-space: nowrap; line-height: 1.2; }
+.subtab small { font-size: 10px; margin-left: 3px; font-weight: 800; }
+.subtab.ng small { color: #e11d48; }
+.subtab.on { color: #fff; background: #ec4899; }
+.subtab.on small { color: #fff; }
+.rb #rbGrid { grid-template-columns: repeat(5, var(--rw)); }
+.rb #rbPool { grid-template-columns: repeat(var(--pc, 5), var(--rw)); }
+.rb .slot { width: var(--rw); aspect-ratio: 1 / 1; }
+.rb .slot img { left: 5%; top: 2%; width: 90%; height: 80%; }
+.rb .slot .was { right: auto; left: 50%; top: auto; bottom: 2px; transform: translateX(-50%); background: rgba(238,242,247,.92); }
+.rb .slot.empty { background: transparent; border-style: dashed; cursor: default; }
+.rb .slot:not(.empty):hover { border-color: #ec4899; }
+.rb .spare-area .row-title h2.note { color: #e11d48; font-size: 13px; }
+.pager { display: flex; align-items: center; gap: 6px; }
+.pager button { width: 34px; height: 28px; padding: 0; border: 0; border-radius: 9px; background: #eef2f7; color: var(--ink2); cursor: pointer; position: relative; }
+.pager button svg { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); }
+.pager button:disabled { opacity: .35; cursor: default; }
+.pager b { font-size: 12px; font-weight: 900; color: var(--ink2); min-width: 3.4em; text-align: center; }
+/* コピーした文は、画面のまん中に出す */
+.out { position: fixed; inset: 0; z-index: 50; display: none; align-items: center; justify-content: center; background: rgba(24,36,60,.4); padding: 16px; }
+.out.show { display: flex; }
+.out-box { width: min(720px, 100%); background: #fff; border-radius: 20px; padding: 16px; box-shadow: 0 16px 40px rgba(0,0,0,.25); }
+.out textarea { width: 100%; height: min(330px, 55vh); font: 13px/1.6 monospace; padding: 10px; border-radius: 12px; border: 2px solid #cbd5e1; user-select: text; -webkit-user-select: text; resize: none; }
+.toast { margin: 8px 0 10px; font-size: 14px; font-weight: 800; color: #db2777; min-height: 1.4em; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="head">
+    <h1>なかまの並びかえツール</h1>
+    <div class="tabs" id="tabs"></div>
+  </div>
+  <p class="lead" id="leadCourse">
+    <b>Lv.1〜15</b> に入っている子を そのレベルで使います。入れかえたい2体を<b>じゅんばんにクリック</b>（ドラッグでもOK）。「つかわない」の5体とも入れかえられます。終わったら<b>「並びをコピー」</b>を押して、Claude に貼りつけて送ってください（5コースとレインボーが ぜんぶ いっしょにコピーされます）。
+  </p>
+  <p class="lead" id="leadRb" hidden>
+    6つのステージに <b>20体ずつ</b> ふりわけます。ステージの子を<b>クリックすると はずれ</b>、「つかわない」の子を<b>クリックすると 今のステージに入ります</b>。終わったら<b>「並びをコピー」</b>を押して、Claude に貼りつけて送ってください。
+  </p>
+
+  <div class="board">
+    <div class="area" id="area">
+      <div class="col">
+        <div class="row-title"><h2 id="courseTitle">コース1</h2><span>Lv.0 は たまご。右上の No. は こうほの番号</span></div>
+        <div class="grid" id="grid"></div>
+      </div>
+      <div class="col spare-area">
+        <div class="row-title"><h2>つかわない</h2></div>
+        <div class="grid" id="spareSlot"></div>
+      </div>
+    </div>
+    <div class="area rb" id="rbArea" hidden>
+      <div class="col">
+        <div class="row-title"><div class="subtabs" id="rbTabs"></div></div>
+        <div class="grid" id="rbGrid"></div>
+      </div>
+      <div class="col spare-area">
+        <div class="row-title">
+          <h2 id="rbPoolTitle">つかわない</h2>
+          <span class="pager">
+            <button id="rbPrev" type="button" aria-label="まえのページ"><svg width="14" height="14" viewBox="0 0 20 20" aria-hidden="true"><path d="M12.5 4 6.5 10l6 6" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+            <b id="rbPage">1 / 1</b>
+            <button id="rbNext" type="button" aria-label="つぎのページ"><svg width="14" height="14" viewBox="0 0 20 20" aria-hidden="true"><path d="M7.5 4 13.5 10l-6 6" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+          </span>
+        </div>
+        <div class="grid" id="rbPool"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="actions">
+    <button class="btn main" id="copyBtn" type="button">並びをコピー（Claudeに送る用）</button>
+    <button class="btn sub" id="resetCourse" type="button">このコースを元にもどす</button>
+    <button class="btn sub" id="rbClear" type="button" hidden>このステージを からにする</button>
+    <button class="btn sub" id="resetAll" type="button">ぜんぶ元にもどす</button>
+  </div>
+</div>
+<div class="out" id="out">
+  <div class="out-box">
+    <textarea id="outText" readonly></textarea>
+    <div class="toast" id="toast"></div>
+    <button class="btn main" id="outClose" type="button">とじる</button>
+  </div>
+</div>
+
+<script>
+const COURSES = [
+  { n: 1, name: 'コース1（ピンク）',     c1: '#ffb3cf', c2: '#f76ea6', c4: '#ffe4ee' },
+  { n: 2, name: 'コース2（オレンジ）',   c1: '#ffc48a', c2: '#fb9440', c4: '#ffecd6' },
+  { n: 3, name: 'コース3（レモン）',     c1: '#fde27a', c2: '#d9a400', c4: '#fff6c9' },
+  { n: 4, name: 'コース4（そら色）',     c1: '#a9dcfb', c2: '#4bb5ef', c4: '#e0f2fe' },
+  { n: 5, name: 'コース5（ラベンダー）', c1: '#d2c2fb', c2: '#a183ee', c4: '#eee7fe' }
+];
+// はじめの並び：こうほ 01〜15 が Lv.1〜15、16〜20 が「つかわない」
+const TOTAL = 20, USE = 15;
+const ORIGINAL = Array.from({ length: TOTAL }, (_, i) => String(i + 1).padStart(2, '0'));
+const KEY = 'otatools.kakezanhissan.narabekae.v1';
+let state = {};
+try { state = JSON.parse(localStorage.getItem(KEY) || '{}') || {}; } catch (e) { state = {}; }
+COURSES.forEach(c => { if (!Array.isArray(state[c.n]) || state[c.n].length !== TOTAL || ORIGINAL.some(id => state[c.n].indexOf(id) < 0)) state[c.n] = ORIGINAL.slice(); });
+function save() { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) {} }
+
+let cur = 1;          // 1〜5＝コース、'R'＝レインボー
+let selected = -1;
+
+/* --- レインボー（sprites/crystal-001〜230）：6ステージに 20体ずつ。のこりは つかわない --- */
+const RB_TOTAL = 230, RB_STAGES = 6, RB_PER = 20;
+const RB_NAMES = ['もり', 'うみ', 'よぞら', 'かざん', 'さばく', 'しんでん'];
+const RB_ALL = Array.from({ length: RB_TOTAL }, (_, i) => String(i + 1).padStart(3, '0'));
+const RB_KEY = 'otatools.kakezanhissan.rainbow.v1';
+function rbInit() { const o = {}; for (let k = 1; k <= RB_STAGES; k++) o[k] = RB_ALL.slice((k - 1) * RB_PER, k * RB_PER); return o; }   // はじめは 001〜120 を じゅんに
+function rbValid(o) {
+  if (!o) return false;
+  const seen = new Set();
+  for (let k = 1; k <= RB_STAGES; k++) {
+    if (!Array.isArray(o[k]) || o[k].length > RB_PER) return false;
+    for (const id of o[k]) { if (RB_ALL.indexOf(id) < 0 || seen.has(id)) return false; seen.add(id); }
+  }
+  return true;
+}
+let rb = null;
+try { rb = JSON.parse(localStorage.getItem(RB_KEY) || 'null'); } catch (e) { rb = null; }
+if (!rbValid(rb)) rb = rbInit();
+function rbSave() { try { localStorage.setItem(RB_KEY, JSON.stringify(rb)); } catch (e) {} }
+let rbStage = 1, rbPageNo = 0, rbPerPage = 20, rbNote = '', rbW = 100;
+function rbSrc(id) { return `sprites/crystal-${id}.webp`; }
+function rbPoolIds() { const used = new Set(); for (let k = 1; k <= RB_STAGES; k++) rb[k].forEach(id => used.add(id)); return RB_ALL.filter(id => !used.has(id)); }
+function rbChanged() { const o = rbInit(); for (let k = 1; k <= RB_STAGES; k++) if (o[k].join() !== rb[k].join()) return true; return false; }
+function rbCell(id, onClick) {
+  const el = document.createElement('div');
+  if (!id) { el.className = 'slot empty'; return el; }
+  el.className = 'slot';
+  el.innerHTML = `<img src="${rbSrc(id)}" alt="" draggable="false"><span class="was">No.${id}</span>`;
+  el.onclick = onClick;
+  return el;
+}
+function renderRb() {
+  const tabs = document.getElementById('rbTabs');
+  tabs.innerHTML = '';
+  for (let k = 1; k <= RB_STAGES; k++) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'subtab' + (k === rbStage ? ' on' : '') + (rb[k].length !== RB_PER ? ' ng' : '');
+    b.title = `ステージ${k}（${RB_NAMES[k - 1]}）`;
+    b.innerHTML = (rbW >= 104 ? `${k} ${RB_NAMES[k - 1]}` : `${k}`) + `<small>${rb[k].length}/${RB_PER}</small>`;   // せまいときは 番号だけ
+    b.onclick = () => { rbStage = k; rbNote = ''; renderRb(); };
+    tabs.appendChild(b);
+  }
+  const g = document.getElementById('rbGrid');
+  g.innerHTML = '';
+  for (let i = 0; i < RB_PER; i++) {
+    const id = rb[rbStage][i];
+    g.appendChild(rbCell(id, () => { rb[rbStage].splice(i, 1); rbNote = ''; rbSave(); renderRb(); }));
+  }
+  const pool = rbPoolIds();
+  const pages = Math.max(1, Math.ceil(pool.length / rbPerPage));
+  rbPageNo = Math.max(0, Math.min(pages - 1, rbPageNo));
+  const p = document.getElementById('rbPool');
+  p.innerHTML = '';
+  pool.slice(rbPageNo * rbPerPage, (rbPageNo + 1) * rbPerPage).forEach(id => {
+    p.appendChild(rbCell(id, () => {
+      if (rb[rbStage].length >= RB_PER) { rbNote = 'このステージは いっぱいです。先に 左の子を はずしてください'; renderRb(); return; }
+      rb[rbStage].push(id); rbNote = ''; rbSave(); renderRb();
+    }));
+  });
+  const t = document.getElementById('rbPoolTitle');
+  t.textContent = rbNote || `つかわない ${pool.length}体`;
+  t.classList.toggle('note', !!rbNote);
+  document.getElementById('rbPage').textContent = `${rbPageNo + 1} / ${pages}`;
+  document.getElementById('rbPrev').disabled = rbPageNo <= 0;
+  document.getElementById('rbNext').disabled = rbPageNo >= pages - 1;
+}
+
+function src(course, id) {
+  return `course${course}/course${course}-candidate-${id}.webp`;
+}
+function label(id) { return 'No.' + id; }
+function isChanged(n) { return state[n].some((id, i) => id !== ORIGINAL[i]); }
+
+function renderTabs() {
+  const t = document.getElementById('tabs');
+  t.innerHTML = '';
+  COURSES.forEach(c => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'tab' + (c.n === cur ? ' on' : '') + (isChanged(c.n) ? ' changed' : '');
+    b.style.setProperty('--tc', c.c2);
+    b.innerHTML = c.name + '<span class="dot"></span>';
+    b.onclick = () => { cur = c.n; selected = -1; render(); };
+    t.appendChild(b);
+  });
+  const r = document.createElement('button');
+  r.type = 'button';
+  r.className = 'tab' + (cur === 'R' ? ' on' : '') + (rbChanged() ? ' changed' : '');
+  r.style.setProperty('--tc', '#ec4899');
+  r.innerHTML = 'レインボー<span class="dot"></span>';
+  r.onclick = () => { cur = 'R'; selected = -1; rbNote = ''; render(); };
+  t.appendChild(r);
+}
+
+function makeSlot(i) {
+  const id = state[cur][i];
+  const el = document.createElement('div');
+  el.className = 'slot' + (i === selected ? ' sel' : '') + (id !== ORIGINAL[i] ? ' moved' : '');
+  el.dataset.i = i;
+  el.innerHTML = `<img src="${src(cur, id)}" alt=""><span class="lv">${i >= USE ? 'つかわない' : 'Lv.' + (i + 1)}</span><span class="was">${label(id)}</span>`;
+  el.addEventListener('pointerdown', (e) => startDrag(e, i));
+  return el;
+}
+
+function render() {
+  const isRb = cur === 'R';
+  document.getElementById('area').hidden = isRb;
+  document.getElementById('rbArea').hidden = !isRb;
+  document.getElementById('leadCourse').hidden = isRb;
+  document.getElementById('leadRb').hidden = !isRb;
+  document.getElementById('rbClear').hidden = !isRb;
+  document.getElementById('resetCourse').textContent = isRb ? 'レインボーを元にもどす' : 'このコースを元にもどす';
+  if (isRb) { renderTabs(); fit(); renderRb(); return; }
+  const c = COURSES[cur - 1];
+  document.documentElement.style.setProperty('--c1', c.c1);
+  document.documentElement.style.setProperty('--c2', c.c2);
+  document.documentElement.style.setProperty('--c4', c.c4);
+  document.getElementById('courseTitle').textContent = c.name;
+  renderTabs();
+  const g = document.getElementById('grid');
+  g.innerHTML = '';
+  for (let i = 0; i < USE; i++) g.appendChild(makeSlot(i));
+  const sp = document.getElementById('spareSlot');
+  sp.innerHTML = '';
+  for (let i = USE; i < TOTAL; i++) sp.appendChild(makeSlot(i));
+  fit();
+}
+
+/* --- ウィンドウに合わせて、20マスぜんぶが 1画面に入る大きさにする --- */
+function fit() {
+  const board = document.querySelector('.board');
+  const area = document.getElementById('area');
+  const cs = getComputedStyle(board);
+  const W = board.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+  const H = board.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom);
+  if (W <= 0 || H <= 0) return;
+  if (cur === 'R') {
+    // レインボー：横長は 左にステージ（5れつ×4だん）、右に「つかわない」（同じ大きさで 4だん。入りきらない分は ページ送り）
+    const G = 8, T = 34, rbArea = document.getElementById('rbArea');
+    const wide = W > H * 1.2;
+    let rw, pc, rows;
+    if (wide) {
+      rw = Math.floor(Math.min((H - T - 3 * G) / 4, (W * 0.5 - 4 * G) / 5));
+      pc = Math.max(1, Math.floor((W - (5 * rw + 4 * G) - 31 + G) / (rw + G)));
+      rows = 4;
+    } else {
+      rw = Math.floor(Math.min((W - 4 * G) / 5, (H - 2 * T - 12 - 5 * G) / 6));
+      pc = 5; rows = 2;
+    }
+    rw = Math.max(36, rw); rbW = rw;
+    rbArea.classList.toggle('port', !wide);
+    document.documentElement.style.setProperty('--rw', rw + 'px');
+    document.documentElement.style.setProperty('--pc', pc);
+    rbPerPage = pc * rows;
+    return;
+  }
+  const GAP = 8, TITLE = 26, RATIO = 1.12;
+  // 横長：Lv.1〜15（5れつ×3だん）の右に「つかわない」（2れつ）／ 縦長：下に「つかわない」（5れつ×1だん）
+  const land = Math.min((W - 31 - 5 * GAP) / 7, (H - TITLE - 2 * GAP) / 3 / RATIO);
+  const port = Math.min((W - 4 * GAP) / 5, (H - 2 * TITLE - 12 - 2 * GAP) / 4 / RATIO);
+  const isPort = port > land;
+  area.classList.toggle('port', isPort);
+  document.documentElement.style.setProperty('--sw', Math.max(40, Math.floor(isPort ? port : land)) + 'px');
+}
+const refit = () => { fit(); if (cur === 'R') renderRb(); };
+window.addEventListener('resize', refit);
+window.addEventListener('load', refit);
+if (document.fonts && document.fonts.ready) document.fonts.ready.then(refit);
+
+function swap(a, b) {
+  if (a === b) return;
+  const arr = state[cur];
+  [arr[a], arr[b]] = [arr[b], arr[a]];
+  save();
+}
+
+/* --- クリック or ドラッグで入れかえ --- */
+let drag = null;
+function startDrag(e, i) {
+  e.preventDefault();
+  drag = { i, x: e.clientX, y: e.clientY, moved: false, ghost: null, over: -1 };
+  window.addEventListener('pointermove', onMove);
+  window.addEventListener('pointerup', onUp);
+  window.addEventListener('pointercancel', onUp);
+}
+function slotAt(x, y) {
+  const el = document.elementFromPoint(x, y);
+  const s = el && el.closest ? el.closest('.slot') : null;
+  return s ? parseInt(s.dataset.i, 10) : -1;
+}
+function onMove(e) {
+  if (!drag) return;
+  if (!drag.moved && Math.hypot(e.clientX - drag.x, e.clientY - drag.y) > 8) {
+    drag.moved = true;
+    const g = document.createElement('div');
+    g.className = 'ghost';
+    g.innerHTML = `<img src="${src(cur, state[cur][drag.i])}" alt="">`;
+    document.body.appendChild(g);
+    drag.ghost = g;
+    const me = document.querySelector(`.slot[data-i="${drag.i}"]`);
+    if (me) me.classList.add('dragging');
+  }
+  if (drag.moved) {
+    drag.ghost.style.left = e.clientX + 'px';
+    drag.ghost.style.top = e.clientY + 'px';
+    const o = slotAt(e.clientX, e.clientY);
+    if (o !== drag.over) {
+      document.querySelectorAll('.slot.over').forEach(s => s.classList.remove('over'));
+      if (o >= 0 && o !== drag.i) document.querySelector(`.slot[data-i="${o}"]`).classList.add('over');
+      drag.over = o;
+    }
+  }
+}
+function onUp(e) {
+  window.removeEventListener('pointermove', onMove);
+  window.removeEventListener('pointerup', onUp);
+  window.removeEventListener('pointercancel', onUp);
+  if (!drag) return;
+  const d = drag; drag = null;
+  if (d.ghost) d.ghost.remove();
+  if (d.moved) {
+    const t = slotAt(e.clientX, e.clientY);
+    if (t >= 0) swap(d.i, t);
+    selected = -1;
+  } else {
+    if (selected < 0) selected = d.i;
+    else if (selected === d.i) selected = -1;
+    else { swap(selected, d.i); selected = -1; }
+  }
+  render();
+}
+
+/* --- 出力 --- */
+function buildText() {
+  const lines = ['【かけ算のひっ算マスター なかまの並び】'];
+  COURSES.forEach(c => {
+    const arr = state[c.n];
+    lines.push(`コース${c.n}: ${arr.slice(0, USE).join(',')} / つかわない: ${arr.slice(USE).join(',')}`);
+  });
+  lines.push('※ 左から Lv.1〜15。数字は こうほの番号（course1-candidate-03 なら 03）');
+  lines.push('', '【レインボー（たからさがしの なかま）】');
+  for (let k = 1; k <= RB_STAGES; k++) lines.push(`ステージ${k}（${RB_NAMES[k - 1]}）${rb[k].length}体: ${rb[k].join(',') || 'なし'}`);
+  lines.push(`つかわない: ${rbPoolIds().length}体`);
+  lines.push('※ 数字は sprites フォルダの番号（crystal-007 なら 007）');
+  return lines.join('\n');
+}
+function copyText(t) {
+  const ta = document.getElementById('outText');
+  ta.value = t;
+  document.getElementById('out').classList.add('show');
+  const short = []; for (let k = 1; k <= RB_STAGES; k++) if (rb[k].length !== RB_PER) short.push(`ステージ${k}（${rb[k].length}体）`);
+  const warn = short.length ? ` ※ レインボーの ${short.join('・')} が 20体になっていません。` : '';
+  const done = () => { document.getElementById('toast').textContent = 'コピーしました！ Claude のチャットに貼りつけて送ってください。' + warn; };
+  const fallback = () => {
+    ta.focus(); ta.select();
+    try { document.execCommand('copy'); done(); }
+    catch (e) { document.getElementById('toast').textContent = '自動でコピーできませんでした。上の文字を選んでコピーしてください。'; }
+  };
+  if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(t).then(done, fallback);
+  else fallback();
+}
+document.getElementById('copyBtn').onclick = () => copyText(buildText());
+document.getElementById('outClose').onclick = () => document.getElementById('out').classList.remove('show');
+document.getElementById('resetCourse').onclick = () => {
+  if (cur === 'R') { if (!confirm('レインボーの ふりわけを はじめにもどしますか？')) return; rb = rbInit(); rbNote = ''; rbSave(); render(); return; }
+  state[cur] = ORIGINAL.slice(); selected = -1; save(); render();
+};
+document.getElementById('rbClear').onclick = () => { rb[rbStage] = []; rbNote = ''; rbSave(); renderRb(); renderTabs(); };
+document.getElementById('rbPrev').onclick = () => { rbPageNo--; renderRb(); };
+document.getElementById('rbNext').onclick = () => { rbPageNo++; renderRb(); };
+document.getElementById('resetAll').onclick = () => {
+  if (!confirm('5コースとレインボーを ぜんぶ 元にもどしますか？')) return;
+  COURSES.forEach(c => { state[c.n] = ORIGINAL.slice(); }); selected = -1; save();
+  rb = rbInit(); rbNote = ''; rbSave(); render();
+};
+render();
+</script>
+</body>
+</html>
