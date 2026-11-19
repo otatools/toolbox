@@ -76,7 +76,15 @@ h1 { margin: 0; font-size: 20px; font-weight: 900; white-space: nowrap; }
 /* --- レインボー（たからさがしの なかま）：6ステージに 20体ずつ --- */
 [hidden] { display: none !important; }
 .rb .row-title { height: 34px; align-items: center; }
+.rb .spare-area .row-title { max-width: calc(var(--pc, 5) * (var(--rw) + 8px) - 8px); }
+.rb .spare-area .row-title h2 { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .subtabs { display: grid; grid-template-columns: repeat(6, 1fr); gap: 4px; width: calc(5 * var(--rw) + 32px); }
+.subtab.on small { opacity: .95; }
+.rb .rb-left { width: calc(5 * var(--rw) + 32px); gap: 6px; }
+.rb .rb-left .subtabs { width: auto; flex: 1 1 0; min-width: 0; }
+.rb .rb-left .pager { flex: none; gap: 3px; }
+.rb .rb-left .pager button { width: 26px; }
+.rb .rb-left .pager b { min-width: 2.6em; font-size: 11px; }
 .subtab { border: 0; cursor: pointer; font: inherit; font-weight: 900; font-size: 12px; padding: 5px 2px; min-width: 0; overflow: hidden; border-radius: 10px; color: var(--ink2); background: #eef2f7; white-space: nowrap; line-height: 1.2; }
 .subtab small { font-size: 10px; margin-left: 3px; font-weight: 800; }
 .subtab.ng small { color: #e11d48; }
@@ -110,7 +118,7 @@ h1 { margin: 0; font-size: 20px; font-weight: 900; white-space: nowrap; }
     <div class="tabs" id="tabs"></div>
   </div>
   <p class="lead" id="leadCourse">
-    <b>Lv.1〜15</b> に入っている子を そのレベルで使います。入れかえたい2体を<b>じゅんばんにクリック</b>（ドラッグでもOK）。「つかわない」の5体とも入れかえられます。終わったら<b>「並びをコピー」</b>を押して、Claude に貼りつけて送ってください（5コースとレインボーが ぜんぶ いっしょにコピーされます）。
+    <b>Lv.1〜15</b> に入っている子を そのレベルで使います。入れかえたい2体を<b>じゅんばんにクリック</b>（ドラッグでもOK）。「つかわない」の5体とも入れかえられます。終わったら<b>「並びをコピー」</b>を押して、Claude に貼りつけて送ってください（5コース・レインボー・とくべつが ぜんぶ いっしょにコピーされます）。
   </p>
   <p class="lead" id="leadRb" hidden>
     6つのステージに <b>20体ずつ</b> ふりわけます。ステージの子を<b>クリックすると はずれ</b>、「つかわない」の子を<b>クリックすると 今のステージに入ります</b>。終わったら<b>「並びをコピー」</b>を押して、Claude に貼りつけて送ってください。
@@ -129,7 +137,7 @@ h1 { margin: 0; font-size: 20px; font-weight: 900; white-space: nowrap; }
     </div>
     <div class="area rb" id="rbArea" hidden>
       <div class="col">
-        <div class="row-title"><div class="subtabs" id="rbTabs"></div></div>
+        <div class="row-title rb-left"><div class="subtabs" id="rbTabs"></div><div class="pager" id="rbLPager" hidden><button id="rbLPrev" type="button" aria-label="まえのページ"><svg width="14" height="14" viewBox="0 0 20 20" aria-hidden="true"><path d="M12.5 4 6.5 10l6 6" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg></button><b id="rbLPage">1 / 1</b><button id="rbLNext" type="button" aria-label="つぎのページ"><svg width="14" height="14" viewBox="0 0 20 20" aria-hidden="true"><path d="M7.5 4 13.5 10l-6 6" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg></button></div></div>
         <div class="grid" id="rbGrid"></div>
       </div>
       <div class="col spare-area">
@@ -181,72 +189,99 @@ function save() { try { localStorage.setItem(KEY, JSON.stringify(state)); } catc
 let cur = 1;          // 1〜5＝コース、'R'＝レインボー
 let selected = -1;
 
-/* --- レインボー（sprites/crystal-001〜230）：6ステージに 20体ずつ。のこりは つかわない --- */
-const RB_TOTAL = 230, RB_STAGES = 6, RB_PER = 20;
-const RB_NAMES = ['さくら', 'ゆうやけ', 'ひまわり', 'こおり', 'むらさきの森', 'そらのしろ'];
-const RB_ALL = Array.from({ length: RB_TOTAL }, (_, i) => String(i + 1).padStart(3, '0'));
-const RB_KEY = 'otatools.kakezanhissan.rainbow.v1';
-function rbInit() { const o = {}; for (let k = 1; k <= RB_STAGES; k++) o[k] = RB_ALL.slice((k - 1) * RB_PER, k * RB_PER); return o; }   // はじめは 001〜120 を じゅんに
-function rbValid(o) {
-  if (!o) return false;
-  const seen = new Set();
-  for (let k = 1; k <= RB_STAGES; k++) {
-    if (!Array.isArray(o[k]) || o[k].length > RB_PER) return false;
-    for (const id of o[k]) { if (RB_ALL.indexOf(id) < 0 || seen.has(id)) return false; seen.add(id); }
+/* --- ふりわけ：レインボー（6ステージに 20体ずつ）と、とくべつな キャラクター（おとこのこ／おんなのこ）--- */
+const pad3 = n => String(n).padStart(3, '0');
+const SETS = {
+  R: {
+    tab: 'レインボー', color: '#ec4899', key: 'otatools.kakezanhissan.rainbow.v1',
+    all: Array.from({ length: 230 }, (_, i) => pad3(i + 1)),
+    groups: ['さくら', 'ゆうやけ', 'ひまわり', 'こおり', 'むらさきの森', 'そらのしろ'].map((n, i) => ({ k: String(i + 1), name: n, label: `${i + 1} ${n}`, short: String(i + 1) })),
+    per: 20, mustFill: true, pool: 'つかわない',
+    src: id => `sprites/crystal-${id}.webp`,
+    init() { const o = {}; this.groups.forEach((g, i) => { o[g.k] = this.all.slice(i * this.per, (i + 1) * this.per); }); return o; },   // はじめは 001〜120 を じゅんに
+    lead: '6つのステージに <b>20体ずつ</b> ふりわけます。ステージの子を<b>クリックすると はずれ</b>、「つかわない」の子を<b>クリックすると 今のステージに入ります</b>。終わったら<b>「並びをコピー」</b>を押して、Claude に貼りつけて送ってください。'
+  },
+  T: {
+    tab: 'とくべつ', color: '#d97706', key: 'otatools.kakezanhissan.tokubetsu.v1',
+    all: Array.from({ length: 88 }, (_, i) => pad3(i + 1)),
+    groups: [{ k: 'm', name: 'おとこのこ', label: 'おとこのこ', short: 'おとこ' }, { k: 'f', name: 'おんなのこ', label: 'おんなのこ', short: 'おんな' }, { k: 'x', name: 'つかわない', label: 'つかわない', short: 'なし', cap: 88, opt: true }],   // つかわない＝こうほから はずす子の 入れもの
+    per: 20, mustFill: false, pool: 'まだ えらんでいない',
+    src: id => `tokubetsu/tk-${id}.webp`,
+    init() { return { m: [], f: [], x: [] }; },                     // はじめは だれも えらんでいない
+    lead: 'チケットで えらべる <b>とくべつな キャラクター</b>を えらびます。左上で「おとこのこ」「おんなのこ」を切りかえて、右の子を<b>クリックすると 入ります</b>（それぞれ 20体まで）。いらない子は<b>「つかわない」</b>に入れると、右から 消えて さがしやすくなります。入れた子を<b>クリックすると はずれます</b>。終わったら<b>「並びをコピー」</b>を押して、Claude に貼りつけて送ってください。'
   }
-  return true;
-}
-let rb = null;
-try { rb = JSON.parse(localStorage.getItem(RB_KEY) || 'null'); } catch (e) { rb = null; }
-if (!rbValid(rb)) rb = rbInit();
-function rbSave() { try { localStorage.setItem(RB_KEY, JSON.stringify(rb)); } catch (e) {} }
-let rbStage = 1, rbPageNo = 0, rbPerPage = 20, rbNote = '', rbW = 100;
-function rbSrc(id) { return `sprites/crystal-${id}.webp`; }
-function rbPoolIds() { const used = new Set(); for (let k = 1; k <= RB_STAGES; k++) rb[k].forEach(id => used.add(id)); return RB_ALL.filter(id => !used.has(id)); }
-function rbChanged() { const o = rbInit(); for (let k = 1; k <= RB_STAGES; k++) if (o[k].join() !== rb[k].join()) return true; return false; }
-function rbCell(id, onClick) {
+};
+Object.keys(SETS).forEach(id => {
+  const S = SETS[id];
+  let d = null;
+  try { d = JSON.parse(localStorage.getItem(S.key) || 'null'); } catch (e) { d = null; }
+  const seen = new Set();
+  if (d) S.groups.forEach(g => { if (g.opt && d[g.k] === undefined) d[g.k] = []; });   // 前に ほぞんした分に「つかわない」が なくても、えらんだ子は そのまま
+  const ok = d && S.groups.every(g => Array.isArray(d[g.k]) && d[g.k].length <= (g.cap || S.per) && d[g.k].every(x => S.all.indexOf(x) >= 0 && !seen.has(x) && seen.add(x)));
+  S.data = ok ? d : S.init();
+  S.cur = S.groups[0].k; S.page = 0; S.lpage = 0; S.note = '';
+});
+function setSave(S) { try { localStorage.setItem(S.key, JSON.stringify(S.data)); } catch (e) {} }
+function setPool(S) { const used = new Set(); S.groups.forEach(g => S.data[g.k].forEach(x => used.add(x))); return S.all.filter(x => !used.has(x)); }
+function setChanged(S) { const o = S.init(); return S.groups.some(g => o[g.k].join() !== S.data[g.k].join()); }
+let rbPerPage = 20, rbW = 100;
+function rbCell(S, id, onClick) {
   const el = document.createElement('div');
   if (!id) { el.className = 'slot empty'; return el; }
   el.className = 'slot';
-  el.innerHTML = `<img src="${rbSrc(id)}" alt="" draggable="false"><span class="was">No.${id}</span>`;
+  el.innerHTML = `<img src="${S.src(id)}" alt="" draggable="false"><span class="was">No.${id}</span>`;
   el.onclick = onClick;
   return el;
 }
-function renderRb() {
+function renderSet() {
+  const S = SETS[cur];
+  if (!S) return;
   const tabs = document.getElementById('rbTabs');
   tabs.innerHTML = '';
-  for (let k = 1; k <= RB_STAGES; k++) {
+  tabs.style.gridTemplateColumns = `repeat(${S.groups.length}, 1fr)`;
+  S.groups.forEach(g => {
+    const n = S.data[g.k].length;
     const b = document.createElement('button');
     b.type = 'button';
-    b.className = 'subtab' + (k === rbStage ? ' on' : '') + (rb[k].length !== RB_PER ? ' ng' : '');
-    b.title = `ステージ${k}（${RB_NAMES[k - 1]}）`;
-    b.innerHTML = (rbW >= 104 ? `${k} ${RB_NAMES[k - 1]}` : `${k}`) + `<small>${rb[k].length}/${RB_PER}</small>`;   // せまいときは 番号だけ
-    b.onclick = () => { rbStage = k; rbNote = ''; renderRb(); };
+    b.className = 'subtab' + (g.k === S.cur ? ' on' : '') + (S.mustFill && n !== S.per ? ' ng' : '');
+    b.title = g.name;
+    b.innerHTML = (rbW >= 104 || (S.groups.length <= 3 && rbW >= 64) ? g.label : g.short) + `<small>${n}${S.mustFill ? '/' + S.per : '体'}</small>`;   // せまいときは 番号だけ
+    b.onclick = () => { S.cur = g.k; S.lpage = 0; S.note = ''; renderSet(); };
     tabs.appendChild(b);
-  }
+  });
+  document.getElementById('rbClear').textContent = cur === 'R' ? 'このステージを からにする' : `「${S.groups.find(x => x.k === S.cur).name}」を からにする`;
+  const list = S.data[S.cur];
+  const cap = S.groups.find(x => x.k === S.cur).cap || S.per;
+  // 左は 20ます。20体より 多く入る入れもの（つかわない）は、ページ送りで 見る
+  const lpages = Math.max(1, Math.ceil(list.length / S.per));
+  S.lpage = Math.max(0, Math.min(lpages - 1, S.lpage));
   const g = document.getElementById('rbGrid');
   g.innerHTML = '';
-  for (let i = 0; i < RB_PER; i++) {
-    const id = rb[rbStage][i];
-    g.appendChild(rbCell(id, () => { rb[rbStage].splice(i, 1); rbNote = ''; rbSave(); renderRb(); }));
+  for (let k = 0; k < S.per; k++) {
+    const i = S.lpage * S.per + k;
+    g.appendChild(rbCell(S, list[i], () => { list.splice(i, 1); S.note = ''; setSave(S); renderSet(); renderTabs(); }));
   }
-  const pool = rbPoolIds();
+  document.getElementById('rbLPager').hidden = lpages <= 1;
+  document.getElementById('rbLPage').textContent = `${S.lpage + 1} / ${lpages}`;
+  document.getElementById('rbLPrev').disabled = S.lpage <= 0;
+  document.getElementById('rbLNext').disabled = S.lpage >= lpages - 1;
+  const pool = setPool(S);
   const pages = Math.max(1, Math.ceil(pool.length / rbPerPage));
-  rbPageNo = Math.max(0, Math.min(pages - 1, rbPageNo));
+  S.page = Math.max(0, Math.min(pages - 1, S.page));
   const p = document.getElementById('rbPool');
   p.innerHTML = '';
-  pool.slice(rbPageNo * rbPerPage, (rbPageNo + 1) * rbPerPage).forEach(id => {
-    p.appendChild(rbCell(id, () => {
-      if (rb[rbStage].length >= RB_PER) { rbNote = 'このステージは いっぱいです。先に 左の子を はずしてください'; renderRb(); return; }
-      rb[rbStage].push(id); rbNote = ''; rbSave(); renderRb();
+  pool.slice(S.page * rbPerPage, (S.page + 1) * rbPerPage).forEach(id => {
+    p.appendChild(rbCell(S, id, () => {
+      if (list.length >= cap) { S.note = 'ここは いっぱいです。先に 左の子を はずしてください'; renderSet(); return; }
+      list.push(id); S.lpage = 999; S.note = ''; setSave(S); renderSet(); renderTabs();
     }));
   });
   const t = document.getElementById('rbPoolTitle');
-  t.textContent = rbNote || `つかわない ${pool.length}体`;
-  t.classList.toggle('note', !!rbNote);
-  document.getElementById('rbPage').textContent = `${rbPageNo + 1} / ${pages}`;
-  document.getElementById('rbPrev').disabled = rbPageNo <= 0;
-  document.getElementById('rbNext').disabled = rbPageNo >= pages - 1;
+  t.textContent = S.note || `${S.pool} ${pool.length}体`;
+  t.classList.toggle('note', !!S.note);
+  document.getElementById('rbPage').textContent = `${S.page + 1} / ${pages}`;
+  document.getElementById('rbPrev').disabled = S.page <= 0;
+  document.getElementById('rbNext').disabled = S.page >= pages - 1;
 }
 
 function src(course, id) {
@@ -267,13 +302,16 @@ function renderTabs() {
     b.onclick = () => { cur = c.n; selected = -1; render(); };
     t.appendChild(b);
   });
-  const r = document.createElement('button');
-  r.type = 'button';
-  r.className = 'tab' + (cur === 'R' ? ' on' : '') + (rbChanged() ? ' changed' : '');
-  r.style.setProperty('--tc', '#ec4899');
-  r.innerHTML = 'レインボー<span class="dot"></span>';
-  r.onclick = () => { cur = 'R'; selected = -1; rbNote = ''; render(); };
-  t.appendChild(r);
+  Object.keys(SETS).forEach(id => {
+    const S = SETS[id];
+    const r = document.createElement('button');
+    r.type = 'button';
+    r.className = 'tab' + (cur === id ? ' on' : '') + (setChanged(S) ? ' changed' : '');
+    r.style.setProperty('--tc', S.color);
+    r.innerHTML = S.tab + '<span class="dot"></span>';
+    r.onclick = () => { cur = id; selected = -1; S.note = ''; render(); };
+    t.appendChild(r);
+  });
 }
 
 function makeSlot(i) {
@@ -287,14 +325,17 @@ function makeSlot(i) {
 }
 
 function render() {
-  const isRb = cur === 'R';
+  const S = SETS[cur], isRb = !!S;
   document.getElementById('area').hidden = isRb;
   document.getElementById('rbArea').hidden = !isRb;
   document.getElementById('leadCourse').hidden = isRb;
   document.getElementById('leadRb').hidden = !isRb;
   document.getElementById('rbClear').hidden = !isRb;
-  document.getElementById('resetCourse').textContent = isRb ? 'レインボーを元にもどす' : 'このコースを元にもどす';
-  if (isRb) { renderTabs(); fit(); renderRb(); return; }
+  document.getElementById('resetCourse').textContent = isRb ? `${S.tab}を元にもどす` : 'このコースを元にもどす';
+  if (isRb) {
+    document.getElementById('leadRb').innerHTML = S.lead;
+    renderTabs(); fit(); renderSet(); return;
+  }
   const c = COURSES[cur - 1];
   document.documentElement.style.setProperty('--c1', c.c1);
   document.documentElement.style.setProperty('--c2', c.c2);
@@ -318,8 +359,8 @@ function fit() {
   const W = board.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
   const H = board.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom);
   if (W <= 0 || H <= 0) return;
-  if (cur === 'R') {
-    // レインボー：横長は 左にステージ（5れつ×4だん）、右に「つかわない」（同じ大きさで 4だん。入りきらない分は ページ送り）
+  if (SETS[cur]) {
+    // ふりわけ（レインボー・とくべつ）：横長は 左にステージ（5れつ×4だん）、右に「つかわない」（同じ大きさで 4だん。入りきらない分は ページ送り）
     const G = 8, T = 34, rbArea = document.getElementById('rbArea');
     const wide = W > H * 1.2;
     let rw, pc, rows;
@@ -346,7 +387,7 @@ function fit() {
   area.classList.toggle('port', isPort);
   document.documentElement.style.setProperty('--sw', Math.max(40, Math.floor(isPort ? port : land)) + 'px');
 }
-const refit = () => { fit(); if (cur === 'R') renderRb(); };
+const refit = () => { fit(); if (SETS[cur]) renderSet(); };
 window.addEventListener('resize', refit);
 window.addEventListener('load', refit);
 if (document.fonts && document.fonts.ready) document.fonts.ready.then(refit);
@@ -422,17 +463,22 @@ function buildText() {
     lines.push(`コース${c.n}: ${arr.slice(0, USE).join(',')} / つかわない: ${arr.slice(USE).join(',')}`);
   });
   lines.push('※ 左から Lv.1〜15。数字は こうほの番号（course1-candidate-03 なら 03）');
+  const R = SETS.R, T = SETS.T;
   lines.push('', '【レインボー（たからさがしの なかま）】');
-  for (let k = 1; k <= RB_STAGES; k++) lines.push(`ステージ${k}（${RB_NAMES[k - 1]}）${rb[k].length}体: ${rb[k].join(',') || 'なし'}`);
-  lines.push(`つかわない: ${rbPoolIds().length}体`);
+  R.groups.forEach(g => lines.push(`ステージ${g.k}（${g.name}）${R.data[g.k].length}体: ${R.data[g.k].join(',') || 'なし'}`));
+  lines.push(`つかわない: ${setPool(R).length}体`);
   lines.push('※ 数字は sprites フォルダの番号（crystal-007 なら 007）');
+  lines.push('', '【とくべつな キャラクター（チケットで えらべる子）】');
+  T.groups.forEach(g => lines.push(`${g.name} ${T.data[g.k].length}体: ${T.data[g.k].join(',') || 'なし'}`));
+  lines.push(`まだ えらんでいない: ${setPool(T).length}体`);
+  lines.push('※ 数字は tokubetsu フォルダの番号（tk-007 なら 007）');
   return lines.join('\n');
 }
 function copyText(t) {
   const ta = document.getElementById('outText');
   ta.value = t;
   document.getElementById('out').classList.add('show');
-  const short = []; for (let k = 1; k <= RB_STAGES; k++) if (rb[k].length !== RB_PER) short.push(`ステージ${k}（${rb[k].length}体）`);
+  const short = SETS.R.groups.filter(g => SETS.R.data[g.k].length !== SETS.R.per).map(g => `ステージ${g.k}（${SETS.R.data[g.k].length}体）`);
   const warn = short.length ? ` ※ レインボーの ${short.join('・')} が 20体になっていません。` : '';
   const done = () => { document.getElementById('toast').textContent = 'コピーしました！ Claude のチャットに貼りつけて送ってください。' + warn; };
   const fallback = () => {
@@ -446,16 +492,20 @@ function copyText(t) {
 document.getElementById('copyBtn').onclick = () => copyText(buildText());
 document.getElementById('outClose').onclick = () => document.getElementById('out').classList.remove('show');
 document.getElementById('resetCourse').onclick = () => {
-  if (cur === 'R') { if (!confirm('レインボーの ふりわけを はじめにもどしますか？')) return; rb = rbInit(); rbNote = ''; rbSave(); render(); return; }
+  const S = SETS[cur];
+  if (S) { if (!confirm(`${S.tab}の ふりわけを はじめにもどしますか？`)) return; S.data = S.init(); S.note = ''; setSave(S); render(); return; }
   state[cur] = ORIGINAL.slice(); selected = -1; save(); render();
 };
-document.getElementById('rbClear').onclick = () => { rb[rbStage] = []; rbNote = ''; rbSave(); renderRb(); renderTabs(); };
-document.getElementById('rbPrev').onclick = () => { rbPageNo--; renderRb(); };
-document.getElementById('rbNext').onclick = () => { rbPageNo++; renderRb(); };
+document.getElementById('rbClear').onclick = () => { const S = SETS[cur]; if (!S) return; S.data[S.cur] = []; S.note = ''; setSave(S); renderSet(); renderTabs(); };
+document.getElementById('rbPrev').onclick = () => { SETS[cur].page--; renderSet(); };
+document.getElementById('rbLPrev').onclick = () => { SETS[cur].lpage--; renderSet(); };
+document.getElementById('rbLNext').onclick = () => { SETS[cur].lpage++; renderSet(); };
+document.getElementById('rbNext').onclick = () => { SETS[cur].page++; renderSet(); };
 document.getElementById('resetAll').onclick = () => {
-  if (!confirm('5コースとレインボーを ぜんぶ 元にもどしますか？')) return;
+  if (!confirm('5コース・レインボー・とくべつを ぜんぶ 元にもどしますか？')) return;
   COURSES.forEach(c => { state[c.n] = ORIGINAL.slice(); }); selected = -1; save();
-  rb = rbInit(); rbNote = ''; rbSave(); render();
+  Object.keys(SETS).forEach(id => { const S = SETS[id]; S.data = S.init(); S.note = ''; setSave(S); });
+  render();
 };
 render();
 </script>
