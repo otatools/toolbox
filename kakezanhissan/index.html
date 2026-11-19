@@ -236,6 +236,12 @@ button {
 }
 .zk-item.locked { background: #f4f6f9; border-color: #d0d6e0; box-shadow: 0 3px 0 rgba(34,48,78,.05); cursor: default; }
 .zk-item.locked .zq { position: absolute; inset: 0; display: grid; place-items: center; font-size: 28px; font-weight: 900; color: #aeb7c5; }
+/* ひみつの なかま：まだ えらんでいない子 */
+.zk-item.pick { border-style: dashed; border-color: #f59e0b; background: #fffdf2; }
+.zk-item.wait { opacity: .42; cursor: default; }
+#scModal { background: rgba(24, 36, 60, .38); }
+#scModal .modal-box { --mc: #fbbf24; max-width: 360px; }
+#scModal .time-pet { width: 150px; height: 150px; }
 .zk-empty { padding: 40px 10px; text-align: center; font-size: 15px; font-weight: 800; color: var(--ink-2); }
 .zk-done {
   position: absolute; left: 50%; bottom: 18px; transform: translateX(-50%); z-index: 5;
@@ -1016,6 +1022,19 @@ button {
         <p class="zk-tip"><span class="ph">すきな なかまを タップすると、</span><span class="ph">トップページに かざれるよ！</span></p>
         <div class="zk-body" id="zkBody"></div>
         <div class="zk-done" id="zkDone" hidden><span>トップに かざったよ！</span><button type="button" id="zkOk">OK</button></div>
+      </div>
+    </div>
+
+    <!-- ===================== ひみつの なかまを えらぶ ===================== -->
+    <div class="modal" id="scModal" hidden>
+      <div class="modal-box">
+        <div class="pet time-pet" id="scPet"></div>
+        <h3>この子を なかまにする？</h3>
+        <p class="sub">いちど えらぶと、かえられないよ。</p>
+        <div style="margin-top:14px">
+          <button class="btn-main" id="scYes" type="button">この子に する！</button>
+          <button class="btn-sub" id="scNo" type="button">やめておく</button>
+        </div>
       </div>
     </div>
 
@@ -2006,8 +2025,57 @@ function makeRb(el, id) {
   img.src = `images/rainbow/rb_${id}.webp`;
   el.appendChild(img);
 }
+/* ============================================================
+   ひみつの なかま
+   ほかの計算アプリで 宝箱のなかまを ぜんぶ（120体）あつめると、1アプリにつき 1体、ならんだ中から すきな子を えらべる。
+   ・ほかのアプリの セーブデータ（同じサイトの localStorage）を 見るだけで、書きかえは しない
+   ・新しい計算アプリが できたら OTHER_APPS に 1行 足す（むこうのアプリにも、このアプリを 足す）
+   ・絵が できたら images/secret/sc_番号.webp を おいて、SECRETS に 番号を 入れる（からのあいだは 何も出ない）
+   ============================================================ */
+const OTHER_APPS = [
+  { key: 'otatools.hissan.v1', name: 'わり算のひっ算マスター' }
+];
+const OTHER_NEED = 120;
+const SECRETS = [];
+const SC_COL = { c1: '#fcd34d', c2: '#f59e0b', c3: '#b45309', c4: '#fef3c7', bg1: '#fffbea', bg2: '#fdf1cf', ac: '#d97706' };   // ひみつの なかま＝きん色
+const SC_DEBUG = (location.search.match(/[?&]secret=(\d)/) || [])[1];   // 動作かくにん用（?secret=2 で ほかのアプリを 2つ あつめた ことにする）
+if (!Array.isArray(saved.secret)) saved.secret = [];
+function otherAppsDone() {
+  if (SC_DEBUG !== undefined) return Number(SC_DEBUG);
+  let n = 0;
+  OTHER_APPS.forEach(a => {
+    try {
+      const d = JSON.parse(localStorage.getItem(a.key) || 'null');
+      if (d && d.rb && Array.isArray(d.rb.own) && new Set(d.rb.own).size >= OTHER_NEED) n++;
+    } catch (e) {}
+  });
+  return n;
+}
+function secretOwned() { return saved.secret.filter(id => SECRETS.includes(id)); }
+function secretPicks() { return Math.max(0, Math.min(otherAppsDone(), SECRETS.length) - secretOwned().length); }   // あと 何体 えらべるか
+function makeSc(el, id) {
+  el.classList.remove('has-img'); el.innerHTML = '';
+  const img = new Image(); img.alt = ''; img.decoding = 'async';
+  img.onload = () => { if (img.parentNode === el) el.classList.add('has-img'); };
+  img.src = `images/secret/sc_${id}.webp`;
+  el.appendChild(img);
+}
+let scPending = null;
+function askSecret(id) { sound.play('tap'); scPending = id; makeSc($('scPet'), id); $('scModal').hidden = false; }
+function takeSecret() {
+  const id = scPending; scPending = null;
+  $('scModal').hidden = true;
+  if (!id || secretPicks() <= 0 || saved.secret.includes(id)) return;
+  saved.secret.push(id);
+  persist();
+  sound.play('clear');
+  openZukan();
+  chooseFav('sc:' + id);      // えらんだ子を そのまま トップに かざる
+}
+
 function currentFav() {
   const f = saved.fav || '1-0';
+  if (f.startsWith('sc:')) return secretOwned().includes(f.slice(3)) ? f : '1-0';
   if (f.startsWith('rb:')) return rbOwnedView().includes(f.slice(3)) ? f : '1-0';
   return ownedList().includes(f) ? f : '1-0';
 }
@@ -2228,16 +2296,17 @@ function ownedList() {
   return list;
 }
 // はじめて なかまが ふえたときだけ ひからせる（1回 ずかんを ひらいたら、もう ひからせない）
-function hasNew() { return !saved.zukanOpened && ownedList().length > 1; }
+function hasNew() { return (!saved.zukanOpened && ownedList().length > 1) || secretPicks() > 0; }   // ひみつの なかまを えらべる あいだも ひからせる
 
 function renderBuddy() {
   const fav = currentFav();
-  if (fav.startsWith('rb:')) {
-    makeRb($('buddyPet'), fav.slice(3));
-    stageColors($('buddyBtn'), RB_COL);
-    document.documentElement.style.setProperty('--bg1', RB_COL.bg1);
-    document.documentElement.style.setProperty('--bg2', RB_COL.bg2);
-    document.documentElement.style.setProperty('--accent', RB_COL.ac);
+  if (fav.startsWith('rb:') || fav.startsWith('sc:')) {
+    const col = fav.startsWith('sc:') ? SC_COL : RB_COL;
+    if (fav.startsWith('sc:')) makeSc($('buddyPet'), fav.slice(3)); else makeRb($('buddyPet'), fav.slice(3));
+    stageColors($('buddyBtn'), col);
+    document.documentElement.style.setProperty('--bg1', col.bg1);
+    document.documentElement.style.setProperty('--bg2', col.bg2);
+    document.documentElement.style.setProperty('--accent', col.ac);
     $('buddyBtn').classList.toggle('has-new', hasNew());
     syncMatch();
     return;
@@ -2307,6 +2376,32 @@ function openZukan() {
       b.querySelector('.pet').style.bottom = '8%';
       makeRb(b.querySelector('.pet'), id);
       b.addEventListener('click', () => chooseFav('rb:' + id));
+      grid.appendChild(b);
+    });
+    body.appendChild(sec);
+  }
+  // ひみつの なかま（ほかの計算アプリを あつめきるまで かくれている）
+  const scMine = secretOwned(), scLeft = secretPicks();
+  if (SECRETS.length && (scMine.length > 0 || scLeft > 0)) {
+    const sec = document.createElement('div');
+    sec.className = 'zk-course';
+    stageColors(sec, SC_COL);
+    const tip = scLeft > 0 ? `すきな子を あと ${scLeft}体 えらべるよ！ えらびたい子を タップしてね。`
+      : scMine.length < SECRETS.length ? 'ほかの計算アプリでも 宝箱のなかまを ぜんぶ あつめると、また えらべるよ！' : '';
+    sec.innerHTML = `<h4>ひみつ　${scMine.length} / ${SECRETS.length}</h4>` + (tip ? `<p class="zk-tip" style="margin:0 4px 8px">${tip}</p>` : '') + '<div class="zk-grid"></div>';
+    const grid = sec.querySelector('.zk-grid');
+    SECRETS.forEach(id => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      const have = scMine.includes(id);
+      b.className = 'zk-item' + (have ? (('sc:' + id) === fav ? ' fav' : '') : scLeft > 0 ? ' pick' : ' wait');
+      if (have) b.dataset.k = 'sc:' + id;
+      b.innerHTML = '<span class="pet"></span>';
+      b.querySelector('.pet').style.bottom = '8%';
+      makeSc(b.querySelector('.pet'), id);
+      if (have) b.addEventListener('click', () => chooseFav('sc:' + id));
+      else if (scLeft > 0) b.addEventListener('click', () => askSecret(id));
+      else b.disabled = true;
       grid.appendChild(b);
     });
     body.appendChild(sec);
@@ -2715,6 +2810,8 @@ $('chMenu').addEventListener('click', returnToMenu);
 $('buddyBtn').addEventListener('click', openZukan);
 $('zkClose').addEventListener('click', closeZukan);
 $('zkOk').addEventListener('click', closeZukan);
+$('scYes').addEventListener('click', takeSecret);
+$('scNo').addEventListener('click', () => { sound.play('tap'); scPending = null; $('scModal').hidden = true; });
 $('zukanModal').addEventListener('click', (e) => { if (e.target === $('zukanModal')) closeZukan(); });
 
 applySoundIcon();
