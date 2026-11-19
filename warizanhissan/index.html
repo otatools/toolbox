@@ -1888,7 +1888,7 @@ function onProblemSolved() {
 
   if (solvedCount >= selectedCount) {
     stopTimer();   // タイムはここで止める
-    T(() => { if (gameActive) ticketGate(() => { if (gameActive) { if (treasure) showChest(); else showResult('clear'); } }); }, 800);
+    T(() => { if (gameActive) { tkArmed = true; if (treasure) showChest(); else showResult('clear'); } }, 800);   // チケットは、この あと トップに もどる ときに 出す（エネルギーや たからばこを 先に うけとる）
     return;
   }
   T(() => {
@@ -2178,6 +2178,7 @@ function makeSc(el, id) {
    出るボタンは「チケットを つかう」だけ。とちゅうで アプリを とじても、つぎに ひらいたとき 同じ画面から。 */
 let tkNext = null;        // チケットの あとに つづける処理（結果の画面など）
 let tkGen = 0;
+let tkArmed = false;      // 1ゲーム おえた しるし。つぎに トップに もどる ときに チケットを 出す
 function ticketGate(next) {
   if (secretPicks() > 0) showTicket(next); else next();
 }
@@ -3016,6 +3017,8 @@ function returnToMenu() {
   renderBuddy();
   buildNsHero();
   drawHero();
+  // 1ゲーム おえて トップに もどった ときに、とくべつな チケットの えんしゅつへ
+  if (tkArmed) { tkArmed = false; if (secretPicks() > 0) setTimeout(() => { if (!gameActive && !$('menuScreen').hidden) ticketGate(() => {}); }, 450); }
 }
 
 /* ============================================================
