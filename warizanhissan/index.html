@@ -1172,12 +1172,15 @@ const FF_SVG = '<svg class="ico" viewBox="0 0 20 16" aria-hidden="true"><path d=
 const STORE_KEY = 'otatools.hissan.v1';
 let saved = {};
 try { saved = JSON.parse(localStorage.getItem(STORE_KEY) || '{}') || {}; } catch (e) { saved = {}; }
+// たいけんモード（?taiken）：チケットの えんしゅつを ためす用。まっさらな データで はじまり、きろくは いっさい のこさない（ほんとうの データは さわらない）
+const TAIKEN = /[?&]taiken\b/.test(location.search);
+if (TAIKEN) saved = {};
 // デバッグ用: ?debugclear でデータぜんぶ消す ／ ?debugall でレインボー以外の全キャラ＋レベルMAX
 const DBG_CLEAR = /[?&]debugclear\b/.test(location.search), DBG_ALL = /[?&]debugall\b/.test(location.search);
 if (DBG_CLEAR) { try { localStorage.removeItem(STORE_KEY); } catch (e) {} saved = {}; }
 if (!saved.bestTime) saved.bestTime = {};   // コースごと・問題数ごとの いちばん速いタイム（秒）
 if (!saved.played5) saved.played5 = {};     // 5問を1回でもクリアしたコース
-function persist() { try { localStorage.setItem(STORE_KEY, JSON.stringify(saved)); } catch (e) {} }
+function persist() { if (TAIKEN) return; try { localStorage.setItem(STORE_KEY, JSON.stringify(saved)); } catch (e) {} }
 
 /* ============================================================
    効果音 (Web Audio API)
@@ -2144,12 +2147,13 @@ const OTHER_NEED = 120;
 const SECRETS_M = ['075', '073', '068', '084', '078', '071', '060', '045', '035', '016', '032', '006', '001', '003', '043', '047', '049', '062', '063', '069'];                                    // おとこのこ
 const SECRETS_F = ['074', '065', '072', '056', '061', '070', '059', '050', '002', '004', '005', '007', '034', '079', '036', '029', '023', '044', '052', '042'];                                    // おんなのこ
 const SECRETS = SECRETS_M.concat(SECRETS_F);
-const SC_COL = { c1: '#fcd34d', c2: '#f59e0b', c3: '#b45309', c4: '#fef3c7', bg1: '#fffbea', bg2: '#fdf1cf', ac: '#d97706' };   // ひみつの なかま＝きん色
+const SC_COL = RB_COL;   // とくべつな キャラクターの色＝レインボー（宝箱のなかまと 同じ色）
 const SC_DEBUG = (location.search.match(/[?&]secret=(\d)/) || [])[1];   // 動作かくにん用（?secret=2 で ほかのアプリを 2つ あつめた ことにする）
 if (!Array.isArray(saved.secret)) saved.secret = [];           // えらんだ ひみつの なかま
 if (!Array.isArray(saved.secretFrom)) saved.secretFrom = [];   // チケットを つかいおわった アプリ
 // 宝箱のなかまが 120体 そろっている ほかのアプリ
 function doneApps() {
+  if (TAIKEN) return OTHER_APPS.slice(0, 1);   // たいけんモード：ほかのアプリで 120体 そろえた ことにする
   if (SC_DEBUG !== undefined) return Array.from({ length: Number(SC_DEBUG) }, (_, i) => ({ key: 'debug' + i, name: 'テストのアプリ' + (i + 1) }));
   return OTHER_APPS.filter(a => {
     try {
@@ -2397,6 +2401,7 @@ function currentFav() {
 // セットしている（左上の）キャラの色が ステージに あうか
 function nsAffinity(k) {
   const f = currentFav();
+  if (f.startsWith('sc:')) return true;   // とくべつな キャラクターは、どの色の ステージとも 相性が いい
   if (k === 6) return f.startsWith('rb:');
   return f.startsWith(NEW_STAGES[k - 1].course + '-');
 }
@@ -2701,7 +2706,7 @@ function openZukan() {
     const sec = document.createElement('div');
     sec.className = 'zk-course';
     stageColors(sec, SC_COL);
-    sec.innerHTML = `<h4>とくべつな キャラクター　${scMine.length}</h4><div class="zk-grid"></div>`;
+    sec.innerHTML = `<h4>とくべつな キャラクター　${scMine.length}</h4><p class="zk-tip" style="margin:0 4px 8px">レインボーの なかま。どの ステージの たからさがしでも 力を はっきするよ！</p><div class="zk-grid"></div>`;
     const grid = sec.querySelector('.zk-grid');
     scMine.forEach(id => {
       const b = document.createElement('button');
@@ -3163,6 +3168,14 @@ window.addEventListener('load', () => { fitToWindow(); drawHero(); });
 if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => { drawHero(); });
 </script>
 <div id="pageReady" hidden></div>
+<script>
+if (/[?&]taiken\b/.test(location.search)) {
+  const t = document.createElement('div');
+  t.textContent = 'たいけんモード（きろくは のこりません）';
+  t.style.cssText = 'position:fixed;left:8px;bottom:8px;z-index:99999;padding:5px 10px;border-radius:999px;background:rgba(15,23,42,.72);color:#fff;font:700 12px/1.2 sans-serif;pointer-events:none';
+  document.body.appendChild(t);
+}
+</script>
 <script type="module">
     // アプリ固有のID
     const THIS_APP_ID = "38";
