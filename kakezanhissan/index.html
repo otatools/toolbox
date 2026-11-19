@@ -175,6 +175,25 @@ button {
 }
 .hero.ns .ns-panel.match { border-color: var(--c1); animation: matchGlowP 3.6s ease-in-out infinite; }
 @keyframes matchGlowP { 0%, 100% { box-shadow: 0 0 4px 0 transparent; } 50% { box-shadow: 0 0 14px 2px var(--c1); } }
+/* とくべつな キャラクターを かざっているとき：わくが 七色で、まわりが レインボーに かがやく */
+.logo-mark.sc, .logo-mark.sc.match {
+  border-color: transparent;
+  background: radial-gradient(circle at 50% 42%, #fff 0 42%, #fff8fd 80%) padding-box,
+              linear-gradient(135deg, #f472b6, #fb923c, #facc15, #4ade80, #38bdf8, #a78bfa, #f472b6) border-box;
+  animation: scShine 4.8s linear infinite;
+}
+@keyframes scShine {
+  0%, 100% { box-shadow: 0 4px 0 #f9a8d4, 0 0 14px 3px #f472b6; }
+  17% { box-shadow: 0 4px 0 #fdba74, 0 0 14px 3px #fb923c; }
+  33% { box-shadow: 0 4px 0 #fde047, 0 0 14px 3px #facc15; }
+  50% { box-shadow: 0 4px 0 #86efac, 0 0 14px 3px #4ade80; }
+  67% { box-shadow: 0 4px 0 #7dd3fc, 0 0 14px 3px #38bdf8; }
+  83% { box-shadow: 0 4px 0 #c4b5fd, 0 0 14px 3px #a78bfa; }
+}
+/* とくべつな キャラクターは、わくの 中 いっぱいに 大きく */
+.logo-mark.sc .pet { inset: 0; }
+.logo-mark.sc .pet img { transform: scale(1.06); transform-origin: 50% 50%; }
+.zk-course.sc h4 { background: linear-gradient(90deg, #f472b6, #fb923c, #eab308, #22c55e, #0ea5e9, #8b5cf6); text-shadow: 0 1px 1px rgba(0, 0, 0, .25); }
 .logo-mark.has-new .newbadge { display: block; }
 .logo-mark.has-new::before {
   content: ''; position: absolute; inset: -10px; border-radius: 30px; pointer-events: none;
@@ -2124,7 +2143,7 @@ const OTHER_NEED = 120;
 const SECRETS_M = ['075', '073', '068', '084', '078', '071', '060', '045', '035', '016', '032', '006', '001', '003', '043', '047', '049', '062', '063', '069'];                                    // おとこのこ
 const SECRETS_F = ['074', '065', '072', '056', '061', '070', '059', '050', '002', '004', '005', '007', '034', '079', '036', '029', '023', '044', '052', '042'];                                    // おんなのこ
 const SECRETS = SECRETS_M.concat(SECRETS_F);
-const SC_COL = RB_COL;   // とくべつな キャラクターの色＝レインボー（宝箱のなかまと 同じ色）
+const SC_COL = { c1: '#c4b5fd', c2: '#a855f7', c3: '#7e22ce', c4: '#f3e8ff', bg1: '#fdf4ff', bg2: '#eef6ff', ac: '#a855f7' };   // とくべつな キャラクター（わくは CSSで 七色に する）
 const SC_DEBUG = (location.search.match(/[?&]secret=(\d)/) || [])[1];   // 動作かくにん用（?secret=2 で ほかのアプリを 2つ あつめた ことにする）
 if (!Array.isArray(saved.secret)) saved.secret = [];           // えらんだ ひみつの なかま
 if (!Array.isArray(saved.secretFrom)) saved.secretFrom = [];   // チケットを つかいおわった アプリ
@@ -2601,6 +2620,7 @@ function renderBuddy() {
     const col = fav.startsWith('sc:') ? SC_COL : RB_COL;
     if (fav.startsWith('sc:')) makeSc($('buddyPet'), fav.slice(3)); else makeRb($('buddyPet'), fav.slice(3));
     stageColors($('buddyBtn'), col);
+    $('buddyBtn').classList.toggle('sc', fav.startsWith('sc:'));
     document.documentElement.style.setProperty('--bg1', col.bg1);
     document.documentElement.style.setProperty('--bg2', col.bg2);
     document.documentElement.style.setProperty('--accent', col.ac);
@@ -2608,6 +2628,7 @@ function renderBuddy() {
     syncMatch();
     return;
   }
+  $('buddyBtn').classList.remove('sc');
   const [c, l] = fav.split('-').map(Number);
   makePet($('buddyPet'), STAGE_KEYS[c - 1], l, false);
   stageColors($('buddyBtn'), STAGES[STAGE_KEYS[c - 1]]);   // ボタンの色も そのコースの色に
@@ -2681,9 +2702,9 @@ function openZukan() {
   const scMine = secretOwned();
   if (scMine.length > 0) {
     const sec = document.createElement('div');
-    sec.className = 'zk-course';
+    sec.className = 'zk-course sc';
     stageColors(sec, SC_COL);
-    sec.innerHTML = `<h4>とくべつな キャラクター　${scMine.length}</h4><p class="zk-tip" style="margin:0 4px 8px">レインボーの なかま。どの ステージの たからさがしでも 力を はっきするよ！</p><div class="zk-grid"></div>`;
+    sec.innerHTML = `<h4>とくべつな キャラクター　${scMine.length}</h4><p class="zk-tip" style="margin:0 4px 8px">とくべつな なかま。どの ステージの たからさがしでも 力を はっきするよ！</p><div class="zk-grid"></div>`;
     const grid = sec.querySelector('.zk-grid');
     scMine.forEach(id => {
       const b = document.createElement('button');
