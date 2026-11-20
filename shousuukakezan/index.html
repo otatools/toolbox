@@ -1047,6 +1047,11 @@ html.tv-off, html.tv-off body { background: #05070d !important; }
 .is-portrait .how-bp { width: 250px; height: 236px; }
 .is-portrait .hsteps { gap: 7px; }
 .is-portrait .hsteps li { font-size: 14.5px; }
+.guide .gans { font-size: 1.25em; font-weight: 900; letter-spacing: .02em; }
+.guide .gans b { color: var(--bad); }
+.hnote.ex { flex-direction: row; align-items: center; gap: .5em; padding: 6px 18px; }
+.hnote.ex > span { font-size: 13px; }
+.is-portrait .hnote.ex { flex-direction: column; gap: 2px; }
 </style>
 </head>
 <body>
@@ -1826,7 +1831,7 @@ function analyzeProblem(spec) {
       : `${aDp ? aTxt : bTxt} の 小数点より右は ${dp}けた。`;
     steps.push({
       type: 'point_select', stepName: 'ten', r: ansRow, expectedGap: dp,
-      message: `${count}\n答えの 右から ${dp}けた目の 左を タップ！`,
+      message: `${count}\n答えも 右から ${dp}けた 数えて タップ！`,
       hideMsg: '小数点より右の けたの数を 数えて、\n答えの 小数点の 場所を タップ！'
     });
     // けたが たりないところに 0 を書く（0.036 の 0.0）
@@ -1852,7 +1857,13 @@ function analyzeProblem(spec) {
     }
   }
 
-  return { a, b, aStr, bStr, aDp, bDp, dp, aTxt, bTxt, ansStr, gridCols: cols, signCol, totalRows: multi ? lb + 3 : 3,
+  // 答え（0 を書きたして、いらない 0 を けした あとの 形）
+  let ansTxt = ansStr;
+  if (dp > 0) {
+    const full = ansStr.padStart(ansLen, '0');
+    ansTxt = (full.slice(0, full.length - dp) + '.' + full.slice(full.length - dp, full.length - trail)).replace(/\.$/, '');
+  }
+  return { a, b, aStr, bStr, aDp, bDp, dp, aTxt, bTxt, ansStr, ansTxt, gridCols: cols, signCol, totalRows: multi ? lb + 3 : 3,
            ansRow, pointIdx, trail, needFill, steps, lines, phases };
 }
 
@@ -1985,7 +1996,10 @@ function renderBoard(opts) {
   }
 
   // ---- ほじょ：小数点より右の けたに しるし（小数点を うつ ところから） ----
-  if (opts.carry && p.pointIdx >= 0 && stepIndex >= p.pointIdx) {
+  // Lv.0（ガイドに 答えが 出る あいだ）は、小数点を うつ ときに「右から 1、2…」と 数える しるしと 矢印も 見せる
+  const countNow = !!(opts.guideAns && step && step.type === 'point_select');
+  const showCount = p.pointIdx >= 0 && (countNow || (opts.carry && pointDone && !striking));
+  if (p.pointIdx >= 0 && stepIndex >= p.pointIdx && (opts.carry || countNow)) {
     const mark = (r, c, n) => {
       const t = document.createElement('div');
       t.className = 'dpm';
@@ -1999,7 +2013,7 @@ function renderBoard(opts) {
     let n = 0;
     for (let i = 0; i < p.aDp; i++) mark(0, cols - p.aDp + i, ++n);
     for (let i = 0; i < p.bDp; i++) mark(1, cols - p.bDp + i, ++n);
-    if (pointDone && !striking) for (let i = 0; i < p.dp; i++) mark(p.ansRow, cols - 1 - i, i + 1);   // 答えは 右から 数える（0 を けす ときは、点線の わくと かさなるので 出さない）
+    if (showCount) for (let i = 0; i < p.dp; i++) mark(p.ansRow, cols - 1 - i, i + 1);   // 答えは 右から 数える（0 を けす ときは、点線の わくと かさなるので 出さない）
   }
 
   // ---- くり上がりの ほじょ（かけ算・たし算で くり上がるたびに、左どなりのマスの右上に 小さく） ----
@@ -2038,6 +2052,20 @@ function renderBoard(opts) {
     }
   });
 
+  // 答えの 右はしから、小数点の 場所まで 1けたずつ 数える 矢印（先は 三角）
+  if (showCount) {
+    const y = (p.ansRow + 1) * cell + cell * 0.05, col = '#db2777';
+    const ux = -0.82, uy = -0.57, hl = cell * 0.2, hw = cell * 0.1;
+    for (let j = 0; j < p.dp; j++) {
+      const xa = (cols - j) * cell, xb = xa - cell, tx = xb + cell * 0.05;
+      const bx = tx - ux * hl, by = y - uy * hl;
+      svg.appendChild(svgEl('path', { d: `M ${xa - cell * 0.06} ${y} Q ${(xa + xb) / 2 + cell * 0.03} ${y + cell * 0.3} ${bx} ${by}`,
+        fill: 'none', stroke: col, 'stroke-width': Math.max(1.6, cell * 0.045), 'stroke-linecap': 'round', opacity: .85 }));
+      svg.appendChild(svgEl('path', { d: `M ${tx} ${y} L ${bx - uy * hw} ${by + ux * hw} L ${bx + uy * hw} ${by - ux * hw} Z`,
+        fill: col, stroke: col, 'stroke-width': Math.max(1, cell * 0.02), 'stroke-linejoin': 'round', opacity: .85 }));
+    }
+  }
+
   board.appendChild(svg);
 
   // 書いたばかりの数字の演出
@@ -2060,7 +2088,8 @@ function drawGame(anim) {
   renderBoard({
     panel: $('boardPanel'), board: $('board'), problem: currentProblem,
     stepIndex: currentStepIndex, filled: filled, struck: struckCols, maxCell: isPortrait ? 60 : 66,
-    interactive: true, anim: anim, carry: helperOn
+    interactive: true, anim: anim, carry: helperOn,
+    guideAns: !(treasure || stateFromXp(sessionStartXp).lv >= 1)
   });
 }
 
@@ -2135,6 +2164,7 @@ function stepDone(anim) {
   if (currentStepIndex >= currentProblem.steps.length) {
     drawGame(a);
     setTab('');
+    showAnswerGuide();
     onProblemSolved();
   } else {
     updateStepStateUI(a);
@@ -2214,6 +2244,15 @@ function showHint() {
   }
 }
 
+// といた あと、ガイドに 式と 答えを 出す（スタンプで ひっ算が かくれても、答えを たしかめられる）
+function showAnswerGuide() {
+  const p = currentProblem, g = $('guide');
+  g.style.setProperty('--sc', 'var(--bad)');
+  g.classList.remove('is-hint');
+  $('guideChip').textContent = 'せいかい！';
+  $('guideMsg').innerHTML = `<span class="ph gans">${p.aTxt} × ${p.bTxt} ＝ <b>${p.ansTxt}</b></span>`;
+}
+
 /* ============================================================
    正解・モンスター
    ============================================================ */
@@ -2257,7 +2296,7 @@ function onProblemSolved() {
     if (!gameActive) return;
     newProblem();
     isTransition = false;
-  }, 700);
+  }, 1000);   // 式と 答えを 読める くらいの 間
 }
 
 function popText(text, isLvUp) {
@@ -2481,8 +2520,8 @@ const TIER_BOX = {
   5: ['M01', 'M03', 'M04', 'M10', 'M13', 'M15', 'M16']
 };
 const BOX_W  = [43, 35, 10, 8, 3, 0.5, 0.5];   // 箱が出る%（ふつう）
-const BOX_W2 = [27, 26, 16, 13, 8, 5, 5];      // 箱が出る%（相性あり）
-const BOX_C  = [1, 3, 15, 50, 85, 100, 100];   // あけたとき キャラが出る%
+const BOX_W2 = [15, 18, 18, 20, 14, 7.5, 7.5];   // 箱が出る%（相性あり）→ キャラが出るのは 1回あたり 約45%（相性なしは 約15%）
+const BOX_C  = [5, 8, 20, 60, 90, 100, 100];   // あけたとき キャラが出る%
 const rand = (arr) => arr[Math.floor(Math.random() * arr.length)];
 
 function rbOwnedView() { return NS_DEBUG ? NEW_STAGES.reduce((a, x) => a.concat(x.chars), []) : saved.rb.own; }   // ?newstage のときは ぜんぶ ひらいた ことにして みせる
@@ -2778,8 +2817,11 @@ function nsAffinity(k) {
 }
 // れんぞくではずれたぶんだけ ①から じゅんに 出なくなる（のこりで 100%に わりなおす）
 function pickTier(k) {
-  const w = (nsAffinity(k) ? BOX_W2 : BOX_W).slice();
-  const removed = Math.min(Math.floor(saved.rb.miss / 2), 6);
+  const aff = nsAffinity(k);
+  const w = (aff ? BOX_W2 : BOX_W).slice();
+  // からっぽが 2回 つづくごとに、わるい箱から 出なくなる。相性ありの ときは、さいしょに ①と② が いっしょに きえる
+  const step = Math.floor(saved.rb.miss / 2);
+  const removed = Math.min(step + (aff && step >= 1 ? 1 : 0), 6);
   for (let i = 0; i < removed; i++) w[i] = 0;
   const sum = w.reduce((a, b) => a + b, 0);
   if (sum <= 0) return 6;
@@ -3536,19 +3578,19 @@ function hDown(label, color) { return `<span class="hdown" style="--hc:${color}"
 function hopHtml(digits, from, to, o) {
   o = o || {};
   const S = isPortrait ? 56 : 64, n = digits.length, pad = S * 0.62;
-  const W = n * S + pad * 2, yDot = S * 0.98, yArc = S * 1.2, H = S * 2.0;
+  const W = n * S + pad * 2, yDot = S * 0.98, yArc = S * 1.2, H = S * 2.05;
   const x = (k) => pad + k * S;
   const dir = to > from ? 1 : -1, steps = Math.abs(to - from);
   let arcs = '';
+  // 1つ うごくごとに、先が 三角の 矢印を 1本
+  const ux = dir * 0.7071, uy = -0.7071, a = S * 0.27, w = S * 0.15;
   for (let s = 0; s < steps; s++) {
     const x0 = x(from + dir * s), x1 = x(from + dir * (s + 1)), mx = (x0 + x1) / 2;
-    arcs += `<path d="M${x0} ${yArc} Q${mx} ${yArc + S * 0.52} ${x1} ${yArc}" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>`;
-    arcs += `<text x="${mx}" y="${yArc + S * 0.64}" text-anchor="middle" font-size="${Math.round(S * 0.3)}" font-weight="900" fill="currentColor">${s + 1}</text>`;
+    const bx = x1 - ux * a, by = yArc - uy * a;            // 三角の 底の まん中（線は ここまで）
+    arcs += `<path d="M${x0} ${yArc} Q${mx - dir * S * 0.04} ${yArc + S * 0.56} ${bx} ${by}" fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="round"/>`;
+    arcs += `<path d="M${x1} ${yArc} L${bx - uy * w} ${by + ux * w} L${bx + uy * w} ${by - ux * w} Z" fill="currentColor" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>`;
+    arcs += `<text x="${mx}" y="${yArc + S * 0.7}" text-anchor="middle" font-size="${Math.round(S * 0.3)}" font-weight="900" fill="currentColor">${s + 1}</text>`;
   }
-  // 矢じり（さいごの 山が とどく ところ）
-  { const xe = x(to), a = S * 0.2, w = S * 0.1, ux = dir * 0.7071, uy = -0.7071;
-    const bx = xe - ux * a, by = yArc - uy * a;
-    arcs += `<path d="M${xe + ux * 2} ${yArc + uy * 2} L${bx - uy * w} ${by + ux * w} L${bx + uy * w} ${by - ux * w} Z" fill="currentColor"/>`; }
   const add = o.add || [];
   const ds = digits.map((d, i) => `<span class="hop-d${add.indexOf(i) >= 0 ? ' add' : ''}" style="left:${x(i)}px;width:${S}px;height:${S * 1.15}px;line-height:${S * 1.15}px;font-size:${Math.round(S * 0.95)}px">${d}</span>`).join('');
   const r = S * 0.2;
@@ -3588,8 +3630,9 @@ const HOW_PAGES = [
     html: () => `<div class="hgrid">` +
       `<span class="n">2<b class="pd">.</b>3</span><span class="op">×</span><span class="n">4</span><span class="op">＝</span><span class="q">？</span>` +
       `${hDown('10倍', C_MUL)}<span></span><span></span><span></span>${hDown('10倍', C_MUL)}` +
-      `<span class="n">23</span><span class="op">×</span><span class="n">4</span><span class="op">＝</span><span class="n">92</span></div>`,
-    text: ['23 × 4 ＝ 92。これなら ひっ算で できるね。', 'でも、かけられる数を 10倍に したから、', '答えの 92 も <em>ほんとうの 答えの 10倍</em>に なっているよ。'] },
+      `<span class="n">23</span><span class="op">×</span><span class="n">4</span><span class="op">＝</span><span class="n">92</span></div>` +
+      `<div class="hnote ex"><span>たとえば</span>${hRow('2 × 4 ＝ 8', 's')}${RIGHT_SVG}${hRow('20 × 4 ＝ 80', 's')}<span>答えも 10倍！</span></div>`,
+    text: ['23 × 4 ＝ 92。これなら ひっ算で できるね。', 'でも、かけられる数を 10倍に すると、答えも 10倍に なる。', 'だから 92 は、<em>ほんとうの 答えの 10倍</em>だよ。'] },
   { t: '3　10で わって もとに もどす',
     html: () => `<span class="hchip" style="--hc:${C_DIV}">92 を 10で わる</span>` + hopHtml(['9', '2'], 2, 1, { color: C_DIV }) +
       hRow('2.3 × 4 ＝ 9.2', 's'),

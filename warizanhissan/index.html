@@ -2175,8 +2175,8 @@ const TIER_BOX = {
   5: ['M01', 'M03', 'K5-1', 'K5-2', 'K5-3', 'M15', 'M16'], 6: ['M01', 'M03', 'M04', 'M10', 'M13', 'M15', 'M16']
 };
 const BOX_W  = [43, 35, 10, 8, 3, 0.5, 0.5];   // 箱が出る%（ふつう）
-const BOX_W2 = [27, 26, 16, 13, 8, 5, 5];      // 箱が出る%（相性あり）
-const BOX_C  = [1, 3, 15, 50, 85, 100, 100];   // あけたとき キャラが出る%
+const BOX_W2 = [15, 18, 18, 20, 14, 7.5, 7.5];   // 箱が出る%（相性あり）→ キャラが出るのは 1回あたり 約45%（相性なしは 約15%）
+const BOX_C  = [5, 8, 20, 60, 90, 100, 100];   // あけたとき キャラが出る%
 const rand = (arr) => arr[Math.floor(Math.random() * arr.length)];
 
 function rbOwnedView() { return NS_DEBUG ? NEW_STAGES.reduce((a, x) => a.concat(x.chars), []) : saved.rb.own; }   // ?newstage のときは ぜんぶ ひらいた ことにして みせる
@@ -2471,8 +2471,11 @@ function nsAffinity(k) {
 }
 // れんぞくではずれたぶんだけ ①から じゅんに 出なくなる（のこりで 100%に わりなおす）
 function pickTier(k) {
-  const w = (nsAffinity(k) ? BOX_W2 : BOX_W).slice();
-  const removed = Math.min(Math.floor(saved.rb.miss / 2), 6);
+  const aff = nsAffinity(k);
+  const w = (aff ? BOX_W2 : BOX_W).slice();
+  // からっぽが 2回 つづくごとに、わるい箱から 出なくなる。相性ありの ときは、さいしょに ①と② が いっしょに きえる
+  const step = Math.floor(saved.rb.miss / 2);
+  const removed = Math.min(step + (aff && step >= 1 ? 1 : 0), 6);
   for (let i = 0; i < removed; i++) w[i] = 0;
   const sum = w.reduce((a, b) => a + b, 0);
   if (sum <= 0) return 6;
