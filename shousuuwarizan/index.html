@@ -2665,9 +2665,11 @@ function makeRb(el, id) {
    ============================================================ */
 const OTHER_APPS = [
   { key: 'otatools.hissan.v1', name: 'わり算のひっ算マスター' },
-  { key: 'otatools.kakezanhissan.v1', name: 'かけ算のひっ算マスター' }
+  { key: 'otatools.kakezanhissan.v1', name: 'かけ算のひっ算マスター' },
+  { key: 'otatools.shousuukakezan.v1', name: '小数のかけ算マスター' }
 ];
 const OTHER_NEED = 120;
+const SELF_APP = { key: STORE_KEY, name: '小数のわり算ひっ算マスター' };   // この アプリ自身（ここで 120体 そろえても チケットが もらえる）
 const SECRETS_M = ['075', '073', '068', '084', '078', '071', '060', '045', '035', '016', '032', '006', '001', '003', '043', '047', '049', '062', '063', '069'];                                    // おとこのこ
 const SECRETS_F = ['074', '065', '072', '056', '061', '070', '059', '050', '002', '004', '005', '007', '034', '079', '036', '029', '023', '044', '052', '042'];                                    // おんなのこ
 const SECRETS = SECRETS_M.concat(SECRETS_F);
@@ -2679,12 +2681,15 @@ if (!Array.isArray(saved.secretFrom)) saved.secretFrom = [];   // チケット�
 function doneApps() {
   if (TAIKEN) return OTHER_APPS.slice(0, 1);   // たいけんモード：ほかのアプリで 120体 そろえた ことにする
   if (SC_DEBUG !== undefined) return Array.from({ length: Number(SC_DEBUG) }, (_, i) => ({ key: 'debug' + i, name: 'テストのアプリ' + (i + 1) }));
-  return OTHER_APPS.filter(a => {
+  const list = OTHER_APPS.filter(a => {
     try {
       const d = JSON.parse(localStorage.getItem(a.key) || 'null');
       return !!(d && d.rb && Array.isArray(d.rb.own) && new Set(d.rb.own).size >= OTHER_NEED);
     } catch (e) { return false; }
   });
+  // この アプリで 120体 そろえた ときも、チケットを 1まい もらえる
+  if (saved.rb && Array.isArray(saved.rb.own) && new Set(saved.rb.own).size >= OTHER_NEED) list.unshift(SELF_APP);
+  return list;
 }
 function secretOwned() { return saved.secret.filter(id => SECRETS.includes(id)); }
 // まだ チケットを つかっていない アプリ（えらべる子が のこっているときだけ）
