@@ -3627,26 +3627,41 @@ function hopHtml(digits, from, to, o) {
     `<i class="hop-ghost" style="left:${x(from) - r / 2}px;top:${yDot - r / 2}px;width:${r}px;height:${r}px"></i>` +
     `<i class="hop-dot" data-dx="${(to - from) * S}" data-steps="${steps}" data-h="${S * 0.3}" style="left:${x(from) - r / 2}px;top:${yDot - r / 2}px;width:${r}px;height:${r}px"></i></div>`;
 }
-// 小数点を ぴょん、ぴょんと うごかす（くりかえす）
+// 小数点を うごかす：矢印の 曲線に そって なめらかに。1回 うごいたら、そこに とどまる（もう一度 見るときは「もう一度」）
 function startHops(root) {
   root.querySelectorAll('.hop-dot').forEach(el => {
     if (!el.animate) { el.style.transform = `translate(${el.dataset.dx}px, 0)`; return; }
-    const dx = Number(el.dataset.dx), steps = Number(el.dataset.steps), h = Number(el.dataset.h);
-    const wait = 700, hop = 560, stay = 1700, total = wait + hop * steps + stay;
+    const dx = Number(el.dataset.dx), steps = Number(el.dataset.steps), h = Number(el.dataset.h) * 1.55;
+    const wait = 800, hop = 760, gap = 160, total = wait + (hop + gap) * steps;
+    const N = 16, ease = (t) => t * t * (3 - 2 * t);
     const kf = [{ transform: 'translate(0px, 0px)', offset: 0 }, { transform: 'translate(0px, 0px)', offset: wait / total }];
     for (let s = 0; s < steps; s++) {
-      const t0 = wait + hop * s;
-      kf.push({ transform: `translate(${dx * (s + 0.5) / steps}px, ${h}px)`, offset: (t0 + hop * 0.5) / total, easing: 'ease-in' });
-      kf.push({ transform: `translate(${dx * (s + 1) / steps}px, 0px)`, offset: (t0 + hop) / total, easing: 'ease-out' });
+      const t0 = wait + (hop + gap) * s;
+      for (let k = 1; k <= N; k++) {
+        const u = ease(k / N);                                   // はじめと おわりは ゆっくり
+        const x = dx * (s + u) / steps, y = h * 4 * u * (1 - u);  // 矢印と 同じ 山なりの 曲線
+        kf.push({ transform: `translate(${x.toFixed(2)}px, ${y.toFixed(2)}px)`, offset: (t0 + hop * k / N) / total });
+      }
     }
     kf.push({ transform: `translate(${dx}px, 0px)`, offset: 1 });
-    el.animate(kf, { duration: total, iterations: Infinity });
+    el.animate(kf, { duration: total, iterations: 1, fill: 'both', easing: 'linear' });
+    // 矢印は、小数点が うごくのに 合わせて 1本ずつ かく（線 → 三角 → 数字）
+    const svg = el.parentNode.querySelector('svg');
+    const parts = svg ? Array.from(svg.children) : [];
+    for (let s = 0; s < steps; s++) {
+      const line = parts[s * 3], head = parts[s * 3 + 1], num = parts[s * 3 + 2];
+      const t0 = wait + (hop + gap) * s;
+      if (line && line.getTotalLength) {
+        const len = line.getTotalLength();
+        line.setAttribute('stroke-dasharray', len);
+        line.animate([{ strokeDashoffset: len }, { strokeDashoffset: 0 }], { duration: hop * 0.9, delay: t0, fill: 'both', easing: 'ease-in-out' });
+      }
+      [head, num].forEach(g => { if (g) g.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 160, delay: t0 + hop * 0.86, fill: 'both' }); });
+    }
     // 書きたす 0 は、小数点が とどいた あとに ぽんと 出す
-    const t1 = (wait + hop * steps) / total, t2 = Math.min(0.99, t1 + 260 / total);
     el.parentNode.querySelectorAll('.hop-d.add').forEach(a => a.animate([
-      { opacity: 0, transform: 'scale(.4)', offset: 0 }, { opacity: 0, transform: 'scale(.4)', offset: t1 },
-      { opacity: 1, transform: 'scale(1.2)', offset: (t1 + t2) / 2 }, { opacity: 1, transform: 'scale(1)', offset: t2 }, { opacity: 1, transform: 'scale(1)', offset: 1 }
-    ], { duration: total, iterations: Infinity }));
+      { opacity: 0, transform: 'scale(.4)' }, { opacity: 1, transform: 'scale(1.2)', offset: .6 }, { opacity: 1, transform: 'scale(1)' }
+    ], { duration: 320, delay: total + 150, fill: 'both' }));
   });
 }
 
