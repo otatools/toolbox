@@ -3808,7 +3808,16 @@ applyHelper();
 buildLevelList();
 renderBuddy();
 // チケットの画面の とちゅうで とじていたら、ひらいたときに 同じ画面から
-if (saved.ticketPending && secretPicks() > 0) setTimeout(() => { if (!gameActive) showTicket(null); }, 700);
+// とくべつな チケット：アプリを ひらいて トップ画面が 出たら はじまる（問題を とかなくても もらえる）
+// はじめての ときは、トップ画面を 少し 見せてから ブツンと きえる。とちゅうで とじて ひらきなおした ときは、はじめから まっくら
+if (secretPicks() > 0) {
+  const again = !!saved.ticketPending;
+  setTimeout(() => {
+    if (gameActive || $('menuScreen').hidden || !$('tkModal').hidden) return;
+    if (document.querySelector('.modal:not([hidden])')) return;   // ほかの まどが ひらいている ときは 出さない（つぎに トップに もどった ときに）
+    showTicket(again ? null : () => {});
+  }, again ? 700 : 1600);
+}
 setTimeout(preloadPets, 600);
 // あたらしい ステージの絵を 先に ぜんぶ よみこんでおく（はじめて 矢印を おしたとき 灰色に ならないように）
 const nsArtKeep = [];
