@@ -955,7 +955,7 @@ html.tv-off, html.tv-off body { background: #05070d !important; }
 .cell.struck .d { opacity: .3; }
 .cell.struck::after {
   content: ''; position: absolute; left: 16%; right: 16%; top: 50%; height: .09em; margin-top: -.045em;
-  border-radius: 99px; background: var(--bad); transform: rotate(-55deg); z-index: 3;
+  border-radius: 99px; background: var(--bad); transform: rotate(55deg); z-index: 3;
 }
 
 /* ============================================================
@@ -995,6 +995,7 @@ html.tv-off, html.tv-off body { background: #05070d !important; }
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px;
   padding: 10px; border-radius: 18px; background: #fffdf4; border: 2px solid #e3e9f1;
   font-size: 44px; font-weight: 900; line-height: 1.2; color: var(--ink);
+  position: relative;
 }
 .is-portrait .how-stage { font-size: 38px; gap: 22px; }
 .how-text { margin: 10px 4px 0; height: 84px; font-size: 16px; line-height: 28px; font-weight: 700; }
@@ -1017,7 +1018,7 @@ html.tv-off, html.tv-off body { background: #05070d !important; }
 .hrow .op, .hgrid .op { color: var(--ink-2); font-size: .78em; }
 .hrow .q, .hgrid .q { color: var(--ten); }
 .hrow s { position: relative; text-decoration: none; color: #b6bfcc; }
-.hrow s::after { content: ''; position: absolute; left: -6%; right: -6%; top: 52%; height: .09em; border-radius: 99px; background: var(--bad); transform: rotate(-55deg); }
+.hrow s::after { content: ''; position: absolute; left: -6%; right: -6%; top: 52%; height: .09em; border-radius: 99px; background: var(--bad); transform: rotate(55deg); }
 .pd.gone { opacity: .3; }
 .hline { display: flex; align-items: center; justify-content: center; gap: .4em; }
 .harr { flex: none; color: var(--ink-2); }
@@ -1035,6 +1036,28 @@ html.tv-off, html.tv-off body { background: #05070d !important; }
 .hop svg { position: absolute; left: 0; top: 0; overflow: visible; }
 .hop-d { position: absolute; top: 0; text-align: center; font-weight: 900; color: var(--ink); }
 .hop-d.add { color: var(--ten); }
+/* じゅんばんに ふわっと 出す */
+.rv { animation: rvIn .5s ease-out both; animation-delay: var(--d, 0s); }
+@keyframes rvIn { from { opacity: 0; transform: translateY(10px) scale(.94); } to { opacity: 1; transform: none; } }
+.how-stage .q { display: inline-block; animation: qPulse 1.3s ease-in-out infinite; }
+@keyframes qPulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.2); } }
+/* 0 を けす：ななめの線を 引いてから うすく する */
+.hrow s.go { animation: sFade .4s ease-out 1.5s both; }
+.hrow s.go::after { animation: sSlash .4s ease-out 1.2s both; }
+.pd.go { animation: pdFade .4s ease-out 1.9s both; }
+@keyframes sFade { from { color: var(--ink); } to { color: #b6bfcc; } }
+@keyframes sSlash { from { transform: rotate(55deg) scaleX(0); } to { transform: rotate(55deg) scaleX(1); } }
+@keyframes pdFade { from { opacity: 1; } to { opacity: .3; } }
+.how-replay {
+  position: absolute; right: 10px; top: 10px; height: 36px; padding: 0 14px 0 11px; border-radius: 999px;
+  display: flex; align-items: center; gap: 6px; font-size: 13px; line-height: 1; font-weight: 900;
+  color: var(--ink-2); background: #fff; border: 2px solid #e3e9f1; cursor: pointer;
+}
+.how-replay:active { transform: translateY(1px); background: #f3f6fa; }
+.is-portrait .how-replay { width: 38px; height: 38px; padding: 0; justify-content: center; }
+.is-portrait .how-replay span { display: none; }
+.hsteps.play li { padding: 6px 10px; border-radius: 12px; opacity: .42; transition: opacity .25s, background-color .25s, box-shadow .25s; }
+.hsteps.play li.on { opacity: 1; background: #fff; box-shadow: inset 0 0 0 2px var(--sc); }
 .hop-ghost { position: absolute; border-radius: 50%; box-sizing: border-box; border: 2px dashed currentColor; opacity: .55; }
 .hop-dot { position: absolute; border-radius: 50%; background: currentColor; box-shadow: 0 0 0 3px #fffdf4; }
 /* ひっ算の まとめ */
@@ -3618,14 +3641,23 @@ function startHops(root) {
     }
     kf.push({ transform: `translate(${dx}px, 0px)`, offset: 1 });
     el.animate(kf, { duration: total, iterations: Infinity });
+    // 書きたす 0 は、小数点が とどいた あとに ぽんと 出す
+    const t1 = (wait + hop * steps) / total, t2 = Math.min(0.99, t1 + 260 / total);
+    el.parentNode.querySelectorAll('.hop-d.add').forEach(a => a.animate([
+      { opacity: 0, transform: 'scale(.4)', offset: 0 }, { opacity: 0, transform: 'scale(.4)', offset: t1 },
+      { opacity: 1, transform: 'scale(1.2)', offset: (t1 + t2) / 2 }, { opacity: 1, transform: 'scale(1)', offset: t2 }, { opacity: 1, transform: 'scale(1)', offset: 1 }
+    ], { duration: total, iterations: Infinity }));
   });
 }
 
 const C_MUL = 'var(--tateru)', C_DIV = 'var(--ten)';
+// rv(おくれ)：その ぶん おくれて ふわっと 出す（じゅんばんに 見せる）
+const rv = (d) => `class="rv" style="--d:${d}s"`;
+function hDownRv(label, color, d) { return `<span class="hdown rv" style="--hc:${color};--d:${d}s"><em>${label}</em>${DOWN_SVG}</span>`; }
 const HOW_PAGES = [
   { t: '小数の かけ算、どう 計算する？',
     html: () => hRow('2.3 × 4 ＝ ？', 'big') +
-      `<div class="hnote"><span>整数の かけ算なら できるのに…</span>${hRow('23 × 4 ＝ 92', 's')}</div>`,
+      `<div class="hnote rv" style="--d:.9s"><span>整数の かけ算なら できるのに…</span>${hRow('23 × 4 ＝ 92', 's')}</div>`,
     text: ['「2.3 × 4」のように、小数の 入った かけ算。', '九九は 整数の 計算だから、このままだと やりにくいね。', 'そこで、小数を <em>整数に かえて</em> 考えるよ。'] },
   { t: '1　10倍して 整数に する',
     html: () => `<span class="hchip" style="--hc:${C_MUL}">2.3 を 10倍する</span>` + hopHtml(['2', '3'], 1, 2, { color: C_MUL }) +
@@ -3634,22 +3666,22 @@ const HOW_PAGES = [
   { t: '2　整数の かけ算を する',
     html: () => `<div class="hgrid">` +
       `<span class="n">2<b class="pd">.</b>3</span><span class="op">×</span><span class="n">4</span><span class="op">＝</span><span class="q">？</span>` +
-      `${hDown('10倍', C_MUL)}<span></span><span></span><span></span>${hDown('10倍', C_MUL)}` +
-      `<span class="n">23</span><span class="op">×</span><span class="n">4</span><span class="op">＝</span><span class="n">92</span></div>` +
-      `<div class="hnote ex"><span>たとえば</span>${hRow('2 × 4 ＝ 8', 's')}${RIGHT_SVG}${hRow('20 × 4 ＝ 80', 's')}<span>答えも 10倍！</span></div>`,
+      `${hDownRv('10倍', C_MUL, .6)}<span></span><span></span><span></span>${hDownRv('10倍', C_MUL, 2.2)}` +
+      `<span class="n rv" style="--d:1.1s">23</span><span class="op rv" style="--d:1.3s">×</span><span class="n rv" style="--d:1.3s">4</span><span class="op rv" style="--d:1.6s">＝</span><span class="n rv" style="--d:1.6s">92</span></div>` +
+      `<div class="hnote ex rv" style="--d:3s"><span>たとえば</span>${hRow('2 × 4 ＝ 8', 's')}${RIGHT_SVG}${hRow('20 × 4 ＝ 80', 's')}<span>答えも 10倍！</span></div>`,
     text: ['23 × 4 ＝ 92。これなら ひっ算で できるね。', 'でも、かけられる数を 10倍に すると、答えも 10倍に なる。', 'だから 92 は、<em>ほんとうの 答えの 10倍</em>だよ。'] },
   { t: '3　10で わって もとに もどす',
     html: () => `<span class="hchip" style="--hc:${C_DIV}">92 を 10で わる</span>` + hopHtml(['9', '2'], 2, 1, { color: C_DIV }) +
       hRow('2.3 × 4 ＝ 9.2', 's'),
-    text: ['10倍に なっている 答えを、<em>10で わって</em> もどそう。', '10で わると、小数点は <em>左に 1つ</em> うごく。', 'だから、2.3 × 4 の 答えは 9.2！'] },
+    text: ['92 は 92.0 と 同じ。小数点は 右はしに かくれているよ。', '答えを <em>10で わって</em> もどすと、小数点は <em>左に 1つ</em> うごく。', 'だから、2.3 × 4 の 答えは 9.2！'] },
   { t: '答えの 大きさを たしかめよう',
-    html: () => `<div class="hcheck">${hRow('2 × 4 ＝ 8', 's')}${hRow('2.3 × 4 ＝ 9.2', 'hl')}${hRow('3 × 4 ＝ 12', 's')}</div>`,
-    text: ['2.3 は 2 と 3 の あいだの 数。', 'だから 答えも、8 と 12 の あいだに なるはず。', '9.2 なら ぴったり！ 92 では 大きすぎるね。', '小数点の 場所に まよったら、こうして たしかめよう。'] },
+    html: () => `<div class="hcheck"><div ${rv(.3)}>${hRow('2 × 4 ＝ 8', 's')}</div><div ${rv(1.6)}>${hRow('2.3 × 4 ＝ 9.2', 'hl')}</div><div ${rv(.9)}>${hRow('3 × 4 ＝ 12', 's')}</div></div>`,
+    text: ['2.3 は 2 と 3 の あいだの 数。', 'だから 答えも、8 と 12 の あいだに なるはず。', '9.2 なら だいじょうぶ！ 92 では 大きすぎるね。', '小数点の 場所に まよったら、こうして たしかめよう。'] },
   { t: '小数 × 小数 の とき',
     html: () => `<div class="hgrid">` +
       `<span class="n">2<b class="pd">.</b>3</span><span class="op">×</span><span class="n">1<b class="pd">.</b>4</span><span class="op">＝</span><span class="q">？</span>` +
-      `${hDown('10倍', C_MUL)}<span></span>${hDown('10倍', C_MUL)}<span></span>${hDown('100倍', C_MUL)}` +
-      `<span class="n">23</span><span class="op">×</span><span class="n">14</span><span class="op">＝</span><span class="n">322</span></div>`,
+      `${hDownRv('10倍', C_MUL, .6)}<span></span>${hDownRv('10倍', C_MUL, 1.2)}<span></span>${hDownRv('100倍', C_MUL, 2.8)}` +
+      `<span class="n rv" style="--d:.9s">23</span><span class="op rv" style="--d:1.5s">×</span><span class="n rv" style="--d:1.5s">14</span><span class="op rv" style="--d:2.1s">＝</span><span class="n rv" style="--d:2.1s">322</span></div>`,
     text: ['2.3 も 1.4 も 10倍して、23 × 14 ＝ 322。', '10倍を 2回 したから、', '答えは 10 × 10 ＝ <em>100倍</em>に なっているよ。'] },
   { t: '100で わって もとに もどす',
     html: () => `<span class="hchip" style="--hc:${C_DIV}">322 を 100で わる</span>` + hopHtml(['3', '2', '2'], 3, 1, { color: C_DIV }) +
@@ -3657,27 +3689,68 @@ const HOW_PAGES = [
     text: ['100で わると、小数点は <em>左に 2つ</em> うごく。答えは 3.22！', '<em>右に うごかした 分だけ、左に もどす。</em>', 'これが、答えの 小数点を うごかす わけだよ。'] },
   { t: 'ひっ算では こうする',
     html: () => `<div class="hsplit"><div class="board-panel how-bp" id="howBP"><div class="board" id="howBoard"></div></div>` +
-      `<ol class="hsteps">` +
+      `<ol class="hsteps play">` +
       `<li style="--sc:var(--tateru)"><b>1</b><span>小数点は 気にしないで、右に そろえて 書く。<br>整数と 同じように かけ算する。</span></li>` +
       `<li style="--sc:var(--kakeru)"><b>2</b><span>小数点より右の けたの数を 数える。<br>1けた ＋ 1けた ＝ 2けた</span></li>` +
       `<li style="--sc:var(--ten)"><b>3</b><span>答えの 右から 2けた 数えて、<br>小数点を うつ。</span></li></ol></div>`,
     text: ['小数点より右の けたの数は、「何回 10倍したか」の 数。', 'その 数だけ、答えの 小数点を 左に もどして いるんだね。'],
-    after: () => renderBoard({ panel: $('howBP'), board: $('howBoard'), problem: heroProblem, stepIndex: heroProblem.steps.length, filled: fillAll(heroProblem), maxCell: isPortrait ? 34 : 42, carry: true }) },
+    after: playHowBoard },
   { t: '0 に 気をつけよう（1）書きたす 0',
     html: () => `<div class="hline">${hRow('0.12 × 0.3', 's')}${RIGHT_SVG}${hRow('12 × 3 ＝ 36', 's')}</div>` +
       hopHtml(['0', '0', '3', '6'], 4, 1, { color: C_DIV, add: [0, 1] }) + hRow('0.12 × 0.3 ＝ 0.036', 's'),
     text: ['小数点より右は、2けた ＋ 1けた ＝ 3けた。', 'でも 36 は 2けたしか ないね。', 'たりない ところには <em>0 を 書きたして</em>、0.036 に するよ。'] },
   { t: '0 に 気をつけよう（2）けす 0',
     html: () => `<div class="hline">${hRow('2.5 × 4', 's')}${RIGHT_SVG}${hRow('25 × 4 ＝ 100', 's')}</div>` +
-      `<div class="hline"><div class="hrow big"><span class="n">10<b class="pd gone">.</b><s>0</s></span></div>${RIGHT_SVG}${hRow('10', 'big')}</div>`,
+      `<div class="hline"><div class="hrow big"><span class="n">10<b class="pd go">.</b><s class="go">0</s></span></div><span ${rv(2.4)}>${RIGHT_SVG}</span><div ${rv(2.7)}>${hRow('10', 'big')}</div></div>`,
     text: ['小数点を うつと 10.0。', '小数点より右の <em>おわりの 0</em> は、あっても なくても 同じ 大きさ。', 'だから けして、答えは 10。（3.60 なら 3.6 に するよ）'] }
 ];
+
+// ---- ひっ算の 手本：1マスずつ 書いていく ようすを くりかえし 見せる ----
+let howTimer = 0;
+function stopHowDemo() { clearTimeout(howTimer); howTimer = 0; }
+function fillUpTo(p, n) {
+  const f = {};
+  p.steps.slice(0, n).forEach(s => { if (s.type === 'digit') f[`${s.r}-${s.c}`] = { d: s.expected, st: s.stepName, fade: false }; });
+  return f;
+}
+function playHowBoard() {
+  const p = heroProblem;
+  let i = 0;
+  const tick = () => {
+    if ($('howModal').hidden || !$('howBP')) return;
+    let key = null, lineIdx = -1;
+    if (i > 0) {
+      const s = p.steps[i - 1];
+      if (s.type === 'digit') key = `${s.r}-${s.c}`;
+      p.lines.forEach((ln, k) => { if (ln.stepIndexTrigger === i) lineIdx = k; });
+    }
+    renderBoard({ panel: $('howBP'), board: $('howBoard'), problem: p, stepIndex: i, filled: fillUpTo(p, i),
+      maxCell: isPortrait ? 34 : 42, carry: true, anim: { key: key, lineIdx: lineIdx, point: i === p.pointIdx + 1 } });
+    // いま どの 手じゅんかを 右の 1・2・3 で しめす
+    const on = i < p.pointIdx ? 0 : (i > p.pointIdx ? 2 : 1);
+    const list = document.querySelector('#howStage .hsteps');
+    if (list) Array.from(list.children).forEach((li, k) => li.classList.toggle('on', k === on));
+    const wait = i === 0 ? 900 : i === p.pointIdx ? 2400 : i >= p.steps.length ? 3800 : 560;
+    i = i >= p.steps.length ? 0 : i + 1;
+    howTimer = setTimeout(tick, wait);
+  };
+  tick();
+}
+const REPLAY_SVG = '<svg width="15" height="15" viewBox="0 0 20 20" aria-hidden="true"><path d="M4.2 10a5.8 5.8 0 1 0 1.9-4.3" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/><path d="M3.2 2.8v4.4h4.4" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 
 let howIdx = 0;
 function renderHow() {
   const pg = HOW_PAGES[howIdx];
+  stopHowDemo();
   $('howTitle').textContent = pg.t;
   $('howStage').innerHTML = pg.html();
+  { // うごく 絵を はじめから もう一度
+    const rb = document.createElement('button');
+    rb.type = 'button'; rb.className = 'how-replay';
+    rb.innerHTML = REPLAY_SVG + '<span>もう一度</span>';
+    rb.addEventListener('click', () => { sound.play('tap'); renderHow(); });
+    $('howStage').appendChild(rb);
+  }
   $('howText').innerHTML = pg.text.map(s => `<span class="ph">${s}</span>`).join('');
   $('howNo').textContent = `${howIdx + 1} / ${HOW_PAGES.length}`;
   $('howDots').innerHTML = HOW_PAGES.map((x, i) => `<i class="${i === howIdx ? 'on' : ''}"></i>`).join('');
@@ -3697,6 +3770,7 @@ function openHow() {
 function closeHow() {
   sound.play('tap');
   $('howModal').hidden = true;
+  stopHowDemo();
   $('howStage').innerHTML = '';     // うごく 絵を 止める
   buildLevelList();                 //「はじめに 見てね」の しるしを 消す
 }
