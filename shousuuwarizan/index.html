@@ -675,6 +675,8 @@ html.tv-off, html.tv-off body { background: #05070d !important; }
 .gap::after { content: ''; position: absolute; inset: -30%; border-radius: 50%; }
 .gap::before { content: ''; position: absolute; left: 50%; top: 50%; width: 26%; height: 26%; margin: -13% 0 0 -13%; border-radius: 50%; background: var(--ten); opacity: .55; }   /* 見た目より 広く おせる */
 .gap:active { background: rgba(219, 39, 119, .32); }
+.gap.at-pt { z-index: 3; }
+.gap.at-pt::before { display: none; }
 @keyframes breatheGap { 50% { transform: translate(-50%, -50%) scale(.84); opacity: .75; } }
 /* ノートの 上に 出す、いまの 問題 */
 .bnote {
@@ -1155,7 +1157,7 @@ html.tv-off, html.tv-off body { background: #05070d !important; }
         <span class="chip stage-pill" id="stagePill"><span id="stagePillShort">コース1</span><span class="long" id="stagePillLong">小数 ÷ 整数</span></span>
         <span class="spacer"></span>
         <span class="solved">せいかい <b id="solvedCount">0</b> / <span id="goalCount">5</span>問</span>
-        <button class="help-btn" id="helpBtn" type="button" aria-label="くり上がりのほじょ（ON/OFF）">ほじょ<b id="helpState">ON</b></button>
+        <button class="help-btn" id="helpBtn" type="button" aria-label="ほじょ（ON/OFF）">ほじょ<b id="helpState">ON</b></button>
         <button class="icon-btn" id="soundBtn" type="button" aria-label="効果音のON/OFF">
           <svg id="icoSoundOn" class="svg-ico" width="22" height="22" viewBox="0 0 22 22" aria-hidden="true"><path d="M3 8.5h3.5L11 4.5v13l-4.5-4H3z" fill="currentColor"/><path d="M14 7.5a5 5 0 0 1 0 7M16.5 5a8.5 8.5 0 0 1 0 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
           <svg id="icoSoundOff" class="svg-ico" width="22" height="22" viewBox="0 0 22 22" aria-hidden="true" hidden><path d="M3 8.5h3.5L11 4.5v13l-4.5-4H3z" fill="currentColor"/><path d="m14.5 8 5 6m0-6-5 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
@@ -1505,6 +1507,10 @@ document.addEventListener('visibilitychange', function () {
 });
 
 let helperOn = saved.helper !== false;     // くり上がりの ほじょ（はじめは ON）
+// 小数点の ヒント（○を 正しい 向きの 場所だけに しぼる・ガイドで けた数を 言う）は、なれるまで。
+// コース1・2 の Lv.4 まで、ほじょ ON の ときだけ（小数のかけ算と 同じ）。Lv.5 から・コース3・4・たからさがしでは、どの数字の 右にも ○ を 出して、自分で 数える
+const MOVE_HINT_STAGES = ['stage1', 'stage2'], MOVE_HINT_UNTIL_LV = 4;
+function moveHintOn() { return helperOn && !treasure && MOVE_HINT_STAGES.includes(currentStage) && stateFromXp(sessionStartXp).lv <= MOVE_HINT_UNTIL_LV; }
 function applyHelper() {
   const b = $('helpBtn'); if (!b) return;
   b.classList.toggle('on', helperOn); $('helpState').textContent = helperOn ? 'ON' : 'OFF';
@@ -1513,7 +1519,7 @@ function applyHelper() {
 function toggleHelper() {
   helperOn = !helperOn; saved.helper = helperOn; persist();
   applyHelper(); sound.play('tap');
-  if (gameActive && currentProblem) drawGame();
+  if (gameActive && currentProblem) updateStepStateUI();   // ○の 数と ガイドの 文も かわる
 }
 function applySoundIcon() {
   // SVG要素には .hidden が ないので、属性で切りかえる
@@ -1825,6 +1831,7 @@ function analyzeProblem(aStr, bStr, mode) {
     const cands = []; for (let g = dl - k; g <= dl - 1; g++) cands.push(g);
     steps.push({
       type: 'gap', kind: 'dvs', r: 1, cands, expected: dl - 1, stepName: 'ten',
+      candsWide: Array.from({ length: dl }, (_, g) => g), origGap: dl - k - 1,   // ヒントなし：わる数の どの数字の 右にも ○（もとの 場所も）
       message: `わる数 ${bStr} を 整数に しよう。\n小数点を 右へ うごかす先を タップ！`
     });
     // うごかす先に 数字が ないときは、先に 0 を つけたす（6 → 6.0）
@@ -1841,7 +1848,9 @@ function analyzeProblem(aStr, bStr, mode) {
     const c2 = []; for (let i = O; i <= Math.min(S0.length - 1, Math.max(O + k - 1, nGiven - 1)); i++) c2.push(C(i));
     steps.push({
       type: 'gap', kind: 'dvd', r: 1, cands: c2, expected: C(P - 1), stepName: 'ten',
-      message: `わられる数も 同じ ${times}倍に するよ。\n小数点を ${k}けた 右へ うごかそう！`
+      candsWide: Array.from({ length: S0.length }, (_, i) => C(i)), origGap: C(O - 1),   // ヒントなし：わられる数の どの数字の 右にも ○（もとの 場所も）
+      message: `わられる数も 同じ ${times}倍に するよ。\n小数点を ${k}けた 右へ うごかそう！`,
+      msgWide: 'わられる数の 小数点も、\nわる数と 同じだけ 右へ うごかそう！'   // ヒントなし：けた数は 言わない
     });
   }
 
@@ -1853,7 +1862,8 @@ function analyzeProblem(aStr, bStr, mode) {
       : why === 'lead' ? '一の位の 右に、\n商の 小数点を うとう！'
       : k > 0 ? '商の 小数点は、うごかした あとの\n小数点に そろえて うとう！'
       : '商の 小数点は、わられる数の\n小数点に そろえて うとう！';
-    steps.push({ type: 'gap', kind: 'q', r: 0, cands, expected: C(P - 1), stepName: 'ten', message: msg });
+    const candsWide = []; for (let i = 0; i <= L - 1; i++) candsWide.push(C(i));   // ヒントなし：商の どの マスの 右にも ○（さいごの マスの 右も）
+    steps.push({ type: 'gap', kind: 'q', r: 0, cands, candsWide, expected: C(P - 1), stepName: 'ten', message: msg });
   };
   // わられる数の 右に 0 を つけたす（商が 0.□ で、おろす前に 0 が いるとき）
   const pushAppend = (i) => {
@@ -2120,10 +2130,11 @@ function renderBoard(opts) {
 
   // ---- 小数点を うつ場所の 候補（タップする ○） ----
   if (opts.interactive && step && step.type === 'gap') {
-    step.cands.forEach(g => {
+    const cands = (opts.moveHint === false && step.candsWide) ? step.candsWide : step.cands;
+    cands.forEach(g => {
       const b = document.createElement('button');
       b.type = 'button';
-      b.className = 'gap';
+      b.className = g === step.origGap ? 'gap at-pt' : 'gap';   // もとの 小数点の 上の ○は、小数点が 見えるよう 下に しく
       b.dataset.g = g;
       const sz = cell * 0.62;
       b.style.left = ((g + 1) * cell) + 'px';
@@ -2273,7 +2284,7 @@ function drawGame(anim) {
   renderBoard({
     panel: $('boardPanel'), board: $('board'), problem: currentProblem,
     stepIndex: currentStepIndex, filled: filled, maxCell: isPortrait ? 60 : 66,
-    interactive: true, anim: anim, carry: helperOn, topPad: 34
+    interactive: true, anim: anim, carry: helperOn, topPad: 34, moveHint: moveHintOn()
   });
 }
 
@@ -2294,7 +2305,8 @@ function updateStepStateUI(anim) {
   const step = currentProblem.steps[currentStepIndex];
   // Lv.1 からと 新ステージは ガイドに答えを出さない（答えは ヒントで見られる）
   const hideAns = (treasure || stateFromXp(sessionStartXp).lv >= 1) && step.hideMsg;   // 新ステージ（たからさがし）は さいしょから ガイドに 答えを出さない
-  showGuide(step.stepName, hideAns ? step.hideMsg : step.message, false);
+  const msg = (step.msgWide && !moveHintOn()) ? step.msgWide : hideAns ? step.hideMsg : step.message;
+  showGuide(step.stepName, msg, false);
   ['ten', 'tateru', 'kakeru', 'hiku', 'orosu'].forEach(t => $('tab-' + t).classList.toggle('on', t === step.stepName));
 }
 
@@ -3953,6 +3965,54 @@ if (/[?&]taiken\b/.test(location.search)) {
   t.style.cssText = 'position:fixed;left:8px;bottom:8px;z-index:99999;padding:5px 10px;border-radius:999px;background:rgba(15,23,42,.72);color:#fff;font:700 12px/1.2 sans-serif;pointer-events:none';
   document.body.appendChild(t);
 }
+</script>
+<script type="module">
+    // アプリ固有のID
+    const THIS_APP_ID = "42";
+
+    const PORTAL_APP_ID = "otatoolssite-v1";
+    const firebaseConfig = {
+        apiKey: "AIzaSyB4fpt6ffIuTBDJo_9g37kYr6KOWNgIcEY",
+        authDomain: "otatoolssite.firebaseapp.com",
+        projectId: "otatoolssite",
+        storageBucket: "otatoolssite.firebasestorage.app",
+        messagingSenderId: "20522292752",
+        appId: "1:20522292752:web:22fba7fecb61736593dc95"
+    };
+
+    // 日本時間の「今日」（toISOString は世界標準時なので、朝9時まで前の日あつかいになってしまう）
+    const d = new Date();
+    const todayStr = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    const storageKey = `ota_visited_${THIS_APP_ID}`;
+
+    let counted = false;
+    try { counted = (localStorage.getItem(storageKey) === todayStr); } catch (e) {}
+
+    // 今日すでに数えた端末は、Firebaseを読みこまない（通信と読み取りを減らす）
+    if (!counted) countView();
+
+    async function countView() {
+        try {
+            const [{ initializeApp }, { getAuth, signInAnonymously }, { getFirestore, doc, setDoc, updateDoc, increment, getDoc }] = await Promise.all([
+                import("https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js"),
+                import("https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js"),
+                import("https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js")
+            ]);
+            const app = initializeApp(firebaseConfig, "ota-views");   // ゲーム本体のFirebaseとまざらないよう名前をつける
+            const db = getFirestore(app);
+            await signInAnonymously(getAuth(app));
+            const docRef = doc(db, 'artifacts', PORTAL_APP_ID, 'public', 'data', 'app_views', THIS_APP_ID);
+            const docSnap = await getDoc(docRef);
+            if (docSnap.exists()) {
+                await updateDoc(docRef, { count: increment(1) });
+            } else {
+                await setDoc(docRef, { count: 1 });
+            }
+            try { localStorage.setItem(storageKey, todayStr); } catch (e) {}
+        } catch (e) {
+            console.error("閲覧数のカウントに失敗しました:", e);
+        }
+    }
 </script>
 </body>
 </html>
