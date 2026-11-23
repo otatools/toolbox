@@ -505,6 +505,9 @@ html.tv-off, html.tv-off body { background: #05070d !important; }
 }
 .icon-btn:active { background: #dde6ef; }
 .icon-btn svg { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); }
+/* 上のバーの ボタンは、見た目を かえずに おせる はんいだけ 広げる（スマホでは 小さく なるので） */
+.topbar .btn-back, .topbar .help-btn { position: relative; }
+.topbar .btn-back::after, .topbar .help-btn::after, .topbar .icon-btn::after { content: ''; position: absolute; inset: -7px -3px; }
 .is-portrait .icon-btn { width: 38px; height: 38px; }
 
 .game-body { flex: 1 1 0; min-height: 0; display: grid; gap: 10px; }
@@ -959,7 +962,7 @@ html.tv-off, html.tv-off body { background: #05070d !important; }
 }
 
 /* ============================================================
-   とき方
+   計算のしかた
    ============================================================ */
 .pd { color: var(--ten); font-weight: 900; }
 .lv-card.how .lv-num .ico { width: 40px; height: 40px; margin: 0; }
@@ -1279,7 +1282,7 @@ html.tv-off, html.tv-off body { background: #05070d !important; }
       </div>
     </div>
 
-    <!-- ===================== とき方 ===================== -->
+    <!-- ===================== 計算のしかた ===================== -->
     <div class="modal" id="howModal" hidden>
       <div class="modal-box">
         <div class="zk-head">
@@ -1515,7 +1518,7 @@ const STAGES = {
 
 /* ============================================================
    そだてるキャラ（コースごとに1ぴき。エネルギーは累計で保存）
-   画像は images/course1-1.png 〜 images/course5-5.png を置くと自動で差しかわる
+   画像は images/course1-1.webp 〜 images/course4-15.webp
    （なければ仮の絵を表示）
    ============================================================ */
 if (!saved.pets) saved.pets = {};
@@ -1631,6 +1634,7 @@ const STEP_INFO = {
    ゲームの状態
    ============================================================ */
 let currentStage = 'stage1';
+const DP_HINT_UNTIL_LV = 5;   // ほじょの「小数点より右の けたの しるし」を 出すのは、この Lv の 手前まで
 let selectedStageForModal = 'stage1';
 let selectedCount = 1;      // 何問ちょうせんするか（1・5・10）
 let elapsedSeconds = 0;     // かかった時間
@@ -2007,12 +2011,13 @@ function renderBoard(opts) {
       const b = document.createElement('button');
       b.type = 'button'; b.className = 'pt'; b.dataset.g = g;
       b.setAttribute('aria-label', `右から ${g}けた目の 左`);
-      b.style.left = ((cols - g) * cell - cell * 0.4) + 'px';
-      b.style.top = (step.r * cell) + 'px';
-      b.style.width = (cell * 0.8) + 'px';
-      b.style.height = (cell * 1.1) + 'px';
+      // おせる はんいは マス1つぶんの はば・たて1.4マス（となりと かさならない いっぱいまで）。見える 丸の 場所は そのまま
+      b.style.left = ((cols - g) * cell - cell * 0.5) + 'px';
+      b.style.top = (step.r * cell - cell * 0.05) + 'px';
+      b.style.width = cell + 'px';
+      b.style.height = (cell * 1.4) + 'px';
       const s = cell * 0.42;
-      b.innerHTML = `<i style="width:${s}px;height:${s}px;left:${cell * 0.4 - s / 2}px;top:${cell * 0.8 - s / 2}px"></i>`;
+      b.innerHTML = `<i style="width:${s}px;height:${s}px;left:${cell * 0.5 - s / 2}px;top:${cell * 0.85 - s / 2}px"></i>`;
       b.addEventListener('click', () => selectPoint(g));
       board.appendChild(b);
     }
@@ -2020,9 +2025,11 @@ function renderBoard(opts) {
 
   // ---- ほじょ：小数点より右の けたに しるし（小数点を うつ ところから） ----
   // Lv.0（ガイドに 答えが 出る あいだ）は、小数点を うつ ときに「右から 1、2…」と 数える しるしと 矢印も 見せる
-  const countNow = !!(opts.guideAns && step && step.type === 'point_select');
-  const showCount = p.pointIdx >= 0 && (countNow || (opts.carry && pointDone && !striking));
-  if (p.pointIdx >= 0 && stepIndex >= p.pointIdx && (opts.carry || countNow)) {
+  // けたの しるし（1・2…）と 数える 矢印は、なれるまでの ヒント。opts.dpHint が ないときは 出さない（コース1・2 の Lv.4 まで）
+  const dpOn = !!(opts.dpHint && opts.carry);
+  const countNow = !!(opts.dpHint && opts.guideAns && step && step.type === 'point_select');
+  const showCount = p.pointIdx >= 0 && (countNow || (dpOn && pointDone && !striking));
+  if (p.pointIdx >= 0 && stepIndex >= p.pointIdx && (dpOn || countNow)) {
     const mark = (r, c, n) => {
       const t = document.createElement('div');
       t.className = 'dpm';
@@ -2112,7 +2119,9 @@ function drawGame(anim) {
     panel: $('boardPanel'), board: $('board'), problem: currentProblem,
     stepIndex: currentStepIndex, filled: filled, struck: struckCols, maxCell: isPortrait ? 60 : 66,
     interactive: true, anim: anim, carry: helperOn,
-    guideAns: !(treasure || stateFromXp(sessionStartXp).lv >= 1)
+    guideAns: !(treasure || stateFromXp(sessionStartXp).lv >= 1),
+    // 小数点の けたの しるしは、コース1・2 の Lv.4 まで（Lv.5 から、コース3・4、たからさがしでは 自分で 数える）
+    dpHint: !treasure && (currentStage === 'stage1' || currentStage === 'stage2') && stateFromXp(sessionStartXp).lv < DP_HINT_UNTIL_LV
   });
 }
 
@@ -2456,7 +2465,7 @@ function stageColors(el, st) {
 function buildLevelList() {
   const list = $('levelList');
   list.innerHTML = '';
-  list.appendChild(makeHowCard());   // いちばん上は「とき方」
+  list.appendChild(makeHowCard());   // いちばん上は「計算のしかた」
   Object.keys(STAGES).forEach(key => {
     const st = STAGES[key];
     const ps = petState(key);
@@ -3582,7 +3591,7 @@ $('scNo').addEventListener('click', () => { sound.play('tap'); scPending = null;
 $('zukanModal').addEventListener('click', (e) => { if (e.target === $('zukanModal')) closeZukan(); });
 
 /* ============================================================
-   とき方（小数点を なぜ うごかすのか を、じゅんばんに 見せる）
+   計算のしかた（小数点を なぜ うごかすのか を、じゅんばんに 見せる）
    ============================================================ */
 const HOW_COL = { c1: '#b8c8de', c2: '#9fb4d1', c3: '#809cc2', c4: '#e9eef4' };
 const DOWN_SVG = '<svg width="16" height="20" viewBox="0 0 16 20" aria-hidden="true"><path d="M8 2v13M3 11l5 6 5-6" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>';
@@ -3740,7 +3749,7 @@ function playHowBoard() {
       p.lines.forEach((ln, k) => { if (ln.stepIndexTrigger === i) lineIdx = k; });
     }
     renderBoard({ panel: $('howBP'), board: $('howBoard'), problem: p, stepIndex: i, filled: fillUpTo(p, i),
-      maxCell: isPortrait ? 34 : 42, carry: true, anim: { key: key, lineIdx: lineIdx, point: i === p.pointIdx + 1 } });
+      maxCell: isPortrait ? 34 : 42, carry: true, dpHint: true, anim: { key: key, lineIdx: lineIdx, point: i === p.pointIdx + 1 } });
     // いま どの 手じゅんかを 右の 1・2・3 で しめす
     const on = i < p.pointIdx ? 0 : (i > p.pointIdx ? 2 : 1);
     const list = document.querySelector('#howStage .hsteps');
@@ -3795,7 +3804,7 @@ function howMove(d) {
   howIdx = Math.max(0, Math.min(HOW_PAGES.length - 1, howIdx + d));
   renderHow();
 }
-// コースの いちばん上に ならべる「とき方」の カード
+// コースの いちばん上に ならべる「計算のしかた」の カード
 function makeHowCard() {
   const b = document.createElement('button');
   b.type = 'button';

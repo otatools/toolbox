@@ -835,6 +835,8 @@ html.tv-off, html.tv-off body { background: #05070d !important; }
   font-size: 15px; font-weight: 800; color: var(--ink-2); background: #eef3f8;
 }
 .btn-sub:active { background: #dde6ef; }
+.modal .btn-sub:not(.tk-back) { position: relative; }
+.modal .btn-sub:not(.tk-back)::after { content: ''; position: absolute; left: 0; right: 0; top: -4px; bottom: -10px; }   /* スマホで 小さくなっても おしやすいように */
 .btn-main {
   width: 100%; height: 58px; border-radius: 18px; margin-bottom: 10px;
   display: flex; align-items: center; justify-content: center; gap: 8px;
@@ -1212,7 +1214,7 @@ html.tv-off, html.tv-off body { background: #05070d !important; }
     <div class="modal" id="quitModal" hidden>
       <div class="modal-box" style="--mc:#f59e0b">
         <h3>ここで やめる？</h3>
-        <p class="sub">ここまでに といた ぶんの けいけんちは もらえるよ。<br>（さいごまで やったときの ボーナスは もらえません）</p>
+        <p class="sub">ここまでに といた ぶんの エネルギーは もらえるよ。<br>（さいごまで やったときの ボーナスは もらえません）</p>
         <div style="margin-top:16px">
           <button class="btn-main" id="quitYes" type="button">ここで やめる</button>
           <button class="btn-sub" id="quitNo" type="button">つづける</button>
@@ -1281,7 +1283,7 @@ html.tv-off, html.tv-off body { background: #05070d !important; }
     <div class="modal" id="tzFail" hidden>
       <div class="modal-box">
         <h3>ざんねん！ まちがえちゃった</h3>
-        <p class="sub">しんちょうに！ たからさがしは まちがえると おしまいだよ。<br>メニューから また ちょうせんしてね！</p>
+        <p class="sub"><span class="ph">しんちょうに！</span> <span class="ph">たからさがしは</span> <span class="ph">まちがえると おしまいだよ。</span><br>メニューから また ちょうせんしてね！</p>
         <button class="btn-main" id="tzMenu" type="button" style="margin-top:14px">メニューにもどる</button>
       </div>
     </div>
@@ -2341,7 +2343,13 @@ function selectGap(g) {
   if (!canInput()) return;
   const step = currentProblem.steps[currentStepIndex];
   if (!step || step.type !== 'gap') return;
-  if (g !== step.expected) { showWrongPopup(GAP_WRONG[step.kind]); return; }
+  if (g !== step.expected) {
+    const moved = currentProblem.k > 0;   // 小数点を うごかした 問題か
+    const msg = (!moved && step.kind === 'q') ? '商の 小数点は、わられる数の\n小数点の 真上に うつよ！'
+      : (!moved && step.kind === 'rem') ? 'あまりの 小数点は、わられる数の\n小数点に そろえて うつよ！'
+      : GAP_WRONG[step.kind];
+    showWrongPopup(msg); return;
+  }
   currentStepIndex++;
   if (currentStepIndex >= currentProblem.steps.length) {
     sound.play('digit');
@@ -3156,7 +3164,7 @@ function openChest() {
       if (rew.animate) rew.animate([{ transform: 'scale(.1) rotate(-20deg)', opacity: 0 }, { transform: 'scale(1.15) rotate(4deg)', opacity: 1, offset: .65 }, { transform: 'scale(1) rotate(0)', opacity: 1 }], { duration: 750, easing: 'ease-out', fill: 'forwards' });
     } else {
       sound.play('wrong');
-      $('chTitle').textContent = 'たからばこからは なにも でてこなかった…';
+      $('chTitle').innerHTML = '<span class="ph">たからばこからは</span> <span class="ph">なにも でてこなかった…</span>';
       { const own = new Set(saved.rb.own), stageDone = NEW_STAGES[treasure.k - 1].chars.every(id => own.has(id));
         $('chSub').textContent = allRbOwned() ? 'なかまは ぜんぶ あつめたよ！ すごい！' : stageDone ? 'ちがうステージも さがしてみよう！' : 'もういちど ちょうせんしてみよう！'; }
       smokePuff();
@@ -3274,7 +3282,7 @@ function openZukan() {
     const sec = document.createElement('div');
     sec.className = 'zk-course';
     stageColors(sec, RB_COL);
-    sec.innerHTML = `<h4>宝箱　${myRb.length} / ${RB_TOTAL}</h4><div class="zk-grid"></div>` + (myRb.length ? '' : '<p class="zk-tip" style="margin:8px 4px 0">あたらしい ステージの たからばこから なかまを みつけよう！</p>');
+    sec.innerHTML = `<h4>たからばこ　${myRb.length} / ${RB_TOTAL}</h4><div class="zk-grid"></div>` + (myRb.length ? '' : '<p class="zk-tip" style="margin:8px 4px 0">あたらしい ステージの たからばこから なかまを みつけよう！</p>');
     const grid = sec.querySelector('.zk-grid');
     myRb.forEach(id => {
       const b = document.createElement('button');
