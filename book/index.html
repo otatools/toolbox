@@ -165,7 +165,7 @@
         .year-stats { display: grid; grid-template-columns: 1fr 1fr; gap: .5em; margin-top: .4em; }
         .year-stats div { background: var(--green-pale); border-radius: .7em; padding: .3em .5em; text-align: center; font-weight: 900; white-space: nowrap; }
         .year-stats small { display: block; font-size: .75em; font-weight: 700; color: var(--ink-soft); }
-        .ychart { display: grid; grid-template-columns: repeat(12, 1fr); gap: .25em; height: 6em; margin-top: .6em; }
+        .ychart { display: grid; grid-template-columns: repeat(12, 1fr); gap: .25em; height: 6em; margin-top: .6em; padding-top: 1.3em; }
         .ychart .bar-btn { color: var(--ink); }
         .ychart .bar { background: #bfe0cf; }
         .ychart .bar-btn.sel .bar { background: var(--gold); }
@@ -177,7 +177,8 @@
         .mode-btn { min-height: max(2.2em, 36px); padding: .1em 1em; border-radius: 1.2em; background: #fff; border: 2px solid var(--line); font-weight: 700; font-size: .85em; }
         .mode-btn.on { background: var(--green); border-color: var(--green-dark); color: #fff; }
         .ychart .bar-btn { position: relative; }
-        .bar-val { position: absolute; left: 0; right: 0; top: -.1em; text-align: center; font-size: .68em; font-weight: 900; color: var(--green-dark); }
+        .ychart .bar { position: relative; }
+        .bar-val { position: absolute; left: -.4em; right: -.4em; bottom: 100%; padding-bottom: .1em; text-align: center; font-size: .68em; font-weight: 900; color: var(--green-dark); white-space: nowrap; line-height: 1.2; }
         .owner-field { margin-top: .5em; }
         .owner-name { margin-top: .4em; font-weight: 900; }
         .name-row { display: flex; gap: .5em; margin-top: .2em; }
@@ -188,11 +189,21 @@
         .cand .c-t { grid-column: 1; font-weight: 900; overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-height: 1.35; }
         .cand .c-s { grid-column: 1; font-size: .78em; color: var(--ink-soft); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .cand .c-p { grid-column: 2; grid-row: 1 / span 2; align-self: center; font-weight: 900; color: var(--green-dark); white-space: nowrap; }
-        @media (orientation: landscape) and (max-height: 800px) {   /* 横長で 高さが 少ない とき：まとめを 左、保存を 右に */
-            #yearOv .sheet { max-width: 52em; }
-            .year-body { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); column-gap: 1.4em; align-items: start; }
-            .year-body .sec-title { margin-top: 0; padding-top: 0; border-top: 0; }
+        /* 1年の まとめ：グラフを できるだけ 大きく（縦長は 上に 数字・下に グラフ。横長は 左に 数字・右に グラフ） */
+        #yearOv .sheet { max-width: 46em; height: 100%; max-height: 44em; }
+        .year-body { display: flex; flex-direction: column; }
+        .y-chart-col { flex: 1 1 auto; min-height: 11em; display: flex; flex-direction: column; margin-top: .6em; }
+        .ychart { flex: 1 1 auto; height: auto; min-height: 0; margin-top: 0; gap: .35em; }
+        .ychart .bar-lab { font-size: .85em; padding-top: .15em; }
+        .ychart .bar-val { font-size: .8em; }
+        @media (orientation: landscape) and (max-height: 560px) {
+            #yearOv .sheet { max-width: 60em; }
+            .year-body { display: grid; grid-template-columns: minmax(0, 17em) minmax(0, 1fr); column-gap: 1.2em; }
+            .y-chart-col { margin-top: 0; min-height: 0; }
         }
+        .sec-title.first { margin-top: 0; padding-top: 0; border-top: 0; }
+        .set-row { display: flex; align-items: center; justify-content: space-between; gap: .8em; margin-top: .4em; }
+        .set-row span { font-weight: 900; font-size: 1.15em; color: var(--green-dark); }
         .backup-btns { display: grid; grid-template-columns: 1fr; gap: .5em; margin-top: .5em; }
         .backup-btns .sub-btn { width: 100%; text-align: center; word-break: keep-all; }
         /* 感想が くわしく ない 本：赤くなって、お金に ならない */
@@ -361,12 +372,12 @@
                 <span data-k="[読:どく][書:しょ]ちょきん">読書ちょきん</span>
             </h1>
             <div class="top-right">
-            <button class="icon-btn" id="menuBtn" type="button" aria-label="1年の まとめ と 記録の 保存">
+            <button class="icon-btn" id="menuBtn" type="button" aria-label="1年の まとめ">
                 <svg viewBox="0 0 24 24" fill="#2b3a35"><rect x="3" y="12" width="4" height="9" rx="1"/><rect x="10" y="6" width="4" height="15" rx="1"/><rect x="17" y="2.5" width="4" height="18.5" rx="1"/></svg>
             </button>
             <button class="grade-btn" id="gradeBtn" type="button" aria-label="学年を えらぶ"></button>
-            <button class="icon-btn" id="soundBtn" type="button" aria-label="音を 出す・消す">
-                <svg viewBox="0 0 24 24" fill="none" stroke="#2b3a35" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9.5v5h3.5L12 18.5v-13L7.5 9.5z" fill="#2b3a35"/><path id="soundWave" d="M15.5 9a4.2 4.2 0 0 1 0 6M18 6.5a7.8 7.8 0 0 1 0 11"/><path id="soundX" d="M16 9.5l5 5M21 9.5l-5 5" hidden/></svg>
+            <button class="icon-btn" id="setBtn" type="button" aria-label="設定">
+                <svg viewBox="0 0 24 24" fill="none" stroke="#2b3a35" stroke-width="2.2" stroke-linejoin="round"><path d="M10.3 2.8h3.4l.5 2.4 1.6.9 2.3-.8 1.7 2.9-1.8 1.6v1.9l1.8 1.6-1.7 2.9-2.3-.8-1.6.9-.5 2.4h-3.4l-.5-2.4-1.6-.9-2.3.8-1.7-2.9 1.8-1.6v-1.9L4.2 8.2l1.7-2.9 2.3.8 1.6-.9z" transform="translate(0 1.1)"/><circle cx="12" cy="12" r="3"/></svg>
             </button>
             </div>
         </header>
@@ -538,9 +549,25 @@
                     <button class="mode-btn" id="chartYen" type="button" data-k="お[金:かね]">お金</button>
                     <button class="mode-btn" id="chartNum" type="button" data-k="[冊:さつ][数:すう]">冊数</button>
                 </div>
-                <div class="ychart" id="ychart"></div>
                 </div>
-                <div class="y-col">
+                <div class="y-chart-col"><div class="ychart" id="ychart"></div></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 設定 -->
+    <div class="ov" id="setOv" hidden>
+        <div class="sheet">
+            <div class="sheet-head">
+                <h2 data-k="[設:せっ][定:てい]">せってい</h2>
+                <button class="close-btn" type="button" id="setClose" aria-label="とじる"><svg viewBox="0 0 24 24" fill="none" stroke="#2b3a35" stroke-width="3" stroke-linecap="round"><path d="M5 5l14 14M19 5L5 19"/></svg></button>
+            </div>
+            <div class="sheet-body">
+                <p class="sec-title first" data-k="[学:がく][年:ねん]と [音:おと]"></p>
+                <div class="set-row"><span id="setGrade"></span><button class="sub-btn" id="setGradeBtn" type="button" data-k="[学:がく][年:ねん]を [変:か]える"></button></div>
+                <div class="set-row"><span id="soundText"></span><button class="icon-btn" id="soundBtn" type="button" aria-label="音を 出す・消す">
+                <svg viewBox="0 0 24 24" fill="none" stroke="#2b3a35" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9.5v5h3.5L12 18.5v-13L7.5 9.5z" fill="#2b3a35"/><path id="soundWave" d="M15.5 9a4.2 4.2 0 0 1 0 6M18 6.5a7.8 7.8 0 0 1 0 11"/><path id="soundX" d="M16 9.5l5 5M21 9.5l-5 5" hidden/></svg>
+            </button></div>
                 <p class="sec-title" data-k="[記:き][録:ろく]の [保:ほ][存:ぞん]"></p>
                 <p class="note" data-k="たんまつを かえる ときは、ファイルに [保:ほ][存:ぞん]して、[新:あたら]しい たんまつで もどします。"></p>
                 <div class="backup-btns">
@@ -554,7 +581,6 @@
                 <p class="owner-name" id="ownerName" hidden></p>
                 <p class="note" id="backupNote"></p>
                 <input type="file" id="importFile" hidden>
-                </div>
             </div>
         </div>
     </div>
@@ -725,7 +751,7 @@
     ['一円音下学金月見字出上人生中日入年白文本名力先',          // 1年
      '何画記計言後行合今自書心数星切前知直読分新多高少番理同広', // 2年
      '感始使写取終消想調度登面号由定短打',                          // 3年
-     '録選残好初最順席以',                                      // 4年
+     '録選残好初最順席以変',                                    // 4年
      '貯保準備許確雑設',                                        // 5年
      '段値冊裏閉存探誌'].forEach(function (list, i) {             // 6年
         Array.from(list).forEach(function (ch) { KANJI_GRADE[ch] = i + 1; });
@@ -797,6 +823,7 @@
     function sndCoin() { tone(1318, 0, 0.18, 0.14); tone(1976, 0.08, 0.42, 0.14); }
     function paintSound() {
         $('soundBtn').classList.toggle('off', !data.opts.sound);
+        $('soundText').textContent = data.opts.sound ? K('[音:おと]が [出:で]る') : K('[音:おと]を [消:け]している');
         $('soundWave').toggleAttribute('hidden', !data.opts.sound);
         $('soundX').toggleAttribute('hidden', data.opts.sound);
     }
@@ -976,27 +1003,35 @@
         $('yFive').textContent = all.filter(function (b) { return b.stars === 5; }).length + K('[冊:さつ]');
         $('yPrev').disabled = viewFy <= firstFy; $('yNext').disabled = viewFy >= nowFy;
         var box = $('ychart'); box.textContent = '';
+        var wide = box.clientWidth / 12 >= 50;                         // 1本の はばが 広い ときだけ 金がくを 書く
         months.forEach(function (m, k) {
             var b = document.createElement('button');
             b.type = 'button'; b.className = 'bar-btn' + (m === viewYm ? ' sel' : ''); b.disabled = m > nowYm;
             b.setAttribute('aria-label', monthName(m) + ' ' + (byCount ? sums[k] + K('[冊:さつ]') : yen(sums[k]) + '円'));
-            if (byCount && sums[k] && m <= nowYm) { var v = document.createElement('div'); v.className = 'bar-val'; v.textContent = sums[k]; b.appendChild(v); }
             var area = document.createElement('div'); area.className = 'bar-area';
             var bar = document.createElement('div'); bar.className = 'bar'; bar.style.height = Math.round(sums[k] / max * 100) + '%';
+            if ((byCount || wide) && sums[k] && m <= nowYm) { var v = document.createElement('div'); v.className = 'bar-val'; v.textContent = byCount ? sums[k] : yen(sums[k]); bar.appendChild(v); }   // 棒の すぐ上に 書く
             area.appendChild(bar);
             var lab = document.createElement('div'); lab.className = 'bar-lab'; lab.textContent = Number(m.slice(5, 7));
             b.appendChild(area); b.appendChild(lab);
             b.addEventListener('click', function () { $('yearOv').hidden = true; setMonth(m); });   // 棒を おすと その月へ
             box.appendChild(b);
         });
+    }
+    function renderSettings() {
+        $('setGrade').textContent = data.opts.grade ? data.opts.grade + K('[年:ねん]') : '';
         var lb = data.opts.lastBackup;
         $('backupNote').classList.remove('warn');
         $('ownerField').hidden = !!data.opts.owner; $('ownerName').hidden = !data.opts.owner;
         $('ownerName').textContent = data.opts.owner ? K('「') + data.opts.owner + K('」さんの [記:き][録:ろく]') : '';
         $('backupNote').textContent = lb ? K('[最:さい][後:ご]に [保:ほ][存:ぞん]した [日:ひ]：') + lb.replace(/-/g, '/') : K('まだ [保:ほ][存:ぞん]して いません。');
     }
-    $('menuBtn').addEventListener('click', function () { viewFy = fyOf(viewYm); renderYear(); $('yearOv').hidden = false; });
+    $('setBtn').addEventListener('click', function () { renderSettings(); $('setOv').hidden = false; });
+    $('setClose').addEventListener('click', function () { $('setOv').hidden = true; });
+    $('setGradeBtn').addEventListener('click', function () { $('setOv').hidden = true; $('gradeBtn').click(); });
+    $('menuBtn').addEventListener('click', function () { viewFy = fyOf(viewYm); $('yearOv').hidden = false; renderYear(); });
     $('yearClose').addEventListener('click', function () { $('yearOv').hidden = true; });
+    window.addEventListener('resize', function () { if (!$('yearOv').hidden) renderYear(); });
     $('chartYen').addEventListener('click', function () { data.opts.chart = 'yen'; save(); renderYear(); render(); });
     $('chartNum').addEventListener('click', function () { data.opts.chart = 'n'; save(); renderYear(); render(); });
     $('yPrev').addEventListener('click', function () { viewFy--; renderYear(); });
@@ -1017,7 +1052,7 @@
         a.href = url; a.download = 'dokusho-chokin-' + today.replace(/-/g, '') + '.chokin';
         document.body.appendChild(a); a.click(); a.remove();
         setTimeout(function () { URL.revokeObjectURL(url); }, 2000);
-        data.opts.lastBackup = today; save(); renderYear(); paintOwner();
+        data.opts.lastBackup = today; save(); renderSettings(); paintOwner();
     });
     $('importBtn').addEventListener('click', function () { $('importFile').value = ''; $('importFile').click(); });
     function cleanBook(b) {                                         // ファイルの 中身を そのまま 信じない
@@ -1083,7 +1118,7 @@
             if (j.owner) data.opts.owner = String(j.owner).slice(0, 20);
             if (j.fid) { used.push(j.fid); data.opts.usedFiles = used.slice(-50); }
             if (!data.opts.grade && j.opts && j.opts.grade >= 1 && j.opts.grade <= 6) { data.opts.grade = j.opts.grade; applyLang(); }
-            save(); render(); renderYear(); paintOwner();
+            save(); render(); renderSettings(); paintOwner();
             tell(n ? n + K('[冊:さつ] もどしました。') : K('もどす [記:き][録:ろく]は ありませんでした。'));
         });
     }
@@ -2138,6 +2173,7 @@
         }
         applyLang(); paintSound(); paintOwner(); render();
         if (!$('yearOv').hidden) renderYear();
+        if (!$('setOv').hidden) renderSettings();
     });
     function paintOwner() { $('ownerFoot').textContent = data.opts.owner ? data.opts.owner + K(' さんの [記:き][録:ろく] ｜ ') : ''; }
     paintSound();
