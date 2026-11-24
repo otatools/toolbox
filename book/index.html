@@ -181,7 +181,7 @@
         .owner-name { margin-top: .4em; font-weight: 900; }
         .name-row { display: flex; gap: .5em; margin-top: .2em; }
         .name-row .inp { flex: 1 1 0; min-width: 0; }
-        .name-row .primary { width: auto; flex: none; min-height: 2.8em; padding: .3em 1em; font-size: 1em; }
+        .more-btn { display: block; width: 100%; margin-top: .4em; }
         .cands { display: flex; flex-direction: column; gap: .4em; margin-top: .3em; max-height: calc(var(--app-h) * .4); overflow-y: auto; overflow-x: hidden; }
         .cand { display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: .6em; text-align: left; padding: .45em .7em; border-radius: .8em; background: #fff; border: 2px solid var(--line); }
         .cand .c-t { grid-column: 1; font-weight: 900; overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-height: 1.35; }
@@ -399,7 +399,7 @@
                 <svg viewBox="0 0 24 24" fill="none" stroke="#4a3200" stroke-width="2.4" stroke-linecap="round"><path d="M3 6v12M7 6v12M10.5 6v12M14 6v12M17.5 6v12M21 6v12"/></svg>
                 <span data-k="[本:ほん]を [登:とう][録:ろく]する">本を とうろくする</span>
             </button>
-            <p class="foot"><span id="ownerFoot"></span>読書ちょきん ｜ ver.1.9 ｜ ota tools</p>
+            <p class="foot"><span id="ownerFoot"></span>読書ちょきん ｜ ver.1.10 ｜ ota tools</p>
         </div>
     </div>
 
@@ -434,17 +434,18 @@
                     </div>
                     <div id="namePane" hidden>
                         <div class="name-row">
-                            <input class="inp" id="nameInp" type="text" autocomplete="off" maxlength="40" placeholder="本の 名前" data-k-ph="[本:ほん]の [名:な][前:まえ]">
-                            <button class="primary" id="nameGo" type="button" data-k="[調:しら]べる">しらべる</button>
+                            <input class="inp" id="nameInp" type="search" autocomplete="off" maxlength="40" placeholder="本の 名前を 打ってね" data-k-ph="[本:ほん]の [名:な][前:まえ]を [打:う]ってね">
                         </div>
                         <p class="note" id="nameNote"></p>
                         <div class="cands" id="cands"></div>
+                        <button class="sub-btn more-btn" id="nameGo" type="button" hidden data-k="ないときは、もっと [広:ひろ]く [調:しら]べる">ないときは、もっと 広く 調べる</button>
                     </div>
                     <div class="scan-actions">
                         <button class="sub-btn" id="camSwitch" type="button" hidden data-k="カメラを [切:き]りかえる">カメラを 切りかえる</button>
                         <button class="sub-btn" id="toNum" type="button" data-k="[数:すう][字:じ]で [入:にゅう][力:りょく]する">数字で 入力する</button>
                         <button class="sub-btn" id="toCam" type="button" hidden data-k="カメラで [読:よ]み[取:と]る">カメラで 読みとる</button>
                         <button class="sub-btn" id="toBar" type="button" hidden data-k="バーコードを [読:よ]み[取:と]る">バーコードを 読みとる</button>
+                        <button class="sub-btn" id="byName" type="button" data-k="[本:ほん]の [名:な][前:まえ]で [登:とう][録:ろく]する">本の 名前で 登録する</button>
                         <button class="sub-btn" id="noCode" type="button" data-k="バーコードが ない[本:ほん]">バーコードが ない本</button>
                         <button class="sub-btn" id="noIsbn" type="button" hidden data-k="ISBNも ない[本:ほん]">ISBNも ない本</button>
                         <button class="sub-btn" id="byHand" type="button" hidden data-k="[見:み]つからない ときは [自:じ][分:ぶん]で [入:い]れる">見つからない ときは 自分で 入れる</button>
@@ -720,8 +721,8 @@
        学年は 学年別漢字配当表（2020年度から）。ここに ない 漢字は、どの学年でも ひらがなに なる。 */
     var KANJI_GRADE = {};
     ['一円音下学金月見字出上人生中日入年白文本名力先',          // 1年
-     '何画記計言後行合今自書心数星切前知直読分新多高少番理同', // 2年
-     '感始使写取終消想調度登面号由定短',                          // 3年
+     '何画記計言後行合今自書心数星切前知直読分新多高少番理同広', // 2年
+     '感始使写取終消想調度登面号由定短打',                          // 3年
      '録選残好初最順席以',                                      // 4年
      '貯保準備許確雑設',                                        // 5年
      '段値冊裏閉存探誌'].forEach(function (list, i) {             // 6年
@@ -1461,13 +1462,14 @@
         $('toNum').hidden = pane !== 'cam'; $('toCam').hidden = cam;
         $('noCode').hidden = !(cam && scan.mode === 'bar'); $('toBar').hidden = !(cam && scan.mode === 'text');
         $('noIsbn').hidden = !(cam && scan.mode === 'text'); $('byHand').hidden = pane !== 'name';
+        $('byName').hidden = pane === 'name' || (cam && scan.mode === 'text');
         if (pane === 'name') $('scanTitle').textContent = K('[本:ほん]の [名:な][前:まえ]で [探:さが]す');
         else setScanMode(scan.mode);
         if (cam) { startCamera(); }
         else {
             stopCamera(); $('camSwitch').hidden = true;
             $('isbnInp').value = ''; $('isbnNote').textContent = ''; $('isbnNote').classList.remove('warn');
-            $('nameNote').textContent = ''; $('nameNote').classList.remove('warn'); $('cands').textContent = '';
+            $('nameNote').textContent = ''; $('nameNote').classList.remove('warn'); $('cands').textContent = ''; $('nameGo').hidden = true;
         }
     }
     function stopCamera() {
@@ -1591,10 +1593,82 @@
     $('toCam').addEventListener('click', function () { showCamPane(true); });
     $('noCode').addEventListener('click', function () { resetScan(); setScanMode('text'); showCamPane(true); });
     $('toBar').addEventListener('click', function () { resetScan(); setScanMode('bar'); showCamPane(true); });
-    $('noIsbn').addEventListener('click', function () { showPane('name'); $('nameInp').value = ''; setTimeout(function () { $('nameInp').focus(); }, 50); });
+    function openNamePane() {
+        showPane('name'); $('nameInp').value = ''; loadTitles();
+        $('nameNote').textContent = K('[本:ほん]の [名:な][前:まえ]を [打:う]つと、こうほが [出:で]るよ。');
+        setTimeout(function () { $('nameInp').focus(); }, 50);
+    }
+    $('noIsbn').addEventListener('click', openNamePane);
+    $('byName').addEventListener('click', openNamePane);
     $('byHand').addEventListener('click', function () { closeScan(); openForm({}); });
     $('nameGo').addEventListener('click', searchByName);
-    $('nameInp').addEventListener('keydown', function (e) { if (e.key === 'Enter') searchByName(); });
+    var nameTimer = 0;
+    $('nameInp').addEventListener('input', function () { clearTimeout(nameTimer); nameTimer = setTimeout(searchLocal, 150); });
+    $('nameInp').addEventListener('keydown', function (e) { if (e.key === 'Enter') { clearTimeout(nameTimer); searchLocal(); } });
+
+    /* ---- 本の 名前の 一覧（bookdata/titles.txt。約8.8万冊）から、打った ことばを ふくむ 本を さがす ----
+       はじめて 名前で さがす ときに 1回だけ 読みこむ（約2MB）。読めない ときは 国立国会図書館で さがす */
+    var titlesPromise = null, titleList = null;
+    function normT(t) {
+        return toHira(toHalf(String(t)).replace(/[Ａ-Ｚａ-ｚ]/g, function (c) { return String.fromCharCode(c.charCodeAt(0) - 0xFEE0); }).toLowerCase())
+            .replace(/[\s　、。，．,.!！?？…・「」『』（）()〜~:：;；"“”'’\-−―]/g, '');
+    }
+    function loadTitles() {
+        if (titlesPromise) return titlesPromise;
+        if (!/^https?:$/.test(location.protocol)) { titlesPromise = Promise.resolve(null); return titlesPromise; }
+        titlesPromise = fetchText(new URL('bookdata/titles.txt', location.href).href, 30000).then(function (r) {
+            if (r.status !== 200) return null;
+            var lines = r.text.split('\n'), list = [];
+            for (var i = 0; i < lines.length; i++) {
+                var f = lines[i].split('\t'); if (f.length < 2 || !f[1]) continue;
+                list.push({ isbn: '978' + f[0], title: f[1], price: parseInt(f[2], 10) || 0, n: normT(f[1]) });
+            }
+            titleList = list; return list;
+        }, function () { return null; });
+        titlesPromise.then(function (l) { if (!l) titlesPromise = null; if (!$('namePane').hidden) searchLocal(); });
+        return titlesPromise;
+    }
+    function showCands(list, emptyText) {
+        var box = $('cands'), note = $('nameNote'); box.textContent = ''; note.classList.remove('warn');
+        note.textContent = list.length ? K('[読:よ]んだ [本:ほん]を [選:えら]んでね。') : emptyText;
+        list.forEach(function (c) {
+            var b = document.createElement('button'); b.type = 'button'; b.className = 'cand';
+            b.innerHTML = '<span class="c-t"></span><span class="c-s"></span><span class="c-p"></span>';
+            b.querySelector('.c-t').textContent = c.title;
+            b.querySelector('.c-s').textContent = [c.author, c.publisher, c.year].filter(Boolean).join('　');
+            b.querySelector('.c-p').textContent = c.price ? yen(c.price) + '円' : '';
+            b.addEventListener('click', function () { pickCand(c); });
+            box.appendChild(b);
+        });
+        box.scrollTop = 0;
+    }
+    function pickCand(c) {
+        var note = $('nameNote');
+        if (c.isbn && findByIsbn(c.isbn)) { note.classList.add('warn'); note.textContent = K('この[本:ほん]は もう [登:とう][録:ろく] してあるよ。'); return; }
+        closeScan();
+        var pend = c.isbn ? lookup(c.isbn).then(function (r) { return { title: c.title, author: r.author || c.author || '', price: c.price || r.price, found: true }; })
+            : Promise.resolve({ title: c.title, author: c.author, price: c.price, found: true });
+        openForm({ isbn: c.isbn, price: c.price, priceSrc: 'db', pending: pend });
+    }
+    function searchLocal() {
+        ++nameGen;
+        var q = normT($('nameInp').value), raw = $('nameInp').value.trim();
+        $('nameGo').hidden = Array.from(raw).length < 2;
+        if (!q) { showCands([], K('[本:ほん]の [名:な][前:まえ]を [打:う]つと、こうほが [出:で]るよ。')); return; }
+        if (!titleList) {
+            if (titlesPromise) { $('cands').textContent = ''; $('nameNote').innerHTML = '<i class="spin"></i>' + K('[本:ほん]の [名:な][前:まえ]を [読:よ]みこんでいます…'); }
+            else showCands([], K('ないときは、[下:した]の ボタンで [調:しら]べてね。'));
+            return;
+        }
+        var hits = [];
+        for (var i = 0; i < titleList.length; i++) {
+            var t = titleList[i], at = t.n.indexOf(q);
+            if (at >= 0) { hits.push([at === 0 ? 0 : 1, t.n.length, t]); }
+        }
+        hits.sort(function (a, b) { return a[0] - b[0] || a[1] - b[1]; });
+        showCands(hits.slice(0, 30).map(function (h) { return h[2]; }),
+            K('[見:み]つかりませんでした。[下:した]の ボタンで もっと [広:ひろ]く [調:しら]べてね。'));
+    }
 
     /* 本の 名前で 国立国会図書館サーチを しらべて、こうほを 出す。えらぶと 名前・書いた人・ねだんが 入る */
     var nameGen = 0;
@@ -1611,20 +1685,7 @@
             if (gen !== nameGen) return;
             if (r.status !== 200) throw new Error('status ' + r.status);
             var list = parseNdlList(r.text);
-            note.textContent = list.length ? K('[読:よ]んだ [本:ほん]を [選:えら]んでね。') : K('[見:み]つかりませんでした。[名:な][前:まえ]を [短:みじか]く して [調:しら]べてみてね。');
-            list.slice(0, 15).forEach(function (c) {
-                var b = document.createElement('button'); b.type = 'button'; b.className = 'cand';
-                b.innerHTML = '<span class="c-t"></span><span class="c-s"></span><span class="c-p"></span>';
-                b.querySelector('.c-t').textContent = c.title;
-                b.querySelector('.c-s').textContent = [c.author, c.publisher, c.year].filter(Boolean).join('　');
-                b.querySelector('.c-p').textContent = c.price ? yen(c.price) + '円' : '';
-                b.addEventListener('click', function () {
-                    if (c.isbn && findByIsbn(c.isbn)) { note.classList.add('warn'); note.textContent = K('この[本:ほん]は もう [登:とう][録:ろく] してあるよ。'); return; }
-                    closeScan();
-                    openForm({ isbn: c.isbn, price: c.price, priceSrc: 'db', pending: Promise.resolve({ title: c.title, author: c.author, price: c.price, found: true }) });
-                });
-                box.appendChild(b);
-            });
+            showCands(list.slice(0, 15), K('[見:み]つかりませんでした。[名:な][前:まえ]を [短:みじか]く して [調:しら]べてみてね。'));
         }).catch(function () {
             if (gen !== nameGen) return;
             note.classList.add('warn');
