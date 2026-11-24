@@ -474,7 +474,7 @@ input[type=range]::-moz-range-thumb { width: 30px; height: 30px; border-radius: 
 .is-portrait #kStars { font-size: 14px; right: 8px; }
 #kCard { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 20px; border: 8px solid var(--c, var(--line)); }
 #kQ { font-size: 90px; font-weight: 900; line-height: 1; white-space: nowrap; }
-#kQ u.ok { color: #2f9a3a; border-bottom-color: #49a942; }
+#kQ u.ok, #mQ u.ok { color: #2f9a3a; border-bottom-color: #49a942; }
 #kDots { display: flex; gap: 10px; }
 #kDots i { width: 28px; height: 28px; border-radius: 50%; background: #efe3cb; }
 #kDots i.ok { background: #49a942; } #kDots i.ng { background: #e8505b; } #kDots i.now { outline: 4px solid #f0a800; }
@@ -939,21 +939,26 @@ function masuOpen() {
 function masuStart(kind) {
     hideDlg(); cancelAll();
     const cols = kind === 'rnd' ? shuffle(N9.slice()) : N9.slice(), rows = kind === 'rnd' ? shuffle(N9.slice()) : N9.slice();
-    M = { run: true, kind, cols, rows, done: {}, ng: {}, left: 81, miss: 0, cur: 0, typed: '', t0: performance.now(), g: buildGrid($('mGrid'), cols, rows, masuPick) };
+    M = { run: true, kind, cols, rows, done: {}, ng: {}, left: 81, miss: 0, cur: 0, typed: '', hold: 0, fin: false, ms: 0, t0: performance.now(), g: buildGrid($('mGrid'), cols, rows, masuPick) };
     IV(() => { if (M.run) { const s = String(Math.floor((performance.now() - M.t0) / 1000)); if ($('mTime').textContent !== s) $('mTime').textContent = s; } }, 200);
     masuDraw();
 }
-function masuPick(r, c) { const k = r * 9 + c; if (!M.run || M.done[k]) return; M.cur = k; M.typed = ''; masuDraw(); }
+function masuPick(r, c) {
+    const k = r * 9 + c; if (!M.run || M.done[k] || M.fin) return;
+    if (M.hold) { clearTimeout(M.hold); M.hold = 0; M.t0 += performance.now() - M.holdAt; }
+    M.cur = k; M.typed = ''; masuDraw();
+}
 function masuDraw() {
     const r = Math.floor(M.cur / 9), c = M.cur % 9;
     M.g.cells.forEach((row, ri) => row.forEach((e, ci) => { const k = ri * 9 + ci; e.classList.toggle('cur', k === M.cur && M.run); if (!M.done[k]) e.textContent = k === M.cur ? M.typed : ''; }));
     hlHead(M.g, M.run ? r : -1, M.run ? c : -1);
     // おなじ マスで 2かい まちがえたら、よみの はじめ（「くに」まで）を しきの 上に 出す。こたえは 出さない
-    $('mQ').innerHTML = M.run ? '<small>' + (M.ng[M.cur] >= 2 ? yomi(M.rows[r], M.cols[c])[0] : '') + '</small><span>' + M.rows[r] + ' × ' + M.cols[c] + ' ＝<u>' + (M.typed || '&nbsp;') + '</u></span>' : '';
+    $('mQ').innerHTML = M.run ? '<small>' + (M.ng[M.cur] >= 2 ? yomi(M.rows[r], M.cols[c])[0] : '') + '</small><span>' + M.rows[r] + ' × ' + M.cols[c] + ' ＝<u' + (M.hold ? ' class="ok"' : '') + '>' + (M.hold ? M.rows[r] * M.cols[c] : M.typed || '&nbsp;') + '</u></span>' : '';
     $('mLeft').textContent = M.left; $('mMiss').textContent = M.miss;
 }
 function masuKey(k) {
-    if (!M.run || dlgOn()) return;
+    if (!M.run || dlgOn() || M.fin) return;
+    if (M.hold) { if (k === 'del') return; masuNext(); }   // こたえを 見せて いる あいだに 次を おしたら、すぐ 次へ
     if (k === 'del') { M.typed = ''; masuDraw(); return; }
     M.typed += k;
     const r = Math.floor(M.cur / 9), c = M.cur % 9, el = M.g.cells[r][c], res = judge(M.typed, M.rows[r] * M.cols[c]);
@@ -961,12 +966,20 @@ function masuKey(k) {
     if (res === 'ng') { wAdj(M.rows[r], M.cols[c], -2); ngAdd(M.rows[r], M.cols[c]); M.miss++; M.ng[M.cur] = (M.ng[M.cur] || 0) + 1; M.typed = ''; snd.ng(); masuDraw(); anim(el, 'shake'); return; }
     if (!M.ng[M.cur]) wAdj(M.rows[r], M.cols[c], 1);
     M.done[M.cur] = true; M.left--; M.typed = ''; el.textContent = M.rows[r] * M.cols[c]; el.classList.add('done'); snd.key();
+    // 入れた こたえ（1のくらいまで）を 大きい しきの ところに ちょっとだけ 見せてから 次へ。その あいだは じかんに 入れない
+    M.holdAt = performance.now(); if (M.left === 0) { M.fin = true; M.ms = M.holdAt - M.t0; }
+    M.hold = T(masuNext, K_SHOW); masuDraw();
+}
+function masuNext() {
+    if (!M.hold) return;
+    clearTimeout(M.hold); M.hold = 0;
     if (M.left === 0) { masuEnd(); return; }
+    M.t0 += performance.now() - M.holdAt;
     for (let i = 1; i <= 81; i++) { const n = (M.cur + i) % 81; if (!M.done[n]) { M.cur = n; break; } }
     masuDraw();
 }
 function masuEnd() {
-    M.run = false; const ms = performance.now() - M.t0, old = S.best81[M.kind], rec = !old || ms < old;
+    M.run = false; M.fin = false; const ms = M.ms || performance.now() - M.t0, old = S.best81[M.kind], rec = !old || ms < old;
     if (rec) { S.best81[M.kind] = Math.round(ms); save(); }
     $('mTime').textContent = Math.floor(ms / 1000); masuDraw(); snd.fin();
     const kind = M.kind;
