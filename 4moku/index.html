@@ -11,10 +11,15 @@
 </script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>木製 立体四目 3D</title>
+    <title>立体四目並べ｜木製3Dボードゲーム - ota tools</title>
+    <meta name="description" content="木のおもちゃのような3Dの立体四目並べ。2人対戦と、3段階の強さのコンピューター対戦。スマホ・タブレット・パソコンで遊べる子ども向け教育ゲーム。">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="立体四目">
+    <meta name="theme-color" content="#e2d7c7">
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- アイコンはインラインSVG（FontAwesomeはiPadで豆腐になるため読み込まない） -->
     <!-- Three.js -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <style>
@@ -29,30 +34,6 @@
         @supports (height: 100dvh) { :root { --app-h: 100dvh; } }
 
         html { background: #e2d7c7; }
-
-        /* インラインSVGアイコン（FontAwesomeと同じ大きさ・位置） */
-        .fa-svg { display: inline-block; vertical-align: -0.125em; overflow: visible; flex-shrink: 0; }
-
-        /* スタート画面：中身を丸ごと画面に合わせて拡大縮小する（JSの fitStart） */
-        #start-sizer { position: relative; flex-shrink: 0; }
-        #start-inner { transform-origin: 0 0; }
-        /* 縦長の画面では1列にして大きく見せる */
-        #start-inner.start-portrait .start-grid { grid-template-columns: minmax(0, 1fr); }
-
-        /* 大きいPC画面では、ゲーム中の上の表示と下の操作ガイドも少し大きく */
-        @media (min-width: 1400px) and (min-height: 860px) {
-            #game-hud, #game-guide { zoom: 1.3; }
-            #victory-modal { zoom: 1.5; }
-        }
-        /* 横向きスマホなど高さが低い画面では、勝利カードを詰めて画面内に収める */
-        @media (max-height: 480px) {
-            #victory-modal { padding: 14px 22px; }
-            #victory-modal > div:first-child { width: 52px; height: 52px; margin-bottom: 8px; font-size: 26px; border-width: 3px; }
-            #victory-title { font-size: 24px; margin-bottom: 4px; }
-            #victory-subtitle { margin-bottom: 12px; }
-            #victory-modal .gap-3 { gap: 8px; }
-            #victory-modal button { padding-top: 8px; padding-bottom: 8px; }
-        }
 
         body {
             user-select: none;
@@ -80,6 +61,120 @@
             background-image: radial-gradient(#d5c3aa 1.2px, transparent 1.2px);
             background-size: 20px 20px;
             opacity: 0.25;
+        }
+
+        /* ===== メインメニュー：木のおもちゃの世界観 ===== */
+        .ico { width: 1em; height: 1em; display: inline-block; vertical-align: -0.12em; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; flex-shrink: 0; }
+
+        /* 木の板（木目つき）。木目はSVGノイズを薄く重ねている */
+        .wood-plank {
+            position: relative;
+            background-color: #e8d2b1;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='420' height='420'%3E%3Cfilter id='g' x='0' y='0' width='100%25' height='100%25'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.006 0.11' numOctaves='3' seed='11' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.42 0 0 0 0 0.26 0 0 0 0 0.12 0 0 0 -1.4 1.05'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23g)'/%3E%3C/svg%3E");
+            background-size: 420px 420px;
+            border: 3px solid #c89f72;
+            border-radius: 28px;
+            box-shadow:
+                inset 0 2px 0 rgba(255,255,255,0.55),
+                inset 0 -3px 0 rgba(120,80,40,0.18),
+                0 18px 30px -12px rgba(94,61,38,0.45),
+                0 6px 10px -6px rgba(94,61,38,0.3);
+        }
+        /* 四隅の木のダボ */
+        .wood-plank .peg {
+            position: absolute; width: 12px; height: 12px; border-radius: 50%;
+            background: radial-gradient(circle at 35% 30%, #a87b52, #6b4526 70%, #4a2d16);
+            box-shadow: inset 0 1px 1px rgba(255,255,255,0.35), 0 1px 2px rgba(0,0,0,0.35);
+        }
+        .wood-plank .peg.tl { top: 12px; left: 12px; }  .wood-plank .peg.tr { top: 12px; right: 12px; }
+        .wood-plank .peg.bl { bottom: 12px; left: 12px; } .wood-plank .peg.br { bottom: 12px; right: 12px; }
+
+        /* 板に彫り込んだ、明るい木の受け皿 */
+        .wood-inset {
+            background: linear-gradient(180deg, #fbf5ea 0%, #f3e7d3 100%);
+            border: 1px solid rgba(120,80,40,0.18);
+            border-radius: 18px;
+            box-shadow: inset 0 3px 6px rgba(94,61,38,0.16), inset 0 -1px 0 rgba(255,255,255,0.8), 0 1px 0 rgba(255,255,255,0.6);
+        }
+
+        /* タイトルの木の球（ゲームの駒と同じ2色） */
+        .title-bead {
+            width: 2.8rem; height: 2.8rem; border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            font-weight: 900; font-size: 1.35rem; line-height: 1;
+            box-shadow: 0 6px 10px -3px rgba(62,37,20,0.45), inset 0 -4px 6px rgba(0,0,0,0.18), inset 0 3px 4px rgba(255,255,255,0.35);
+            animation: beadDrop 0.55s cubic-bezier(.2,.9,.3,1.15) both;
+        }
+        .title-bead.dark  { background: radial-gradient(circle at 35% 28%, #8a5a3a, #4a2c18 55%, #2b170b); color: #f7e6cf; text-shadow: 0 1px 0 rgba(0,0,0,0.5); }
+        .title-bead.light { background: radial-gradient(circle at 35% 28%, #fff7ea, #e9cfa8 55%, #c9a378); color: #4a2c18; text-shadow: 0 1px 0 rgba(255,255,255,0.7); }
+        .title-bead:nth-child(1) { animation-delay: 0.00s; } .title-bead:nth-child(2) { animation-delay: 0.08s; }
+        .title-bead:nth-child(3) { animation-delay: 0.16s; } .title-bead:nth-child(4) { animation-delay: 0.24s; }
+        @keyframes beadDrop { from { transform: translateY(-28px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+        .menu-rise { animation: menuRise 0.5s ease-out 0.25s both; }
+        @keyframes menuRise { from { transform: translateY(14px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+
+        /* 見出しのアイコンを入れる小さな球 */
+        .bead-icon {
+            width: 2.1rem; height: 2.1rem; border-radius: 50%; flex-shrink: 0;
+            display: flex; align-items: center; justify-content: center; font-size: 1.05rem;
+            box-shadow: 0 3px 5px -2px rgba(62,37,20,0.45), inset 0 -2px 3px rgba(0,0,0,0.15), inset 0 2px 2px rgba(255,255,255,0.35);
+        }
+        .bead-icon.dark  { background: radial-gradient(circle at 35% 28%, #8a5a3a, #4a2c18 55%, #2b170b); color: #f7e6cf; }
+        .bead-icon.light { background: radial-gradient(circle at 35% 28%, #fff7ea, #e9cfa8 55%, #c9a378); color: #4a2c18; }
+
+        /* 木の札（ルールボタン） */
+        .wood-tag {
+            position: relative;
+            background: linear-gradient(180deg, #f3e3c9 0%, #e2c9a4 100%);
+            border: 1px solid #c9a67d; border-radius: 999px;
+            box-shadow: 0 4px 8px -3px rgba(94,61,38,0.35), inset 0 1px 0 rgba(255,255,255,0.7);
+            color: #4e2f1d;
+            transition: transform 0.15s ease, box-shadow 0.15s ease;
+        }
+        .wood-tag:hover { transform: translateY(-1px); box-shadow: 0 6px 12px -3px rgba(94,61,38,0.4), inset 0 1px 0 rgba(255,255,255,0.7); }
+        .wood-tag:active { transform: translateY(1px); }
+        .wood-tag .hole { width: 9px; height: 9px; border-radius: 50%; background: #d9cbb4; box-shadow: inset 0 1px 2px rgba(0,0,0,0.35); flex-shrink: 0; }
+
+        /* 「最強」の帯 */
+        .master-locked {
+            margin-top: -0.25rem; padding: 0.5rem 0.75rem; border-radius: 0.75rem; text-align: center;
+            background: #e9e2d6; border: 1px dashed #c4b8a6; color: #a89c8a; font-weight: 700; font-size: 0.75rem; white-space: nowrap;
+        }
+        .master-open {
+            margin-top: -0.25rem; width: 100%; padding: 0.6rem 0.75rem; border-radius: 0.75rem;
+            display: flex; align-items: center; justify-content: center; gap: 0.5rem; white-space: nowrap; font-weight: 900;
+            border: 2px solid #d9a441;
+            box-shadow: 0 0 0 2px rgba(217,164,65,0.25), 0 6px 12px rgba(62,37,20,0.3), inset 0 1px 0 rgba(255,255,255,0.2);
+        }
+        .master-open.hidden, .master-locked.hidden { display: none; }
+        .master-open .mo-stars { color: #f5b83d; font-size: 0.75rem; letter-spacing: 0.1em; }
+        .master-open .mo-name { color: #ffe9b0; font-size: 1rem; }
+        .master-open .mo-win { color: #e8cfa5; font-size: 0.7rem; }
+        @media (max-width: 359px) { .master-locked { font-size: 0.62rem; padding-left: 0.3rem; padding-right: 0.3rem; } }
+
+        /* 難易度の札 */
+        .level-chip .lv-name { font-size: 0.95rem; }
+        .level-chip .lv-stars { letter-spacing: 0.1em; font-size: 0.72rem; line-height: 1; }
+        .level-chip .lv-win { font-size: 0.7rem; }
+        @media (max-width: 359px) { .level-chip .lv-name { font-size: 0.8rem; } }
+        /* 横向きスマホなど、高さの低い画面では題字と余白をつめて1画面に近づける */
+        @media (max-height: 520px) {
+            #screen-start .title-bead { width: 2rem; height: 2rem; font-size: 1rem; }
+            #screen-start h1 { font-size: 1.6rem; }
+            #screen-start .menu-sub { display: none; }
+            #screen-start .menu-logo { margin-bottom: 0.6rem; }
+            #screen-start .wood-plank { padding: 0.9rem 1rem; }
+            #screen-start .wood-inset { padding: 0.7rem 0.9rem; gap: 0.4rem; }
+            #screen-start .wood-inset p { display: none; }
+            #screen-start .wood-tag { margin-top: 0.6rem; padding-top: 0.45rem; padding-bottom: 0.45rem; }
+            #screen-start .menu-credit { margin-top: 0.4rem; }
+            #screen-start { padding-top: 0.35rem; padding-bottom: 0.35rem; }
+            #screen-start > .relative { padding-top: 0; padding-bottom: 0; }
+            #screen-start .menu-logo { margin-bottom: 0.4rem; }
+            #screen-start .menu-logo > .inline-flex { margin-bottom: 0.1rem; }
+            #screen-start .level-chip { padding-top: 0.3rem; padding-bottom: 0.3rem; gap: 0.1rem; }
+            #screen-start .master-open, #screen-start .master-locked { padding-top: 0.3rem; padding-bottom: 0.3rem; margin-top: 0; }
+            #screen-start .wood-btn-dark { padding-top: 0.5rem; padding-bottom: 0.5rem; }
         }
 
         /* 木のおもちゃ箱のような質感 */
@@ -154,6 +249,85 @@
             box-shadow: 0 4px 6px rgba(0,0,0,0.5);
         }
 
+        /* 手番を示す小さなコマ型ドット */
+        #turn-dot {
+            width: 14px; height: 14px; border-radius: 50%;
+            transition: background 0.3s ease;
+        }
+        #turn-dot.dot-p1 { background: #3b2416; box-shadow: inset 0 1px 2px rgba(255,255,255,0.25); }
+        #turn-dot.dot-p2 { background: #efd2ad; border: 1px solid #c9a26e; }
+        #turn-dot.is-thinking { animation: turnDotPulse 1s ease-in-out infinite; }
+        @keyframes turnDotPulse { 0%,100% { opacity: 0.35; } 50% { opacity: 1; } }
+
+        /* 勝利バナー：画面上部（目線の高さ）に出す明るい木のカード */
+        .victory-banner {
+            position: absolute; left: 50%; top: 3.6rem;
+            width: min(calc(100% - 1.5rem), 30rem);
+            padding: 0.7rem 1rem;
+            display: flex; align-items: center; gap: 0.8rem;
+            border-radius: 1.4rem; overflow: hidden;
+            background: linear-gradient(135deg, #fffaf0 0%, #f6e6c9 100%);
+            border: 3px solid #d9a441;
+            box-shadow: 0 0 0 3px rgba(255,248,230,0.9), 0 14px 30px -6px rgba(94,61,38,0.45), 0 0 28px rgba(250,190,70,0.55);
+            animation: bannerPop 0.6s cubic-bezier(0.2, 1.4, 0.4, 1) both;
+        }
+        .victory-banner::after {   /* 登場時に一度だけ光が走る */
+            content: ''; position: absolute; top: 0; bottom: 0; left: -60%; width: 40%;
+            background: linear-gradient(100deg, transparent, rgba(255,255,255,0.8), transparent);
+            animation: bannerShine 1.1s ease-out 0.5s 1 both;
+            pointer-events: none;
+        }
+        @keyframes bannerPop {
+            from { opacity: 0; transform: translate(-50%, -30px) scale(0.85); }
+            to   { opacity: 1; transform: translate(-50%, 0) scale(1); }
+        }
+        @keyframes bannerShine { from { left: -60%; } to { left: 130%; } }
+        @media (min-width: 768px) { .victory-banner { top: 1rem; } }
+
+        .victory-coin {
+            width: 3.6rem; height: 3.6rem; flex-shrink: 0; border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 1.7rem; border: 3px solid #d9a441;
+            box-shadow: 0 4px 10px rgba(94,61,38,0.4), inset 0 2px 3px rgba(255,255,255,0.4);
+        }
+        .victory-coin[data-who="1"] { background: radial-gradient(circle at 35% 30%, #7a4c2c, #2b1b11); }
+        .victory-coin[data-who="2"] { background: radial-gradient(circle at 35% 30%, #fff8ea, #e0c294); }
+        .victory-coin[data-who="0"] { background: radial-gradient(circle at 35% 30%, #e9e2d6, #a89c8a); }
+        .victory-coin .ico { width: 1.9rem; height: 1.9rem; stroke-width: 2.2; color: #3a2414; }
+        .victory-coin[data-who="1"] .ico { color: #ffe9c4; }
+        .victory-title { color: #4e2f1d; text-shadow: 0 2px 0 #fff, 0 0 14px rgba(250,190,70,0.7); }
+
+        /* 勝利画面の操作ボタン：画面下の小さな2つだけ */
+        .victory-actions {
+            position: absolute; left: 50%; bottom: 0.9rem; transform: translateX(-50%);
+            display: flex; gap: 0.6rem; width: max-content; max-width: calc(100% - 1.5rem);
+            animation: actionsRise 0.5s ease-out 0.35s both;
+        }
+        /* 薄くなった球を元に戻す／もう一度薄くするボタン（操作ボタンのすぐ上） */
+        .victory-reveal {
+            position: absolute; left: 50%; bottom: 4.6rem; transform: translateX(-50%);
+            animation: actionsRise 0.5s ease-out 0.45s both;
+            background: rgba(255,250,240,0.96); color: #5c3c26; border: 2px solid #d9a441;
+            border-radius: 999px; padding: 0.4rem 1rem; font-weight: 800; font-size: 0.8rem;
+            white-space: nowrap; box-shadow: 0 3px 10px rgba(90,55,20,0.25);
+        }
+        .victory-reveal:active { transform: translateX(-50%) scale(0.97); }
+        @keyframes actionsRise {
+            from { opacity: 0; transform: translate(-50%, 24px); }
+            to   { opacity: 1; transform: translate(-50%, 0); }
+        }
+
+        /* 高さの低い画面（横向きスマホ）ではコンパクトに */
+        @media (max-height: 520px) {
+            .victory-banner { padding: 0.4rem 0.8rem; top: 0.5rem; }
+            .victory-coin { width: 2.6rem; height: 2.6rem; font-size: 1.2rem; }
+            .victory-banner h2 { font-size: 1.15rem; }
+            .victory-banner p { display: none; }
+            .victory-actions { bottom: 0.5rem; }
+            .victory-reveal { bottom: 3.4rem; padding: 0.3rem 0.8rem; font-size: 0.72rem; }
+            .victory-actions button { padding: 0.5rem 1rem; font-size: 0.8rem; }
+        }
+
         /* 紙吹雪の落下CSSアニメーション */
         @keyframes confettiFall {
             0% {
@@ -178,80 +352,101 @@
     <!-- ==========================================
          画面1：スタート画面（モード選択）
     =========================================== -->
+    <!-- 共通アイコン（インラインSVG） -->
+    <svg xmlns="http://www.w3.org/2000/svg" style="display:none" aria-hidden="true">
+        <symbol id="i-users" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.2"/><path d="M3.5 19c0-3 2.5-5 5.5-5s5.5 2 5.5 5"/><circle cx="17" cy="9" r="2.6"/><path d="M15.5 14.2c3 0 5 1.8 5 4.3"/></symbol>
+        <symbol id="i-robot" viewBox="0 0 24 24"><rect x="5" y="8" width="14" height="11" rx="3"/><path d="M12 8V4M9.5 4h5"/><circle cx="9.5" cy="13" r="1.1" fill="currentColor" stroke="none"/><circle cx="14.5" cy="13" r="1.1" fill="currentColor" stroke="none"/><path d="M9.5 16.5h5"/><path d="M3 12v3M21 12v3"/></symbol>
+        <symbol id="i-cap" viewBox="0 0 24 24"><path d="M2.5 9.5 12 5l9.5 4.5L12 14z"/><path d="M6.5 11.5V16c0 1.5 2.5 3 5.5 3s5.5-1.5 5.5-3v-4.5"/><path d="M21.5 9.5V15"/></symbol>
+        <symbol id="i-book" viewBox="0 0 24 24"><path d="M12 6.5c-2-1.5-4.5-2-8-2v13c3.5 0 6 .5 8 2 2-1.5 4.5-2 8-2v-13c-3.5 0-6 .5-8 2z"/><path d="M12 6.5v13"/></symbol>
+        <symbol id="i-x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></symbol>
+        <symbol id="i-play" viewBox="0 0 24 24"><path d="M7 5v14l12-7z" fill="currentColor" stroke="none"/></symbol>
+        <symbol id="i-hand" viewBox="0 0 24 24"><path d="M9 11V5.5a1.5 1.5 0 0 1 3 0V11"/><path d="M12 10.5a1.5 1.5 0 0 1 3 0V12"/><path d="M15 11.5a1.5 1.5 0 0 1 3 0V16c0 3-2 5.5-5.5 5.5S7 19.5 6.5 17.5L5 13.5a1.4 1.4 0 0 1 2.5-1L9 14"/></symbol>
+        <symbol id="i-eye" viewBox="0 0 24 24"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/><circle cx="12" cy="12" r="3"/></symbol>
+        <symbol id="i-bulb" viewBox="0 0 24 24"><path d="M9 18h6M10 21h4"/><path d="M8 13.5A6 6 0 1 1 16 13.5c-.8.8-1.5 1.8-1.5 3h-5c0-1.2-.7-2.2-1.5-3z"/></symbol>
+        <symbol id="i-back" viewBox="0 0 24 24"><path d="M10 6l-6 6 6 6M4 12h16"/></symbol>
+        <symbol id="i-q" viewBox="0 0 24 24"><path d="M9 9.5a3 3 0 1 1 4.5 2.6c-1 .6-1.5 1.2-1.5 2.4"/><circle cx="12" cy="18" r="1.1" fill="currentColor" stroke="none"/></symbol>
+        <symbol id="i-trophy" viewBox="0 0 24 24"><path d="M8 4h8v5a4 4 0 0 1-8 0z"/><path d="M8 6H5a3 3 0 0 0 3 4M16 6h3a3 3 0 0 1-3 4"/><path d="M12 13v3M9 19h6M10 16h4v3h-4z"/></symbol>
+        <symbol id="i-shake" viewBox="0 0 24 24"><circle cx="8" cy="12" r="4.5"/><circle cx="16" cy="12" r="4.5"/></symbol>
+    </svg>
+
     <div id="screen-start" class="absolute inset-0 z-20 flex flex-col items-center p-4 md:p-6 w-full h-full overflow-y-auto overflow-x-hidden">
         <div class="absolute inset-0 bg-pattern pointer-events-none"></div>
         
-        <div id="start-sizer" class="z-10 my-auto">
-        <div id="start-inner" class="relative z-10 w-full max-w-2xl flex flex-col items-center py-3 sm:py-8">
-            <!-- 木製ロゴタイトル -->
-            <div class="text-center mb-5 sm:mb-8">
-                <div class="inline-flex gap-1 mb-3">
-                    <div class="w-10 h-10 rounded-lg bg-gradient-to-br from-[#5c3821] to-[#3e2514] border-2 border-[#815537] shadow-md transform -rotate-6 flex items-center justify-center text-[#f5dec2] font-black text-xl">立</div>
-                    <div class="w-10 h-10 rounded-lg bg-gradient-to-br from-[#f5dec2] to-[#d4bc9e] border-2 border-[#ffffff] shadow-md transform rotate-3 flex items-center justify-center text-[#3e2514] font-black text-xl">体</div>
-                    <div class="w-10 h-10 rounded-lg bg-gradient-to-br from-[#5c3821] to-[#3e2514] border-2 border-[#815537] shadow-md transform -rotate-3 flex items-center justify-center text-[#f5dec2] font-black text-xl">四</div>
-                    <div class="w-10 h-10 rounded-lg bg-gradient-to-br from-[#f5dec2] to-[#d4bc9e] border-2 border-[#ffffff] shadow-md transform rotate-6 flex items-center justify-center text-[#3e2514] font-black text-xl">目</div>
+        <div class="relative z-10 w-full max-w-2xl flex flex-col items-center my-auto py-3 sm:py-6">
+            <!-- 木の球のロゴ -->
+            <div class="text-center mb-4 sm:mb-6 menu-logo">
+                <div class="inline-flex items-end gap-1.5 mb-2" aria-hidden="true">
+                    <div class="title-bead dark">立</div>
+                    <div class="title-bead light" style="margin-bottom:4px">体</div>
+                    <div class="title-bead dark">四</div>
+                    <div class="title-bead light" style="margin-bottom:4px">目</div>
                 </div>
-                <h1 class="text-4xl md:text-5xl font-black text-[#4e2f1d] drop-shadow-sm tracking-wide">
+                <h1 class="text-4xl md:text-5xl font-black text-[#4e2f1d] tracking-wide" style="text-shadow: 0 2px 0 rgba(255,255,255,0.7), 0 4px 10px rgba(94,61,38,0.2);">
                     立体四目並べ
                 </h1>
-                <p class="text-amber-800/60 font-bold mt-2 tracking-widest text-xs md:text-sm">WOODEN 3D CONNECT FOUR</p>
+                <p class="menu-sub text-[#9a7a5a] font-bold mt-1.5 tracking-[0.3em] text-[10px] md:text-xs">WOODEN 3D CONNECT FOUR</p>
             </div>
 
-            <!-- メニューウッドボックス -->
-            <div class="w-full wood-box p-6 md:p-8 rounded-3xl border-2 border-[#dfd3c3]">
-                <div class="start-grid grid grid-cols-1 md:grid-cols-2 gap-6">
+            <!-- 木の板メニュー -->
+            <div class="w-full wood-plank menu-rise p-5 pt-6 md:p-8">
+                <span class="peg tl"></span><span class="peg tr"></span><span class="peg bl"></span><span class="peg br"></span>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-5">
                     
                     <!-- 2人対戦 (PvP) -->
-                    <div class="flex flex-col gap-3 bg-[#fdfbf7]/50 p-4 rounded-2xl border border-[#ede3d5]/80">
-                        <div class="flex items-center gap-3 border-b border-[#ebdcc3] pb-2">
-                            <div class="w-8 h-8 shrink-0 rounded-full bg-[#ebdcc3] flex items-center justify-center text-amber-800">
-                                <svg class="fa-svg text-sm" viewBox="0 0 640 512" width="1.25em" height="1em" fill="currentColor" aria-hidden="true"><path d="M96 128a128 128 0 1 1 256 0A128 128 0 1 1 96 128zM0 482.3C0 383.8 79.8 304 178.3 304h91.4C368.2 304 448 383.8 448 482.3c0 16.4-13.3 29.7-29.7 29.7H29.7C13.3 512 0 498.7 0 482.3zM609.3 512H471.4c5.4-9.4 8.6-20.3 8.6-32v-8c0-60.7-27.1-115.2-69.8-151.8c2.4-.1 4.7-.2 7.1-.2h61.4C567.8 320 640 392.2 640 481.3c0 17-13.8 30.7-30.7 30.7zM432 256c-31 0-59-12.6-79.3-32.9C372.4 196.5 384 163.6 384 128c0-26.8-6.6-52.1-18.3-74.3C384.3 40.1 407.2 32 432 32c61.9 0 112 50.1 112 112s-50.1 112-112 112z"/></svg>
-                            </div>
-                            <h2 class="text-sm sm:text-base font-black text-[#5c3c26] leading-tight">お友達と対戦</h2>
+                    <div class="wood-inset flex flex-col gap-3 p-4">
+                        <div class="flex items-center gap-2.5">
+                            <div class="bead-icon dark"><svg class="ico"><use href="#i-users"/></svg></div>
+                            <h2 class="text-base sm:text-lg font-black text-[#4e2f1d] leading-tight">ふたりで対戦</h2>
                         </div>
-                        <p class="text-xs text-[#7c6351] leading-relaxed">1台のスマホ・PCを共有して、2人で交互にコマを置いて競い合います。</p>
+                        <p class="text-xs text-[#7c6351] leading-relaxed">1台を2人で使って、交代で球を落として勝負！</p>
                         
-                        <button onclick="startGame('pvp', null)" class="wood-btn-dark w-full py-3 px-4 rounded-xl font-bold flex flex-col sm:flex-row sm:justify-between items-center gap-1.5 text-sm mt-auto">
+                        <button onclick="startGame('pvp', null)" class="wood-btn-dark w-full py-3.5 px-4 rounded-xl font-black flex justify-center items-center text-sm mt-auto">
                             <span class="whitespace-nowrap">2人対戦を始める</span>
-                            <span class="text-[10px] bg-black/20 px-2 py-0.5 rounded text-amber-200 whitespace-nowrap">
-                                P1:<span id="win-p1" class="font-bold mx-0.5">0</span>勝 P2:<span id="win-p2" class="font-bold mx-0.5">0</span>勝
-                            </span>
                         </button>
                     </div>
 
                     <!-- AI対戦 (PvE) -->
-                    <div class="flex flex-col gap-3 bg-[#fdfbf7]/50 p-4 rounded-2xl border border-[#ede3d5]/80">
-                        <div class="flex items-center gap-3 border-b border-[#ebdcc3] pb-2">
-                            <div class="w-8 h-8 shrink-0 rounded-full bg-[#ebdcc3] flex items-center justify-center text-[#3e2514]">
-                                <svg class="fa-svg text-sm" viewBox="0 0 640 512" width="1.25em" height="1em" fill="currentColor" aria-hidden="true"><path d="M320 0c17.7 0 32 14.3 32 32V96H472c39.8 0 72 32.2 72 72V440c0 39.8-32.2 72-72 72H168c-39.8 0-72-32.2-72-72V168c0-39.8 32.2-72 72-72H288V32c0-17.7 14.3-32 32-32zM208 384c-8.8 0-16 7.2-16 16s7.2 16 16 16h32c8.8 0 16-7.2 16-16s-7.2-16-16-16H208zm96 0c-8.8 0-16 7.2-16 16s7.2 16 16 16h32c8.8 0 16-7.2 16-16s-7.2-16-16-16H304zm96 0c-8.8 0-16 7.2-16 16s7.2 16 16 16h32c8.8 0 16-7.2 16-16s-7.2-16-16-16H400zM264 256a40 40 0 1 0 -80 0 40 40 0 1 0 80 0zm152 40a40 40 0 1 0 0-80 40 40 0 1 0 0 80zM48 224H64V416H48c-26.5 0-48-21.5-48-48V272c0-26.5 21.5-48 48-48zm544 0c26.5 0 48 21.5 48 48v96c0 26.5-21.5 48-48 48H576V224h16z"/></svg>
-                            </div>
-                            <h2 class="text-sm sm:text-base font-black text-[#5c3c26] leading-tight">ひとりで練習 (AI対戦)</h2>
+                    <div class="wood-inset flex flex-col gap-3 p-4">
+                        <div class="flex items-center gap-2.5">
+                            <div class="bead-icon light"><svg class="ico"><use href="#i-robot"/></svg></div>
+                            <h2 class="text-base sm:text-lg font-black text-[#4e2f1d] leading-tight">コンピューターと対戦</h2>
                         </div>
-                        <p class="text-xs text-[#7c6351] leading-relaxed">3つの難易度を持つ木製コンピューターに挑みます。</p>
+                        <p class="text-xs text-[#7c6351] leading-relaxed">強さを選んでスタート。やさしいは、並べ方と止め方のお手本役です。</p>
                         
                         <div class="grid grid-cols-3 gap-2 mt-auto">
-                            <button onclick="startGame('pve', 'easy')" class="wood-btn-light py-2 px-1 rounded-lg text-xs font-bold text-[#5c3c26] flex flex-col items-center">
-                                <span>やさしい</span>
-                                <span class="text-[9px] text-[#8c7361] mt-0.5"><span id="win-easy">0</span>勝</span>
+                            <button onclick="startGame('pve', 'easy')" class="wood-btn-light level-chip py-2.5 px-1 rounded-xl font-black text-[#5c3c26] flex flex-col items-center gap-1 leading-tight whitespace-nowrap">
+                                <span class="lv-name">やさしい</span>
+                                <span class="lv-stars" aria-hidden="true"><span class="text-amber-500">★</span><span class="text-[#d9c7ad]">★★</span></span>
+                                <span class="lv-win font-bold text-[#8c7361]"><span id="win-easy">0</span>勝</span>
                             </button>
-                            <button onclick="startGame('pve', 'normal')" class="wood-btn-light py-2 px-1 rounded-lg text-xs font-bold text-[#5c3c26] flex flex-col items-center">
-                                <span>ふつう</span>
-                                <span class="text-[9px] text-[#8c7361] mt-0.5"><span id="win-normal">0</span>勝</span>
+                            <button onclick="startGame('pve', 'normal')" class="wood-btn-light level-chip py-2.5 px-1 rounded-xl font-black text-[#5c3c26] flex flex-col items-center gap-1 leading-tight whitespace-nowrap">
+                                <span class="lv-name">ふつう</span>
+                                <span class="lv-stars" aria-hidden="true"><span class="text-amber-500">★★</span><span class="text-[#d9c7ad]">★</span></span>
+                                <span class="lv-win font-bold text-[#8c7361]"><span id="win-normal">0</span>勝</span>
                             </button>
-                            <button onclick="startGame('pve', 'hard')" class="wood-btn-light py-2 px-1 rounded-lg text-xs font-bold text-[#5c3c26] flex flex-col items-center">
-                                <span class="text-red-800">つよい</span>
-                                <span class="text-[9px] text-[#8c7361] mt-0.5"><span id="win-hard">0</span>勝</span>
+                            <button onclick="startGame('pve', 'hard')" class="wood-btn-light level-chip py-2.5 px-1 rounded-xl font-black text-[#5c3c26] flex flex-col items-center gap-1 leading-tight whitespace-nowrap">
+                                <span class="lv-name text-red-800">つよい</span>
+                                <span class="lv-stars" aria-hidden="true"><span class="text-amber-500">★★★</span></span>
+                                <span class="lv-win font-bold text-[#8c7361]"><span id="win-hard">0</span>勝</span>
                             </button>
                         </div>
+                        <!-- 最強：つよいに3回勝つと出る -->
+                        <div id="master-locked" class="master-locked">？？？　つよいに あと<span id="master-remain">3</span>回 勝つと出るよ</div>
+                        <button id="master-open" onclick="startGame('pve', 'master')" class="wood-btn-dark master-open hidden">
+                            <span class="mo-stars" aria-hidden="true">★★★★</span><span class="mo-name">最強にいどむ</span><span class="mo-win"><span id="win-master">0</span>勝</span>
+                        </button>
                     </div>
                 </div>
             </div>
 
-            <!-- 遊び方ボタン -->
-            <button onclick="toggleRules(true)" class="mt-5 sm:mt-6 text-[#5c3821] hover:text-[#8d5b3d] font-bold text-xs sm:text-sm transition flex items-center gap-2 bg-[#faf6f0] px-4 sm:px-6 py-3 rounded-full border border-[#d4c5b1] shadow-sm hover:shadow-md text-center leading-tight">
-                <svg class="fa-svg text-base sm:text-lg shrink-0" viewBox="0 0 640 512" width="1.25em" height="1em" fill="currentColor" aria-hidden="true"><path d="M320 32c-8.1 0-16.1 1.4-23.7 4.1L15.8 137.4C6.3 140.9 0 149.9 0 160s6.3 19.1 15.8 22.6l57.9 20.9C57.3 229.3 48 259.8 48 291.9v28.1c0 28.4-10.8 57.7-22.3 80.8c-6.5 13-13.9 25.8-22.5 37.6C0 442.7-.9 448.3 .9 453.4s6 8.9 11.2 10.2l64 16c4.2 1.1 8.7 .3 12.4-2s6.3-6.1 7.1-10.4c8.6-42.8 4.3-81.2-2.1-108.7C90.3 344.3 86 329.8 80 316.5V291.9c0-30.2 10.2-58.7 27.9-81.5c12.9-15.5 29.6-28 49.2-35.7l157-61.7c8.2-3.2 17.5 .8 20.7 9s-.8 17.5-9 20.7l-157 61.7c-12.4 4.9-23.3 12.4-32.2 21.6l159.6 57.6c7.6 2.7 15.6 4.1 23.7 4.1s16.1-1.4 23.7-4.1L624.2 182.6c9.5-3.4 15.8-12.5 15.8-22.6s-6.3-19.1-15.8-22.6L343.7 36.1C336.1 33.4 328.1 32 320 32zM128 408c0 35.3 86 72 192 72s192-36.7 192-72L496.7 262.6 354.5 314c-11.1 4-22.8 6-34.5 6s-23.5-2-34.5-6L143.3 262.6 128 408z"/></svg> ルールと「勝ち方」を3D CGで見る
+            <!-- 遊び方（木の札） -->
+            <button onclick="toggleRules(true)" class="wood-tag menu-rise mt-5 font-bold text-xs sm:text-sm flex items-center gap-2 px-4 sm:px-5 py-2.5 leading-tight" style="animation-delay:0.4s">
+                <span class="hole"></span>
+                <svg class="ico text-base sm:text-lg"><use href="#i-cap"/></svg>
+                ルールと「勝ち方」を3Dで見る
             </button>
-        </div>
+
+            <p class="menu-credit mt-5 text-[10px] text-[#9a7a5a] tracking-wide">立体四目並べ ｜ ver1.0 ｜ ota tools × kita</p>
         </div>
     </div>
 
@@ -262,45 +457,24 @@
     <div id="screen-game" class="hidden absolute inset-0 z-10 w-full h-full bg-gradient-to-br from-[#ede5da] to-[#d3c6b5]">
         
         <!-- トップHUD (戻る / ターン / ルール) -->
-        <div id="game-hud" class="absolute top-0 left-0 w-full p-2 sm:p-4 md:p-6 flex justify-between items-start z-20 pointer-events-none">
+        <div class="absolute top-0 left-0 w-full p-2 sm:p-4 md:p-6 flex justify-between items-start z-20 pointer-events-none">
             
             <!-- 戻るボタン -->
             <button onclick="returnToStart()" class="pointer-events-auto shrink-0 bg-[#faf6f0]/95 hover:bg-white text-[#4e2f1d] w-11 h-11 md:w-auto md:px-5 md:py-2 rounded-2xl border border-[#cbd3be]/50 transition flex justify-center items-center gap-2 shadow-lg font-bold text-sm">
-                <svg class="fa-svg text-base" viewBox="0 0 512 512" width="1.0em" height="1em" fill="currentColor" aria-hidden="true"><path d="M177.5 414c-8.8 3.8-19 2-26-4.6l-144-136C2.7 268.9 0 262.6 0 256s2.7-12.9 7.5-17.4l144-136c7-6.6 17.2-8.4 26-4.6s14.5 12.5 14.5 22l0 72 288 0c17.7 0 32 14.3 32 32l0 64c0 17.7-14.3 32-32 32l-288 0 0 72c0 9.6-5.7 18.2-14.5 22z"/></svg>
+                <svg class="ico text-lg"><use href="#i-back"/></svg>
                 <span class="hidden md:inline">モード選択へ</span>
             </button>
 
-            <!-- 中央 ターン表示 / 結果表示 -->
-            <div id="hud-center" class="pointer-events-auto bg-[#faf6f0]/95 px-3 sm:px-6 py-2 sm:py-2.5 rounded-3xl border border-[#d4c5b1] shadow-xl flex flex-col items-center gap-0.5 transition-all transform absolute left-1/2 -translate-x-1/2 min-w-[150px] sm:min-w-[210px] max-w-[calc(100%-7rem)] text-center">
-                <div id="hud-subtitle" class="text-[9px] text-[#8c7361] font-black tracking-widest">TURN</div>
-                
-                <div class="flex items-center gap-2">
-                    <div id="turn-indicator" class="w-3.5 h-3.5 rounded-full bg-amber-900 border border-amber-700"></div>
-                    <div id="turn-text" class="text-xs sm:text-sm md:text-base font-black text-[#3e2514] whitespace-nowrap">P1 (濃茶) の番</div>
-                </div>
-
-                <!-- AI思考中インジケーター -->
-                <div id="ai-thinking" class="hidden absolute -bottom-8 bg-[#3e2514] px-4 py-1 rounded-full text-[#f5dec2] text-xs font-bold shadow-md flex items-center gap-1.5 whitespace-nowrap">
-                    <svg class="fa-svg animate-spin text-[10px]" viewBox="0 0 512 512" width="1.0em" height="1em" fill="currentColor" aria-hidden="true"><path d="M176 24c0-13.3-10.7-24-24-24s-24 10.7-24 24V64c-35.3 0-64 28.7-64 64H24c-13.3 0-24 10.7-24 24s10.7 24 24 24H64v56H24c-13.3 0-24 10.7-24 24s10.7 24 24 24H64v56H24c-13.3 0-24 10.7-24 24s10.7 24 24 24H64c0 35.3 28.7 64 64 64v40c0 13.3 10.7 24 24 24s24-10.7 24-24V448h56v40c0 13.3 10.7 24 24 24s24-10.7 24-24V448h56v40c0 13.3 10.7 24 24 24s24-10.7 24-24V448c35.3 0 64-28.7 64-64h40c13.3 0 24-10.7 24-24s-10.7-24-24-24H448V280h40c13.3 0 24-10.7 24-24s-10.7-24-24-24H448V176h40c13.3 0 24-10.7 24-24s-10.7-24-24-24H448c0-35.3-28.7-64-64-64V24c0-13.3-10.7-24-24-24s-24 10.7-24 24V64H280V24c0-13.3-10.7-24-24-24s-24 10.7-24 24V64H176V24zM160 128H352c17.7 0 32 14.3 32 32V352c0 17.7-14.3 32-32 32H160c-17.7 0-32-14.3-32-32V160c0-17.7 14.3-32 32-32zm192 32H160V352H352V160z"/></svg> AIが考えています...
-                </div>
-
-                <!-- ゲーム終了時の「もう一度」ボタン -->
-                <button id="btn-play-again" onclick="resetGame()" class="hidden mt-2 w-full bg-[#5c3821] hover:bg-[#4a2c1a] text-[#f5dec2] px-3 py-1.5 rounded-xl text-xs font-bold shadow-md transition">
-                    <svg class="fa-svg mr-1" viewBox="0 0 512 512" width="1.0em" height="1em" fill="currentColor" aria-hidden="true"><path d="M463.5 224H472c13.3 0 24-10.7 24-24V72c0-9.7-5.8-18.5-14.8-22.2s-19.3-1.7-26.2 5.2L413.4 96.6c-87.6-86.5-228.7-86.2-315.8 1c-87.5 87.5-87.5 229.3 0 316.8s229.3 87.5 316.8 0c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0c-62.5 62.5-163.8 62.5-226.3 0s-62.5-163.8 0-226.3c62.2-62.2 162.7-62.5 225.3-1L327 183c-6.9 6.9-8.9 17.2-5.2 26.2s12.5 14.8 22.2 14.8H463.5z"/></svg> もう一度プレイ
-                </button>
-            </div>
-
             <!-- ルール確認ショートカット -->
             <button onclick="toggleRules(true)" class="pointer-events-auto shrink-0 bg-[#faf6f0]/95 hover:bg-white text-[#4e2f1d] w-11 h-11 rounded-2xl border border-[#d4c5b1] transition flex items-center justify-center shadow-lg text-lg">
-                <svg class="fa-svg text-base" viewBox="0 0 320 512" width="0.625em" height="1em" fill="currentColor" aria-hidden="true"><path d="M80 160c0-35.3 28.7-64 64-64h32c35.3 0 64 28.7 64 64v3.6c0 21.8-11.1 42.1-29.4 53.8l-42.2 27.1c-25.2 16.2-40.4 44.1-40.4 74V320c0 17.7 14.3 32 32 32s32-14.3 32-32v-1.4c0-8.2 4.2-15.8 11-20.2l42.2-27.1c36.6-23.6 58.8-64.1 58.8-107.7V160c0-70.7-57.3-128-128-128H144C73.3 32 16 89.3 16 160c0 17.7 14.3 32 32 32s32-14.3 32-32zm80 320a40 40 0 1 0 0-80 40 40 0 1 0 0 80z"/></svg>
+                <svg class="ico text-lg"><use href="#i-q"/></svg>
             </button>
         </div>
 
-        <!-- 操作ガイド下部 -->
-        <div id="game-guide" class="absolute bottom-4 md:bottom-6 left-1/2 -translate-x-1/2 z-20 pointer-events-none bg-[#3e2514]/90 px-4 py-2 rounded-2xl text-[10px] sm:text-xs text-[#f5dec2] flex flex-wrap justify-center gap-x-4 gap-y-1 shadow-lg max-w-[calc(100vw-1.5rem)]">
-            <span class="flex items-center gap-1 whitespace-nowrap"><svg class="fa-svg text-amber-500" viewBox="0 0 512 512" width="1.0em" height="1em" fill="currentColor" aria-hidden="true"><path d="M256 96c38.4 0 73.7 13.5 101.3 36.1l-32.6 32.6c-4.6 4.6-5.9 11.5-3.5 17.4s8.3 9.9 14.8 9.9H448c8.8 0 16-7.2 16-16V64c0-6.5-3.9-12.3-9.9-14.8s-12.9-1.1-17.4 3.5l-34 34C363.4 52.6 312.1 32 256 32c-10.9 0-21.5 .8-32 2.3V99.2c10.3-2.1 21-3.2 32-3.2zM132.1 154.7l32.6 32.6c4.6 4.6 11.5 5.9 17.4 3.5s9.9-8.3 9.9-14.8V64c0-8.8-7.2-16-16-16H64c-6.5 0-12.3 3.9-14.8 9.9s-1.1 12.9 3.5 17.4l34 34C52.6 148.6 32 199.9 32 256c0 10.9 .8 21.5 2.3 32H99.2c-2.1-10.3-3.2-21-3.2-32c0-38.4 13.5-73.7 36.1-101.3zM477.7 224H412.8c2.1 10.3 3.2 21 3.2 32c0 38.4-13.5 73.7-36.1 101.3l-32.6-32.6c-4.6-4.6-11.5-5.9-17.4-3.5s-9.9 8.3-9.9 14.8V448c0 8.8 7.2 16 16 16H448c6.5 0 12.3-3.9 14.8-9.9s1.1-12.9-3.5-17.4l-34-34C459.4 363.4 480 312.1 480 256c0-10.9-.8-21.5-2.3-32zM256 416c-38.4 0-73.7-13.5-101.3-36.1l32.6-32.6c4.6-4.6 5.9-11.5 3.5-17.4s-8.3-9.9-14.8-9.9H64c-8.8 0-16 7.2-16 16l0 112c0 6.5 3.9 12.3 9.9 14.8s12.9 1.1 17.4-3.5l34-34C148.6 459.4 199.9 480 256 480c10.9 0 21.5-.8 32-2.3V412.8c-10.3 2.1-21 3.2-32 3.2z"/></svg>ドラッグ: 回す</span>
-            <span class="flex items-center gap-1 whitespace-nowrap"><svg class="fa-svg text-amber-500" viewBox="0 0 512 512" width="1.0em" height="1em" fill="currentColor" aria-hidden="true"><path d="M416 208c0 45.9-14.9 88.3-40 122.7L502.6 457.4c12.5 12.5 12.5 32.8 0 45.3s-32.8 12.5-45.3 0L330.7 376c-34.4 25.2-76.8 40-122.7 40C93.1 416 0 322.9 0 208S93.1 0 208 0S416 93.1 416 208zM184 296c0 13.3 10.7 24 24 24s24-10.7 24-24V232h64c13.3 0 24-10.7 24-24s-10.7-24-24-24H232V120c0-13.3-10.7-24-24-24s-24 10.7-24 24v64H120c-13.3 0-24 10.7-24 24s10.7 24 24 24h64v64z"/></svg>2本指: 拡大縮小</span>
-            <span class="flex items-center gap-1 whitespace-nowrap"><svg class="fa-svg text-amber-500" viewBox="0 0 448 512" width="0.875em" height="1em" fill="currentColor" aria-hidden="true"><path d="M160 64c0-8.8 7.2-16 16-16s16 7.2 16 16V200c0 10.3 6.6 19.5 16.4 22.8s20.6-.1 26.8-8.3c3-3.9 7.6-6.4 12.8-6.4c8.8 0 16 7.2 16 16c0 10.3 6.6 19.5 16.4 22.8s20.6-.1 26.8-8.3c3-3.9 7.6-6.4 12.8-6.4c7.8 0 14.3 5.6 15.7 13c1.6 8.2 7.3 15.1 15.1 18s16.7 1.6 23.3-3.6c2.7-2.1 6.1-3.4 9.9-3.4c8.8 0 16 7.2 16 16l0 16V392c0 39.8-32.2 72-72 72H272 212.3h-.9c-37.4 0-72.4-18.7-93.2-49.9L50.7 312.9c-4.9-7.4-2.9-17.3 4.4-22.2s17.3-2.9 22.2 4.4L116 353.2c5.9 8.8 16.8 12.7 26.9 9.7s17-12.4 17-23V320 64zM176 0c-35.3 0-64 28.7-64 64V261.7C91.2 238 55.5 232.8 28.5 250.7C-.9 270.4-8.9 310.1 10.8 339.5L78.3 440.8c29.7 44.5 79.6 71.2 133.1 71.2h.9H272h56c66.3 0 120-53.7 120-120V288l0-16c0-35.3-28.7-64-64-64c-4.5 0-8.8 .5-13 1.3c-11.7-15.4-30.2-25.3-51-25.3c-6.9 0-13.5 1.1-19.7 3.1C288.7 170.7 269.6 160 248 160c-2.7 0-5.4 .2-8 .5V64c0-35.3-28.7-64-64-64zm48 304c0-8.8-7.2-16-16-16s-16 7.2-16 16v96c0 8.8 7.2 16 16 16s16-7.2 16-16V304zm48-16c-8.8 0-16 7.2-16 16v96c0 8.8 7.2 16 16 16s16-7.2 16-16V304c0-8.8-7.2-16-16-16zm80 16c0-8.8-7.2-16-16-16s-16 7.2-16 16v96c0 8.8 7.2 16 16 16s16-7.2 16-16V304z"/></svg>2回タップ: 確定</span>
+        <!-- 手番表示（小さな pill。コマの色のドット＋短い文字。AIの思考中はドットが明滅） -->
+        <div id="turn-pill" class="absolute top-2 sm:top-4 md:top-6 left-1/2 -translate-x-1/2 z-20 pointer-events-none bg-[#faf6f0]/90 px-3 py-1 rounded-full border border-[#d4c5b1] shadow flex items-center gap-1.5">
+            <span id="turn-dot" class="dot-p1"></span>
+            <span id="turn-label" class="text-[11px] sm:text-xs font-bold text-[#3e2514] whitespace-nowrap">プレーヤー1の番</span>
         </div>
 
         <!-- 3D Canvas -->
@@ -311,39 +485,28 @@
     <!-- ==========================================
          画面3：勝利お祝いオーバーレイ (勝った瞬間の劇的演出)
     =========================================== -->
-    <div id="screen-victory" class="soft-blur hidden absolute inset-0 z-30 flex flex-col items-center justify-center p-4 bg-black/75 backdrop-blur-sm overflow-hidden">
-        <!-- 紙吹雪用コンテナ -->
+    <div id="screen-victory" class="hidden absolute inset-0 z-30 pointer-events-none overflow-hidden">
+        <!-- 紙吹雪用コンテナ（盤面の操作は邪魔しない） -->
         <div class="absolute inset-0 pointer-events-none" id="confetti-container"></div>
 
-        <div class="relative z-10 w-full max-w-md bg-stone-900/95 border-2 border-amber-600 rounded-3xl p-8 text-center shadow-2xl flex flex-col items-center transform scale-100 transition-transform duration-300" id="victory-modal">
-            <!-- 輝く木製トロフィー調アイコン -->
-            <div class="w-20 h-20 bg-gradient-to-br from-amber-400 to-amber-600 rounded-full flex items-center justify-center border-4 border-amber-200 shadow-xl mb-4 text-white text-4xl animate-bounce">
-                <svg class="fa-svg" viewBox="0 0 576 512" width="1.125em" height="1em" fill="currentColor" aria-hidden="true"><path d="M400 0H176c-26.5 0-48.1 21.8-47.1 48.2c.2 5.3 .4 10.6 .7 15.8H24C10.7 64 0 74.7 0 88c0 92.6 33.5 157 78.5 200.7c44.3 43.1 98.3 64.8 138.1 75.8c23.4 6.5 39.4 26 39.4 45.6c0 20.9-17 37.9-37.9 37.9H192c-17.7 0-32 14.3-32 32s14.3 32 32 32H384c17.7 0 32-14.3 32-32s-14.3-32-32-32H357.9C337 448 320 431 320 410.1c0-19.6 15.9-39.2 39.4-45.6c39.9-11 93.9-32.7 138.2-75.8C542.5 245 576 180.6 576 88c0-13.3-10.7-24-24-24H446.4c.3-5.2 .5-10.4 .7-15.8C448.1 21.8 426.5 0 400 0zM48.9 112h84.4c9.1 90.1 29.2 150.3 51.9 190.6c-24.9-11-50.8-26.5-73.2-48.3c-32-31.1-58-76-63-142.3zM464.1 254.3c-22.4 21.8-48.3 37.3-73.2 48.3c22.7-40.3 42.8-100.5 51.9-190.6h84.4c-5.1 66.3-31.1 111.2-63 142.3z"/></svg>
+        <!-- 結果は目線の高さ（画面上部）に出す。盤面は隠さない -->
+        <div id="victory-modal" class="victory-banner">
+            <div id="victory-coin" class="victory-coin" data-who="1"><svg class="ico"><use id="victory-coin-icon" href="#i-trophy"/></svg></div>
+            <div class="min-w-0 flex-1">
+                <h2 id="victory-title" class="victory-title text-xl min-[360px]:text-2xl sm:text-3xl font-black leading-tight whitespace-nowrap">プレーヤー1の勝ち！</h2>
+                <p id="victory-subtitle" class="text-[#8c6a4a] text-xs sm:text-sm font-bold mt-0.5">見事な4つの一直線が完成しました！</p>
             </div>
-            
-            <h2 id="victory-title" class="text-2xl sm:text-3xl md:text-4xl font-black text-amber-300 mb-2">
-                P1 (濃茶) の勝利！
-            </h2>
-            <p id="victory-subtitle" class="text-stone-300 text-sm md:text-base mb-8">
-                見事な4つの一直線が完成しました！
-            </p>
+        </div>
 
-            <div class="w-full flex flex-col gap-3">
-                <!-- 盤面を確認する -->
-                <button onclick="inspectBoard()" class="w-full bg-stone-800 hover:bg-stone-700 text-stone-200 py-3 px-6 rounded-xl text-sm font-bold border border-stone-600 transition flex items-center justify-center gap-2 shadow-md">
-                    <svg class="fa-svg text-amber-500" viewBox="0 0 576 512" width="1.125em" height="1em" fill="currentColor" aria-hidden="true"><path d="M288 32c-80.8 0-145.5 36.8-192.6 80.6C48.6 156 17.3 208 2.5 243.7c-3.3 7.9-3.3 16.7 0 24.6C17.3 304 48.6 356 95.4 399.4C142.5 443.2 207.2 480 288 480s145.5-36.8 192.6-80.6c46.8-43.5 78.1-95.4 93-131.1c3.3-7.9 3.3-16.7 0-24.6c-14.9-35.7-46.2-87.7-93-131.1C433.5 68.8 368.8 32 288 32zM144 256a144 144 0 1 1 288 0 144 144 0 1 1 -288 0zm144-64c0 35.3-28.7 64-64 64c-7.1 0-13.9-1.2-20.3-3.3c-5.5-1.8-11.9 1.6-11.7 7.4c.3 6.9 1.3 13.8 3.2 20.7c13.7 51.2 66.4 81.6 117.6 67.9s81.6-66.4 67.9-117.6c-11.1-41.5-47.8-69.4-88.6-71.1c-5.8-.2-9.2 6.1-7.4 11.7c2.1 6.4 3.3 13.2 3.3 20.3z"/></svg> 盤面をじっくり確認する
-                </button>
-                
-                <!-- もう一度プレイ -->
-                <button onclick="resetGameAndStartNew()" class="w-full bg-gradient-to-r from-amber-600 to-amber-800 hover:from-amber-500 hover:to-amber-700 text-white py-3.5 px-6 rounded-xl text-base font-black transition flex items-center justify-center gap-2 shadow-lg shadow-black/50">
-                    <svg class="fa-svg" viewBox="0 0 512 512" width="1.0em" height="1em" fill="currentColor" aria-hidden="true"><path d="M463.5 224H472c13.3 0 24-10.7 24-24V72c0-9.7-5.8-18.5-14.8-22.2s-19.3-1.7-26.2 5.2L413.4 96.6c-87.6-86.5-228.7-86.2-315.8 1c-87.5 87.5-87.5 229.3 0 316.8s229.3 87.5 316.8 0c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0c-62.5 62.5-163.8 62.5-226.3 0s-62.5-163.8 0-226.3c62.2-62.2 162.7-62.5 225.3-1L327 183c-6.9 6.9-8.9 17.2-5.2 26.2s12.5 14.8 22.2 14.8H463.5z"/></svg> もう一度プレイ
-                </button>
+        <!-- 薄くなった球を見やすくするスイッチ -->
+        <button id="victory-reveal" type="button" class="victory-reveal pointer-events-auto" onclick="toggleRevealAll()">
+            <svg class="ico mr-1"><use id="victory-reveal-icon" href="#i-eye"/></svg><span id="victory-reveal-label">ぜんぶの球をはっきり見る</span>
+        </button>
 
-                <!-- モード選択へ -->
-                <button onclick="exitToModeSelect()" class="w-full bg-stone-950 hover:bg-stone-900 text-stone-400 py-2 rounded-xl text-xs font-semibold transition">
-                    モード選択に戻る
-                </button>
-            </div>
+        <!-- 操作ボタン（画面下） -->
+        <div id="victory-actions" class="victory-actions pointer-events-auto">
+            <button onclick="resetGameAndStartNew()" class="wood-btn-dark px-6 py-3 rounded-2xl text-sm font-black whitespace-nowrap">もう一度プレイ</button>
+            <button onclick="exitToModeSelect()" class="wood-btn-light px-5 py-3 rounded-2xl text-sm font-bold text-[#5c3c26] whitespace-nowrap">メニューへ</button>
         </div>
     </div>
 
@@ -356,10 +519,10 @@
             
             <div class="p-4 md:p-5 border-b border-[#dfd3c3] flex justify-between items-center bg-[#fdfbf7]/50">
                 <h2 class="text-sm sm:text-lg md:text-xl font-black flex items-center gap-2 min-w-0 pr-2 leading-tight">
-                    <svg class="fa-svg text-amber-700 shrink-0" viewBox="0 0 576 512" width="1.125em" height="1em" fill="currentColor" aria-hidden="true"><path d="M249.6 471.5c10.8 3.8 22.4-4.1 22.4-15.5V78.6c0-4.2-1.6-8.4-5-11C247.4 52 202.4 32 144 32C93.5 32 46.3 45.3 18.1 56.1C6.8 60.5 0 71.7 0 83.8V454.1c0 11.9 12.8 20.2 24.1 16.5C55.6 460.1 105.5 448 144 448c33.9 0 79 14 105.6 23.5zm76.8 0C353 462 398.1 448 432 448c38.5 0 88.4 12.1 119.9 22.6c11.3 3.8 24.1-4.6 24.1-16.5V83.8c0-12.1-6.8-23.3-18.1-27.6C529.7 45.3 482.5 32 432 32c-58.4 0-103.4 20-123 35.6c-3.3 2.6-5 6.8-5 11V456c0 11.4 11.7 19.3 22.4 15.5z"/></svg> <span class="truncate">遊び方と「揃い方」3D CG実演</span>
+                    <svg class="ico text-amber-700 shrink-0"><use href="#i-book"/></svg> <span class="truncate">遊び方と「そろい方」</span>
                 </h2>
                 <button onclick="toggleRules(false)" class="w-8 h-8 shrink-0 flex items-center justify-center rounded-full bg-[#ebdcc3] hover:bg-[#dfd3c3] text-[#3e2723] transition">
-                    <svg class="fa-svg text-sm" viewBox="0 0 384 512" width="0.75em" height="1em" fill="currentColor" aria-hidden="true"><path d="M342.6 150.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0L192 210.7 86.6 105.4c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3L146.7 256 41.4 361.4c-12.5 12.5-12.5 32.8 0 45.3s32.8 12.5 45.3 0L192 301.3 297.4 406.6c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L237.3 256 342.6 150.6z"/></svg>
+                    <svg class="ico text-sm"><use href="#i-x"/></svg>
                 </button>
             </div>
             
@@ -370,9 +533,9 @@
 
                 <!-- CG実演エリア -->
                 <div class="bg-[#f0e6d8]/50 border border-[#dfd3c3] p-3 rounded-2xl flex flex-col gap-3">
-                    <div class="flex items-center justify-between">
-                        <span class="text-xs font-black text-[#5c3e2e]"><svg class="fa-svg text-amber-700 mr-1" viewBox="0 0 384 512" width="0.75em" height="1em" fill="currentColor" aria-hidden="true"><path d="M73 39c-14.8-9.1-33.4-9.4-48.5-.9S0 62.6 0 80V432c0 17.4 9.4 33.4 24.5 41.9s33.7 8.1 48.5-.9L361 297c14.3-8.7 23-24.2 23-41s-8.7-32.2-23-41L73 39z"/></svg>3D CGでお手本を確認する：</span>
-                        <span class="text-[10px] text-amber-800 bg-[#faebd7] px-2 py-0.5 rounded font-bold">CGをドラッグして回転可能！</span>
+                    <div class="flex items-center justify-between gap-2">
+                        <span class="text-xs font-black text-[#5c3e2e] whitespace-nowrap"><svg class="ico text-amber-700 mr-1"><use href="#i-play"/></svg>3Dでお手本を見る</span>
+                        <span class="text-[10px] text-amber-800 bg-[#faebd7] px-2 py-0.5 rounded font-bold whitespace-nowrap"><svg class="ico mr-1"><use href="#i-hand"/></svg>ドラッグで回せます</span>
                     </div>
 
                     <!-- デモの切り替えタブ -->
@@ -393,13 +556,13 @@
                         <div id="rule-canvas-container" class="w-full h-full cursor-grab active:cursor-grabbing"></div>
                     </div>
                     <!-- 解説テキスト（CGに重ねると盤面が隠れるので下に置く） -->
-                    <div class="bg-[#3e2514] px-3 py-2 rounded-lg text-[10px] sm:text-[11px] text-[#f5dec2] leading-relaxed" id="demo-explanation">
+                    <div class="bg-[#3e2514] px-3 py-2 rounded-lg text-[11px] sm:text-xs text-[#f5dec2] leading-relaxed" id="demo-explanation">
                         読み込み中...
                     </div>
                 </div>
 
-                <div class="text-[10px] text-[#8c7361] bg-[#faebd7]/30 p-3 rounded-xl border border-dashed border-[#dfd3c3] leading-relaxed">
-                    <strong class="text-amber-900 block mb-1"><svg class="fa-svg mr-0.5" viewBox="0 0 384 512" width="0.75em" height="1em" fill="currentColor" aria-hidden="true"><path d="M297.2 248.9C311.6 228.3 320 203.2 320 176c0-70.7-57.3-128-128-128S64 105.3 64 176c0 27.2 8.4 52.3 22.8 72.9c3.7 5.3 8.1 11.3 12.8 17.7l0 0c12.9 17.7 28.3 38.9 39.8 59.8c10.4 19 15.7 38.8 18.3 57.5H109c-2.2-12-5.9-23.7-11.8-34.5c-9.9-18-22.2-34.9-34.5-51.8l0 0 0 0c-5.2-7.1-10.4-14.2-15.4-21.4C27.6 247.9 16 213.3 16 176C16 78.8 94.8 0 192 0s176 78.8 176 176c0 37.3-11.6 71.9-31.4 100.3c-5 7.2-10.2 14.3-15.4 21.4l0 0 0 0c-12.3 16.8-24.6 33.7-34.5 51.8c-5.9 10.8-9.6 22.5-11.8 34.5H226.4c2.6-18.7 7.9-38.6 18.3-57.5c11.5-20.9 26.9-42.1 39.8-59.8l0 0 0 0 0 0c4.7-6.4 9-12.4 12.7-17.7zM192 128c-26.5 0-48 21.5-48 48c0 8.8-7.2 16-16 16s-16-7.2-16-16c0-44.2 35.8-80 80-80c8.8 0 16 7.2 16 16s-7.2 16-16 16zm0 384c-44.2 0-80-35.8-80-80V416H272v16c0 44.2-35.8 80-80 80z"/></svg> 勝利のコツ：</strong>
+                <div class="text-[11px] sm:text-xs text-[#7c6351] bg-[#faebd7]/30 p-3 rounded-xl border border-dashed border-[#dfd3c3] leading-relaxed">
+                    <strong class="text-amber-900 block mb-1">💡 勝利のコツ：</strong>
                     立体四目は平面と違い、自分が置こうとするピンの「下の高さに十分コマがあるか」が大切です。相手の球を土台にして自分が4つ目を揃える「トラップ」を仕掛けましょう。
                 </div>
             </div>
@@ -418,9 +581,17 @@
     =========================================== -->
     <script>
         const wins = {
-            pvp: { p1: 0, p2: 0 },
-            pve: { easy: 0, normal: 0, hard: 0 }
+            pve: { easy: 0, normal: 0, hard: 0, master: 0 }
         };
+        // 勝ち数はこの端末に保存する（「つよい」に3回勝つと「最強」が出る）
+        const WINS_KEY = 'ota4moku.wins';
+        const MASTER_UNLOCK_WINS = 3;
+        try {
+            const saved = JSON.parse(localStorage.getItem(WINS_KEY) || '{}') || {};
+            ['easy', 'normal', 'hard', 'master'].forEach(k => { const v = Number(saved[k]); if (Number.isFinite(v) && v > 0) wins.pve[k] = Math.floor(v); });
+        } catch (e) {}
+        function saveWins() { try { localStorage.setItem(WINS_KEY, JSON.stringify(wins.pve)); } catch (e) {} }
+        function isMasterUnlocked() { return wins.pve.hard >= MASTER_UNLOCK_WINS; }
 
         let currentMode = 'pvp';
         let currentDifficulty = null;
@@ -469,6 +640,8 @@
         let dragStartPos = { x: 0, y: 0 };
         let previousMousePosition = { x: 0, y: 0 };
         let cameraRadius = 16; // 基準の距離
+        let viewScale = 1;     // 勝利画面でバナーと盤が重ならないよう、少し引くための倍率
+        let viewScaleTween = null;
         let cameraTheta = Math.PI / 4;
         let cameraPhi = Math.PI / 3;
 
@@ -501,11 +674,9 @@
         const modalRules = document.getElementById('modal-how-to');
         const rulesContent = document.getElementById('rules-content');
         
-        const turnIndicator = document.getElementById('turn-indicator');
-        const turnText = document.getElementById('turn-text');
-        const hudSubtitle = document.getElementById('hud-subtitle');
-        const aiThinkingDiv = document.getElementById('ai-thinking');
-        const btnPlayAgain = document.getElementById('btn-play-again');
+        const turnDot = document.getElementById('turn-dot');
+        const turnLabel = document.getElementById('turn-label');
+        const turnPill = document.getElementById('turn-pill');
 
         // --- 演出制御用フラグ ---
         let isEndingSequence = false; // 勝利演出が進行中かどうか
@@ -576,6 +747,7 @@
         window.onload = function() {
             init3D();
             setupEventListeners();
+            initAiWorker();
             updateScoreUI();
         };
 
@@ -599,14 +771,19 @@
         }
 
         function updateScoreUI() {
-            document.getElementById('win-p1').innerText = wins.pvp.p1;
-            document.getElementById('win-p2').innerText = wins.pvp.p2;
             document.getElementById('win-easy').innerText = wins.pve.easy;
             document.getElementById('win-normal').innerText = wins.pve.normal;
             document.getElementById('win-hard').innerText = wins.pve.hard;
+            // 「最強」の帯：出る前は「あと何回」、出たあとは挑戦ボタン
+            const open = isMasterUnlocked();
+            document.getElementById('master-locked').classList.toggle('hidden', open);
+            document.getElementById('master-open').classList.toggle('hidden', !open);
+            document.getElementById('master-remain').innerText = Math.max(0, MASTER_UNLOCK_WINS - wins.pve.hard);
+            document.getElementById('win-master').innerText = wins.pve.master;
         }
 
         function startGame(mode, difficulty) {
+            if (difficulty === 'master' && !isMasterUnlocked()) return;   // まだ出ていない
             currentMode = mode;
             currentDifficulty = difficulty;
             
@@ -620,7 +797,6 @@
         function returnToStart() {
             screenGame.classList.add('hidden');
             screenStart.classList.remove('hidden');
-            fitStart();
             screenVictory.classList.add('hidden');
             clearConfetti();
             resetGame();
@@ -767,11 +943,11 @@
             const height = container ? container.clientHeight : window.innerHeight;
             const aspect = width / height;
 
-            let finalRadius = cameraRadius;
-            if (aspect < 1) {
-                finalRadius = cameraRadius * (1.15 / aspect);
-                finalRadius = Math.max(cameraRadius, Math.min(27, finalRadius));
-            }
+            // 盤（ピンを含む）がちょうど収まる距離を、画面の縦横比から求めて最大限大きく見せる
+            const halfTan = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
+            const NEED_W = 10.6;   // 盤を斜めから見たときの横幅（ワールド単位）
+            const NEED_H = 11.6;  // ピンの高さ＋奥行きぶんの縦幅
+            const finalRadius = viewScale * Math.max(NEED_W / (2 * halfTan * aspect), NEED_H / (2 * halfTan));
 
             camera.position.x = finalRadius * Math.sin(cameraPhi) * Math.sin(cameraTheta);
             camera.position.y = finalRadius * Math.cos(cameraPhi);
@@ -835,11 +1011,13 @@
         }
 
         function updateRuleCameraPosition() {
-            const ruleRadius = 10.6;
+            // 枠の縦横比に合わせて、盤とピン全体が収まる距離にする
+            const halfTan = Math.tan(THREE.MathUtils.degToRad(ruleCamera.fov / 2));
+            const ruleRadius = Math.max(9.4 / (2 * halfTan * ruleCamera.aspect), 9.0 / (2 * halfTan));
             ruleCamera.position.x = ruleRadius * Math.sin(ruleCameraPhi) * Math.sin(ruleCameraTheta);
             ruleCamera.position.y = ruleRadius * Math.cos(ruleCameraPhi);
             ruleCamera.position.z = ruleRadius * Math.sin(ruleCameraPhi) * Math.cos(ruleCameraTheta);
-            ruleCamera.lookAt(0, 1.5, 0);
+            ruleCamera.lookAt(0, 0.9, 0);
         }
 
         function setRuleDemoPattern(pattern) {
@@ -1011,31 +1189,17 @@
         }
 
         function updateHUD() {
-            if (isGameOver) {
-                hudSubtitle.innerText = "RESULT";
-                btnPlayAgain.classList.remove('hidden');
-                aiThinkingDiv.classList.add('hidden');
-                return;
-            }
+            // 結果発表はお祝いオーバーレイが担うので、ここでは「今どちらの手番か」だけを
+            // 小さな pill（コマ色のドット＋文字）で示す。AIの思考中はドットを明滅させる。
+            if (isGameOver) return;
 
-            hudSubtitle.innerText = "TURN";
-            btnPlayAgain.classList.add('hidden');
-
-            if (turn === 1) {
-                turnIndicator.className = 'w-3.5 h-3.5 rounded-full bg-amber-900 border border-amber-700';
-                turnText.innerText = 'P1 (濃茶) の番';
-                aiThinkingDiv.classList.add('hidden');
-            } else {
-                if (currentMode === 'pve') {
-                    turnIndicator.className = 'w-3.5 h-3.5 rounded-full bg-amber-100 border border-white animate-pulse';
-                    turnText.innerText = 'AIが考えています...';
-                    aiThinkingDiv.classList.remove('hidden');
-                } else {
-                    turnIndicator.className = 'w-3.5 h-3.5 rounded-full bg-amber-100 border border-white shadow-sm';
-                    turnText.innerText = 'P2 (白木) の番';
-                    aiThinkingDiv.classList.add('hidden');
-                }
-            }
+            const isAiTurn = (turn === 2 && currentMode === 'pve');
+            turnPill.classList.remove('hidden');
+            turnDot.classList.toggle('dot-p1', turn === 1);
+            turnDot.classList.toggle('dot-p2', turn === 2);
+            turnDot.classList.toggle('is-thinking', isAiTurn);
+            if (currentMode === 'pve') turnLabel.innerText = isAiTurn ? 'コンピューターが考え中…' : 'あなたの番';
+            else turnLabel.innerText = turn === 1 ? 'プレーヤー1の番' : 'プレーヤー2の番';
         }
 
         function switchTurn() {
@@ -1060,7 +1224,8 @@
 
         function spawn3DPiece(gridX, gridY, gridZ, player) {
             const spacing = 1.6;
-            const startY = 8.0;
+            // ピンの先端のすぐ上から落とす（高すぎる所から急に現れると不自然）
+            const startY = 0.25 + PIN_HEIGHT + BEAD_Y_LIMIT + 0.6;
             const targetY = getBeadY(gridY); 
             const posX = (gridX - 1.5) * spacing;
             const posZ = (gridZ - 1.5) * spacing;
@@ -1074,10 +1239,11 @@
             
             sphereMesh.userData = {
                 gridX: gridX, gridY: gridY, gridZ: gridZ, player: player,
-                currentY: startY, targetY: targetY, velocity: 0, gravity: 0.22, bounce: 0.18, bounces: 0,
+                startY: startY, targetY: targetY, dropStart: performance.now(),
                 isWinnerPiece: false,
                 isFalling: true // 落下の進行状態フラグ
             };
+            showLastMoveMarker(null);   // 落ちている間は前の目印を消す
 
             scene.add(sphereMesh);
             spheres.push(sphereMesh);
@@ -1153,6 +1319,237 @@
             return true;
         }
 
+        // =====================================================
+        //  勝利演出：揃ったラインに光の線が走る
+        // =====================================================
+        let winFx = null;
+
+        function clearWinFx() {
+            if (!winFx) return;
+            if (winFx.root) {
+                scene.remove(winFx.root);
+                winFx.root.traverse(o => {
+                    if (o.geometry) o.geometry.dispose();
+                    if (o.material) o.material.dispose();
+                });
+            }
+            winFx = null;
+        }
+
+        // 揃った4つの球を貫く「光の棒」を作る（伸びるアニメーションは updateWinFx が担当）
+        function createWinBeam(winLine) {
+            const spacing = 1.6;
+            const pts = winLine.map(([x, y, z]) =>
+                new THREE.Vector3((x - 1.5) * spacing, getBeadY(y), (z - 1.5) * spacing));
+
+            const dir = new THREE.Vector3().subVectors(pts[BOARD_SIZE - 1], pts[0]).normalize();
+            const overhang = 0.55;                       // 両端を球より少し外へ出す
+            const a = pts[0].clone().addScaledVector(dir, -overhang);
+            const b = pts[BOARD_SIZE - 1].clone().addScaledVector(dir, overhang);
+            const len = a.distanceTo(b);
+            const step = pts[0].distanceTo(pts[1]);      // 球と球の間隔
+
+            const root = new THREE.Group();
+            root.position.copy(a);
+            root.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir);
+
+            // 伸縮させるのは棒だけ。端の光の玉は潰れないよう外に置く
+            const beamGroup = new THREE.Group();
+            beamGroup.scale.set(1, 0.001, 1);
+            root.add(beamGroup);
+
+            function makeTube(radius, color, opacity) {
+                const geo = new THREE.CylinderGeometry(radius, radius, len, 20);
+                const mat = new THREE.MeshBasicMaterial({
+                    color: color, transparent: true, opacity: opacity,
+                    depthTest: false,                    // 球や棒に隠れず必ず見える
+                    blending: THREE.AdditiveBlending,
+                    toneMapped: false
+                });
+                const mesh = new THREE.Mesh(geo, mat);
+                mesh.position.y = len / 2;
+                mesh.renderOrder = 990;
+                beamGroup.add(mesh);
+                return mesh;
+            }
+
+            const halo = makeTube(0.34, 0xff9c2b, 0.0);  // 外側のにじみ
+            const core = makeTube(0.085, 0xfff6e0, 0.0); // 芯の白い光
+
+            function makeCap(y) {
+                const geo = new THREE.SphereGeometry(0.22, 16, 12);
+                const mat = new THREE.MeshBasicMaterial({
+                    color: 0xfff1cf, transparent: true, opacity: 0,
+                    depthTest: false, blending: THREE.AdditiveBlending, toneMapped: false
+                });
+                const mesh = new THREE.Mesh(geo, mat);
+                mesh.position.y = y;
+                mesh.renderOrder = 991;
+                root.add(mesh);
+                return mesh;
+            }
+
+            const capA = makeCap(0);
+            const capB = makeCap(0);
+
+            scene.add(root);
+            return { root, beamGroup, halo, core, capA, capB, len, step, overhang, endA: a, endB: b };
+        }
+
+        const WIN_BEAM_GROW = 0.42;   // 光が端から端まで走りきるまでの秒数
+
+        // --- カメラをなめらかに目的の角度へ動かす ---
+        let camTween = null;
+
+        function startCameraTween(theta, phi, durationMs) {
+            camTween = {
+                fromT: cameraTheta, toT: theta,
+                fromP: cameraPhi, toP: phi,
+                start: performance.now(), dur: durationMs
+            };
+        }
+
+        function updateCameraTween(nowMs) {
+            if (!camTween) return;
+            let p = (nowMs - camTween.start) / camTween.dur;
+            if (p >= 1) p = 1;
+            const e = 1 - Math.pow(1 - p, 3);
+            cameraTheta = camTween.fromT + (camTween.toT - camTween.fromT) * e;
+            cameraPhi = camTween.fromP + (camTween.toP - camTween.fromP) * e;
+            updateCameraPosition();
+            if (p === 1) camTween = null;
+        }
+
+        // 勝利画面で薄くなった球を、元の濃さに戻す／また薄くする
+        let revealAll = false;
+        function setRevealAll(on) {
+            revealAll = on;
+            spheres.forEach(sp => {
+                if (!sp.userData.fadedByWin) return;
+                sp.material = on ? (sp.userData.player === 1 ? matP1 : matP2)
+                                 : (sp.userData.player === 1 ? fadedMatP1 : fadedMatP2);
+            });
+            const label = document.getElementById('victory-reveal-label');
+            const icon = document.getElementById('victory-reveal-icon');
+            if (label) label.innerText = on ? '光る4つだけ見る' : 'ぜんぶの球をはっきり見る';
+            if (icon) icon.setAttribute('href', on ? '#i-bulb' : '#i-eye');
+        }
+        function toggleRevealAll() { setRevealAll(!revealAll); }
+
+        // 勝利バナー・ボタンと盤が重ならないよう、必要なぶんだけカメラを引く
+        function fitBoardForVictoryUi() {
+            const banner = document.getElementById('victory-modal');
+            const actions = document.getElementById('victory-actions');
+            if (!banner || !actions) return;
+            const H = window.innerHeight;
+            const topLimit = banner.offsetTop + banner.offsetHeight + 8;
+            const reveal = document.getElementById('victory-reveal');
+            const bottomLimit = Math.min(actions.offsetTop, reveal && !reveal.classList.contains('hidden') ? reveal.offsetTop : 1e9) - 8;
+            const pts = [];
+            for (const x of [-3.2, 3.2]) for (const z of [-3.2, 3.2]) for (const y of [0, 5.6]) pts.push(new THREE.Vector3(x, y, z));
+            const prev = viewScale;
+            let target = 1;
+            for (let sc = 1; sc <= 1.45; sc += 0.02) {
+                viewScale = sc; updateCameraPosition(); camera.updateMatrixWorld();
+                let minY = 1e9, maxY = -1e9;
+                pts.forEach(v => { const q = v.clone().project(camera); const sy = (1 - q.y) / 2 * H; minY = Math.min(minY, sy); maxY = Math.max(maxY, sy); });
+                target = sc;
+                if (minY >= topLimit && maxY <= bottomLimit) break;
+            }
+            viewScale = prev; updateCameraPosition();
+            viewScaleTween = { from: prev, to: target, start: performance.now(), dur: 550 };
+        }
+
+        function updateViewScaleTween(nowMs) {
+            if (!viewScaleTween) return;
+            let p = (nowMs - viewScaleTween.start) / viewScaleTween.dur;
+            if (p >= 1) p = 1;
+            const e = 1 - Math.pow(1 - p, 3);
+            viewScale = viewScaleTween.from + (viewScaleTween.to - viewScaleTween.from) * e;
+            updateCameraPosition();
+            if (p === 1) viewScaleTween = null;
+        }
+
+        // 揃ったラインが視線とほぼ平行だと画面上では「点」にしか見えない。
+        // その時だけカメラを真横へ回り込ませてから光を走らせる。
+        function faceWinLine(endA, endB) {
+            const a = endA.clone().project(camera);
+            const b = endB.clone().project(camera);
+            const screenLen = Math.hypot(b.x - a.x, b.y - a.y);
+            if (screenLen > 0.5) return 0;   // すでに十分な長さで見えている
+
+            const dx = endB.x - endA.x;
+            const dz = endB.z - endA.z;
+            if (Math.abs(dx) < 1e-6 && Math.abs(dz) < 1e-6) {
+                // 真上に積んだ縦一列。回しても形は変わらないので少しだけ見下ろしを浅くする
+                if (cameraPhi < Math.PI / 2.6) {
+                    startCameraTween(cameraTheta, Math.PI / 2.6, 450);
+                    return 260;
+                }
+                return 0;
+            }
+
+            // ラインと直交する方向から見る角度（近いほうの向きを選ぶ）
+            const base = Math.atan2(dz, -dx);
+            const wrap = (v) => Math.atan2(Math.sin(v), Math.cos(v));
+            let best = null;
+            [base, base + Math.PI].forEach(cand => {
+                const diff = wrap(cand - cameraTheta);
+                if (best === null || Math.abs(diff) < Math.abs(best)) best = diff;
+            });
+
+            startCameraTween(cameraTheta + best, Math.min(cameraPhi, Math.PI / 2.9), 480);
+            return 300;   // カメラが回り始めてから光を走らせる
+        }
+
+        function updateWinFx(nowMs) {
+            if (!winFx) return;
+
+            const t = (nowMs - winFx.startTime) / 1000;
+            if (t < 0) {   // カメラが回り込むのを待っている間は光を出さない
+                winFx.beamGroup.scale.y = 0.001;
+                winFx.core.material.opacity = 0;
+                winFx.halo.material.opacity = 0;
+                winFx.capA.material.opacity = 0;
+                winFx.capB.material.opacity = 0;
+                return;
+            }
+            const p = Math.min(1, t / WIN_BEAM_GROW);
+            const ease = 1 - Math.pow(1 - p, 3);   // 最初は速く、着地でスッと止まる
+
+            winFx.beamGroup.scale.y = Math.max(0.001, ease);
+            winFx.capB.position.y = ease * winFx.len;
+            winFx.capA.material.opacity = Math.min(1, t / 0.1) * 0.85;
+            winFx.capB.material.opacity = 0.85;
+
+            // 光が通り過ぎた球から順に灯る（0.42秒で4つ）
+            winFx.beads.forEach(bead => {
+                if (bead.lit || ease < bead.at) return;
+                bead.lit = true;
+                const sphere = bead.sphere;
+                if (!sphere) return;
+                sphere.userData.isWinnerPiece = true;   // 以降アニメーションで明滅させる
+                sphere.material = sphere.material.clone();
+                tempMaterials.push(sphere.material);
+                sphere.material.emissive = new THREE.Color(0xcc7722);
+                sphere.material.emissiveIntensity = 0.6;
+            });
+
+            let coreOp, haloOp;
+            if (p < 1) {
+                coreOp = 1.0;
+                haloOp = 0.34;
+            } else {
+                const s = t - WIN_BEAM_GROW;
+                const flash = Math.max(0, 1 - s / 0.3);        // 走りきった瞬間の閃光
+                const pulse = 0.5 + 0.5 * Math.sin(s * 4.2);   // その後はゆっくり明滅
+                coreOp = 0.7 + 0.3 * pulse + flash * 0.5;
+                haloOp = 0.24 + 0.14 * pulse + flash * 0.45;
+            }
+            winFx.core.material.opacity = Math.min(1, coreOp);
+            winFx.halo.material.opacity = Math.min(1, haloOp);
+        }
+
         function startWinSequence(winResult) {
             isEndingSequence = true;
             isGameOver = true;
@@ -1161,86 +1558,64 @@
             const winner = winResult.winner;
             const myToken = gameToken;
 
-            // 1. まず揃っていないコマを適度な半透明にして背景化する (透明すぎたので0.55に引き上げ)
+            clearWinFx();
+
+            // 1. 揃っていない球を薄くして、光のラインだけが浮かび上がるようにする
+            fadedMatP1.opacity = 0.4;
+            fadedMatP2.opacity = 0.4;
             spheres.forEach(sphere => {
                 const isWinPiece = winLine.some(([wx, wy, wz]) => 
                     sphere.userData.gridX === wx && 
                     sphere.userData.gridY === wy && 
                     sphere.userData.gridZ === wz
                 );
+                sphere.userData.fadedByWin = !isWinPiece;
                 if (!isWinPiece) {
                     // プレビュー球と共有すると明滅アニメーションを巻き込むので専用マテリアルを使う
                     sphere.material = sphere.userData.player === 1 ? fadedMatP1 : fadedMatP2;
                 }
             });
 
-            // 2. 揃った4つのコマを1コマずつ「1、2、3、4」と順番に優しく光らせる
-            let currentHighlightIndex = 0;
+            // 2. 揃ったラインに光の線を走らせる（見えにくい向きならカメラを回してから）
+            const beam = createWinBeam(winLine);
+            const camDelay = faceWinLine(beam.endA, beam.endB);
+            beam.startTime = performance.now() + camDelay;
+            beam.beads = winLine.map(([wx, wy, wz], i) => ({
+                sphere: spheres.find(s => s.userData.gridX === wx && s.userData.gridY === wy && s.userData.gridZ === wz),
+                at: (beam.overhang + i * beam.step) / beam.len,   // 光がこの球に届く進捗
+                lit: false
+            }));
+            winFx = beam;
 
-            function highlightNextPiece() {
-                if (myToken !== gameToken) return; // 途中でリセットされたら演出を打ち切る
-
-                if (currentHighlightIndex >= BOARD_SIZE) {
-                    // すべてのハイライトが完了した後、少し余韻を置いてからお祝い画面へ移行
-                    T(() => {
-                        if (myToken !== gameToken) return;
-                        endGame(winner);
-                        showVictoryOverlay(winner);
-                        isEndingSequence = false;
-                    }, 800);
-                    return;
-                }
-
-                const [wx, wy, wz] = winLine[currentHighlightIndex];
-                const targetSphere = spheres.find(s => s.userData.gridX === wx && s.userData.gridY === wy && s.userData.gridZ === wz);
-                
-                if (targetSphere) {
-                    targetSphere.userData.isWinnerPiece = true; // 発光アニメーションフラグをONにする
-                    
-                    // 白も黒も共通で「眩しすぎない落ち着いた琥珀色（アンバー）」で光らせる
-                    const glowColor = 0xcc7722; 
-                    const baseIntensity = 0.35; // 色飛びしない控えめな明るさに一律化
-                    
-                    targetSphere.material = targetSphere.material.clone();
-                    tempMaterials.push(targetSphere.material);
-                    targetSphere.material.emissive = new THREE.Color(glowColor);
-                    targetSphere.material.emissiveIntensity = baseIntensity;
-                }
-
-                currentHighlightIndex++;
-                T(highlightNextPiece, 450); // 次のコマがじんわり光るまでの美しい時間差
-            }
-
-            T(highlightNextPiece, 300);
+            // 3. 光が走りきって少し余韻を置いたら、お祝い画面へ
+            T(() => {
+                if (myToken !== gameToken) return;
+                endGame(winner);
+                showVictoryOverlay(winner);
+                isEndingSequence = false;
+            }, camDelay + 1150);
         }
 
+        let justUnlockedMaster = false;
         function endGame(winner) {
             isGameOver = true;
 
             if (winner !== 0) {
-                if (currentMode === 'pvp') {
-                    if (winner === 1) wins.pvp.p1++; else wins.pvp.p2++;
-                } else {
-                    if (winner === 1) {
-                        wins.pve[currentDifficulty]++;
-                    }
+                // 勝ち数を数えるのはAI対戦でプレイヤーが勝ったときだけ
+                if (currentMode === 'pve' && winner === 1) {
+                    const wasUnlocked = isMasterUnlocked();
+                    wins.pve[currentDifficulty]++;
+                    saveWins();
+                    justUnlockedMaster = !wasUnlocked && isMasterUnlocked();
                 }
                 updateScoreUI();
 
-                if (winner === 1) {
-                    turnText.innerText = '🏆 P1 (濃茶) WIN!';
-                    turnIndicator.className = 'w-3.5 h-3.5 rounded-full bg-amber-600 border-2 border-white';
-                } else {
-                    const p2Name = currentMode === 'pve' ? 'AI' : 'P2 (白木)';
-                    turnText.innerText = `🏆 ${p2Name} WIN!`;
-                    turnIndicator.className = 'w-3.5 h-3.5 rounded-full bg-amber-100 border-2 border-white shadow-sm';
-                }
             } else {
-                turnText.innerText = '🤝 DRAW';
-                turnIndicator.className = 'w-3.5 h-3.5 rounded-full bg-stone-500 border border-stone-300';
                 showVictoryOverlay(0);
             }
-            updateHUD();
+
+            // 決着がついたら手番表示は消す（お祝いオーバーレイに主役を譲る）
+            turnPill.classList.add('hidden');
         }
 
         function showVictoryOverlay(winner) {
@@ -1250,24 +1625,34 @@
             const titleEl = document.getElementById('victory-title');
             const subtitleEl = document.getElementById('victory-subtitle');
 
-            if (winner === 1) {
-                titleEl.innerText = "P1 (濃茶) の勝利！";
-                subtitleEl.innerText = "見事な4つの一直線が完成しました！";
-                titleEl.className = "text-2xl sm:text-3xl md:text-4xl font-black text-amber-300 mb-2";
+            const levelName = { easy: 'やさしい', normal: 'ふつう', hard: 'つよい', master: '最強' }[currentDifficulty] || '';
+            if (currentMode === 'pve' && winner === 1) {
+                titleEl.innerText = "あなたの勝ち！";
+                subtitleEl.innerText = justUnlockedMaster ? 'メニューに「最強」が出ました！' : `「${levelName}」のコンピューターに勝ちました！`;
+                justUnlockedMaster = false;
+            } else if (currentMode === 'pve' && winner === 2) {
+                titleEl.innerText = "コンピューターの勝ち";
+                subtitleEl.innerText = "4つが一直線にそろいました。";
+            } else if (winner === 1) {
+                titleEl.innerText = "プレーヤー1の勝ち！";
+                subtitleEl.innerText = "4つ一直線にそろいました！";
             } else if (winner === 2) {
-                const name = currentMode === 'pve' ? 'AI' : 'P2 (白木)';
-                titleEl.innerText = `${name} の勝利！`;
-                subtitleEl.innerText = "鮮やかな木製の並びが成立しました！";
-                titleEl.className = "text-2xl sm:text-3xl md:text-4xl font-black text-stone-100 mb-2";
+                titleEl.innerText = "プレーヤー2の勝ち！";
+                subtitleEl.innerText = "4つ一直線にそろいました！";
             } else {
                 titleEl.innerText = "引き分け！";
-                subtitleEl.innerText = "すべてのピンが満杯になりました。";
-                titleEl.className = "text-2xl sm:text-3xl md:text-4xl font-black text-stone-300 mb-2";
+                subtitleEl.innerText = "すべてのピンがいっぱいになりました。";
             }
+            document.getElementById('victory-coin').dataset.who = String(winner);
+            setRevealAll(false);
+            document.getElementById('victory-reveal').classList.toggle('hidden', winner === 0);   // 引き分けは薄くしないので不要
+            document.getElementById('victory-coin-icon').setAttribute('href',
+                winner === 0 ? '#i-shake' : (currentMode === 'pve' && winner === 2 ? '#i-robot' : '#i-trophy'));
 
             // 紙吹雪をダイナミックに生成
             const confettiColors = ['#f59e0b', '#3b82f6', '#ef4444', '#10b981', '#ec4899', '#facc15', '#fffdfa'];
-            const confettiCount = LOWFX ? 40 : 90;
+            // コンピューターに負けたときは紙吹雪を出さない
+            const confettiCount = (currentMode === 'pve' && winner === 2) ? 0 : (LOWFX ? 24 : 50);   // 盤面が見えなくならないよう控えめに
             for (let i = 0; i < confettiCount; i++) {
                 const conf = document.createElement('div');
                 conf.className = 'absolute pointer-events-none rounded';
@@ -1289,19 +1674,17 @@
 
             // お祝い画面を表示
             screenVictory.classList.remove('hidden');
+            fitBoardForVictoryUi();
+
+            // 紙吹雪は数秒で止めて、盤面をすっきり見せる
+            const token = gameToken;
+            T(() => { if (token === gameToken) clearConfetti(); }, 5500);
         }
 
         // 紙吹雪を止めて片づける（隠したまま animation を回し続けると端末が熱くなる）
         function clearConfetti() {
             const container = document.getElementById('confetti-container');
             if (container) container.innerHTML = '';
-        }
-
-        // 盤面のじっくり確認（お祝いモーダルを非表示にして3D盤面に戻る）
-        function inspectBoard() {
-            screenVictory.classList.add('hidden');
-            clearConfetti();
-            updateHUD();
         }
 
         // もう一度プレイ
@@ -1322,6 +1705,8 @@
             // 進行中の演出・AIの予約をすべて無効化してから盤面を作り直す
             gameToken++;
             clearPendingTimers();
+            if (lastMoveMarker) lastMoveMarker.visible = false;
+            revealAll = false;
 
             board = Array(BOARD_SIZE).fill(null).map(() => Array(BOARD_SIZE).fill(null).map(() => Array(BOARD_SIZE).fill(0)));
             
@@ -1330,6 +1715,11 @@
                 scene.remove(mesh);
             });
             spheres = [];
+
+            clearWinFx();
+            camTween = null;
+            viewScaleTween = null;
+            if (viewScale !== 1) { viewScale = 1; updateCameraPosition(); }
 
             // 発光用に複製したマテリアルを破棄（放置するとゲームを重ねるほどメモリを食う）
             tempMaterials.forEach(m => { try { m.dispose(); } catch (e) {} });
@@ -1346,107 +1736,512 @@
             updateHUD();
         }
 
-        // --- AI (コンピュータ) 思考 ---
+        // --- AI (コンピュータ) 思考エンジン ---
+        // Web Worker でも本体でも動くよう、外の変数を一切参照しない作りにしている
+        function createAiEngine() {
+            const N = 4, CELLS = 64, COLS = 16;
+            const WIN = 1000000, MATE = WIN - 1000;
+            const idx = (x, y, z) => x * 16 + y * 4 + z;
+
+            // 4×4×4 の全76ライン
+            const LINES = [];
+            const inB = v => v >= 0 && v < N;
+            for (let dx = -1; dx <= 1; dx++) for (let dy = -1; dy <= 1; dy++) for (let dz = -1; dz <= 1; dz++) {
+                if (!dx && !dy && !dz) continue;
+                if ((dx || dy || dz) < 0) continue;
+                for (let x = 0; x < N; x++) for (let y = 0; y < N; y++) for (let z = 0; z < N; z++) {
+                    if (inB(x - dx) && inB(y - dy) && inB(z - dz)) continue;   // 始点だけ
+                    if (!inB(x + 3 * dx) || !inB(y + 3 * dy) || !inB(z + 3 * dz)) continue;
+                    LINES.push([0, 1, 2, 3].map(k => idx(x + k * dx, y + k * dy, z + k * dz)));
+                }
+            }
+            const LINE_FLAT = Int8Array.from(LINES.flat());
+            const NL = LINES.length;
+            const CELL_LINES = Array.from({ length: CELLS }, () => []);
+            LINES.forEach((l, li) => l.forEach(c => CELL_LINES[c].push(li)));
+            const CELL_WEIGHT = CELL_LINES.map(ls => ls.length);
+
+            // 局面を覚えておく表（同じ局面を何度も読まない）
+            let seed = 0x2545F491;
+            const rnd32 = () => { seed ^= seed << 13; seed ^= seed >>> 17; seed ^= seed << 5; return seed | 0; };
+            const ZL = [new Int32Array(CELLS), new Int32Array(CELLS)], ZH = [new Int32Array(CELLS), new Int32Array(CELLS)];
+            for (let p = 0; p < 2; p++) for (let i = 0; i < CELLS; i++) { ZL[p][i] = rnd32(); ZH[p][i] = rnd32(); }
+            const TT_BITS = 20, TT_SIZE = 1 << TT_BITS, TT_MASK = TT_SIZE - 1;
+            const ttLo = new Int32Array(TT_SIZE), ttHi = new Int32Array(TT_SIZE), ttVal = new Int32Array(TT_SIZE);
+            const ttDepth = new Int8Array(TT_SIZE).fill(-1), ttFlag = new Int8Array(TT_SIZE), ttMove = new Int8Array(TT_SIZE);
+            const history = [new Int32Array(COLS), new Int32Array(COLS)];
+
+            let cells, heights, hLo, hHi, nodes, deadline, aborted, nodeLimit = Infinity;
+            const COL_SHUFFLE = Array.from({ length: COLS }, (_, c) => c);
+
+            const cellOf = c => ((c >> 2) * 16) + heights[c] * 4 + (c & 3);
+            // 速く読むため、各ラインに自分・相手の球がいくつあるかを、置く／戻すたびに更新して持っておく
+            const lineCnt = [new Int8Array(NL), new Int8Array(NL)];
+            let posScore = 0;                      // 強いマス（角・中心）の点数。先手から見た値
+            const POS_W = CELL_WEIGHT.map(w => w === 7 ? 3 : 0);
+            function place(c, p) {
+                const cell = cellOf(c); cells[cell] = p; heights[c]++; hLo ^= ZL[p - 1][cell]; hHi ^= ZH[p - 1][cell];
+                const ls = CELL_LINES[cell], cnt = lineCnt[p - 1];
+                for (let i = 0; i < ls.length; i++) cnt[ls[i]]++;
+                posScore += p === 1 ? POS_W[cell] : -POS_W[cell];
+                return cell;
+            }
+            function unplace(c, p) {
+                heights[c]--; const cell = cellOf(c); cells[cell] = 0; hLo ^= ZL[p - 1][cell]; hHi ^= ZH[p - 1][cell];
+                const ls = CELL_LINES[cell], cnt = lineCnt[p - 1];
+                for (let i = 0; i < ls.length; i++) cnt[ls[i]]--;
+                posScore -= p === 1 ? POS_W[cell] : -POS_W[cell];
+            }
+            function syncCounts() {
+                lineCnt[0].fill(0); lineCnt[1].fill(0); posScore = 0;
+                for (let cell = 0; cell < CELLS; cell++) {
+                    const v = cells[cell]; if (!v) continue;
+                    const ls = CELL_LINES[cell]; for (let i = 0; i < ls.length; i++) lineCnt[v - 1][ls[i]]++;
+                    posScore += v === 1 ? POS_W[cell] : -POS_W[cell];
+                }
+            }
+
+            function winsAt(cell, p) {
+                // 空いている cell に p を置いたら4つそろうか
+                const ls = CELL_LINES[cell], mine = lineCnt[p - 1], theirs = lineCnt[2 - p];
+                for (let i = 0; i < ls.length; i++) { const li = ls[i]; if (mine[li] === 3 && theirs[li] === 0) return true; }
+                return false;
+            }
+            function playableWins(p, out) {
+                let n = 0;
+                for (let c = 0; c < COLS; c++) {
+                    if (heights[c] >= N) continue;
+                    if (winsAt(cellOf(c), p)) { if (out) out.push(c); n++; }
+                }
+                return n;
+            }
+
+            // 盤面評価（p から見た点数、p が次に打つ番）
+            const threatMark = [new Uint8Array(CELLS), new Uint8Array(CELLS)];
+            // リーチの点数のつけ方（base=ふつうのリーチ、good=有利な段のリーチの上乗せ、stack=縦に重なったリーチ、under=真下が相手のリーチ）
+            const EW_DEFAULT = { base: 50, good: 35, stack: 400, under: 30 };
+            const EW_MASTER  = { base: 50, good: 35, stack: 400, under: 30 };
+            let EW = EW_DEFAULT;
+            const threatList = new Int8Array(CELLS);
+            function evaluate(p) {
+                let s = posScore;
+                const tm1 = threatMark[0], tm2 = threatMark[1];
+                const c1 = lineCnt[0], c2 = lineCnt[1];
+                let nT = 0;
+                for (let i = 0; i < NL; i++) {
+                    const a = c1[i], b = c2[i];
+                    if (a) {
+                        if (b) continue;
+                        if (a === 3) {
+                            const o = i * 4;
+                            for (let k = 0; k < 4; k++) { const cc = LINE_FLAT[o + k]; if (!cells[cc]) { if (!tm1[cc] && !tm2[cc]) threatList[nT++] = cc; tm1[cc] = 1; break; } }
+                        } else s += a === 1 ? 1 : 8;
+                    } else if (b) {
+                        if (b === 3) {
+                            const o = i * 4;
+                            for (let k = 0; k < 4; k++) { const cc = LINE_FLAT[o + k]; if (!cells[cc]) { if (!tm1[cc] && !tm2[cc]) threatList[nT++] = cc; tm2[cc] = 1; break; } }
+                        } else s -= b === 1 ? 1 : 8;
+                    }
+                }
+                // リーチ（あと1つのマス）の評価。置ける段の奇数・偶数（先手は1・3段目、後手は2・4段目が有利）
+                for (let t = 0; t < nT; t++) {
+                    const cell = threatList[t];
+                    const t1 = tm1[cell], t2 = tm2[cell];
+                    const y = (cell >> 2) & 3;
+                    const above = y < 3 ? cell + 4 : -1;
+                    if (t1) {
+                        let v = EW.base + (y % 2 === 0 ? EW.good : 0);
+                        if (above >= 0 && tm1[above]) v += EW.stack;      // 縦に重なったリーチは止められない
+                        if (y > 0 && tm2[cell - 4]) v -= EW.under;        // 真下が相手のリーチだと使いにくい
+                        s += v;
+                    }
+                    if (t2) {
+                        let v = EW.base + (y % 2 === 1 ? EW.good : 0);
+                        if (above >= 0 && tm2[above]) v += EW.stack;
+                        if (y > 0 && tm1[cell - 4]) v -= EW.under;
+                        s -= v;
+                    }
+                }
+                for (let t = 0; t < nT; t++) { const cell = threatList[t]; tm1[cell] = 0; tm2[cell] = 0; }
+                return p === 1 ? s : -s;
+            }
+
+            const moveBuf = Array.from({ length: 64 }, () => new Int8Array(COLS));
+            const scoreBuf = Array.from({ length: 64 }, () => new Int32Array(COLS));
+
+            function negamax(depth, alpha, beta, p, ply) {
+                if ((++nodes & 2047) === 0 && (Date.now() > deadline || nodes > nodeLimit)) { aborted = true; return 0; }
+                const q = 3 - p;
+                // すぐ勝てるなら勝ち
+                let any = false;
+                for (let c = 0; c < COLS; c++) {
+                    if (heights[c] >= N) continue;
+                    any = true;
+                    if (winsAt(cellOf(c), p)) return WIN - ply;
+                }
+                if (!any) return 0;
+                // 相手のすぐ勝ちを数える（2つ以上あれば負け、1つなら止めるしかない）
+                let forced = -1, nThreat = 0;
+                for (let c = 0; c < COLS; c++) {
+                    if (heights[c] >= N) continue;
+                    if (winsAt(cellOf(c), q)) { nThreat++; forced = c; }
+                }
+                if (nThreat >= 2) return -(WIN - ply - 1);
+                if (nThreat === 1) {
+                    // 止める手は1つだけ。読みの深さは減らさない（延長）
+                    place(forced, p);
+                    const v = -negamax(depth, -beta, -alpha, q, ply + 1);
+                    unplace(forced, p);
+                    return v;
+                }
+                if (depth <= 0) return evaluate(p);
+
+                const alpha0 = alpha;
+                const slot = hLo & TT_MASK;
+                let ttBest = -1;
+                if (ttLo[slot] === hLo && ttHi[slot] === hHi && ttDepth[slot] >= 0) {
+                    ttBest = ttMove[slot];
+                    if (ttDepth[slot] >= depth) {
+                        let v = ttVal[slot];
+                        if (v > MATE) v -= ply; else if (v < -MATE) v += ply;
+                        const f = ttFlag[slot];
+                        if (f === 0) return v;
+                        if (f === 1 && v >= beta) return v;
+                        if (f === 2 && v <= alpha) return v;
+                    }
+                }
+
+                // 手の並べ替え：前回の最善手 → よく効いた手 → ライン数の多いマス
+                const ms = moveBuf[ply], sc = scoreBuf[ply];
+                let n = 0;
+                const hist = history[p - 1];
+                for (let i = 0; i < COLS; i++) {
+                    const c = COL_SHUFFLE[i];
+                    if (heights[c] >= N) continue;
+                    const cell = cellOf(c);
+                    let v = hist[c] + CELL_WEIGHT[cell] * 4;
+                    // 置いた真上で相手が勝てる手（自滅）は最後に回す
+                    if (heights[c] < 3 && winsAt(cell + 4, q)) v -= 1000000;
+                    if (c === ttBest) v += 100000000;
+                    let j = n++;
+                    while (j > 0 && sc[j - 1] < v) { ms[j] = ms[j - 1]; sc[j] = sc[j - 1]; j--; }
+                    ms[j] = c; sc[j] = v;
+                }
+
+                let best = -Infinity, bestMove = ms[0];
+                for (let i = 0; i < n; i++) {
+                    const c = ms[i];
+                    place(c, p);
+                    let v;
+                    if (i === 0) v = -negamax(depth - 1, -beta, -alpha, q, ply + 1);
+                    else {
+                        v = -negamax(depth - 1, -alpha - 1, -alpha, q, ply + 1);
+                        if (!aborted && v > alpha && v < beta) v = -negamax(depth - 1, -beta, -alpha, q, ply + 1);
+                    }
+                    unplace(c, p);
+                    if (aborted) return 0;
+                    if (v > best) { best = v; bestMove = c; }
+                    if (v > alpha) alpha = v;
+                    if (alpha >= beta) { hist[c] += depth * depth; break; }
+                }
+
+                let sv = best;
+                if (sv > MATE) sv += ply; else if (sv < -MATE) sv -= ply;
+                ttLo[slot] = hLo; ttHi[slot] = hHi; ttVal[slot] = sv; ttDepth[slot] = depth; ttMove[slot] = bestMove;
+                ttFlag[slot] = best <= alpha0 ? 2 : (best >= beta ? 1 : 0);
+                return best;
+            }
+
+            // 各手の点数（読みの深さ depth）
+            function scoreRoot(moves, depth, p) {
+                const out = [];
+                for (const c of moves) {
+                    const wins = winsAt(cellOf(c), p);
+                    place(c, p);
+                    let v;
+                    if (wins) v = WIN;
+                    else v = depth <= 1 ? -evaluate(3 - p) : -negamax(depth - 1, -WIN * 2, WIN * 2, 3 - p, 1);
+                    unplace(c, p);
+                    if (aborted) return null;
+                    out.push({ c, v });
+                }
+                return out;
+            }
+
+            // 「最強」用：リーチをかけ続けて勝ちきれるかを読む（相手は止めるしかないので、とても深くまで読める）。
+            // 勝ちきれるなら最初に置く列、だめなら -1
+            let vcfNodes = 0, vcfLimit = 0;
+            function vcf(p, depth) {
+                const q = 3 - p;
+                if (++vcfNodes > vcfLimit) return -1;
+                let forced = -1, nThreat = 0;
+                for (let c = 0; c < COLS; c++) {
+                    if (heights[c] >= N) continue;
+                    const cell = cellOf(c);
+                    if (winsAt(cell, p)) return c;
+                    if (winsAt(cell, q)) { nThreat++; forced = c; }
+                }
+                if (depth <= 0 || nThreat >= 2) return -1;
+                for (let c = 0; c < COLS; c++) {
+                    if (heights[c] >= N) continue;
+                    if (forced >= 0 && c !== forced) continue;
+                    place(c, p);
+                    let qWin = false, myT = 0, tcol = -1;
+                    for (let c2 = 0; c2 < COLS; c2++) {
+                        if (heights[c2] >= N) continue;
+                        const cell = cellOf(c2);
+                        if (winsAt(cell, q)) { qWin = true; break; }
+                        if (winsAt(cell, p)) { myT++; tcol = c2; }
+                    }
+                    let ok = false;
+                    if (!qWin && myT >= 2) ok = true;
+                    else if (!qWin && myT === 1) { place(tcol, q); ok = vcf(p, depth - 1) >= 0; unplace(tcol, q); }
+                    unplace(c, p);
+                    if (ok) return c;
+                }
+                return -1;
+            }
+
+            // 人間味の調整値。sharpUntil個までは完ぺき、tiredAt個で集中度が floor まで下がる
+            const EASY_TUNE   = { sharpUntil: 8,  tiredAt: 30, floor: 0.55, preBlock: 10 };
+            const NORMAL_TUNE = { sharpUntil: 16, tiredAt: 44, floor: 0.8,  noise: 35, tiredNoise: 120 };
+
+            function chooseMove(req) {
+                // req: { cells: number[64], heights: number[16], me: 1|2, level: 'easy'|'normal'|'hard' }
+                cells = Int8Array.from(req.cells);
+                heights = Int8Array.from(req.heights);
+                hLo = 0; hHi = 0;
+                for (let i = 0; i < CELLS; i++) if (cells[i]) { hLo ^= ZL[cells[i] - 1][i]; hHi ^= ZH[cells[i] - 1][i]; }
+                syncCounts();
+                const p = req.me, q = 3 - p;
+                nodes = 0; aborted = false; nodeLimit = Infinity;
+                EW = Object.assign({}, req.level === 'master' ? EW_MASTER : EW_DEFAULT, req.ew || {});
+                for (let i = COLS - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [COL_SHUFFLE[i], COL_SHUFFLE[j]] = [COL_SHUFFLE[j], COL_SHUFFLE[i]]; }
+                const moves = COL_SHUFFLE.filter(c => heights[c] < N);
+                if (moves.length === 0) return null;
+                const toXZ = c => ({ x: c >> 2, z: c & 3 });
+                const level = req.level;
+                const n0 = req.cells.reduce((a, v) => a + (v ? 1 : 0), 0);
+
+                const myWins = [], opWins = [];
+                playableWins(p, myWins); playableWins(q, opWins);
+                if (myWins.length) return toXZ(myWins[0]);
+
+                // ---- やさしい・ふつうの「人間味」 ----
+                // 人は序盤は集中していてミスをしないが、中盤から見落としが出てくる。
+                // 盤上の球の数 n から「集中度」(1=完ぺき → だんだん下がる) を出し、見落としの確率に使う。
+                const n = req.cells.reduce((a, v) => a + (v ? 1 : 0), 0);
+                const T = Object.assign({}, level === 'easy' ? EASY_TUNE : NORMAL_TUNE, req.tune || {});
+                const focus = n <= T.sharpUntil ? 1 : Math.max(T.floor, 1 - (n - T.sharpUntil) * (1 - T.floor) / (T.tiredAt - T.sharpUntil));
+                const givesWinAbove = c => { const h = heights[c]; return h < 3 && winsAt(((c >> 2) * 16) + (h + 1) * 4 + (c & 3), q); };
+
+                // 相手のリーチ：集中しているうちは必ず止める。疲れてくると見落とすことがある
+                if (opWins.length && Math.random() < focus) return toXZ(opWins[0]);
+
+                if (level === 'easy') {
+                    // やさしい＝お手本役。
+                    //  ・そろえられるときは必ずそろえる（止めないと負ける、を体験させる）
+                    //  ・自分の球を、縦の積み上げや横一列など「見て分かる」形でまっすぐ並べていく（勝ち方のお手本）
+                    //  ・先読みはしない。2か所同時リーチや「上に置かせる」作戦を覚えた子が勝てる
+                    let best = [], bestV = -Infinity;
+                    for (const c of moves) {
+                        const cell = cellOf(c);
+                        let v = 0;
+                        for (const li of CELL_LINES[cell]) {
+                            const o = li * 4;
+                            let mine = 0, theirs = 0, vertical = true, flat = true;
+                            for (let k = 0; k < 4; k++) {
+                                const cc = LINE_FLAT[o + k];
+                                if (cells[cc] === p) mine++; else if (cells[cc] === q) theirs++;
+                                if (cc !== cell) { if ((cc & 3) !== (cell & 3) || (cc >> 4) !== (cell >> 4)) vertical = false; if (((cc >> 2) & 3) !== ((cell >> 2) & 3)) flat = false; }
+                            }
+                            if (theirs) {
+                                // 相手が2つ並べた列は、集中しているうちは早めに邪魔をする（止め方のお手本）
+                                if (!mine && theirs === 2) v += T.preBlock * focus;
+                                continue;
+                            }
+                            // まっすぐ（縦の積み上げ・同じ段の横一列）を優先する
+                            const simple = vertical ? 1.6 : flat ? 1.3 : 1.0;
+                            v += (mine === 2 ? 30 : mine === 1 ? 8 : 1) * simple;
+                        }
+                        // 真上に置かれたら負ける手は、集中しているうちは打たない
+                        if (givesWinAbove(c) && Math.random() < focus) v -= 1000;
+                        v += Math.random() * 12;
+                        if (v > bestV + 1e-9) { bestV = v; best = [c]; } else if (Math.abs(v - bestV) < 1e-9) best.push(c);
+                    }
+                    return toXZ(best[Math.floor(Math.random() * best.length)]);
+                }
+
+                if (level === 'normal') {
+                    // ふつう：自分の手と相手の返し（2手先）まで読む。作戦は立てない。
+                    // 中盤からは読みが浅くなったり、手の選び方がぶれたりする
+                    deadline = Date.now() + 2000;
+                    const depth = Math.random() < focus ? 2 : 1;
+                    const r = scoreRoot(moves, depth, p) || moves.map(c => ({ c, v: 0 }));
+                    const safe = r.filter(m => m.v > -MATE);
+                    const pool = safe.length ? safe : r;
+                    const noise = T.noise + (1 - focus) * T.tiredNoise;
+                    let pick = pool[0], bestV = -Infinity;
+                    for (const m of pool) {
+                        const v = Math.max(-5000, Math.min(5000, m.v)) + (Math.random() * 2 - 1) * noise;
+                        if (v > bestV) { bestV = v; pick = m; }
+                    }
+                    return toXZ(pick.c);
+                }
+
+                // ここから「つよい」。見落としはしない
+                if (opWins.length) return toXZ(opWins[0]);
+
+                // 最強：ふつうの読みに加えて「リーチをかけ続けて勝ちきる手順」を深く読む
+                let cand = moves;
+                if (level === 'master') {
+                    vcfNodes = 0; vcfLimit = 150000;
+                    const w = vcf(p, 16);
+                    if (w >= 0) return toXZ(w);                  // 勝ちきれる手順が見つかった
+                    // 置いたあと、相手に勝ちきられる手は選ばない
+                    const safe = [];
+                    for (const c of moves) {
+                        place(c, p);
+                        vcfNodes = 0; vcfLimit = 40000;
+                        const bad = vcf(q, 14) >= 0;
+                        unplace(c, p);
+                        if (!bad) safe.push(c);
+                    }
+                    if (safe.length) cand = safe;
+                    if (cand.length === 1) return toXZ(cand[0]);
+
+                    // さらに、1手ごとに「最後まで読み切れるか」を試す（点数をつけずに勝ち・負けだけを追うので速い）。
+                    // 勝ちが読み切れた手があればそれを打ち、負けが読み切れた手は候補から外す
+                    const solveCap = req.solveCap || 400000;
+                    const empties = CELLS - n0;
+                    const notLost = [];
+                    const solveUntil = Date.now() + (req.solveMs || 3000);   // 遅い端末でも待たせすぎない
+                    deadline = solveUntil;
+                    for (const c of cand) {
+                        if (Date.now() > solveUntil) { notLost.push(c); continue; }
+                        place(c, p);
+                        nodes = 0; nodeLimit = solveCap; aborted = false;
+                        const v = -negamax(empties - 1, -1, 1, q, 1);
+                        const unknown = aborted;
+                        unplace(c, p);
+                        if (!unknown && v > 0) return toXZ(c);       // 勝ちを読み切った
+                        if (unknown || v === 0) notLost.push(c);
+                    }
+                    nodes = 0; aborted = false;
+                    if (notLost.length) cand = notLost;
+                    if (cand.length === 1) return toXZ(cand[0]);
+                }
+
+                // つよい・最強：決まった量だけ深く読む（反復深化＋局面表）
+                // 時間ではなく「読む量」で区切るので、遅いスマホでもパソコンと同じ強さになる
+                // （遅い端末では少し長く考える。ただし最長 maxMs で打ち切る）
+                nodeLimit = req.nodeBudget || (level === 'master' ? 4000000 : 2200000);
+                deadline = Date.now() + (req.maxMs || (level === 'master' ? 5000 : 3500));
+                history[0].fill(0); history[1].fill(0);
+                let best = cand[0], bestV = -Infinity;
+                for (let d = 1; d <= 60; d++) {
+                    // 前回の最善手から読む
+                    const order = [best, ...cand.filter(c => c !== best)];
+                    let alpha = -WIN * 2, curBest = order[0], curV = -Infinity;
+                    for (let i = 0; i < order.length; i++) {
+                        const c = order[i];
+                        place(c, p);
+                        let v = -negamax(d - 1, -WIN * 2, -alpha, q, 1);
+                        unplace(c, p);
+                        if (aborted) break;
+                        if (v > curV) { curV = v; curBest = c; }
+                        if (v > alpha) alpha = v;
+                    }
+                    if (aborted) {
+                        // 途中までで、より良い手が見つかっていれば採用
+                        if (curV > bestV && curV > -Infinity) best = curBest;
+                        break;
+                    }
+                    best = curBest; bestV = curV;
+                    if (bestV > MATE || bestV < -MATE) break;   // 勝ち・負けが読み切れた
+                    if (d >= 64 - req.cells.filter(Boolean).length) break;
+                }
+                return toXZ(best);
+            }
+
+            return { chooseMove, LINES };
+        }
+
+        let aiEngine = null;
+        let aiWorker = null;
+        let aiRequestId = 0;
+        const aiCallbacks = new Map();
+
+        function initAiWorker() {
+            try {
+                const src = 'const createAiEngine = ' + createAiEngine.toString() + ';\n' +
+                    'const E = createAiEngine();\n' +
+                    'onmessage = e => { let mv = null; try { mv = E.chooseMove(e.data.req); } catch (err) {} postMessage({ id: e.data.id, mv }); };';
+                const url = URL.createObjectURL(new Blob([src], { type: 'text/javascript' }));
+                aiWorker = new Worker(url);
+                aiWorker.onmessage = e => {
+                    const cb = aiCallbacks.get(e.data.id);
+                    if (cb) { aiCallbacks.delete(e.data.id); cb(e.data.mv); }
+                };
+                aiWorker.onerror = () => { aiWorker = null; };
+            } catch (err) {
+                aiWorker = null;
+            }
+        }
+
+        function requestAiMove(req, cb) {
+            if (aiWorker) {
+                const id = ++aiRequestId;
+                // Worker が応答しないときは本体で考える
+                const fallback = setTimeout(() => {
+                    if (!aiCallbacks.has(id)) return;
+                    aiCallbacks.delete(id);
+                    cb(computeAiMoveSync(req));
+                }, 12000);
+                aiCallbacks.set(id, mv => { clearTimeout(fallback); cb(mv || computeAiMoveSync(req)); });
+                aiWorker.postMessage({ id, req });
+            } else {
+                cb(computeAiMoveSync(req));
+            }
+        }
+
+        function computeAiMoveSync(req) {
+            if (!aiEngine) aiEngine = createAiEngine();
+            return aiEngine.chooseMove(req);
+        }
+
+        function snapshotForAi() {
+            const cells = new Array(64).fill(0);
+            const heights = new Array(16).fill(0);
+            for (let x = 0; x < BOARD_SIZE; x++) for (let z = 0; z < BOARD_SIZE; z++) {
+                heights[x * 4 + z] = getColumnHeight(x, z);
+                for (let y = 0; y < BOARD_SIZE; y++) cells[x * 16 + y * 4 + z] = board[x][y][z] || 0;
+            }
+            return { cells, heights };
+        }
+
         function triggerAiTurn() {
             isAiThinking = true;
             const myToken = gameToken;
+            const startedAt = performance.now();
+            const snap = snapshotForAi();
 
-            T(() => {
-                // リセット・モード選択に戻ったあとに発火した予約は破棄する
-                if (myToken !== gameToken) return;
-                if (isGameOver || isEndingSequence || currentMode !== 'pve' || turn !== 2) {
-                    isAiThinking = false;
-                    return;
-                }
-
-                let bestMove = null;
-                if (currentDifficulty === 'easy') bestMove = getEasyMove();
-                else if (currentDifficulty === 'normal') bestMove = getNormalMove();
-                else bestMove = getHardMove();
-
-                // 実際に置けたときは、落下完了時の handlePostDropCheck がロックを解除する
-                if (!bestMove || !dropPiece(bestMove.x, bestMove.z)) {
-                    isAiThinking = false;
-                }
-            }, 700);
-        }
-
-        function getEasyMove() {
-            const availableMoves = [];
-            for (let x = 0; x < BOARD_SIZE; x++) {
-                for (let z = 0; z < BOARD_SIZE; z++) {
-                    if (getColumnHeight(x, z) < BOARD_SIZE) availableMoves.push({ x, z });
-                }
-            }
-            if (availableMoves.length > 0) return availableMoves[Math.floor(Math.random() * availableMoves.length)];
-            return null;
-        }
-
-        function getNormalMove() {
-            const availableMoves = getAvailableMovesWithY();
-            if (availableMoves.length === 0) return null;
-
-            // 1. 勝てる手
-            for (const m of availableMoves) {
-                if (simulateWin(m.x, m.y, m.z, 2)) return m;
-            }
-            // 2. 防ぐ手
-            for (const m of availableMoves) {
-                if (simulateWin(m.x, m.y, m.z, 1)) return m;
-            }
-            // ランダム
-            return availableMoves[Math.floor(Math.random() * availableMoves.length)];
-        }
-
-        function getHardMove() {
-            const availableMoves = getAvailableMovesWithY();
-            if (availableMoves.length === 0) return null;
-
-            // 1. 勝てる手
-            for (const m of availableMoves) {
-                if (simulateWin(m.x, m.y, m.z, 2)) return m;
-            }
-            // 2. 防ぐ手
-            for (const m of availableMoves) {
-                if (simulateWin(m.x, m.y, m.z, 1)) return m;
-            }
-            // 3. 打った真上に相手の勝ちを作ってしまう手（自滅手）を除く
-            let safeMoves = availableMoves.filter(m => !givesOpponentWinAbove(m));
-            if (safeMoves.length === 0) safeMoves = availableMoves;
-
-            // 4. 中央優先
-            const preferred = safeMoves.filter(m => (m.x === 1 || m.x === 2) && (m.z === 1 || m.z === 2));
-            if (preferred.length > 0 && Math.random() < 0.8) {
-                return preferred[Math.floor(Math.random() * preferred.length)];
-            }
-            return safeMoves[Math.floor(Math.random() * safeMoves.length)];
-        }
-
-        // その手を打つと、真上のマスに相手が置くだけで負けてしまうか
-        function givesOpponentWinAbove(m) {
-            if (m.y + 1 >= BOARD_SIZE) return false;
-            board[m.x][m.y][m.z] = 2;
-            const bad = simulateWin(m.x, m.y + 1, m.z, 1);
-            board[m.x][m.y][m.z] = 0;
-            return bad;
-        }
-
-        function getAvailableMovesWithY() {
-            const moves = [];
-            for (let x = 0; x < BOARD_SIZE; x++) {
-                for (let z = 0; z < BOARD_SIZE; z++) {
-                    const y = getColumnHeight(x, z);
-                    if (y < BOARD_SIZE) moves.push({ x, y, z });
-                }
-            }
-            return moves;
-        }
-
-        function simulateWin(x, y, z, player) {
-            board[x][y][z] = player;
-            const res = checkWin();
-            board[x][y][z] = 0;
-            return !!res && res.winner === player;
+            requestAiMove({ cells: snap.cells, heights: snap.heights, me: 2, level: currentDifficulty || 'normal' }, mv => {
+                // 考える時間が短くても、最低 0.7 秒は「考え中」を見せる
+                const wait = Math.max(0, 700 - (performance.now() - startedAt));
+                T(() => {
+                    // リセット・モード選択に戻ったあとに届いた結果は破棄する
+                    if (myToken !== gameToken) return;
+                    if (isGameOver || isEndingSequence || currentMode !== 'pve' || turn !== 2) {
+                        isAiThinking = false;
+                        return;
+                    }
+                    // 実際に置けたときは、落下完了時の handlePostDropCheck がロックを解除する
+                    if (!mv || !dropPiece(mv.x, mv.z)) {
+                        isAiThinking = false;
+                    }
+                }, wait);
+            });
         }
 
         function setupEventListeners() {
@@ -1456,7 +2251,6 @@
             container.addEventListener('pointermove', onPointerMove);
             window.addEventListener('pointerup', onPointerUp);
             window.addEventListener('pointercancel', onPointerUp);
-            container.addEventListener('wheel', onWheelZoom, { passive: false });
 
             // Pointer Event だけだと iPad で長押しルーペ・スクロールが残る
             container.addEventListener('touchstart', e => e.preventDefault(), { passive: false });
@@ -1480,18 +2274,6 @@
         // 2本指のピンチ（拡大縮小）用
         const activePointers = new Map();
         let isPinching = false;
-        let pinchStartDist = 0;
-        let pinchStartRadius = 0;
-
-        function clampCameraRadius(r) {
-            return Math.max(10, Math.min(26, r));
-        }
-
-        function pointerDistance() {
-            const pts = Array.from(activePointers.values());
-            if (pts.length < 2) return 0;
-            return Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
-        }
 
         function onPointerDown(e) {
             if (isEndingSequence) return; // 演出中は入力をシャットアウト
@@ -1501,14 +2283,14 @@
 
             // 2本目の指が触れたらピンチに切り替える（回転は止め、タップ判定も無効にする）
             if (activePointers.size >= 2) {
+                camTween = null;
                 isPinching = true;
                 isPointerActive = false;
                 hasDragged = true;
-                pinchStartDist = pointerDistance();
-                pinchStartRadius = cameraRadius;
                 return;
             }
 
+            camTween = null;   // 自動カメラ移動中に触られたら操作を優先する
             isPointerActive = true;
             activePointerId = e.pointerId;
             hasDragged = false;
@@ -1527,14 +2309,7 @@
                 activePointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
             }
 
-            if (isPinching) {
-                const dist = pointerDistance();
-                if (dist > 0 && pinchStartDist > 0) {
-                    cameraRadius = clampCameraRadius(pinchStartRadius * (pinchStartDist / dist));
-                    updateCameraPosition();
-                }
-                return;
-            }
+            if (isPinching) return;   // 2本指のあいだは回転もタップもしない（拡大縮小は無し）
 
             updateMouseCoords(e.clientX, e.clientY);
 
@@ -1595,12 +2370,7 @@
             }
         }
 
-        function onWheelZoom(e) {
-            e.preventDefault();
-            cameraRadius = clampCameraRadius(cameraRadius + (e.deltaY > 0 ? 1 : -1));
-            updateCameraPosition();
-        }
-
+        let hoverRetryPending = false;
         function updatePreviewHover() {
             if (isGameOver || isAiThinking || isEndingSequence || screenGame.classList.contains('hidden')) {
                 if (previewSphere) previewSphere.visible = false;
@@ -1608,6 +2378,17 @@
             }
 
             const activeMat = turn === 1 ? previewMatP1 : previewMatP2;
+
+            // 着地した直後に、次のゴーストが同じ場所へ重なって出ると不自然なので少し待つ
+            if (performance.now() - lastLandAt < 450) {
+                if (previewSphere) previewSphere.visible = false;
+                if (!hoverRetryPending) {
+                    hoverRetryPending = true;
+                    const gTok = gameToken;
+                    T(() => { hoverRetryPending = false; if (gTok === gameToken) updatePreviewHover(); }, 470);
+                }
+                return;
+            }
 
             if (selectedColumn) {
                 const spacing = 1.6;
@@ -1678,6 +2459,7 @@
                 if (rw > 0 && rh > 0) {
                     ruleCamera.aspect = rw / rh;
                     ruleCamera.updateProjectionMatrix();
+                    updateRuleCameraPosition();
                     ruleRenderer.setSize(rw, rh);
                 }
             }
@@ -1704,59 +2486,102 @@
             }
         }
 
-        // --- 落下の物理は固定ステップで進める ---
-        // フレーム数で進めると、120Hzの端末では倍速、動作の重い端末では
-        // いつまでも落ちてこない（＝入力ロックが長引く）ためターン制が崩れる。
-        const PHYSICS_STEP = 1 / 60;
-        let physicsAccumulator = 0;
-        let lastFrameTime = performance.now();
+        // --- 落下アニメーション（時間で計算するので、60Hz・120Hz・重い端末でも同じ速さ） ---
+        // 重力で加速しながら落ち、着地でほんのわずかに跳ねて止まる（木なので弾まない・形も変わらない）
+        const DROP_G = 200;                      // 重力の強さ（大きいほど速く落ちる）
+        const DROP_V0 = 5;                       // 離した瞬間の初速（0だと最初が「止まって見える」ため）
+        const DROP_BOUNCES = [0.05];             // 着地後のごく小さなはね
+        const DROP_SETTLE = 0.02;
 
-        function stepFallingPieces() {
+        function dropTimeline(dist) {
+            const d = Math.max(dist, 0.01);
+            const fall = (-DROP_V0 + Math.sqrt(DROP_V0 * DROP_V0 + 2 * DROP_G * d)) / DROP_G;
+            const hops = DROP_BOUNCES.map(h => 2 * Math.sqrt(2 * h / DROP_G));
+            return { fall, hops, total: fall + hops.reduce((p, c) => p + c, 0) + DROP_SETTLE };
+        }
+
+        // t 秒後の高さ（着地点からの差）
+        function dropState(ud, t) {
+            const dist = ud.startY - ud.targetY;
+            const tl = ud.timeline || (ud.timeline = dropTimeline(dist));
+            if (t < tl.fall) return { dy: dist - DROP_V0 * t - 0.5 * DROP_G * t * t };
+            let tt = t - tl.fall;
+            for (let i = 0; i < tl.hops.length; i++) {
+                const d = tl.hops[i];
+                if (tt < d) {
+                    const v0 = DROP_G * d / 2;
+                    return { dy: v0 * tt - 0.5 * DROP_G * tt * tt };
+                }
+                tt -= d;
+            }
+            return { dy: 0 };
+        }
+
+        let lastLandAt = 0;
+        function updateFallingPieces(now) {
             spheres.forEach(sphere => {
                 const ud = sphere.userData;
                 if (!ud.isFalling) return;
 
-                if (sphere.position.y > ud.targetY) {
-                    ud.velocity += ud.gravity;
-                    sphere.position.y -= ud.velocity;
-                    if (sphere.position.y <= ud.targetY) {
-                        sphere.position.y = ud.targetY;
-                        if (ud.bounces < 2) {
-                            ud.velocity = -ud.velocity * ud.bounce;
-                            sphere.position.y += 0.05;
-                            ud.bounces++;
-                        } else { 
-                            ud.velocity = 0; 
-                        }
-                    }
-                }
+                const t = (now - ud.dropStart) / 1000;
+                const st = dropState(ud, t);
+                sphere.position.y = ud.targetY + st.dy;
 
-                // バウンドも含めて完全にその場で静止したかを検出
-                if (sphere.position.y === ud.targetY && ud.velocity === 0) {
+                // 木の球はつぶれないので、形は変えず、ごく小さくはねるだけにする
+
+                if (t >= ud.timeline.total) {
+                    sphere.position.y = ud.targetY;
+                    sphere.scale.set(1, 1, 1);
                     ud.isFalling = false; // 落下の完了
+                    lastLandAt = performance.now();
+                    showLastMoveMarker(sphere);
                     handlePostDropCheck(ud.gridX, ud.gridY, ud.gridZ); // 勝利判定 & ターン交代を起動
                 }
             });
+        }
+
+        // --- 最後に置かれた球の目印（コンピューターがどこに置いたか分かるように） ---
+        let lastMoveMarker = null;
+        function showLastMoveMarker(sphere) {
+            if (!lastMoveMarker) {
+                const geo = new THREE.TorusGeometry(BEAD_OUTER_RADIUS * 1.22, 0.07, 12, 48);
+                const mat = new THREE.MeshBasicMaterial({ color: 0xff9f1c, transparent: true, opacity: 0.0, depthWrite: false });
+                lastMoveMarker = new THREE.Mesh(geo, mat);
+                lastMoveMarker.rotation.x = Math.PI / 2;
+                lastMoveMarker.renderOrder = 2;
+                lastMoveMarker.visible = false;
+                scene.add(lastMoveMarker);
+            }
+            if (!sphere || isEndingSequence || isGameOver) { lastMoveMarker.visible = false; return; }
+            lastMoveMarker.position.copy(sphere.position);
+            lastMoveMarker.userData.shownAt = performance.now();
+            lastMoveMarker.visible = true;
+        }
+
+        function updateLastMoveMarker(now) {
+            if (!lastMoveMarker || !lastMoveMarker.visible) return;
+            if (isEndingSequence || isGameOver) { lastMoveMarker.visible = false; return; }
+            const t = (now - lastMoveMarker.userData.shownAt) / 1000;
+            // ふわっと広がって現れ、そのあとは控えめに呼吸する
+            const appear = Math.min(1, t / 0.35);
+            const s = 0.7 + 0.3 * (1 - Math.pow(1 - appear, 3));
+            lastMoveMarker.scale.set(s, s, s);
+            lastMoveMarker.material.opacity = appear * (0.8 + Math.sin(t * 3) * 0.15);
         }
 
         function animate() {
             requestAnimationFrame(animate);
 
             const now = performance.now();
-            let frameDelta = (now - lastFrameTime) / 1000;
-            lastFrameTime = now;
-            if (frameDelta > 0.25) frameDelta = 0.25; // 別タブから戻った直後の大ジャンプを抑える
 
             // スタート画面表示中なら3D描画の計算をスキップして軽量化
             if (!screenGame.classList.contains('hidden')) {
-                physicsAccumulator += frameDelta;
-                let steps = 0;
-                while (physicsAccumulator >= PHYSICS_STEP && steps < 12) {
-                    stepFallingPieces();
-                    physicsAccumulator -= PHYSICS_STEP;
-                    steps++;
-                }
-                if (physicsAccumulator > PHYSICS_STEP * 12) physicsAccumulator = 0;
+                updateFallingPieces(now);
+                updateLastMoveMarker(now);
+
+                updateCameraTween(now);
+                updateViewScaleTween(now);
+                updateWinFx(now);
 
                 spheres.forEach(sphere => {
                     const ud = sphere.userData;
@@ -1764,7 +2589,7 @@
                     if (ud.isWinnerPiece && sphere.material && sphere.material.emissive) {
                         const time = Date.now() * 0.003;
                         // 白・黒共通で、色飛びしない低い範囲（0.25〜0.45）でしっとりと明滅させる
-                        sphere.material.emissiveIntensity = 0.35 + Math.sin(time) * 0.1;
+                        sphere.material.emissiveIntensity = 0.55 + Math.sin(time) * 0.15;
                     }
                 });
 
@@ -1788,35 +2613,11 @@
         //  実機（iPhone / iPad）向けの対策
         // =====================================================
 
-        // スタート画面の中身を、画面に収まる最大の大きさへ拡大縮小する
-        // （PCの大きい画面で小さく固まらず、スマホ横・低いウィンドウでもはみ出さない）
-        function fitStart() {
-            const scr = document.getElementById('screen-start');
-            const sizer = document.getElementById('start-sizer');
-            const inner = document.getElementById('start-inner');
-            if (!scr || !sizer || !inner || scr.classList.contains('hidden')) return;
-            const cs = getComputedStyle(scr);
-            const aw = scr.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
-            const ah = scr.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom);
-            const portrait = scr.clientHeight > scr.clientWidth;
-            inner.classList.toggle('start-portrait', portrait);
-            inner.style.transform = 'none';
-            inner.style.width = `${Math.max(240, Math.min(portrait ? 448 : 672, aw))}px`;
-            const w = inner.offsetWidth, h = inner.offsetHeight;
-            if (!w || !h) return;
-            // 縦に入りきらないときは縮小。ただし小さくなりすぎる場合は縦スクロールにまかせる
-            const s = Math.max(0.78, Math.min(aw / w, ah / h, 1.9));
-            inner.style.transform = `scale(${s})`;
-            sizer.style.width = `${Math.round(w * s)}px`;
-            sizer.style.height = `${Math.round(h * s)}px`;
-        }
-
         // 画面の高さを実測値で確定させる（iOSのツールバーで下が切れるのを防ぐ）
         function setAppHeight() {
             const h = window.visualViewport ? window.visualViewport.height : window.innerHeight;
             if (h > 0) document.documentElement.style.setProperty('--app-h', `${Math.round(h)}px`);
             onWindowResize();
-            fitStart();
         }
         setAppHeight();
         ['resize', 'pageshow'].forEach(t => window.addEventListener(t, setAppHeight));
@@ -1830,6 +2631,14 @@
         ['gesturestart', 'gesturechange', 'gestureend'].forEach(type => {
             document.addEventListener(type, (e) => e.preventDefault(), { passive: false });
         });
+
+        // PC・タッチパッド・タッチ画面でのページ拡大も止める
+        //  - Ctrl+ホイール（タッチパッドのピンチもこれとして届く）
+        window.addEventListener('wheel', (e) => { if (e.ctrlKey) e.preventDefault(); }, { passive: false });
+        //  - 2本指以上のタッチ（ボタン上など、盤面以外で始まったピンチも含む）
+        document.addEventListener('touchmove', (e) => { if (e.touches && e.touches.length > 1) e.preventDefault(); }, { passive: false });
+        //  - ダブルクリック／ダブルタップ
+        document.addEventListener('dblclick', (e) => e.preventDefault());
 
         // それでも拡大されてしまった時の保険：等倍にスナップバックさせる
         function resetZoomIfNeeded() {
