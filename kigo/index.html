@@ -2018,6 +2018,7 @@
 
         .poet { position: relative; }
         .poet.fresh { animation: poetPop 1.1s cubic-bezier(.2, 1.5, .4, 1) .3s both; }
+        .poet.fresh { z-index: 1; }   /* 動きをつけると 重なり順が変わり、下の線が 絵の上に のって 透けて見えるのを ふせぐ */
         @keyframes poetPop { 0% { transform: translateY(40px) scale(.3); opacity: 0; } 60% { transform: translateY(-14px) scale(1.12); opacity: 1; } 100% { transform: none; opacity: 1; } }
         .poet .newtag { position: absolute; top: 4px; right: 4px; padding: 2px 8px; border-radius: 99px; background: var(--shu); color: #fff; font: 900 11px var(--gothic); letter-spacing: .08em; box-shadow: 0 2px 0 #7d2218; animation: giftPulse 1.2s ease-in-out infinite; }
         @media (prefers-reduced-motion: reduce) { .poet.fresh, .poet .newtag { animation: none; } }
@@ -2164,6 +2165,14 @@
 .season-pick-btn.picked img { filter: none; box-shadow: 0 0 0 3px #fff, 0 0 0 6px var(--season-color), 0 0 18px 6px color-mix(in srgb, var(--season-color) 55%, transparent), 0 10px 14px #0003; }
 @keyframes seasonPulse { 0%, 100% { transform: translateY(-2px) scale(1.03); } 50% { transform: translateY(-3px) scale(1.05); } }
 .pick h4 { margin-bottom: 12px; }   /* えらんだカードの光る わくが 見出しに かからないように */
+/* 横長の画面：左の列を広くしたぶん、カードの間が あきすぎるので、2まいずつ まん中に よせる */
+@media (min-width: 560px) and (min-aspect-ratio: 1/1) {
+  #season-pick-group:not(.has-newyear) { column-gap: 14px; }
+  #season-pick-group:not(.has-newyear) .season-pick-btn:nth-child(odd) img { left: auto; right: 0; transform: translateY(-50%); }
+  #season-pick-group:not(.has-newyear) .season-pick-btn:nth-child(even) img { left: 0; transform: translateY(-50%); }
+  #season-pick-group:not(.has-newyear) .season-pick-btn:nth-child(odd) { transform-origin: 100% 50%; }
+  #season-pick-group:not(.has-newyear) .season-pick-btn:nth-child(even) { transform-origin: 0 50%; }
+}
 #season-pick-group:has(.picked) .season-pick-btn:not(.picked) { opacity: .38; filter: saturate(.3) brightness(.97); }
 .pick h4 .sh-pick { display: inline-block; font-size: 1.1em; line-height: 1.15; padding: 0 .35em .04em; margin: 0 .1em; border-radius: 8px; color: #fff; background: var(--shu); animation: shPop .35s cubic-bezier(.2, 1.6, .4, 1); }
 .pick h4 .sh-pick[data-s="春"] { background: #d95a85; } .pick h4 .sh-pick[data-s="夏"] { background: #2f9a86; }
@@ -5367,6 +5376,23 @@ html.crt-run, html.crt-run body { background: #000 !important; overflow: hidden;
             img.src = src;
         }
         // 画面の中の シルエットの img を、なめらかな版に さしかえる（まだ同じ絵を出しているときだけ）
+        // カラーの絵：ふちの 灰色のつぶつぶ（ギザギザ）を けして、なめらかな 白いふちに した版に さしかえる
+        function colSmoothSrc(src) { try { const r = (typeof puSilCache !== 'undefined') && puSilCache[src]; return (r && r.col) || src; } catch (e) { return src; } }
+        function smoothColImgs(root) {
+            if (typeof puSmoothSil !== 'function') return;
+            const list = Array.from((root || document).querySelectorAll('img[data-col]')).filter(el => el.dataset.colDone !== el.getAttribute('data-col'));
+            let k = 0;
+            const next = () => {   // 1人ずつ じゅんばんに（いっぺんに 作ると 重くなるので）
+                const el = list[k++];
+                if (!el) return;
+                const src = el.getAttribute('data-col');
+                puSmoothSil(src, res => {
+                    if (res && res.col && el.getAttribute('data-col') === src) { el.src = res.col; el.dataset.colDone = src; }
+                    setTimeout(next, 30);
+                });
+            };
+            setTimeout(next, 400);
+        }
         function smoothSilImgs(root) {
             (root || document).querySelectorAll('img[data-sil]').forEach(el => {
                 const src = el.getAttribute('data-sil');
@@ -5403,11 +5429,12 @@ html.crt-run, html.crt-run body { background: #000 !important; overflow: hidden;
                 const met = !e.un && isPoetMet(e.author);
                 const prog = !e.un ? '<small>' + (miniGot(e.author) + '/' + miniNeed(e.author)) + '</small>' : '';
                 html += '<button type="button" class="poet' + (e.un ? ' on' : met ? ' lock met' : ' lock') + (e.fresh ? ' fresh' : '') + '" onclick="' + (e.mini ? 'openMiniPoet(' : 'openPoetLog(') + e.i + ')" aria-label="' + escapeHtml(e.author) + 'の俳句を見る">' +
-                        (e.src ? '<img src="' + (!e.un && silSmoothCache[e.src] ? silSmoothCache[e.src] : e.src) + '"' + (e.un ? '' : ' data-sil="' + e.src + '"') + ' alt="" style="--k:' + (IMG_SCALE[e.author] || 1) + '">' : '<i class="sealface">' + MINI_POETS[e.author].seal + '</i>') +
-                        '<span class="nm">' + (e.fresh ? '<b class="newtag">NEW</b>' : '') + (e.un ? escapeHtml(e.name) + '<em>GET</em>' : met ? escapeHtml(e.name) + prog : '？？？' + prog) + '</span>' + '</button>';
+                        (e.src ? '<img src="' + (!e.un && silSmoothCache[e.src] ? silSmoothCache[e.src] : (e.un ? colSmoothSrc(e.src) : e.src)) + '"' + (e.un ? ' data-col="' + e.src + '"' : ' data-sil="' + e.src + '"') + ' alt="" style="--k:' + (IMG_SCALE[e.author] || 1) + '">' : '<i class="sealface">' + MINI_POETS[e.author].seal + '</i>') +
+                        '<span class="nm">' + (e.fresh ? '<b class="newtag">NEW</b>' : '') + (e.un ? escapeHtml(e.name) : met ? escapeHtml(e.name) + prog : '？？？' + prog) + '</span>' + '</button>';
             });
             box.innerHTML = html + '</div>';
             smoothSilImgs(box);
+            smoothColImgs(box);
             // いちばん新しい俳人（左はし）が見えるように、左から見せる
             requestAnimationFrame(() => { box.scrollLeft = 0; });
             const c = document.getElementById('zukan-count'); if (c) c.textContent = open.length;
