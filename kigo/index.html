@@ -370,10 +370,9 @@
         /* クレジット：スマホは まん中に、こい色で。PCは 左の紺の帯の下に、明るい色で */
         #title-version { position: absolute; left: 0; right: 0; text-align: center; bottom: max(2px, env(safe-area-inset-bottom, 0px)); z-index: 2; font: 700 11px/1.2 var(--gothic); letter-spacing: .06em; color: #4a4237; pointer-events: none; white-space: nowrap; }
         @media (min-width: 560px) and (min-aspect-ratio: 1/1) {
-            /* 左の紺の帯（.t-left と同じ幅）の中で、まん中に。帯がせまいときは2行にする */
-            #title-version { left: 0; right: auto; width: clamp(210px, 17vw, 270px); box-sizing: border-box; padding: 0 8px; text-align: center; white-space: normal; line-height: 1.6; bottom: max(8px, env(safe-area-inset-bottom, 0px)); color: #fbf3dc; font-size: 12px; text-shadow: 0 1px 2px #0a1428, 0 0 6px #0a1428; }
-            /* 帯の中は2行：「四季を、詠む」／「ver ｜ ota tools」 */
-            #title-version .tv-a { display: block; } #title-version .tv-sep { display: none; }
+            /* 左の紺の帯（.t-left と同じ幅）の中で、まん中に。1行で出す */
+            #title-version { left: 0; right: auto; width: clamp(210px, 17vw, 270px); box-sizing: border-box; padding: 0 4px; text-align: center; white-space: nowrap; letter-spacing: 0; line-height: 1.6; bottom: max(8px, env(safe-area-inset-bottom, 0px)); color: #fbf3dc; font-size: 12px; text-shadow: 0 1px 2px #0a1428, 0 0 6px #0a1428; }
+            #title-version { font-size: clamp(9.5px, .79vw, 12px); }
         }
 
         :root {
@@ -2606,6 +2605,10 @@ html.crt-run, html.crt-run body { background: #000 !important; overflow: hidden;
 /* ===== 光るふちは絵の中に焼きこんだので、CSSのフィルター（端末によって四角く切れる）は つかわない ===== */
 #pu-stage .pus-in img.pus-col { position: relative; left: auto; top: auto; display: block; height: 100%; width: auto; filter: none; opacity: 0; }
 #pu-stage.p2 .pus-in img.pus-col { opacity: 1; }
+#pu-stage .pus-in img.pus-glw { position: absolute; left: 0; top: 0; width: 100%; height: 100%; max-width: none; filter: none; opacity: 0; pointer-events: none; }
+#pu-stage.p2 .pus-in img.pus-glw { animation: pusGlw 1.5s ease-in-out .2s infinite alternate both; }   /* 絵の うしろで 金色に光る（ふちの ギザギザを かくす） */
+@keyframes pusGlw { from { opacity: .75; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { #pu-stage.p2 .pus-in img.pus-glw { animation: none; opacity: 1; } }
 #pu-stage .pus-in img.pus-sil { position: absolute; left: 0; top: 0; width: 100%; height: 100%; max-width: none; filter: brightness(0); }
 #pu-stage .pus-tw { filter: none; }
 #pu-stage .pus-in::after { content: ""; position: absolute; left: 12%; right: 12%; bottom: -3%; height: 7%; border-radius: 50%; background: radial-gradient(ellipse at center, rgba(0,0,0,.4), transparent 70%); z-index: -1; opacity: 0; }
@@ -2767,7 +2770,7 @@ html.crt-run, html.crt-run body { background: #000 !important; overflow: hidden;
                 </div>
             </div>
         </div>
-        <div id="title-version" aria-hidden="true"><span class="tv-a">四季を、詠む<span class="tv-sep"> ｜ </span></span><span class="tv-b">ver.0.21 ｜ ota tools</span></div>
+        <div id="title-version" aria-hidden="true"><span class="tv-a">四季を、詠む<span class="tv-sep"> ｜ </span></span><span class="tv-b">ver.0.22 ｜ ota tools × kita</span></div>
     </div>
 
     <!-- ===================== 出題・正解画面 ===================== -->
@@ -4892,6 +4895,7 @@ html.crt-run, html.crt-run body { background: #000 !important; overflow: hidden;
                     // 色を にじませる用（透明度で重みをつけた色）
                     const cr = new Float32Array(n), cg = new Float32Array(n), cb = new Float32Array(n), ca = new Float32Array(n);
                     const sm = new Float32Array(n);                       // なめらかにした 新しい透明度
+                    const ed = new Float32Array(n);
                     const steps = [
                         () => blur2D(a, t), () => blur2D(a, t),          // 2回かけて ガウスぼかしに近づける
                         () => {
@@ -4906,12 +4910,16 @@ html.crt-run, html.crt-run body { background: #000 !important; overflow: hidden;
                         },
                         () => { blur2D(cr, t); blur2D(cg, t); },
                         () => { blur2D(cb, t); blur2D(ca, t); },
+                        () => { ed.set(sm); blur2D(ed, t); },            // ふちからの きょり（白くぬる はばを きめる）
                         () => {   // カラーの絵
                             for (let i = 0; i < n; i++) {
                                 const j = i * 4;
                                 if (a0[i] < 0.9 && ca[i] > 0.001) {      // ふちの外がわ・にじみ：となりの不透明な色で ぬりなおす
                                     px[j] = cr[i] / ca[i]; px[j + 1] = cg[i] / ca[i]; px[j + 2] = cb[i] / ca[i];
                                 }
+                                // いちばん外の ふちは 白でぬる（もとの絵の ふちにある 灰色のつぶつぶ＝ギザギザを 消す）
+                                let wv = (0.9 - ed[i]) / 0.3; wv = wv < 0 ? 0 : (wv > 1 ? 1 : wv);
+                                if (wv > 0) { px[j] += (255 - px[j]) * wv; px[j + 1] += (250 - px[j + 1]) * wv; px[j + 2] += (238 - px[j + 2]) * wv; }
                                 px[j + 3] = Math.round(sm[i] * 255);
                             }
                             x.putImageData(d, 0, 0);
@@ -4930,10 +4938,20 @@ html.crt-run, html.crt-run body { background: #000 !important; overflow: hidden;
                             y.shadowColor = 'rgba(143,168,255,0.95)'; y.shadowBlur = P * 0.3; y.drawImage(c, P, P);
                             y.shadowColor = '#ffffff'; y.shadowBlur = 2.5 * S; y.drawImage(c, P, P);
                             y.shadowColor = 'transparent'; y.shadowBlur = 0; y.drawImage(c, P, P);
+                            // 金色に 光る うしろの光（白い ふちを 太らせて、ギザギザを うめる）
+                            for (let i = 0; i < n; i++) { const j = i * 4; px[j] = 255; px[j + 1] = 255; px[j + 2] = 255; }
+                            x.putImageData(d, 0, 0);
+                            const g = document.createElement('canvas'); g.width = w + P * 2; g.height = h + P * 2;
+                            const z = g.getContext('2d');
+                            z.shadowColor = 'rgba(255,180,70,0.55)'; z.shadowBlur = P * 0.9; z.drawImage(c, P, P);
+                            z.shadowColor = 'rgba(255,214,110,0.9)'; z.shadowBlur = P * 0.28; z.drawImage(c, P, P);
+                            z.shadowColor = '#fffbe8'; z.shadowBlur = 4 * S; z.drawImage(c, P, P); z.drawImage(c, P, P);
+                            z.shadowColor = 'transparent'; z.shadowBlur = 0; z.drawImage(c, P, P);
+                            const glow = g.toDataURL('image/png'); g.width = g.height = 0;
                             const col = puSilCache['col:' + src]; delete puSilCache['col:' + src];
                             c.width = c.height = 0;                       // 作業用のキャンバスは すぐ手放す（iPadのメモリ対策）
                             const url = o.toDataURL('image/png'); o.width = o.height = 0;
-                            finish({ url, col, px: P / w, py: P / h });
+                            finish({ url, col, glow, px: P / w, py: P / h });
                         }
                     ];
                     let k = 0;
@@ -4960,7 +4978,7 @@ html.crt-run, html.crt-run body { background: #000 !important; overflow: hidden;
             const nm = escapeHtml(author);
             let fig;
             if (artSrc) {
-                fig = '<img class="pus-sil" src="' + artSrc + '" alt=""><img class="pus-col" src="' + artSrc + '" alt="">';
+                fig = '<img class="pus-glw" src="data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==" alt=""><img class="pus-sil" src="' + artSrc + '" alt=""><img class="pus-col" src="' + artSrc + '" alt="">';
             } else {
                 fig = '<span class="pus-seal pus-sil">？</span><span class="pus-seal pus-col" style="--seal:' + (mini ? mini.color : '#c0392b') + '">' + (mini ? mini.seal : '') + '</span>';
             }
@@ -4982,6 +5000,9 @@ html.crt-run, html.crt-run body { background: #000 !important; overflow: hidden;
                 // カラーの絵も、ふちを なめらかにした版に さしかえる（大きさ・縦横の比は もとの絵と同じ）
                 const ci = st.dataset.seq === String(myStage) ? st.querySelector('img.pus-col') : null;
                 if (ci && res && res.col) ci.src = res.col;
+                // うしろで 金色に光る絵（ふちのギザギザを かくす）
+                const gi = st.dataset.seq === String(myStage) ? st.querySelector('img.pus-glw') : null;
+                if (gi && res && res.glow) { gi.src = res.glow; gi.style.cssText = 'left:' + (-res.px * 100).toFixed(3) + '%;top:' + (-res.py * 100).toFixed(3) + '%;width:' + ((1 + 2 * res.px) * 100).toFixed(3) + '%;height:' + ((1 + 2 * res.py) * 100).toFixed(3) + '%'; }
             });
             clearTimeout(puT1); clearTimeout(puT2); clearTimeout(puT3);
             st.className = fromBlack ? 'p1 crtin' : 'p1';
